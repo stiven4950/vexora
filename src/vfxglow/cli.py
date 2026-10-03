@@ -4,10 +4,24 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 from pathlib import Path
 
 from vfxglow import __version__
 from vfxglow.pipeline import Pipeline
+
+
+def load_env_file(path: Path) -> None:
+    """Lee líneas CLAVE=valor de un .env local. No pisa variables ya definidas en el entorno."""
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.removeprefix("export ").strip()
+        os.environ.setdefault(key, value.strip().strip('"').strip("'"))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -46,6 +60,7 @@ def main(argv: list[str] | None = None) -> int:
     add_common(sub.add_parser("compose", help="Mezcla las capas sobre el video original"))
 
     args = parser.parse_args(argv)
+    load_env_file(Path(".env"))
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     pipeline = Pipeline(
         args.config,

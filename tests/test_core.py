@@ -175,3 +175,19 @@ def test_code_fingerprint_is_stable_and_scoped() -> None:
     assert code_fingerprint("engine") == code_fingerprint("engine")
     assert code_fingerprint("engine") != code_fingerprint("composite")
     assert code_fingerprint("geom.py") != code_fingerprint("engine", "geom.py")
+
+
+def test_env_file_loads_without_overriding(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from vfxglow.cli import load_env_file
+
+    env = tmp_path / ".env"
+    env.write_text('# comentario\nVFX_TEST_A="uno"\nexport VFX_TEST_B=dos\nVFX_TEST_C=nuevo\n', encoding="utf-8")
+    monkeypatch.delenv("VFX_TEST_A", raising=False)
+    monkeypatch.delenv("VFX_TEST_B", raising=False)
+    monkeypatch.setenv("VFX_TEST_C", "existente")
+    load_env_file(env)
+    import os
+
+    assert os.environ["VFX_TEST_A"] == "uno"
+    assert os.environ["VFX_TEST_B"] == "dos"
+    assert os.environ["VFX_TEST_C"] == "existente"
