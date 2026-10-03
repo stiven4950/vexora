@@ -1,0 +1,11 @@
+id: heart
+tags:
+- heart
+- love
+anchor: head
+scale: 0.55
+viewbox:
+- 0
+- 0
+- 100
+- 100

@@ -1,0 +1,98 @@
+version: "1.0"
+device: auto
+
+paths:
+  models_dir: models
+  runs_dir: runs
+
+analysis:
+  level: fast
+  store_face: true
+  min_confidence: 0.35
+  max_gap: 6
+  one_euro:
+    min_cutoff: 1.2
+    beta: 0.04
+    d_cutoff: 1.0
+  mediapipe:
+    pose_variant: full
+    detection_confidence: 0.5
+    tracking_confidence: 0.5
+    num_poses: 2
+  hq:
+    yolo_model: yolo11n.pt
+    pose_mode: balanced
+    enable_objects: false
+    object_confidence: 0.35
+  flow:
+    enabled: false
+    method: auto
+  masks:
+    sam2_model_cfg: configs/sam2.1/sam2.1_hiera_s.yaml
+    sam2_checkpoint: models/sam2.1_hiera_small.pt
+  objects:
+    enabled: true          # requiere el extra `objects` (ultralytics); si falta, se omite con aviso
+    model: yolo11n.pt
+    confidence: 0.35
+    labels_of_interest: [] # vacío = cualquier clase excepto persona
+    stride: 2              # detecta cada N fotogramas; los intermedios se interpolan
+  events:
+    swing_speed: 0.22      # torsos por fotograma
+    swing_frames: 3
+    impact_decel: 0.14
+    contact_hold: 6
+    contact_radius: 0.35   # fracción del torso
+    held_frames: 24
+    turn_rate_deg: 6.0
+    jump_rise: 0.05
+    open_threshold: 0.62
+    closed_threshold: 0.38
+    glitch_speed: 2.5      # por encima de esto la muestra es un salto del tracker
+    glitch_jump: 0.18      # salto normalizado por fotograma que invalida la muestra
+  beats:
+    enabled: true
+    cut_correlation: 0.86
+    min_beat: 8
+  scene:
+    enabled: true
+    provider: openai
+    model: gpt-5-mini
+    api_key_env: OPENAI_API_KEY
+
+director:
+  provider: preset
+  preset: avatar_fire
+  model: gpt-5            # una llamada por video; la respuesta se guarda en scripts/director_cache
+  api_key_env: OPENAI_API_KEY
+  temperature: 0.4        # se ignora en modelos de razonamiento (gpt-5, o-series)
+  max_tokens: 8000        # incluye el razonamiento
+  style: artist           # artist: plan por beats con dibujos propios; script: Effect Script directo
+  images: 4               # fotogramas clave en baja resolución que ve el director
+  reasoning_effort: low
+
+engine:
+  history: 18
+  max_particles: 400
+  face_hold: 8            # fotogramas que se mantiene la cara si el detector la pierde
+  keep_layers: false      # true guarda cada capa en disco (~7 MB por fotograma y efecto)
+
+refiner:
+  enabled: false
+  model_id: runwayml/stable-diffusion-inpainting
+  controlnet_id: lllyasviel/control_v11p_sd15_openpose
+  strength: 0.4
+  keyframe_stride: 8
+  steps: 12
+  guidance_scale: 7.5
+  dilate_px: 10
+
+composite:
+  codec: h264
+  crf: 18
+  soft_knee: 0.85
+  groups:                # capas RGBA activables sin volver a renderizar
+    grade: true
+    glow: true
+    particles: true
+    interaction: true
+    lightning: true

@@ -1,0 +1,156 @@
+version: "1.0"
+title: Avatar Fire
+theme: avatar_fire
+seed: 7
+grade:
+  bloom_radius: 22
+  bloom_threshold: 1.05
+  bloom_intensity: 0.95
+  soft_knee: 0.72
+effects:
+  - id: fire_trail_right
+    type: trail
+    target:
+      kind: joint
+      id: right_wrist
+    time:
+      start_frame: 0
+      end_frame: -1
+      fade_in: 4
+      fade_out: 8
+    style:
+      preset: fire_orange
+      intensity: 0.95
+      colors:
+        - [1.0, 0.92, 0.55]
+        - [1.0, 0.38, 0.04]
+        - [0.35, 0.02, 0.0]
+      thickness: 0.09
+      hdr_gain: 3.2
+      noise:
+        scale: 36
+        speed: 1.5
+        octaves: 4
+        amplitude: 0.45
+      seed_offset: 1
+    render:
+      blend: add
+      motion_blur: 0.55
+      occlude: false
+      group: glow
+      persistence: 0.35
+      glow_layers: 3
+    refine:
+      enabled: false
+      prompt: "cinematic fire trail, embers, hot core, transparent background"
+      strength: 0.35
+      keyframe_stride: 8
+  - id: fire_particles_right
+    type: particles
+    target:
+      kind: joint
+      id: right_wrist
+    time:
+      start_frame: 0
+      end_frame: -1
+      fade_in: 2
+      fade_out: 6
+    style:
+      preset: fire_orange
+      intensity: 0.9
+      colors:
+        - [1.0, 0.95, 0.7]
+        - [1.0, 0.42, 0.05]
+        - [0.55, 0.05, 0.0]
+      thickness: 0.07
+      hdr_gain: 2.8
+      noise:
+        scale: 24
+        speed: 1.2
+        octaves: 3
+        amplitude: 0.5
+      seed_offset: 2
+    render:
+      blend: add
+      motion_blur: 0.65
+      occlude: false
+      group: particles
+      persistence: 0.2
+      glow_layers: 2
+    refine:
+      enabled: false
+      prompt: ""
+      strength: 0.4
+      keyframe_stride: 8
+  - id: fire_ribbon_right_arm
+    type: ribbon
+    target:
+      kind: chain
+      id: right_arm
+    time:
+      start_frame: 0
+      end_frame: -1
+      fade_in: 6
+      fade_out: 8
+    style:
+      preset: fire_orange
+      intensity: 0.75
+      colors:
+        - [1.0, 0.72, 0.25]
+        - [0.85, 0.12, 0.0]
+      thickness: 0.045
+      hdr_gain: 2.2
+      noise:
+        scale: 52
+        speed: 0.9
+        octaves: 3
+        amplitude: 0.28
+      seed_offset: 3
+    render:
+      blend: add
+      motion_blur: 0.2
+      occlude: true
+      group: glow
+      persistence: 0.15
+      glow_layers: 2
+    refine:
+      enabled: false
+      prompt: ""
+      strength: 0.4
+      keyframe_stride: 8
+  - id: fire_particles_left
+    type: particles
+    target:
+      kind: joint
+      id: left_wrist
+    time:
+      start_frame: 0
+      end_frame: -1
+      fade_in: 4
+      fade_out: 8
+    style:
+      preset: fire_orange
+      intensity: 0.7
+      colors:
+        - [1.0, 0.9, 0.6]
+        - [1.0, 0.3, 0.02]
+      thickness: 0.06
+      hdr_gain: 2.4
+      noise:
+        scale: 28
+        speed: 1.1
+        octaves: 3
+        amplitude: 0.4
+      seed_offset: 4
+    render:
+      blend: add
+      motion_blur: 0.5
+      occlude: false
+      group: particles
+      persistence: 0.18
+      glow_layers: 2
+    refine:
+      enabled: false
+      prompt: ""
+      strength: 0.4
+      keyframe_stride: 8

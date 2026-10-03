@@ -1,0 +1,12 @@
+id: burst
+tags:
+- burst
+- impact
+- hit
+anchor: overhead
+scale: 0.45
+viewbox:
+- 0
+- 0
+- 100
+- 100

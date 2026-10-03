@@ -1,0 +1,494 @@
+version: '1.0'
+title: Doodle Dance
+theme: doodle_dance
+seed: 27
+grade:
+  bloom_radius: 18.0
+  bloom_threshold: 1.0
+  bloom_intensity: 0.85
+  soft_knee: 0.85
+effects:
+- id: character
+  type: glyph
+  target:
+    kind: joint
+    id: nose
+    secondary: null
+    space: image
+  time:
+    start_frame: 0
+    end_frame: -1
+    fade_in: 2
+    fade_out: 4
+  style:
+    preset: null
+    intensity: 1.0
+    colors:
+    - - 0.75
+      - 0.35
+      - 1.0
+    thickness: 0.05
+    hdr_gain: 2.4
+    noise:
+      scale: 48.0
+      speed: 0.8
+      octaves: 3
+      amplitude: 0.35
+    seed_offset: 0
+    lightning:
+      branches: 3
+      branch_depth: 2
+      branch_angle: 28.0
+      jitter: 0.22
+      reseed_every: 4
+      tail_frames: 6
+      sparks: 6
+      reach: 1.4
+    boil_frames: 3
+    glyph: horns
+    dash: 0.0
+  render:
+    blend: add
+    motion_blur: 0.15
+    occlude: false
+    group: glow
+    persistence: 0.35
+    glow_layers: 2
+  refine:
+    enabled: false
+    prompt: ''
+    strength: 0.4
+    keyframe_stride: 8
+  triggers:
+  - event: raise_hand
+    joint: null
+    min_speed: 0.0
+    min_duration: 1
+    hold: 12
+    cooldown: 4
+    fade_in: 1
+    fade_out: 5
+    max_activations: 0
+    attacker: null
+  actor: null
+- id: symbol_cloud
+  type: glyph
+  target:
+    kind: joint
+    id: nose
+    secondary: null
+    space: image
+  time:
+    start_frame: 0
+    end_frame: -1
+    fade_in: 2
+    fade_out: 4
+  style:
+    preset: null
+    intensity: 1.0
+    colors:
+    - - 0.45
+      - 0.9
+      - 1.0
+    thickness: 0.05
+    hdr_gain: 2.4
+    noise:
+      scale: 48.0
+      speed: 0.8
+      octaves: 3
+      amplitude: 0.35
+    seed_offset: 0
+    lightning:
+      branches: 3
+      branch_depth: 2
+      branch_angle: 28.0
+      jitter: 0.22
+      reseed_every: 4
+      tail_frames: 6
+      sparks: 6
+      reach: 1.4
+    boil_frames: 3
+    glyph: cloud
+    dash: 0.0
+  render:
+    blend: add
+    motion_blur: 0.15
+    occlude: false
+    group: glow
+    persistence: 0.35
+    glow_layers: 2
+  refine:
+    enabled: false
+    prompt: ''
+    strength: 0.4
+    keyframe_stride: 8
+  triggers:
+  - event: raise_hand
+    joint: null
+    min_speed: 0.0
+    min_duration: 1
+    hold: 10
+    cooldown: 4
+    fade_in: 1
+    fade_out: 5
+    max_activations: 0
+    attacker: null
+  actor: null
+- id: symbol_wink
+  type: glyph
+  target:
+    kind: joint
+    id: nose
+    secondary: null
+    space: image
+  time:
+    start_frame: 0
+    end_frame: -1
+    fade_in: 2
+    fade_out: 4
+  style:
+    preset: null
+    intensity: 1.0
+    colors:
+    - - 0.4
+      - 1.0
+      - 0.55
+    thickness: 0.05
+    hdr_gain: 2.4
+    noise:
+      scale: 48.0
+      speed: 0.8
+      octaves: 3
+      amplitude: 0.35
+    seed_offset: 0
+    lightning:
+      branches: 3
+      branch_depth: 2
+      branch_angle: 28.0
+      jitter: 0.22
+      reseed_every: 4
+      tail_frames: 6
+      sparks: 6
+      reach: 1.4
+    boil_frames: 3
+    glyph: wink
+    dash: 0.0
+  render:
+    blend: add
+    motion_blur: 0.15
+    occlude: false
+    group: glow
+    persistence: 0.35
+    glow_layers: 2
+  refine:
+    enabled: false
+    prompt: ''
+    strength: 0.4
+    keyframe_stride: 8
+  triggers:
+  - event: hand_open
+    joint: null
+    min_speed: 0.0
+    min_duration: 1
+    hold: 10
+    cooldown: 4
+    fade_in: 1
+    fade_out: 5
+    max_activations: 0
+    attacker: null
+  actor: null
+- id: symbol_heart
+  type: glyph
+  target:
+    kind: joint
+    id: nose
+    secondary: null
+    space: image
+  time:
+    start_frame: 0
+    end_frame: -1
+    fade_in: 2
+    fade_out: 4
+  style:
+    preset: null
+    intensity: 1.0
+    colors:
+    - - 1.0
+      - 0.35
+      - 0.7
+    thickness: 0.05
+    hdr_gain: 2.4
+    noise:
+      scale: 48.0
+      speed: 0.8
+      octaves: 3
+      amplitude: 0.35
+    seed_offset: 0
+    lightning:
+      branches: 3
+      branch_depth: 2
+      branch_angle: 28.0
+      jitter: 0.22
+      reseed_every: 4
+      tail_frames: 6
+      sparks: 6
+      reach: 1.4
+    boil_frames: 3
+    glyph: heart_broken
+    dash: 0.0
+  render:
+    blend: add
+    motion_blur: 0.15
+    occlude: false
+    group: glow
+    persistence: 0.35
+    glow_layers: 2
+  refine:
+    enabled: false
+    prompt: ''
+    strength: 0.4
+    keyframe_stride: 8
+  triggers:
+  - event: arms_crossed
+    joint: null
+    min_speed: 0.0
+    min_duration: 1
+    hold: 12
+    cooldown: 4
+    fade_in: 1
+    fade_out: 5
+    max_activations: 0
+    attacker: null
+  actor: null
+- id: smear_left
+  type: smear
+  target:
+    kind: joint
+    id: left_wrist
+    secondary: null
+    space: image
+  time:
+    start_frame: 0
+    end_frame: -1
+    fade_in: 2
+    fade_out: 4
+  style:
+    preset: null
+    intensity: 1.0
+    colors:
+    - - 0.4
+      - 0.85
+      - 1.0
+    thickness: 0.12
+    hdr_gain: 2.4
+    noise:
+      scale: 48.0
+      speed: 0.8
+      octaves: 3
+      amplitude: 0.35
+    seed_offset: 0
+    lightning:
+      branches: 3
+      branch_depth: 2
+      branch_angle: 28.0
+      jitter: 0.22
+      reseed_every: 4
+      tail_frames: 6
+      sparks: 6
+      reach: 1.4
+    boil_frames: 0
+    glyph: ''
+    dash: 0.0
+  render:
+    blend: add
+    motion_blur: 0.15
+    occlude: false
+    group: glow
+    persistence: 0.35
+    glow_layers: 2
+  refine:
+    enabled: false
+    prompt: ''
+    strength: 0.4
+    keyframe_stride: 8
+  triggers:
+  - event: fast_swing
+    joint: left_wrist
+    min_speed: 0.0
+    min_duration: 1
+    hold: 6
+    cooldown: 4
+    fade_in: 1
+    fade_out: 5
+    max_activations: 0
+    attacker: null
+  actor: null
+- id: smear_right
+  type: smear
+  target:
+    kind: joint
+    id: right_wrist
+    secondary: null
+    space: image
+  time:
+    start_frame: 0
+    end_frame: -1
+    fade_in: 2
+    fade_out: 4
+  style:
+    preset: null
+    intensity: 1.0
+    colors:
+    - - 0.4
+      - 0.85
+      - 1.0
+    thickness: 0.12
+    hdr_gain: 2.4
+    noise:
+      scale: 48.0
+      speed: 0.8
+      octaves: 3
+      amplitude: 0.35
+    seed_offset: 0
+    lightning:
+      branches: 3
+      branch_depth: 2
+      branch_angle: 28.0
+      jitter: 0.22
+      reseed_every: 4
+      tail_frames: 6
+      sparks: 6
+      reach: 1.4
+    boil_frames: 0
+    glyph: ''
+    dash: 0.0
+  render:
+    blend: add
+    motion_blur: 0.15
+    occlude: false
+    group: glow
+    persistence: 0.35
+    glow_layers: 2
+  refine:
+    enabled: false
+    prompt: ''
+    strength: 0.4
+    keyframe_stride: 8
+  triggers:
+  - event: fast_swing
+    joint: right_wrist
+    min_speed: 0.0
+    min_duration: 1
+    hold: 6
+    cooldown: 4
+    fade_in: 1
+    fade_out: 5
+    max_activations: 0
+    attacker: null
+  actor: null
+- id: silhouette
+  type: silhouette
+  target:
+    kind: mask
+    id: person
+    secondary: null
+    space: image
+  time:
+    start_frame: 0
+    end_frame: -1
+    fade_in: 2
+    fade_out: 4
+  style:
+    preset: null
+    intensity: 1.0
+    colors:
+    - - 0.55
+      - 1.0
+      - 0.85
+    thickness: 0.02
+    hdr_gain: 2.4
+    noise:
+      scale: 48.0
+      speed: 0.8
+      octaves: 3
+      amplitude: 0.35
+    seed_offset: 0
+    lightning:
+      branches: 3
+      branch_depth: 2
+      branch_angle: 28.0
+      jitter: 0.22
+      reseed_every: 4
+      tail_frames: 6
+      sparks: 6
+      reach: 1.4
+    boil_frames: 0
+    glyph: ''
+    dash: 0.0
+  render:
+    blend: add
+    motion_blur: 0.15
+    occlude: false
+    group: glow
+    persistence: 0.35
+    glow_layers: 2
+  refine:
+    enabled: false
+    prompt: ''
+    strength: 0.4
+    keyframe_stride: 8
+  triggers: []
+  actor: null
+- id: grade_beat
+  type: grade
+  target:
+    kind: mask
+    id: person
+    secondary: null
+    space: image
+  time:
+    start_frame: 0
+    end_frame: -1
+    fade_in: 2
+    fade_out: 4
+  style:
+    preset: null
+    intensity: 0.7
+    colors:
+    - - 0.45
+      - 0.25
+      - 0.85
+    thickness: 0.05
+    hdr_gain: 2.4
+    noise:
+      scale: 48.0
+      speed: 0.8
+      octaves: 3
+      amplitude: 0.35
+    seed_offset: 0
+    lightning:
+      branches: 3
+      branch_depth: 2
+      branch_angle: 28.0
+      jitter: 0.22
+      reseed_every: 4
+      tail_frames: 6
+      sparks: 6
+      reach: 1.4
+    boil_frames: 0
+    glyph: ''
+    dash: 0.0
+  render:
+    blend: multiply
+    motion_blur: 0.15
+    occlude: false
+    group: grade
+    persistence: 0.0
+    glow_layers: 2
+  refine:
+    enabled: false
+    prompt: ''
+    strength: 0.4
+    keyframe_stride: 8
+  triggers: []
+  actor: null

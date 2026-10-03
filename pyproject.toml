@@ -1,0 +1,40 @@
+[project]
+name = "vfxglow"
+version = "0.1.0"
+description = "Pipeline VFX por capas: analiza el movimiento, genera un guion de efectos y compone capas HDR sobre el video original."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "VFX Glow" }]
+dependencies = [
+    "numpy>=1.26",
+    "opencv-python>=4.9",
+    "mediapipe>=0.10.18,<0.11",
+    "skia-python>=87.0",
+    "pydantic>=2.6",
+    "pyyaml>=6.0",
+    "imageio-ffmpeg>=0.5",
+    "certifi>=2024.0",
+]
+
+[project.optional-dependencies]
+objects = ["ultralytics>=8.3"]
+hq = ["ultralytics>=8.3", "rtmlib>=0.0.13", "onnxruntime>=1.17"]
+masks = ["torch>=2.5", "sam-2"]
+refiner = ["torch>=2.5", "diffusers>=0.30", "transformers>=4.44", "accelerate>=0.34"]
+dev = ["pytest>=8.0"]
+scene = ["scenedetect>=0.6.4", "librosa>=0.10"]
+
+[project.scripts]
+vfxglow = "vfxglow.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

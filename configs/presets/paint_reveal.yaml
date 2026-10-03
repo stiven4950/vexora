@@ -1,0 +1,338 @@
+version: '1.0'
+title: Paint Reveal
+theme: paint_reveal
+seed: 11
+grade:
+  bloom_radius: 18.0
+  bloom_threshold: 1.0
+  bloom_intensity: 0.85
+  soft_knee: 0.85
+effects:
+- id: paint_contour
+  type: contour
+  target:
+    kind: contour
+    id: paint_contour
+    secondary: null
+    space: image
+  time:
+    start_frame: 0
+    end_frame: -1
+    fade_in: 2
+    fade_out: 4
+  style:
+    preset: null
+    intensity: 1.0
+    colors:
+    - - 1.0
+      - 0.72
+      - 0.15
+    thickness: 0.05
+    hdr_gain: 2.4
+    noise:
+      scale: 48.0
+      speed: 0.8
+      octaves: 3
+      amplitude: 0.35
+    seed_offset: 0
+    lightning:
+      branches: 3
+      branch_depth: 2
+      branch_angle: 28.0
+      jitter: 0.22
+      reseed_every: 4
+      tail_frames: 6
+      sparks: 6
+      reach: 1.4
+    boil_frames: 0
+    glyph: ''
+    dash: 8.0
+  render:
+    blend: add
+    motion_blur: 0.15
+    occlude: false
+    group: glow
+    persistence: 0.35
+    glow_layers: 2
+  refine:
+    enabled: false
+    prompt: ''
+    strength: 0.4
+    keyframe_stride: 8
+  triggers: []
+  actor: null
+- id: brush_flame
+  type: tip_flame
+  target:
+    kind: event_point
+    id: tool_touch
+    secondary: null
+    space: image
+  time:
+    start_frame: 0
+    end_frame: -1
+    fade_in: 2
+    fade_out: 4
+  style:
+    preset: null
+    intensity: 1.0
+    colors:
+    - - 1.0
+      - 0.82
+      - 0.25
+    thickness: 0.05
+    hdr_gain: 2.4
+    noise:
+      scale: 48.0
+      speed: 0.8
+      octaves: 3
+      amplitude: 0.35
+    seed_offset: 0
+    lightning:
+      branches: 3
+      branch_depth: 2
+      branch_angle: 28.0
+      jitter: 0.22
+      reseed_every: 4
+      tail_frames: 6
+      sparks: 6
+      reach: 1.4
+    boil_frames: 0
+    glyph: ''
+    dash: 0.0
+  render:
+    blend: add
+    motion_blur: 0.15
+    occlude: false
+    group: glow
+    persistence: 0.35
+    glow_layers: 2
+  refine:
+    enabled: false
+    prompt: ''
+    strength: 0.4
+    keyframe_stride: 8
+  triggers:
+  - event: tool_touch
+    joint: null
+    min_speed: 0.0
+    min_duration: 1
+    hold: 4
+    cooldown: 4
+    fade_in: 1
+    fade_out: 5
+    max_activations: 0
+    attacker: null
+  actor: null
+- id: light_left_eye
+  type: feature_light
+  target:
+    kind: joint
+    id: left_eye
+    secondary: null
+    space: image
+  time:
+    start_frame: 0
+    end_frame: -1
+    fade_in: 2
+    fade_out: 4
+  style:
+    preset: null
+    intensity: 1.0
+    colors:
+    - - 1.0
+      - 0.45
+      - 0.15
+    thickness: 0.03
+    hdr_gain: 2.4
+    noise:
+      scale: 48.0
+      speed: 0.8
+      octaves: 3
+      amplitude: 0.35
+    seed_offset: 0
+    lightning:
+      branches: 3
+      branch_depth: 2
+      branch_angle: 28.0
+      jitter: 0.22
+      reseed_every: 4
+      tail_frames: 6
+      sparks: 6
+      reach: 1.4
+    boil_frames: 0
+    glyph: ''
+    dash: 0.0
+  render:
+    blend: add
+    motion_blur: 0.15
+    occlude: false
+    group: glow
+    persistence: 0.35
+    glow_layers: 2
+  refine:
+    enabled: false
+    prompt: ''
+    strength: 0.4
+    keyframe_stride: 8
+  triggers: []
+  actor: null
+- id: light_right_eye
+  type: feature_light
+  target:
+    kind: joint
+    id: right_eye
+    secondary: null
+    space: image
+  time:
+    start_frame: 0
+    end_frame: -1
+    fade_in: 2
+    fade_out: 4
+  style:
+    preset: null
+    intensity: 1.0
+    colors:
+    - - 1.0
+      - 0.45
+      - 0.15
+    thickness: 0.03
+    hdr_gain: 2.4
+    noise:
+      scale: 48.0
+      speed: 0.8
+      octaves: 3
+      amplitude: 0.35
+    seed_offset: 0
+    lightning:
+      branches: 3
+      branch_depth: 2
+      branch_angle: 28.0
+      jitter: 0.22
+      reseed_every: 4
+      tail_frames: 6
+      sparks: 6
+      reach: 1.4
+    boil_frames: 0
+    glyph: ''
+    dash: 0.0
+  render:
+    blend: add
+    motion_blur: 0.15
+    occlude: false
+    group: glow
+    persistence: 0.35
+    glow_layers: 2
+  refine:
+    enabled: false
+    prompt: ''
+    strength: 0.4
+    keyframe_stride: 8
+  triggers: []
+  actor: null
+- id: light_nose
+  type: feature_light
+  target:
+    kind: joint
+    id: nose
+    secondary: null
+    space: image
+  time:
+    start_frame: 0
+    end_frame: -1
+    fade_in: 2
+    fade_out: 4
+  style:
+    preset: null
+    intensity: 1.0
+    colors:
+    - - 1.0
+      - 0.45
+      - 0.15
+    thickness: 0.03
+    hdr_gain: 2.4
+    noise:
+      scale: 48.0
+      speed: 0.8
+      octaves: 3
+      amplitude: 0.35
+    seed_offset: 0
+    lightning:
+      branches: 3
+      branch_depth: 2
+      branch_angle: 28.0
+      jitter: 0.22
+      reseed_every: 4
+      tail_frames: 6
+      sparks: 6
+      reach: 1.4
+    boil_frames: 0
+    glyph: ''
+    dash: 0.0
+  render:
+    blend: add
+    motion_blur: 0.15
+    occlude: false
+    group: glow
+    persistence: 0.35
+    glow_layers: 2
+  refine:
+    enabled: false
+    prompt: ''
+    strength: 0.4
+    keyframe_stride: 8
+  triggers: []
+  actor: null
+- id: light_mouth
+  type: feature_light
+  target:
+    kind: joint
+    id: mouth
+    secondary: null
+    space: image
+  time:
+    start_frame: 0
+    end_frame: -1
+    fade_in: 2
+    fade_out: 4
+  style:
+    preset: null
+    intensity: 1.0
+    colors:
+    - - 1.0
+      - 0.45
+      - 0.15
+    thickness: 0.03
+    hdr_gain: 2.4
+    noise:
+      scale: 48.0
+      speed: 0.8
+      octaves: 3
+      amplitude: 0.35
+    seed_offset: 0
+    lightning:
+      branches: 3
+      branch_depth: 2
+      branch_angle: 28.0
+      jitter: 0.22
+      reseed_every: 4
+      tail_frames: 6
+      sparks: 6
+      reach: 1.4
+    boil_frames: 0
+    glyph: ''
+    dash: 0.0
+  render:
+    blend: add
+    motion_blur: 0.15
+    occlude: false
+    group: glow
+    persistence: 0.35
+    glow_layers: 2
+  refine:
+    enabled: false
+    prompt: ''
+    strength: 0.4
+    keyframe_stride: 8
+  triggers: []
+  actor: null

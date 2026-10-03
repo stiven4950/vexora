@@ -1,0 +1,17 @@
+.venv/
+.mpl/
+.cache/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+runs/
+models/*.task
+models/*.pt
+models/*.onnx
+*.egg-info/
+dist/
+build/
+.DS_Store
+models/*.tflite
+*.mp4

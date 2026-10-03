@@ -1,0 +1,66 @@
+version: "1.0"
+title: Neon Joints
+theme: neon_joints
+seed: 11
+grade:
+  bloom_radius: 16
+  bloom_threshold: 0.9
+  bloom_intensity: 0.8
+  soft_knee: 0.8
+effects:
+  - id: neon_right_arm
+    type: stroke
+    target: {kind: chain, id: right_arm}
+    time: {start_frame: 0, end_frame: -1, fade_in: 4, fade_out: 6}
+    style:
+      preset: neon_cyan
+      intensity: 0.9
+      colors: [[0.4, 0.95, 1.0], [0.05, 0.25, 1.0]]
+      thickness: 0.028
+      hdr_gain: 2.6
+      noise: {scale: 80, speed: 0.4, octaves: 2, amplitude: 0.08}
+      seed_offset: 1
+    render: {blend: add, motion_blur: 0.1, occlude: false, group: glow, persistence: 0.12, glow_layers: 2}
+    refine: {enabled: false, prompt: "", strength: 0.4, keyframe_stride: 8}
+  - id: neon_left_arm
+    type: stroke
+    target: {kind: chain, id: left_arm}
+    time: {start_frame: 0, end_frame: -1, fade_in: 4, fade_out: 6}
+    style:
+      preset: neon_cyan
+      intensity: 0.9
+      colors: [[0.55, 1.0, 0.85], [0.0, 0.45, 0.7]]
+      thickness: 0.028
+      hdr_gain: 2.6
+      noise: {scale: 80, speed: 0.4, octaves: 2, amplitude: 0.08}
+      seed_offset: 2
+    render: {blend: add, motion_blur: 0.1, occlude: false, group: glow, persistence: 0.12, glow_layers: 2}
+    refine: {enabled: false, prompt: "", strength: 0.4, keyframe_stride: 8}
+  - id: neon_legs
+    type: stroke
+    target: {kind: chain, id: right_leg}
+    time: {start_frame: 0, end_frame: -1, fade_in: 4, fade_out: 6}
+    style:
+      preset: neon_magenta
+      intensity: 0.75
+      colors: [[1.0, 0.35, 0.85], [0.35, 0.05, 0.7]]
+      thickness: 0.03
+      hdr_gain: 2.2
+      noise: {scale: 90, speed: 0.3, octaves: 2, amplitude: 0.05}
+      seed_offset: 3
+    render: {blend: add, motion_blur: 0.1, occlude: false, group: glow, persistence: 0.12, glow_layers: 2}
+    refine: {enabled: false, prompt: "", strength: 0.4, keyframe_stride: 8}
+  - id: arc_between_hands
+    type: lightning
+    target: {kind: joint, id: right_wrist, secondary: left_wrist}
+    time: {start_frame: 0, end_frame: -1, fade_in: 2, fade_out: 4}
+    style:
+      preset: electric
+      intensity: 0.8
+      colors: [[0.85, 0.95, 1.0], [0.25, 0.45, 1.0]]
+      thickness: 0.02
+      hdr_gain: 3.4
+      noise: {scale: 20, speed: 2.0, octaves: 2, amplitude: 0.7}
+      seed_offset: 9
+    render: {blend: add, motion_blur: 0.15, occlude: false, group: lightning, persistence: 0.55, glow_layers: 3}
+    refine: {enabled: false, prompt: "electric arc, blue white plasma", strength: 0.35, keyframe_stride: 6}

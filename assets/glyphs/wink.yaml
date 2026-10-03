@@ -1,0 +1,12 @@
+id: wink
+tags:
+- wink
+- face
+- hello
+anchor: head
+scale: 0.5
+viewbox:
+- 0
+- 0
+- 100
+- 100

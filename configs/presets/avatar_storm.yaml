@@ -1,0 +1,143 @@
+version: "1.0"
+title: Avatar Storm
+theme: avatar_storm
+seed: 13
+grade:
+  bloom_radius: 20
+  bloom_threshold: 0.95
+  bloom_intensity: 1.05
+  soft_knee: 0.7
+effects:
+  - id: lightning_right
+    type: lightning
+    target: {kind: joint, id: right_wrist}
+    time: {start_frame: 0, end_frame: 0, fade_in: 0, fade_out: 0}
+    style:
+      preset: electric
+      intensity: 0.95
+      colors: [[0.95, 0.98, 1.0], [0.35, 0.7, 1.0], [0.05, 0.15, 0.7]]
+      thickness: 0.018
+      hdr_gain: 3.6
+      noise: {scale: 22, speed: 1.8, octaves: 3, amplitude: 0.4}
+      seed_offset: 1
+      lightning:
+        branches: 3
+        branch_depth: 2
+        branch_angle: 30
+        jitter: 0.24
+        reseed_every: 4
+        tail_frames: 6
+        sparks: 5
+        reach: 1.5
+    render: {blend: add, motion_blur: 0.25, occlude: false, group: lightning, persistence: 0.58, glow_layers: 3}
+    refine: {enabled: false, prompt: "", strength: 0.4, keyframe_stride: 8}
+    triggers:
+      - {event: fast_swing, joint: right_wrist, min_speed: 0.2, min_duration: 3, hold: 6, cooldown: 8, fade_in: 1, fade_out: 5}
+  - id: lightning_left
+    type: lightning
+    target: {kind: joint, id: left_wrist}
+    time: {start_frame: 0, end_frame: 0, fade_in: 0, fade_out: 0}
+    style:
+      preset: electric
+      intensity: 0.9
+      colors: [[0.9, 0.97, 1.0], [0.25, 0.55, 1.0]]
+      thickness: 0.016
+      hdr_gain: 3.4
+      noise: {scale: 24, speed: 1.6, octaves: 3, amplitude: 0.38}
+      seed_offset: 2
+      lightning:
+        branches: 3
+        branch_depth: 2
+        branch_angle: 26
+        jitter: 0.22
+        reseed_every: 4
+        tail_frames: 6
+        sparks: 4
+        reach: 1.35
+    render: {blend: add, motion_blur: 0.22, occlude: false, group: lightning, persistence: 0.55, glow_layers: 3}
+    refine: {enabled: false, prompt: "", strength: 0.4, keyframe_stride: 8}
+    triggers:
+      - {event: fast_swing, joint: left_wrist, min_speed: 0.2, min_duration: 3, hold: 6, cooldown: 8, fade_in: 1, fade_out: 5}
+  - id: impact_sparks
+    type: sparks
+    target: {kind: event_point, id: impact}
+    time: {start_frame: 0, end_frame: 0, fade_in: 0, fade_out: 0}
+    style:
+      preset: electric
+      intensity: 0.85
+      colors: [[1.0, 0.98, 0.85], [0.4, 0.75, 1.0]]
+      thickness: 0.04
+      hdr_gain: 3.0
+      noise: {scale: 16, speed: 1.2, octaves: 2, amplitude: 0.3}
+      seed_offset: 3
+    render: {blend: add, motion_blur: 0.4, occlude: false, group: particles, persistence: 0.28, glow_layers: 2}
+    refine: {enabled: false, prompt: "", strength: 0.4, keyframe_stride: 8}
+    triggers:
+      - {event: impact, min_duration: 1, hold: 8, cooldown: 6, fade_in: 0, fade_out: 6}
+      - {event: foot_strike, min_duration: 1, hold: 7, cooldown: 6, fade_in: 0, fade_out: 5}
+  - id: contact_cracks
+    type: cracks
+    target: {kind: event_point, id: contact}
+    time: {start_frame: 0, end_frame: 0, fade_in: 0, fade_out: 0}
+    style:
+      preset: electric
+      intensity: 0.8
+      colors: [[0.85, 0.95, 1.0], [0.2, 0.45, 1.0]]
+      thickness: 0.012
+      hdr_gain: 2.8
+      noise: {scale: 30, speed: 0.2, octaves: 2, amplitude: 0.18}
+      seed_offset: 4
+    render: {blend: add, motion_blur: 0.05, occlude: false, group: interaction, persistence: 0.4, glow_layers: 2}
+    refine: {enabled: false, prompt: "", strength: 0.4, keyframe_stride: 8}
+    triggers:
+      - {event: hand_contact, min_duration: 4, hold: 14, cooldown: 10, fade_in: 4, fade_out: 8}
+      - {event: foot_strike, min_duration: 1, hold: 10, cooldown: 8, fade_in: 3, fade_out: 7}
+  - id: contact_ripples
+    type: ripples
+    target: {kind: event_point, id: contact}
+    time: {start_frame: 0, end_frame: 0, fade_in: 0, fade_out: 0}
+    style:
+      preset: electric
+      intensity: 0.7
+      colors: [[0.65, 0.9, 1.0], [0.15, 0.35, 0.9]]
+      thickness: 0.014
+      hdr_gain: 2.2
+      noise: {scale: 40, speed: 0.4, octaves: 2, amplitude: 0.12}
+      seed_offset: 5
+    render: {blend: add, motion_blur: 0.0, occlude: false, group: interaction, persistence: 0.22, glow_layers: 2}
+    refine: {enabled: false, prompt: "", strength: 0.4, keyframe_stride: 8}
+    triggers:
+      - {event: hand_contact, min_duration: 4, hold: 16, cooldown: 12, fade_in: 2, fade_out: 8}
+  - id: object_neon
+    type: trail
+    target: {kind: object, id: any}
+    time: {start_frame: 0, end_frame: 0, fade_in: 0, fade_out: 0}
+    style:
+      preset: neon_cyan
+      intensity: 0.85
+      colors: [[0.55, 1.0, 1.0], [0.1, 0.35, 1.0]]
+      thickness: 0.05
+      hdr_gain: 2.6
+      noise: {scale: 36, speed: 0.8, octaves: 2, amplitude: 0.2}
+      seed_offset: 6
+    render: {blend: add, motion_blur: 0.3, occlude: false, group: glow, persistence: 0.45, glow_layers: 2}
+    refine: {enabled: false, prompt: "", strength: 0.4, keyframe_stride: 8}
+    triggers:
+      - {event: object_contact, min_duration: 3, hold: 6, cooldown: 4, fade_in: 2, fade_out: 6}
+      - {event: held_object, min_duration: 8, hold: 4, cooldown: 2, fade_in: 3, fade_out: 6}
+  - id: held_charge
+    type: charge
+    target: {kind: object, id: any}
+    time: {start_frame: 0, end_frame: 0, fade_in: 0, fade_out: 0}
+    style:
+      preset: electric
+      intensity: 0.8
+      colors: [[0.9, 0.95, 1.0], [0.3, 0.5, 1.0]]
+      thickness: 0.05
+      hdr_gain: 2.5
+      noise: {scale: 28, speed: 0.7, octaves: 2, amplitude: 0.2}
+      seed_offset: 7
+    render: {blend: add, motion_blur: 0.05, occlude: false, group: interaction, persistence: 0.3, glow_layers: 3}
+    refine: {enabled: false, prompt: "", strength: 0.4, keyframe_stride: 8}
+    triggers:
+      - {event: held_object, min_duration: 8, hold: 6, cooldown: 2, fade_in: 4, fade_out: 8}

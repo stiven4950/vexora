@@ -1,0 +1,203 @@
+version: '1.0'
+title: Face Neon
+theme: face_neon
+seed: 13
+grade:
+  bloom_radius: 18.0
+  bloom_threshold: 1.0
+  bloom_intensity: 0.85
+  soft_knee: 0.85
+effects:
+- id: face_lines
+  type: face_linework
+  target:
+    kind: face_region
+    id: brows,eyes,lips,nose,oval
+    secondary: null
+    space: image
+  time:
+    start_frame: 0
+    end_frame: -1
+    fade_in: 2
+    fade_out: 4
+  style:
+    preset: null
+    intensity: 1.0
+    colors:
+    - - 0.2
+      - 0.85
+      - 1.0
+    - - 0.85
+      - 0.3
+      - 1.0
+    thickness: 0.035
+    hdr_gain: 1.1
+    noise:
+      scale: 48.0
+      speed: 0.8
+      octaves: 3
+      amplitude: 0.35
+    seed_offset: 0
+    lightning:
+      branches: 3
+      branch_depth: 2
+      branch_angle: 28.0
+      jitter: 0.22
+      reseed_every: 4
+      tail_frames: 6
+      sparks: 6
+      reach: 1.4
+    boil_frames: 3
+    glyph: ''
+    dash: 0.0
+    rings: 2
+    spin: 0.6
+    hue_speed: 0.004
+    draw_on: 30
+    drawing: null
+  render:
+    blend: add
+    motion_blur: 0.15
+    occlude: false
+    group: glow
+    persistence: 0.0
+    glow_layers: 1
+  refine:
+    enabled: false
+    prompt: ''
+    strength: 0.4
+    keyframe_stride: 8
+  triggers: []
+  actor: null
+- id: eye_rings
+  type: eye_rings
+  target:
+    kind: face_region
+    id: eyes
+    secondary: null
+    space: image
+  time:
+    start_frame: 0
+    end_frame: -1
+    fade_in: 2
+    fade_out: 4
+  style:
+    preset: null
+    intensity: 1.0
+    colors:
+    - - 0.3
+      - 0.9
+      - 1.0
+    - - 1.0
+      - 0.35
+      - 0.85
+    - - 1.0
+      - 0.8
+      - 0.2
+    thickness: 0.06
+    hdr_gain: 1.6
+    noise:
+      scale: 48.0
+      speed: 0.8
+      octaves: 3
+      amplitude: 0.35
+    seed_offset: 0
+    lightning:
+      branches: 3
+      branch_depth: 2
+      branch_angle: 28.0
+      jitter: 0.22
+      reseed_every: 4
+      tail_frames: 6
+      sparks: 6
+      reach: 1.4
+    boil_frames: 0
+    glyph: ''
+    dash: 0.0
+    rings: 2
+    spin: 0.5
+    hue_speed: 0.015
+    draw_on: 0
+    drawing: null
+  render:
+    blend: add
+    motion_blur: 0.15
+    occlude: false
+    group: glow
+    persistence: 0.0
+    glow_layers: 1
+  refine:
+    enabled: false
+    prompt: ''
+    strength: 0.4
+    keyframe_stride: 8
+  triggers: []
+  actor: null
+- id: brush_flame
+  type: tip_flame
+  target:
+    kind: event_point
+    id: tool_touch
+    secondary: null
+    space: image
+  time:
+    start_frame: 0
+    end_frame: -1
+    fade_in: 2
+    fade_out: 4
+  style:
+    preset: null
+    intensity: 1.0
+    colors:
+    - - 1.0
+      - 0.82
+      - 0.25
+    thickness: 0.05
+    hdr_gain: 2.4
+    noise:
+      scale: 48.0
+      speed: 0.8
+      octaves: 3
+      amplitude: 0.35
+    seed_offset: 0
+    lightning:
+      branches: 3
+      branch_depth: 2
+      branch_angle: 28.0
+      jitter: 0.22
+      reseed_every: 4
+      tail_frames: 6
+      sparks: 6
+      reach: 1.4
+    boil_frames: 0
+    glyph: ''
+    dash: 0.0
+    rings: 2
+    spin: 0.6
+    hue_speed: 0.0
+    draw_on: 0
+    drawing: null
+  render:
+    blend: add
+    motion_blur: 0.15
+    occlude: false
+    group: glow
+    persistence: 0.35
+    glow_layers: 2
+  refine:
+    enabled: false
+    prompt: ''
+    strength: 0.4
+    keyframe_stride: 8
+  triggers:
+  - event: tool_touch
+    joint: null
+    min_speed: 0.0
+    min_duration: 1
+    hold: 4
+    cooldown: 4
+    fade_in: 1
+    fade_out: 5
+    max_activations: 0
+    attacker: null
+  actor: null

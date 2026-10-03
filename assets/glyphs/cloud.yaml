@@ -1,0 +1,12 @@
+id: cloud
+tags:
+- cloud
+- rain
+- weather
+anchor: overhead
+scale: 0.9
+viewbox:
+- 0
+- 0
+- 100
+- 100

@@ -1,0 +1,189 @@
+"""Raster: trazos con antialiasing y estampas aditivas en un buffer HDR."""
+
+from __future__ import annotations
+
+import math
+
+import cv2
+import numpy as np
+
+from vfxglow.director.schema import EffectStyle
+
+
+def empty_layer(height: int, width: int) -> np.ndarray:
+    return np.zeros((height, width, 4), dtype=np.float32)
+
+
+def sample_gradient(colors: list[tuple[float, float, float]], t: float) -> np.ndarray:
+    cols = np.asarray(colors, dtype=np.float32)
+    if len(cols) == 1:
+        return cols[0]
+    x = float(np.clip(t, 0.0, 1.0)) * (len(cols) - 1)
+    i = min(int(np.floor(x)), len(cols) - 2)
+    f = x - i
+    return cols[i] * (1.0 - f) + cols[i + 1] * f
+
+
+def _stamp(layer: np.ndarray, rgba: np.ndarray, gain: float) -> None:
+    alpha = rgba[..., 3:4].astype(np.float32) / 255.0
+    rgb = rgba[..., :3].astype(np.float32) / 255.0
+    straight = np.divide(rgb, np.maximum(alpha, 1e-4))
+    energy = straight * np.float32(gain)
+    layer[..., :3] += energy * alpha
+    layer[..., 3] = 1.0 - (1.0 - layer[..., 3]) * (1.0 - alpha[..., 0])
+
+
+def _paint(color: np.ndarray | tuple[float, float, float], width: float, alpha: float):
+    import skia
+
+    return skia.Paint(
+        AntiAlias=True,
+        Style=skia.Paint.kStroke_Style,
+        StrokeWidth=float(width),
+        StrokeCap=skia.Paint.kRound_Cap,
+        StrokeJoin=skia.Paint.kRound_Join,
+        Color=skia.Color4f(float(color[0]), float(color[1]), float(color[2]), float(np.clip(alpha, 0.0, 1.0))),
+    )
+
+
+def _path(points: np.ndarray):
+    import skia
+
+    path = skia.Path()
+    path.moveTo(float(points[0, 0]), float(points[0, 1]))
+    for x, y in points[1:]:
+        path.lineTo(float(x), float(y))
+    return path
+
+
+def stroke_polyline(
+    layer: np.ndarray,
+    points: np.ndarray,
+    color: tuple[float, float, float] | np.ndarray,
+    width: float,
+    gain: float,
+    alpha: float = 1.0,
+) -> None:
+    stroke_batch(layer, [(np.asarray(points, dtype=np.float64), color, width, alpha)], gain)
+
+
+def stroke_batch(
+    layer: np.ndarray,
+    strokes: list[tuple[np.ndarray, np.ndarray | tuple[float, float, float], float, float]],
+    gain: float,
+) -> None:
+    """Varios trazos (puntos, color, ancho, alfa) en una sola superficie y un solo volcado."""
+    strokes = [
+        item
+        for item in strokes
+        if len(item[0]) >= 2 and item[2] > 0.5 and item[3] > 0 and np.isfinite(item[0]).all()
+    ]
+    if not strokes or gain <= 0:
+        return
+    import skia
+
+    height, width_px = layer.shape[:2]
+    pad = max(item[2] for item in strokes) + 2
+    stacked = np.concatenate([item[0] for item in strokes])
+    x0 = int(max(0, np.floor(stacked[:, 0].min() - pad)))
+    y0 = int(max(0, np.floor(stacked[:, 1].min() - pad)))
+    x1 = int(min(width_px, np.ceil(stacked[:, 0].max() + pad)))
+    y1 = int(min(height, np.ceil(stacked[:, 1].max() + pad)))
+    if x1 - x0 < 2 or y1 - y0 < 2:
+        return
+    # Solo la caja que tocan los trazos: el volcado de Skia a numpy es lo caro.
+    surface = skia.Surface(x1 - x0, y1 - y0)
+    canvas = surface.getCanvas()
+    canvas.clear(skia.Color4f(0, 0, 0, 0))
+    canvas.translate(-x0, -y0)
+    for points, color, width, alpha in strokes:
+        canvas.drawPath(_path(points), _paint(color, width, alpha))
+    _stamp(layer[y0:y1, x0:x1], surface.makeImageSnapshot().toarray(), gain)
+
+
+def stroke_gradient(
+    layer: np.ndarray,
+    points: np.ndarray,
+    style: EffectStyle,
+    width: float,
+    alpha: float,
+) -> None:
+    if len(points) < 2 or width <= 0.5 or alpha <= 0:
+        return
+    import skia
+
+    height, width_px = layer.shape[:2]
+    surface = skia.Surface(width_px, height)
+    canvas = surface.getCanvas()
+    canvas.clear(skia.Color4f(0, 0, 0, 0))
+    chunks = min(12, max(1, len(points) - 1))
+    span = len(points) - 1
+    for index in range(chunks):
+        start = int(index * span / chunks)
+        end = int((index + 1) * span / chunks) + 1
+        segment = points[start:end]
+        if len(segment) < 2:
+            continue
+        color = sample_gradient(style.colors, index / max(chunks - 1, 1))
+        canvas.drawPath(_path(segment), _paint(color, width, alpha))
+    _stamp(layer, surface.makeImageSnapshot().toarray(), style.hdr_gain * alpha)
+
+
+def splat(layer: np.ndarray, x: float, y: float, radius: float, color: np.ndarray, alpha: float, kernels: dict[int, np.ndarray]) -> None:
+    if radius < 0.5 or alpha <= 0:
+        return
+    r = max(1, int(round(radius)))
+    kernel = kernels.get(r)
+    if kernel is None:
+        axis = np.arange(-r, r + 1, dtype=np.float32)
+        xx, yy = np.meshgrid(axis, axis)
+        kernel = np.exp(-(xx * xx + yy * yy) / (2.0 * (r * 0.45) ** 2)).astype(np.float32)
+        kernels[r] = kernel
+    height, width = layer.shape[:2]
+    x0 = int(round(x)) - r
+    y0 = int(round(y)) - r
+    x1 = x0 + kernel.shape[1]
+    y1 = y0 + kernel.shape[0]
+    src_x0 = max(0, -x0)
+    src_y0 = max(0, -y0)
+    src_x1 = kernel.shape[1] - max(0, x1 - width)
+    src_y1 = kernel.shape[0] - max(0, y1 - height)
+    if src_x0 >= src_x1 or src_y0 >= src_y1:
+        return
+    dst = layer[y0 + src_y0 : y0 + src_y1, x0 + src_x0 : x0 + src_x1]
+    weight = kernel[src_y0:src_y1, src_x0:src_x1] * np.float32(alpha)
+    dst[..., :3] += color.astype(np.float32) * weight[..., None]
+    dst[..., 3] = 1.0 - (1.0 - dst[..., 3]) * (1.0 - np.clip(weight, 0.0, 1.0))
+
+
+def directional_blur(layer: np.ndarray, vx: float, vy: float, amount: float) -> None:
+    """Desenfoque ligero a lo largo de la velocidad de la ancla. Opera sobre la capa, no sobre el plano."""
+    if amount <= 0.02:
+        return
+    length = float(np.hypot(vx, vy)) * amount
+    if length < 0.8:
+        return
+    steps = int(np.clip(round(length), 2, 9))
+    angle = math.atan2(vy, vx)
+    size = steps * 2 + 1
+    kernel = np.zeros((size, size), dtype=np.float32)
+    cx = cy = steps
+    for i in range(steps + 1):
+        dx = math.cos(angle) * i
+        dy = math.sin(angle) * i
+        for sign in (1.0, -1.0):
+            x = int(round(cx + dx * sign))
+            y = int(round(cy + dy * sign))
+            if 0 <= x < size and 0 <= y < size:
+                kernel[y, x] = 1.0
+    total = float(kernel.sum())
+    if total <= 0:
+        return
+    kernel /= total
+    layer[:] = cv2.filter2D(layer, -1, kernel)
+
+
+def soften_alpha(layer: np.ndarray, radius: float = 1.15) -> None:
+    if layer[..., 3].max() <= 1e-5:
+        return
+    layer[..., 3] = cv2.GaussianBlur(layer[..., 3], (3, 3), radius)

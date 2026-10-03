@@ -1,0 +1,38 @@
+version: "1.0"
+title: Face Runes
+theme: face_runes
+seed: 21
+grade:
+  bloom_radius: 12
+  bloom_threshold: 0.8
+  bloom_intensity: 0.7
+  soft_knee: 0.8
+effects:
+  - id: facial_runes
+    type: decal
+    target: {kind: face_region, id: face_oval}
+    time: {start_frame: 0, end_frame: -1, fade_in: 8, fade_out: 8}
+    style:
+      preset: rune_gold
+      intensity: 0.9
+      colors: [[1.0, 0.9, 0.55], [0.85, 0.35, 0.05]]
+      thickness: 0.012
+      hdr_gain: 2.8
+      noise: {scale: 18, speed: 0.35, octaves: 2, amplitude: 0.15}
+      seed_offset: 1
+    render: {blend: add, motion_blur: 0.0, occlude: false, group: glow, persistence: 0.1, glow_layers: 2}
+    refine: {enabled: false, prompt: "glowing golden runes on skin, thin luminous lines", strength: 0.35, keyframe_stride: 8}
+  - id: forehead_mark
+    type: decal
+    target: {kind: face_region, id: forehead}
+    time: {start_frame: 0, end_frame: -1, fade_in: 10, fade_out: 8}
+    style:
+      preset: rune_gold
+      intensity: 0.8
+      colors: [[1.0, 0.82, 0.35]]
+      thickness: 0.01
+      hdr_gain: 3.0
+      noise: {scale: 12, speed: 0.25, octaves: 2, amplitude: 0.1}
+      seed_offset: 2
+    render: {blend: add, motion_blur: 0.0, occlude: false, group: glow, persistence: 0.1, glow_layers: 2}
+    refine: {enabled: false, prompt: "", strength: 0.4, keyframe_stride: 8}
