@@ -144,3 +144,34 @@ def test_smoothing_fills_short_wrist_gap_and_brief_has_path() -> None:
     hand = next(limb for limb in brief.limbs if limb.name == "right_hand")
     assert hand.path
     assert hand.peak_speed >= 0
+
+
+def test_encoder_publishes_only_complete_video(tmp_path: Path) -> None:
+    from vfxglow.composite.encode import FrameEncoder
+
+    frame = np.zeros((16, 16, 3), dtype=np.uint8)
+    dest = tmp_path / "out.mp4"
+    short = FrameEncoder(dest, 16, 16, 30.0, frames=3)
+    short.write(frame)
+    with pytest.raises(RuntimeError):
+        short.close()
+    assert not dest.exists() and not short.partial.exists()
+
+    aborted = FrameEncoder(dest, 16, 16, 30.0)
+    aborted.write(frame)
+    aborted.abort()
+    assert not dest.exists() and not aborted.partial.exists()
+
+    full = FrameEncoder(dest, 16, 16, 30.0, frames=2)
+    full.write(frame)
+    full.write(frame)
+    full.close()
+    assert dest.exists() and not full.partial.exists()
+
+
+def test_code_fingerprint_is_stable_and_scoped() -> None:
+    from vfxglow.io.store import code_fingerprint
+
+    assert code_fingerprint("engine") == code_fingerprint("engine")
+    assert code_fingerprint("engine") != code_fingerprint("composite")
+    assert code_fingerprint("geom.py") != code_fingerprint("engine", "geom.py")

@@ -78,5 +78,7 @@ def write_debug_overlay(
                 else:
                     painted = draw_overlay(frame, record, meta, events)
                 encoder.write(cv2.cvtColor(painted, cv2.COLOR_BGR2RGB))
-    finally:
-        encoder.close()
+    except BaseException:
+        encoder.abort()
+        raise
+    encoder.close()

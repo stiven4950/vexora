@@ -31,6 +31,25 @@ def stage_key(*parts: str) -> str:
     return digest.hexdigest()
 
 
+_PACKAGE = Path(__file__).resolve().parent.parent
+
+
+def code_fingerprint(*parts: str) -> str:
+    """Huella del código fuente de los subpaquetes o módulos de vfxglow indicados.
+
+    Cambiar la lógica de una etapa invalida su caché sin tener que subir a mano la etiqueta de la clave.
+    """
+    digest = hashlib.sha256()
+    for part in parts:
+        target = _PACKAGE / part
+        files = sorted(target.rglob("*.py")) if target.is_dir() else [target]
+        for path in files:
+            digest.update(str(path.relative_to(_PACKAGE)).encode("utf-8"))
+            digest.update(b"\0")
+            digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
 def write_model(path: Path, model: BaseModel) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(model.model_dump_json(indent=2), encoding="utf-8")
@@ -64,6 +83,8 @@ class Manifest(BaseModel):
     video_sha256: str
     device: str
     stages: dict[str, str] = {}
+    # Entradas legibles de cada etapa (hash del guion, preset, huella del código, fotogramas escritos).
+    inputs: dict[str, dict[str, str]] = {}
 
 
 def load_manifest(path: Path) -> Manifest | None:

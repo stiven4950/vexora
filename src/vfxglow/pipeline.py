@@ -14,10 +14,31 @@ from vfxglow.director.schema import EffectScript, effect_group
 from vfxglow.engine.engine import EffectEngine, load_events, load_layer, load_tracks, save_layer
 from pydantic import BaseModel
 
-from vfxglow.io.store import Manifest, load_manifest, read_model, save_manifest, sha256_file, stage_key, write_model
+from vfxglow.io.store import (
+    Manifest,
+    code_fingerprint,
+    load_manifest,
+    read_model,
+    save_manifest,
+    sha256_file,
+    stage_key,
+    write_model,
+)
 from vfxglow.io.video import VideoReader
 
 log = logging.getLogger("vfxglow")
+
+# Código del que depende cada etapa. Si cambia, la caché de esa etapa deja de valer.
+_STAGE_CODE: dict[str, tuple[str, ...]] = {
+    "analyze": ("analysis", "io/video.py", "geom.py"),
+    "direct": ("director", "analysis/names.py"),
+    "render": ("engine", "director/schema.py", "analysis/names.py", "analysis/appearance.py", "analysis/beats.py", "geom.py"),
+    "compose": ("composite",),
+}
+
+
+def _code(stage: str) -> str:
+    return code_fingerprint(*_STAGE_CODE[stage])
 
 
 class _LayerIndex(BaseModel):
@@ -81,14 +102,14 @@ class Pipeline:
         return self.compose(stream=True)
 
     def analyze(self) -> None:
-        key = stage_key("analyze-1", self.manifest.video_sha256, self.config.analysis.model_dump_json())
+        key = stage_key("analyze-1", self.manifest.video_sha256, self.config.analysis.model_dump_json(), _code("analyze"))
         tracks = self.run_dir / "analysis" / "tracks.jsonl"
         if not self.force and self.manifest.stages.get("analyze") == key and tracks.exists():
             log.info("Análisis en caché")
             return
         log.info("Analizando %s en %s", self.video.name, self.device)
         analyze_video(self.video, self.run_dir, self.config, self.device)
-        self._mark("analyze", key)
+        self._mark("analyze", key, level=self.config.analysis.level, code=_code("analyze")[:12])
 
     def direct(self) -> None:
         brief_path = self.run_dir / "analysis" / "motion_brief.json"
@@ -99,6 +120,7 @@ class Pipeline:
             sha256_file(brief_path),
             self.config.director.model_dump_json(),
             preset_hash,
+            _code("direct"),
         )
         dest = self.run_dir / "scripts" / "effect_script.json"
         if not self.force and self.manifest.stages.get("direct") == key and dest.exists():
@@ -115,8 +137,18 @@ class Pipeline:
         )
         script = director.create(brief)
         write_model(dest, script)
+        # Copia por tema: cada preset conserva su guion aunque se dirija otro después.
+        write_model(dest.with_name(f"{script.theme}.json"), script)
         log.info("Guion %s con %d efectos", script.theme, len(script.effects))
-        self._mark("direct", key)
+        self._mark(
+            "direct",
+            key,
+            provider=self.config.director.provider,
+            preset=self.config.director.preset if self.config.director.provider == "preset" else "",
+            theme=script.theme,
+            script=sha256_file(dest)[:12],
+            code=_code("direct")[:12],
+        )
 
     def _render_key(self) -> str:
         analysis = self.run_dir / "analysis"
@@ -127,6 +159,7 @@ class Pipeline:
             sha256_file(analysis / "tracks.jsonl"),
             *[sha256_file(path) if path.exists() else "" for path in optional],
             self.config.engine.model_dump_json(),
+            _code("render"),
         )
 
     def _engine(self, script: EffectScript) -> tuple[EffectEngine, dict]:
@@ -187,8 +220,11 @@ class Pipeline:
         from vfxglow.composite.encode import FrameEncoder
 
         meta = self._meta()
-        script = read_model(self.run_dir / "scripts" / "effect_script.json", EffectScript)
-        dest = self.run_dir / "output" / "final.mp4"
+        script_path = self.run_dir / "scripts" / "effect_script.json"
+        script = read_model(script_path, EffectScript)
+        # Una salida por tema: face_neon y paint_reveal sobre el mismo video no se pisan.
+        dest = self.run_dir / "output" / f"{script.theme}.mp4"
+        stage = f"compose:{script.theme}"
         index_path = self.run_dir / "layers" / "index.json"
         if stream is None:
             stream = not (index_path.exists() and self.manifest.stages.get("render") == self._render_key())
@@ -197,8 +233,9 @@ class Pipeline:
             self._render_key() if stream else self.manifest.stages.get("render", ""),
             self.config.composite.model_dump_json(),
             self.config.refiner.model_dump_json(),
+            _code("compose"),
         )
-        if not self.force and self.manifest.stages.get("compose") == key and dest.exists():
+        if not self.force and self.manifest.stages.get(stage) == key and dest.exists():
             log.info("Video final en caché: %s", dest)
             return dest
         engine = tracks = None
@@ -214,6 +251,7 @@ class Pipeline:
             codec=self.config.composite.codec,
             crf=self.config.composite.crf,
             audio_from=self.video if meta.has_audio else None,
+            frames=meta.frame_count,
         )
         log.info("Componiendo sobre el plano original")
         try:
@@ -236,9 +274,21 @@ class Pipeline:
                             enabled_groups=self.config.composite.enabled_groups(),
                         )
                     )
-        finally:
-            encoder.close()
-        self._mark("compose", key)
+                    if (index + 1) % 50 == 0:
+                        log.info("Compuestos %d/%d fotogramas", index + 1, meta.frame_count)
+        except BaseException:
+            encoder.abort()
+            raise
+        encoder.close()
+        self._mark(
+            stage,
+            key,
+            output=dest.name,
+            script=sha256_file(script_path)[:12],
+            frames=f"{encoder.frames}/{meta.frame_count}",
+            code_render=_code("render")[:12],
+            code_compose=_code("compose")[:12],
+        )
         log.info("Video final: %s", dest)
         return dest
 
@@ -246,7 +296,9 @@ class Pipeline:
         header = read_model(self.run_dir / "analysis" / "header.json", AnalysisHeader)
         return header.video
 
-    def _mark(self, stage: str, key: str) -> None:
+    def _mark(self, stage: str, key: str, **inputs: str) -> None:
         self.manifest.stages[stage] = key
+        if inputs:
+            self.manifest.inputs[stage] = {name: str(value) for name, value in inputs.items()}
         self.manifest.device = self.device
         save_manifest(self.manifest_path, self.manifest)

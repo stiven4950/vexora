@@ -61,15 +61,33 @@ vfxglow compose --video clip.mp4 --config configs/default.yaml
 `--force` ignora la caché. Cada corrida vive en `runs/<video>-<hash>/`:
 
 ```text
+manifest.json                 # clave e insumos legibles de cada etapa
 analysis/tracks.jsonl
 analysis/events.jsonl
 analysis/motion_brief.json
 analysis/debug_overlay.mp4
-scripts/effect_script.json
+scripts/effect_script.json    # último guion dirigido
+scripts/<tema>.json           # guion de cada preset
 layers/index.json
 layers/<efecto>/f000000.npy
-output/final.mp4
+output/<tema>.mp4             # p. ej. output/face_neon.mp4
+golden/                       # huellas de tools/snapshot.py y copia congelada del análisis
 ```
+
+La clave de cada etapa incluye la huella del código del que depende (`analysis/`, `director/`, `engine/`, `composite/`). Cambiar ese código invalida la caché sin tocar etiquetas a mano. `manifest.json` → `inputs` dice con qué guion, preset y versión de código salió cada video, y cuántos fotogramas escribió.
+
+El video se escribe primero como `<tema>.partial.mp4` y solo se renombra si ffmpeg termina y se escribieron todos los fotogramas. Un proceso cortado no deja un video truncado con el nombre final.
+
+`output/final.mp4` de corridas anteriores es un formato viejo: no se sabe con qué código salió. Conviene borrarlo o ignorarlo.
+
+## Gate de regresión
+
+```bash
+python tools/snapshot.py --run runs/video_2-e27a6ae3 --preset face_neon          # captura
+python tools/snapshot.py --run runs/video_2-e27a6ae3 --preset face_neon --check  # compara
+```
+
+Renderiza en memoria y compara un hash por efecto cada 10 fotogramas. Un cambio del motor que no debía alterar un preset se detecta sin mirar el video.
 
 ## Director remoto
 

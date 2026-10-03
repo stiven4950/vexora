@@ -57,6 +57,35 @@ El catálogo (`material_contour`, `tool_tip_flame`, `feature_lights`, `impact_ac
 
 Tipos: `ribbon`, `trail`, `particles`, `aura`, `stroke`, `lightning`, `decal`, `distortion`, `cracks`, `ripples`, `charge`, `sparks`, `glyph`, `impact_accent`, `smear`, `silhouette`, `grade`, `contour`, `tip_flame`, `feature_light`. `triggers` vacíos: el intervalo `time` manda. Si hay triggers, solo se enciende con el evento. `event_point` fija el efecto al punto del contacto. Un efecto sin triggers no puede cruzar un beat `cut`. `beat_grade` no se solapa consigo mismo. El color de un `actor` no cambia entre efectos.
 
+### Tipos como primitivas
+
+El plan de mejoras habla de primitivas (`trace`, `glow`, `ring`…). Ya existen como tipos del guion; los presets son listas de ellas, no un catálogo cerrado.
+
+| Primitiva | Tipo del guion |
+| --- | --- |
+| trace | `stroke`, `face_linework`, `drawing`, `contour`, `silhouette` |
+| glow | bloom por grupo al componer; `feature_light`, `aura` |
+| ring | `eye_rings` |
+| arc | `smear`, `lightning` (con `secondary`) |
+| burst | `impact_accent`, `glyph` |
+| spark | `sparks` |
+| particle | `particles` |
+| trail | `trail`, `ribbon` |
+| ripple | `ripples`, `cracks`, `charge` |
+
+### Anclas
+
+El guion nunca lleva coordenadas. `target.kind` + `target.id` se resuelven en cada fotograma (`engine/anchors.py`):
+
+- `joint`: articulación de pose o mano (`right_wrist`, `left_ankle`, `nose`…), o `person_N:<articulación>` con dos personas.
+- `chain`: cadena de articulaciones (`analysis/names.py: CHAINS`).
+- `face_region`: rasgos de la malla (`eyes`, `lips`, `brows`, `oval`…) y puntos derivados (`left_iris`, `face_center`, `mouth_center`).
+- `object`: `object:<id>`, `object:<clase>` u `object:any`.
+- `event_point`: el punto donde ocurrió el evento que encendió el efecto.
+- `contour` / `mask`: contorno del pigmento o máscara de persona.
+
+Cambiar el perceptor solo exige producir los mismos nombres.
+
 ## Motor
 
 El raster no es el origen de la calidad. Lo es el buffer lineal de energía.
