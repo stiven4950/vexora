@@ -241,3 +241,51 @@ def test_lightning_is_continuous_across_frames() -> None:
         prev = layer
         assert layer[..., :3].sum() > 0
     assert diffs and max(diffs) < 0.35
+
+
+def test_pointset_keeps_confidence_and_source() -> None:
+    from vfxglow.engine.anchors import PointSet, collect_points
+
+    track = FrameRecord(
+        frame=0,
+        time_s=0.0,
+        pose=[Landmark(name="nose", x=0.5, y=0.5, c=0.4), Landmark(name="left_wrist", x=0.2, y=0.2, c=0.0)],
+    )
+    points = collect_points(track, 100, 100)
+    assert isinstance(points, PointSet)
+    assert points.confidence("nose") == pytest.approx(0.4)
+    assert points.origin("nose") == "pose"
+    assert "left_wrist" not in points
+    points["vel:nose"] = np.zeros(2)
+    assert points.confidence("vel:nose") == 1.0 and points.origin("vel:nose") == "derived"
+
+
+def _effect(kind: str, target: str, target_kind: str = "joint") -> Effect:
+    return Effect(id=kind, type=kind, target=EffectTarget(kind=target_kind, id=target))
+
+
+def test_constraints_veto_bright_features_and_fade_face() -> None:
+    from vfxglow.engine.anchors import PointSet
+    from vfxglow.engine.constraints import FrameState, gain_for
+
+    points = PointSet()
+    points.put("left_eye", np.zeros(2), 0.9, "face_mesh")
+    eyes_bright = FrameState(bright=frozenset({"eyes"}))
+    assert gain_for(_effect("feature_light", "left_eye"), eyes_bright, points) == 0.0
+    assert gain_for(_effect("feature_light", "nose"), eyes_bright, points) == 1.0
+    # Los anillos de face_neon sobre lentes blancos son intencionales: el veto no los toca.
+    assert gain_for(_effect("eye_rings", "eyes", "face_region"), eyes_bright, points) == 1.0
+    held = FrameState(face_fade=0.25)
+    assert gain_for(_effect("eye_rings", "eyes", "face_region"), held, points) == 0.25
+    assert gain_for(_effect("trail", "left_eye"), held, points) == 1.0
+
+
+def test_constraints_low_confidence_degrades_only_when_enabled() -> None:
+    from vfxglow.engine.anchors import PointSet
+    from vfxglow.engine.constraints import FrameState, gain_for
+
+    points = PointSet()
+    points.put("right_wrist", np.zeros(2), 0.2, "pose")
+    trail = _effect("trail", "right_wrist")
+    assert gain_for(trail, FrameState(), points) == 1.0
+    assert gain_for(trail, FrameState(), points, min_confidence=0.5) == pytest.approx(0.4)

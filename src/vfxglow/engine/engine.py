@@ -12,7 +12,8 @@ from vfxglow.analysis.schema import FrameRecord, MotionEvent
 from vfxglow.config import EngineConfig
 from vfxglow.director.schema import EffectScript, effect_group, envelope
 from vfxglow.analysis.appearance import Appearance
-from vfxglow.engine.anchors import collect_points, joint_velocity
+from vfxglow.engine.anchors import PointSet, collect_points, joint_velocity
+from vfxglow.engine.constraints import FrameState, gain_for
 from vfxglow.engine.effects import EffectRuntime, render_effect
 from vfxglow.engine.raster import directional_blur, soften_alpha
 from vfxglow.engine.timeline import ActivationTimeline
@@ -41,7 +42,7 @@ class EffectEngine:
         self._face_last: dict[str, np.ndarray] = {}
         self._face_age = 0
 
-    def _hold_face(self, points: dict[str, np.ndarray]) -> float:
+    def _hold_face(self, points: PointSet) -> float:
         """Si la malla se pierde unos fotogramas, reutiliza la última y la desvanece."""
         face = {name: value for name, value in points.items() if _is_face(name)}
         if any(name[5:].isdigit() for name in face if name.startswith("face_")):
@@ -53,9 +54,11 @@ class EffectEngine:
             self._face_last = {}
             return 1.0 if "face_center" in points else 0.0
         self._face_age += 1
+        fade = 1.0 - self._face_age / (hold + 1)
         for name, value in self._face_last.items():
-            points.setdefault(name, value)
-        return 1.0 - self._face_age / (hold + 1)
+            if name not in points:
+                points.put(name, value, fade, "hold")
+        return fade
 
     def render_frame(
         self,
@@ -70,6 +73,7 @@ class EffectEngine:
         face_fade = self._hold_face(points)
         cut = frame_index in self.cuts
         self._attach_appearance(run_dir, frame_index, width, height)
+        state = FrameState(face_fade=face_fade, bright=self._bright(frame_index))
         for name in list(points):
             if name.startswith("vel:") or _is_face(name):
                 continue
@@ -85,8 +89,7 @@ class EffectEngine:
             else:
                 gain = envelope(frame_index, effect.time, frame_count)
             gain *= effect.style.intensity
-            if effect.type in _FACE_TYPES and (effect.type != "drawing" or _drawing_space(effect) == "face"):
-                gain *= face_fade
+            gain *= gain_for(effect, state, points, self.config.min_point_confidence)
             if cut or gain <= 0:
                 runtime.active_frames = 0
             if gain > 0:
@@ -98,7 +101,6 @@ class EffectEngine:
                 )
             runtime.contour_px = None
             runtime.tool_tip = None
-            runtime.bright = ()
             if self.appearance is not None:
                 poly = self.appearance.contours.get(frame_index)
                 if poly:
@@ -106,11 +108,6 @@ class EffectEngine:
                 tip = self.appearance.tips.get(frame_index)
                 if tip is not None:
                     runtime.tool_tip = np.array([tip[0] * width, tip[1] * height], dtype=np.float64)
-                runtime.bright = tuple(
-                    region
-                    for start, end, region in self.appearance.bright_spans
-                    if start <= frame_index <= end
-                )
                 for feature, point in self.appearance.features.items():
                     points.setdefault(feature, np.array([point[0] * width, point[1] * height], dtype=np.float64))
             layer = render_effect(
@@ -140,6 +137,13 @@ class EffectEngine:
         return layers
 
 
+    def _bright(self, frame_index: int) -> frozenset[str]:
+        if self.appearance is None:
+            return frozenset()
+        return frozenset(
+            region for start, end, region in self.appearance.bright_spans if start <= frame_index <= end
+        )
+
     def _attach_appearance(self, run_dir: Path | None, frame_index: int, width: int, height: int) -> None:
         if run_dir is None or self.appearance is not None or self._appearance_dir == run_dir:
             return
@@ -148,16 +152,11 @@ class EffectEngine:
         self.appearance = Appearance.load(path) if path.exists() else Appearance()
 
 
-_FACE_TYPES = {"eye_rings", "face_linework", "drawing"}
 _FACE_ANCHOR_SET = set(FACE_ANCHORS)
 
 
 def _is_face(name: str) -> bool:
     return name.startswith("face_") or name in _FACE_ANCHOR_SET
-
-
-def _drawing_space(effect) -> str:
-    return effect.style.drawing.space if effect.style.drawing is not None else "face"
 
 
 def load_tracks(path: Path) -> list[FrameRecord]:

@@ -294,6 +294,6 @@ def _draw_strategy(kind, runtime, track, points, width, height, envelope, layer,
     elif kind == "tip_flame":
         flame(runtime, getattr(runtime, "tool_tip", None) if getattr(runtime, "tool_tip", None) is not None else origin, layer, envelope)
     elif kind == "feature_light":
-        feature(runtime, points, set(getattr(runtime, "bright", ())), layer, envelope)
+        feature(runtime, points, layer, envelope)
     elif kind == "glyph":
         glyph(runtime, points, layer, envelope)

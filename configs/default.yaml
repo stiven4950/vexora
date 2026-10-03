@@ -75,6 +75,7 @@ engine:
   max_particles: 400
   face_hold: 8            # fotogramas que se mantiene la cara si el detector la pierde
   keep_layers: false      # true guarda cada capa en disco (~7 MB por fotograma y efecto)
+  min_point_confidence: 0.0  # >0 atenúa los efectos cuya ancla tiene menos confianza; 0 lo apaga
 
 refiner:
   enabled: false

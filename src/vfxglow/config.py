@@ -113,6 +113,8 @@ class EngineConfig(_Strict):
     max_particles: int = 400
     face_hold: int = 8
     keep_layers: bool = False
+    # Por debajo de esta confianza el efecto anclado se atenúa en proporción. 0 lo desactiva.
+    min_point_confidence: float = 0.0
 
 
 class RefinerConfig(_Strict):

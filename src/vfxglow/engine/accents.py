@@ -101,16 +101,14 @@ def draw_tip_flame(runtime, origin: np.ndarray | None, layer: np.ndarray, envelo
 def draw_feature_light(
     runtime,
     points: dict[str, np.ndarray],
-    bright: set[str],
     layer: np.ndarray,
     envelope: float,
 ) -> None:
+    # El veto de rasgos que ya brillan vive en engine/constraints.py.
     if envelope <= 0:
         return
     effect = runtime.effect
     name = effect.target.id
-    if name in bright or (name.endswith("eye") and "eyes" in bright):
-        return
     origin = points.get(name)
     if origin is None:
         return

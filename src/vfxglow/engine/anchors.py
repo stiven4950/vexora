@@ -8,26 +8,51 @@ from vfxglow.analysis.names import CHAINS, FACE_FEATURES, FACE_NAMED
 from vfxglow.analysis.schema import FrameRecord, Landmark
 
 
-def _put(points: dict[str, np.ndarray], lm: Landmark, width: int, height: int) -> None:
+class PointSet(dict):
+    """Anclas en píxeles, con la confianza y el detector de origen de cada una.
+
+    Se comporta como un dict de nombre -> punto, así que los efectos no cambian. La capa de
+    restricciones lee `confidence()` y `origin()` para degradar un efecto en vez de dibujarlo a ciegas.
+    Un punto sin dato registrado (derivado, o añadido por un efecto) cuenta como confianza 1.
+    """
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.conf: dict[str, float] = {}
+        self.source: dict[str, str] = {}
+
+    def put(self, name: str, value: np.ndarray, conf: float = 1.0, source: str = "derived") -> None:
+        self[name] = value
+        self.conf[name] = conf
+        self.source[name] = source
+
+    def confidence(self, name: str) -> float:
+        return self.conf.get(name, 1.0)
+
+    def origin(self, name: str) -> str:
+        return self.source.get(name, "derived")
+
+
+def _put(points: PointSet, lm: Landmark, width: int, height: int, source: str) -> None:
     if lm.c <= 0:
         return
-    points[lm.name] = np.array([lm.x * width, lm.y * height], dtype=np.float64)
+    points.put(lm.name, np.array([lm.x * width, lm.y * height], dtype=np.float64), float(lm.c), source)
 
 
-def collect_points(track: FrameRecord | None, width: int, height: int) -> dict[str, np.ndarray]:
-    points: dict[str, np.ndarray] = {}
+def collect_points(track: FrameRecord | None, width: int, height: int) -> PointSet:
+    points = PointSet()
     if track is None:
         return points
     for lm in track.pose:
-        _put(points, lm, width, height)
+        _put(points, lm, width, height, "pose")
     for hand in (track.left_hand, track.right_hand):
         if hand is None:
             continue
         for lm in hand.landmarks:
-            _put(points, lm, width, height)
+            _put(points, lm, width, height, "hand")
     if track.face:
         for lm in track.face:
-            _put(points, lm, width, height)
+            _put(points, lm, width, height, "face_mesh")
     if "left_shoulder" in points and "right_shoulder" in points:
         points["mid_shoulder"] = (points["left_shoulder"] + points["right_shoulder"]) * 0.5
     if "left_hip" in points and "right_hip" in points:
@@ -63,6 +88,9 @@ def add_face_points(points: dict[str, np.ndarray]) -> None:
         key = f"face_{index}"
         if key in points:
             points[name] = points[key]
+            if isinstance(points, PointSet) and key in points.source:
+                points.conf[name] = points.conf[key]
+                points.source[name] = points.source[key]
     for side in ("right", "left"):
         iris = f"{side}_iris"
         if iris not in points:
