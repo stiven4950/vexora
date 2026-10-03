@@ -22,6 +22,9 @@ from vfxglow.io.video import VideoReader
 
 log = logging.getLogger("vfxglow.analysis")
 
+# Una malla con menos puntos que esto es una detección parcial (p. ej. sobre una máscara) y no cuenta.
+MIN_FACE_POINTS = 60
+
 
 def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: str) -> VideoMeta:
     if config.analysis.level == "masks":
@@ -38,12 +41,15 @@ def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: st
         flow = FlowEstimator(config.analysis.flow.method, device) if config.analysis.flow.enabled else None
         previous = None
         detector = _open_detector(config, device, models_dir)
+        fallback = _open_fallback(config, models_dir)
         try:
             model_names = dict(getattr(detector, "models", {}))
             if objects.enabled:
                 model_names["objects"] = config.analysis.objects.model
             for index, frame in reader:
                 record = _detect(detector, config, index, frame, meta.fps)
+                if fallback is not None and len(record.face or []) < MIN_FACE_POINTS:
+                    fallback.apply(record, frame)
                 if objects.enabled:
                     if index % stride == 0:
                         record.objects = objects.update(objects.detect(frame))
@@ -57,6 +63,8 @@ def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: st
             closer = getattr(detector, "close", None)
             if closer:
                 closer()
+            if fallback is not None:
+                fallback.close()
         meta = meta.model_copy(update={"frame_count": len(raw), "duration_s": len(raw) / meta.fps})
     if config.analysis.level == "masks":
         from vfxglow.analysis.sam2_backend import Sam2Masker
@@ -72,6 +80,10 @@ def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: st
             config.analysis.masks.sam2_checkpoint,
             device,
         ).apply(video_path, raw, run_dir)
+    if config.analysis.face_fallback:
+        from vfxglow.analysis.fallback import stabilize_heads
+
+        stabilize_heads(raw, meta.width, meta.height)
     frames = smooth_tracks(raw, meta.fps, config.analysis)
     add_motion(frames, meta, config.analysis.events.glitch_speed)
     events = EventDetector(config.analysis.events).detect(frames, meta)
@@ -111,6 +123,15 @@ def _open_detector(config: AppConfig, device: str, models_dir: Path):
     from vfxglow.analysis.mediapipe_backend import MediaPipeDetector
 
     return MediaPipeDetector(models_dir, config.analysis.mediapipe, config.analysis.store_face)
+
+
+def _open_fallback(config: AppConfig, models_dir: Path):
+    if not config.analysis.face_fallback or config.analysis.level != "fast":
+        return None
+    from vfxglow.analysis.fallback import FaceFallback
+    from vfxglow.analysis.models_store import ensure_model
+
+    return FaceFallback(str(ensure_model(models_dir, "selfie_segmenter.tflite")))
 
 
 def _detect(detector, config: AppConfig, index: int, frame, fps: float) -> FrameRecord:

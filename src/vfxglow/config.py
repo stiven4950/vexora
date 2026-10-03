@@ -82,6 +82,8 @@ class SceneConfig(_Strict):
 class AnalysisConfig(_Strict):
     level: Literal["fast", "hq", "masks"] = "fast"
     store_face: bool = True
+    # Sin malla facial, recorta la silueta con el Selfie Segmenter y busca el ojo más claro.
+    face_fallback: bool = True
     min_confidence: float = 0.35
     max_gap: int = 6
     one_euro: OneEuroConfig = Field(default_factory=OneEuroConfig)

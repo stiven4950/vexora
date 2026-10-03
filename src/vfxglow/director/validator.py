@@ -81,7 +81,7 @@ def _check_target(name: str, kind: str, known: set[str]) -> None:
 def _known_anchor(name: str, known: set[str]) -> bool:
     if name in known or name.startswith("face") or name.startswith("object"):
         return True
-    if name in {"mouth", "head_top", "paint_contour", "contact", "person"}:
+    if name in {"mouth", "head_top", "paint_contour", "contact", "person", "eye_glint"}:
         return True
     if name.startswith("person_") and ":" in name:
         joint = name.split(":", 1)[1]

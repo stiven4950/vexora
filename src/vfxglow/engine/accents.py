@@ -71,11 +71,11 @@ def draw_silhouette(runtime, track: FrameRecord | None, width: int, height: int,
     stroke_polyline(layer, hull, color, max(2.5, effect.style.thickness * height * 0.15), effect.style.hdr_gain * envelope * 0.7)
 
 
-def draw_contour(runtime, poly: np.ndarray | None, layer: np.ndarray, envelope: float) -> None:
+def draw_contour(runtime, poly: np.ndarray | None, layer: np.ndarray, envelope: float, closed_loop: bool = True) -> None:
     if poly is None or len(poly) < 4 or envelope <= 0:
         return
     effect = runtime.effect
-    closed = np.vstack([poly, poly[0]])
+    closed = np.vstack([poly, poly[0]]) if closed_loop else poly
     color = effect.style.colors[0]
     width = max(2.0, effect.style.thickness * layer.shape[0] * 0.12)
     if effect.style.dash > 0:

@@ -84,6 +84,9 @@ class EffectEngine:
             vx, vy = joint_velocity(track, name)
             points[f"vel:{name}"] = np.array([vx * width, vy * height], dtype=np.float64)
         mask = _load_mask(run_dir, track, width, height)
+        head_px = None
+        if track is not None and track.head_contour:
+            head_px = np.array([[x * width, y * height] for x, y in track.head_contour], dtype=np.float64)
         layers: list[tuple[str, str, np.ndarray]] = []
         for runtime, timeline in zip(self.runtimes, self.timelines, strict=True):
             effect = runtime.effect
@@ -112,6 +115,9 @@ class EffectEngine:
                 tip = self.appearance.tips.get(frame_index)
                 if tip is not None:
                     runtime.tool_tip = np.array([tip[0] * width, tip[1] * height], dtype=np.float64)
+            if effect.target.kind == "contour" and effect.target.id == "head":
+                # Contorno de cabeza del segmentador, solo donde faltó la malla facial.
+                runtime.contour_px = head_px
             layer = render_effect(
                 runtime,
                 track,

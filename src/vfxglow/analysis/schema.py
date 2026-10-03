@@ -83,6 +83,10 @@ class FrameRecord(_Strict):
     hand_state: dict[str, HandState] = Field(default_factory=dict)
     torso_yaw_rate: float = 0.0
     people: list[PersonPose] = Field(default_factory=list)
+    # Respaldo cuando no hay malla facial (maquillaje total, máscara): puntos del
+    # segmentador o de brillo (`eye_glint`) y contorno de la cabeza, normalizados.
+    fallback: list[Landmark] = Field(default_factory=list)
+    head_contour: list[tuple[float, float]] | None = None
 
 
 class VideoMeta(_Strict):

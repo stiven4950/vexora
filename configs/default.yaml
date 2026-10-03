@@ -8,6 +8,7 @@ paths:
 analysis:
   level: fast
   store_face: true
+  face_fallback: true      # sin malla facial: contorno de cabeza (Selfie Segmenter, CPU) y ojo claro
   min_confidence: 0.35
   max_gap: 6
   one_euro:

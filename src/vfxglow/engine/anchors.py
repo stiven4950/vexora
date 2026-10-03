@@ -53,6 +53,8 @@ def collect_points(track: FrameRecord | None, width: int, height: int) -> PointS
     if track.face:
         for lm in track.face:
             _put(points, lm, width, height, "face_mesh")
+    for lm in track.fallback:
+        _put(points, lm, width, height, "fallback")
     if "left_shoulder" in points and "right_shoulder" in points:
         points["mid_shoulder"] = (points["left_shoulder"] + points["right_shoulder"]) * 0.5
     if "left_hip" in points and "right_hip" in points:
