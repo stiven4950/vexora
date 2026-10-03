@@ -344,3 +344,28 @@ def test_bright_spans_bridge_blinks_and_drop_flicker() -> None:
     spans = [s for s in _merge_spans(raw, BRIGHT_GAP) if s[1] - s[0] + 1 >= BRIGHT_MIN]
     # 22-24 y 38-40 son parpadeos y se puentean; 29-36 supera el hueco y separa; 120 suelto se descarta.
     assert spans == [(14, 28, "eyes"), (37, 47, "eyes")]
+
+
+def test_swoosh_follows_speed_and_breaks_on_jumps() -> None:
+    from vfxglow.analysis.schema import JointMotion, PersonPose
+
+    def frame(i: int, x: float, speed: float) -> FrameRecord:
+        pose = [Landmark(name="right_wrist", x=x, y=0.5, c=0.9), Landmark(name="nose", x=0.5, y=0.2, c=0.9)]
+        motion = [JointMotion(name="right_wrist", speed=speed, direction_deg=0.0, vx=0.01, vy=0.0)]
+        return FrameRecord(frame=i, time_s=i / 30, people=[PersonPose(person_id="person_0", pose=pose, motion=motion)])
+
+    effect = Effect(id="sw", type="swoosh", target=EffectTarget(kind="joint", id="right_wrist"))
+    effect.style.thickness = 0.05
+    script = EffectScript(title="t", theme="t", effects=[effect])
+
+    slow = EffectEngine(script, EngineConfig())
+    for i in range(6):
+        layer = slow.render_frame(frame(i, 0.3 + 0.002 * i, 0.02), i, 128, 128, 20)[0][2]
+    assert layer[..., 3].max() == 0  # quieta: sin estela
+
+    fast = EffectEngine(script, EngineConfig())
+    for i in range(6):
+        layer = fast.render_frame(frame(i, 0.3 + 0.03 * i, 0.4), i, 128, 128, 20)[0][2]
+    assert layer[..., 3].max() > 0
+    fast.render_frame(frame(6, 0.95, 0.4), 6, 128, 128, 20)  # el tracker saltó de persona
+    assert len(fast.runtimes[0].swoosh["person_0:right_wrist"]) == 1

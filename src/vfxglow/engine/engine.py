@@ -97,6 +97,8 @@ class EffectEngine:
                 gain = envelope(frame_index, effect.time, frame_count)
             gain *= effect.style.intensity
             gain *= gain_for(effect, state, points, self.config.min_point_confidence)
+            if cut:
+                runtime.swoosh.clear()
             if cut or gain <= 0:
                 runtime.active_frames = 0
             if gain > 0:

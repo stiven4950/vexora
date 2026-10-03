@@ -36,6 +36,8 @@ class EffectRuntime:
         self.crack_lines: list[np.ndarray] = []
         self.active_frames = 0
         self.fps = 30.0
+        self.swoosh: dict[str, deque] = {}
+        self.swoosh_activity: dict[str, float] = {}
 
 
 def render_effect(
@@ -79,6 +81,10 @@ def render_effect(
         draw_charge(runtime, points, frame_index, height, envelope, layer, event)
     elif kind == "sparks":
         draw_sparks(runtime, points, frame_index, height, envelope, layer, event)
+    elif kind == "swoosh":
+        from vfxglow.engine.swoosh import draw_swoosh
+
+        draw_swoosh(runtime, track, points, frame_index, height, envelope, layer)
     elif kind in {"eye_rings", "face_linework", "drawing"}:
         from vfxglow.engine.face_fx import draw_drawing, draw_eye_rings, draw_face_linework
 

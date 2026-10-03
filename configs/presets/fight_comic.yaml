@@ -8,6 +8,124 @@ grade:
   bloom_intensity: 0.85
   soft_knee: 0.85
 effects:
+- id: arm_swoosh
+  type: swoosh
+  target:
+    kind: joint
+    id: left_wrist,right_wrist
+    secondary: null
+    space: image
+  time:
+    start_frame: 0
+    end_frame: -1
+    fade_in: 2
+    fade_out: 4
+  style:
+    preset: null
+    intensity: 1.0
+    colors:
+    - - 1.0
+      - 0.55
+      - 0.12
+    - - 0.3
+      - 0.75
+      - 1.0
+    thickness: 0.012
+    hdr_gain: 1.8
+    noise:
+      scale: 48.0
+      speed: 0.8
+      octaves: 3
+      amplitude: 0.35
+    seed_offset: 0
+    lightning:
+      branches: 3
+      branch_depth: 2
+      branch_angle: 28.0
+      jitter: 0.22
+      reseed_every: 4
+      tail_frames: 6
+      sparks: 6
+      reach: 1.4
+    boil_frames: 2
+    glyph: ''
+    dash: 0.0
+    rings: 2
+    trail_frames: 10
+    min_speed: 0.12
+  render:
+    blend: add
+    motion_blur: 0.0
+    occlude: false
+    group: glow
+    persistence: 0.0
+    glow_layers: 2
+  refine:
+    enabled: false
+    prompt: ''
+    strength: 0.4
+    keyframe_stride: 8
+  triggers: []
+  actor: null
+- id: leg_swoosh
+  type: swoosh
+  target:
+    kind: joint
+    id: left_ankle,right_ankle
+    secondary: null
+    space: image
+  time:
+    start_frame: 0
+    end_frame: -1
+    fade_in: 2
+    fade_out: 4
+  style:
+    preset: null
+    intensity: 1.0
+    colors:
+    - - 1.0
+      - 0.55
+      - 0.12
+    - - 0.3
+      - 0.75
+      - 1.0
+    thickness: 0.01
+    hdr_gain: 1.8
+    noise:
+      scale: 48.0
+      speed: 0.8
+      octaves: 3
+      amplitude: 0.35
+    seed_offset: 0
+    lightning:
+      branches: 3
+      branch_depth: 2
+      branch_angle: 28.0
+      jitter: 0.22
+      reseed_every: 4
+      tail_frames: 6
+      sparks: 6
+      reach: 1.4
+    boil_frames: 2
+    glyph: ''
+    dash: 0.0
+    rings: 1
+    trail_frames: 8
+    min_speed: 0.09
+  render:
+    blend: add
+    motion_blur: 0.0
+    occlude: false
+    group: glow
+    persistence: 0.0
+    glow_layers: 2
+  refine:
+    enabled: false
+    prompt: ''
+    strength: 0.4
+    keyframe_stride: 8
+  triggers: []
+  actor: null
 - id: charge_0_r
   type: charge
   target:
@@ -443,132 +561,6 @@ effects:
     min_speed: 0.25
     min_duration: 1
     hold: 16
-    cooldown: 4
-    fade_in: 1
-    fade_out: 5
-    max_activations: 0
-    attacker: null
-  actor: null
-- id: legs_left
-  type: trail
-  target:
-    kind: joint
-    id: left_ankle
-    secondary: null
-    space: image
-  time:
-    start_frame: 0
-    end_frame: -1
-    fade_in: 2
-    fade_out: 4
-  style:
-    preset: null
-    intensity: 1.0
-    colors:
-    - - 0.55
-      - 0.85
-      - 1.0
-    thickness: 0.05
-    hdr_gain: 2.4
-    noise:
-      scale: 48.0
-      speed: 0.8
-      octaves: 3
-      amplitude: 0.35
-    seed_offset: 0
-    lightning:
-      branches: 3
-      branch_depth: 2
-      branch_angle: 28.0
-      jitter: 0.22
-      reseed_every: 4
-      tail_frames: 6
-      sparks: 6
-      reach: 1.4
-    boil_frames: 2
-    glyph: ''
-    dash: 0.0
-  render:
-    blend: add
-    motion_blur: 0.15
-    occlude: false
-    group: glow
-    persistence: 0.35
-    glow_layers: 2
-  refine:
-    enabled: false
-    prompt: ''
-    strength: 0.4
-    keyframe_stride: 8
-  triggers:
-  - event: fast_swing
-    joint: left_ankle
-    min_speed: 0.0
-    min_duration: 1
-    hold: 10
-    cooldown: 4
-    fade_in: 1
-    fade_out: 5
-    max_activations: 0
-    attacker: null
-  actor: null
-- id: legs_right
-  type: trail
-  target:
-    kind: joint
-    id: right_ankle
-    secondary: null
-    space: image
-  time:
-    start_frame: 0
-    end_frame: -1
-    fade_in: 2
-    fade_out: 4
-  style:
-    preset: null
-    intensity: 1.0
-    colors:
-    - - 0.55
-      - 0.85
-      - 1.0
-    thickness: 0.05
-    hdr_gain: 2.4
-    noise:
-      scale: 48.0
-      speed: 0.8
-      octaves: 3
-      amplitude: 0.35
-    seed_offset: 0
-    lightning:
-      branches: 3
-      branch_depth: 2
-      branch_angle: 28.0
-      jitter: 0.22
-      reseed_every: 4
-      tail_frames: 6
-      sparks: 6
-      reach: 1.4
-    boil_frames: 2
-    glyph: ''
-    dash: 0.0
-  render:
-    blend: add
-    motion_blur: 0.15
-    occlude: false
-    group: glow
-    persistence: 0.35
-    glow_layers: 2
-  refine:
-    enabled: false
-    prompt: ''
-    strength: 0.4
-    keyframe_stride: 8
-  triggers:
-  - event: fast_swing
-    joint: right_ankle
-    min_speed: 0.0
-    min_duration: 1
-    hold: 10
     cooldown: 4
     fade_in: 1
     fade_out: 5

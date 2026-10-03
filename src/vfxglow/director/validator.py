@@ -34,6 +34,10 @@ def validate_script(script: EffectScript, anchors: set[str] | None = None, cuts:
             raise ScriptError(f"Tipo de efecto desconocido: {effect.type}")
         if effect.type in REDRAW_TYPES:
             _check_face_effect(effect)
+        elif effect.type == "swoosh":
+            # Lista de articulaciones; se aplica a cada persona presente.
+            for joint in (token.strip() for token in effect.target.id.split(",") if token.strip()):
+                _check_target(joint, "joint", known)
         else:
             _check_target(effect.target.id, effect.target.kind, known)
         if effect.target.kind == "event_point" and not effect.triggers:
@@ -52,7 +56,7 @@ def validate_script(script: EffectScript, anchors: set[str] | None = None, cuts:
             raise ScriptError(f"{effect.id}: persistence debe estar en [0, 1).")
         if effect.style.glyph:
             _check_glyph(effect.id, effect.style.glyph)
-        if cuts and not effect.triggers and effect.type not in REDRAW_TYPES:
+        if cuts and not effect.triggers and effect.type not in REDRAW_TYPES | {"swoosh"}:
             end = effect.time.end_frame
             for cut in cuts:
                 if effect.time.start_frame < cut <= end:

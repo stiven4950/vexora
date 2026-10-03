@@ -30,6 +30,7 @@ EffectType = Literal[
     "eye_rings",
     "face_linework",
     "drawing",
+    "swoosh",
 ]
 TargetKind = Literal["joint", "chain", "face_region", "mask", "object", "event_point", "contour"]
 BlendMode = Literal["add", "screen", "over", "multiply"]
@@ -125,6 +126,9 @@ class EffectStyle(_Strict):
     hue_speed: float = 0.0
     draw_on: int = 0
     drawing: Drawing | None = None
+    # swoosh: fotogramas de estela y velocidad (torsos/fotograma) a partir de la cual se enciende.
+    trail_frames: int = 10
+    min_speed: float = 0.12
 
 
 class EffectRender(_Strict):
@@ -208,6 +212,7 @@ SUPPORTED_TYPES: tuple[str, ...] = (
     "eye_rings",
     "face_linework",
     "drawing",
+    "swoosh",
 )
 
 # Efectos que por defecto pertenecen a un grupo distinto de glow.
