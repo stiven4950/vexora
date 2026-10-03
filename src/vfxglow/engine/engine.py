@@ -70,8 +70,12 @@ class EffectEngine:
         run_dir: Path | None = None,
     ) -> list[tuple[str, str, np.ndarray]]:
         points = collect_points(track, width, height)
-        face_fade = self._hold_face(points)
         cut = frame_index in self.cuts
+        if cut:
+            # Otro plano: la última malla pertenece a una cara que ya no está.
+            self._face_last = {}
+            self._face_age = 0
+        face_fade = self._hold_face(points)
         self._attach_appearance(run_dir, frame_index, width, height)
         state = FrameState(face_fade=face_fade, bright=self._bright(frame_index))
         for name in list(points):
@@ -108,8 +112,6 @@ class EffectEngine:
                 tip = self.appearance.tips.get(frame_index)
                 if tip is not None:
                     runtime.tool_tip = np.array([tip[0] * width, tip[1] * height], dtype=np.float64)
-                for feature, point in self.appearance.features.items():
-                    points.setdefault(feature, np.array([point[0] * width, point[1] * height], dtype=np.float64))
             layer = render_effect(
                 runtime,
                 track,

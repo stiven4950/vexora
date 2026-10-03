@@ -57,6 +57,10 @@ def collect_points(track: FrameRecord | None, width: int, height: int) -> PointS
         points["mid_shoulder"] = (points["left_shoulder"] + points["right_shoulder"]) * 0.5
     if "left_hip" in points and "right_hip" in points:
         points["mid_hip"] = (points["left_hip"] + points["right_hip"]) * 0.5
+    if "mouth_left" in points and "mouth_right" in points:
+        points["mouth"] = (points["mouth_left"] + points["mouth_right"]) * 0.5
+    if "nose" in points:
+        points["head_top"] = points["nose"] - np.array([0.0, height * 0.08])
     if "mid_shoulder" in points and "nose" in points:
         points["neck"] = (points["mid_shoulder"] + points["nose"]) * 0.5
     elif "mid_shoulder" in points:

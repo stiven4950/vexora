@@ -20,6 +20,9 @@ from vfxglow.analysis.schema import Beat, FrameRecord, VideoMeta
 log = logging.getLogger("vfxglow.appearance")
 
 _SMALL = (180, 320)
+# Un parpadeo o un fotograma sin ojos no corta el veto; un destello suelto no lo enciende.
+BRIGHT_GAP = 8
+BRIGHT_MIN = 3
 
 
 @dataclass
@@ -28,7 +31,6 @@ class Appearance:
     tips: dict[int, tuple[float, float]] = field(default_factory=dict)
     bright: list[str] = field(default_factory=list)
     bright_spans: list[tuple[int, int, str]] = field(default_factory=list)
-    features: dict[str, tuple[float, float]] = field(default_factory=dict)
 
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -37,7 +39,6 @@ class Appearance:
             "tips": [{"frame": frame, "point": point} for frame, point in sorted(self.tips.items())],
             "bright": self.bright,
             "bright_spans": [{"start": a, "end": b, "region": region} for a, b, region in self.bright_spans],
-            "features": self.features,
         }
         path.write_text(json.dumps(payload), encoding="utf-8")
 
@@ -51,7 +52,6 @@ class Appearance:
             tips={int(item["frame"]): tuple(item["point"]) for item in raw.get("tips", [])},
             bright=list(raw.get("bright", [])),
             bright_spans=[(int(item["start"]), int(item["end"]), str(item["region"])) for item in raw.get("bright_spans", [])],
-            features={name: tuple(point) for name, point in raw.get("features", {}).items()},
         )
 
 
@@ -67,7 +67,6 @@ def analyze_appearance(video_path: Path, frames: list[FrameRecord], meta: VideoM
         ok, frame = cap.read()
         if not ok:
             break
-        _sample_features(out, record)
         if _eyes_bright(frame, record):
             bright_eyes += 1
             out.bright_spans.append((record.frame, record.frame, "eyes"))
@@ -89,7 +88,9 @@ def analyze_appearance(video_path: Path, frames: list[FrameRecord], meta: VideoM
                 out.tips[record.frame] = (tip[0] / width_s, tip[1] / height_s)
         acc = acc * 0.9 + small.astype(np.float32) * 0.1
     cap.release()
-    out.bright_spans = _merge_spans(out.bright_spans)
+    out.bright_spans = [
+        span for span in _merge_spans(out.bright_spans, BRIGHT_GAP) if span[1] - span[0] + 1 >= BRIGHT_MIN
+    ]
     if eye_samples and bright_eyes / max(eye_samples, 1) > 0.35:
         out.bright.append("eyes")
     log.info("Pigmento en %d fotogramas; rasgos brillantes: %s", len(out.contours), out.bright or "ninguno")
@@ -116,28 +117,16 @@ def retag_paint_beats(beats: list[Beat], appearance: Appearance) -> list[Beat]:
     return updated
 
 
-def _sample_features(out: Appearance, record: FrameRecord) -> None:
-    named = {lm.name: (lm.x, lm.y) for lm in record.pose if lm.c > 0.2}
-    for source, dest in (("left_eye", "left_eye"), ("right_eye", "right_eye"), ("nose", "nose")):
-        if source in named:
-            out.features[dest] = named[source]
-    if "mouth_left" in named and "mouth_right" in named:
-        out.features["mouth"] = (
-            (named["mouth_left"][0] + named["mouth_right"][0]) * 0.5,
-            (named["mouth_left"][1] + named["mouth_right"][1]) * 0.5,
-        )
-    if "nose" in named:
-        out.features["head_top"] = (named["nose"][0], max(0.0, named["nose"][1] - 0.08))
-
-
 def _eyes_bright(frame: np.ndarray, record: FrameRecord) -> bool:
     """Ojos casi blancos en un plano claro. En un reveal oscuro no se vetan."""
     if float(frame.mean()) < 70:
         return False
     height, width = frame.shape[:2]
     samples = []
-    for name in ("left_eye", "right_eye"):
-        point = next(((lm.x, lm.y) for lm in record.pose if lm.name == name and lm.c > 0.2), None)
+    # El centro del iris de la malla cae sobre el lente; el ojo de la pose es más grueso y a veces lo pierde.
+    iris = {lm.name: (lm.x, lm.y) for lm in record.face or [] if lm.name in {"face_468", "face_473"}}
+    for name, mesh in (("left_eye", "face_473"), ("right_eye", "face_468")):
+        point = iris.get(mesh) or next(((lm.x, lm.y) for lm in record.pose if lm.name == name and lm.c > 0.2), None)
         if point is None:
             continue
         x = int(np.clip(point[0] * width, 0, width - 1))
@@ -148,14 +137,14 @@ def _eyes_bright(frame: np.ndarray, record: FrameRecord) -> bool:
     return bool(samples) and float(np.mean(samples)) > 220.0
 
 
-def _merge_spans(spans: list[tuple[int, int, str]]) -> list[tuple[int, int, str]]:
+def _merge_spans(spans: list[tuple[int, int, str]], gap: int = 2) -> list[tuple[int, int, str]]:
     if not spans:
         return []
     ordered = sorted(spans)
     merged = [ordered[0]]
     for start, end, region in ordered[1:]:
         prev_s, prev_e, prev_r = merged[-1]
-        if region == prev_r and start <= prev_e + 2:
+        if region == prev_r and start <= prev_e + gap:
             merged[-1] = (prev_s, max(prev_e, end), region)
         else:
             merged.append((start, end, region))

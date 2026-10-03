@@ -289,3 +289,58 @@ def test_constraints_low_confidence_degrades_only_when_enabled() -> None:
     trail = _effect("trail", "right_wrist")
     assert gain_for(trail, FrameState(), points) == 1.0
     assert gain_for(trail, FrameState(), points, min_confidence=0.5) == pytest.approx(0.4)
+
+
+def test_mouth_and_head_top_follow_the_current_frame() -> None:
+    from vfxglow.engine.anchors import collect_points
+
+    def frame(x: float) -> FrameRecord:
+        return FrameRecord(
+            frame=0,
+            time_s=0.0,
+            pose=[
+                Landmark(name="nose", x=x, y=0.5, c=1.0),
+                Landmark(name="mouth_left", x=x + 0.02, y=0.55, c=1.0),
+                Landmark(name="mouth_right", x=x - 0.02, y=0.55, c=1.0),
+            ],
+        )
+
+    a = collect_points(frame(0.3), 100, 200)
+    b = collect_points(frame(0.7), 100, 200)
+    assert a["mouth"] == pytest.approx([30.0, 110.0])
+    assert b["mouth"] == pytest.approx([70.0, 110.0])
+    assert b["head_top"] == pytest.approx([70.0, 100.0 - 16.0])
+    assert "mouth" not in collect_points(FrameRecord(frame=1, time_s=0.0), 100, 200)
+
+
+def test_held_face_does_not_cross_a_cut() -> None:
+    from vfxglow.engine.anchors import PointSet
+
+    face = [Landmark(name=f"face_{i}", x=0.5 + 0.001 * i, y=0.4, c=0.9) for i in (33, 133, 362, 263, 468, 473)]
+    with_face = FrameRecord(frame=0, time_s=0.0, face=face)
+    script = EffectScript(
+        title="t",
+        theme="t",
+        effects=[Effect(id="rings", type="eye_rings", target=EffectTarget(kind="face_region", id="eyes"))],
+    )
+    config = EngineConfig(face_hold=8)
+
+    held = EffectEngine(script, config, cuts=[])
+    held.render_frame(with_face, 0, 64, 64, 4)
+    points = PointSet()
+    assert held._hold_face(points) > 0
+    assert any(points.origin(name) == "hold" for name in points)
+
+    cut = EffectEngine(script, config, cuts=[1])
+    cut.render_frame(with_face, 0, 64, 64, 4)
+    cut.render_frame(None, 1, 64, 64, 4)
+    assert cut._face_last == {}
+
+
+def test_bright_spans_bridge_blinks_and_drop_flicker() -> None:
+    from vfxglow.analysis.appearance import BRIGHT_GAP, BRIGHT_MIN, _merge_spans
+
+    raw = [(f, f, "eyes") for f in (*range(14, 22), *range(25, 29), 37, *range(41, 48), 120)]
+    spans = [s for s in _merge_spans(raw, BRIGHT_GAP) if s[1] - s[0] + 1 >= BRIGHT_MIN]
+    # 22-24 y 38-40 son parpadeos y se puentean; 29-36 supera el hueco y separa; 120 suelto se descarta.
+    assert spans == [(14, 28, "eyes"), (37, 47, "eyes")]
