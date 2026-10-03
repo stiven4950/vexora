@@ -51,6 +51,8 @@ EVENT_NAMES: tuple[str, ...] = (
     "still",
     "person_contact",
     "tool_touch",
+    "strike_windup",
+    "strike_recoil",
 )
 
 

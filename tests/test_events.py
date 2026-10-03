@@ -104,3 +104,31 @@ def test_timeline_fades_and_hold() -> None:
     assert timeline.at(15)[0] < 1.0
     assert timeline.at(16)[0] == 0.0
     assert timeline.at(12)[1] is events[0]
+
+
+def test_strike_phases_anticipate_contact_and_find_recoil() -> None:
+    from vfxglow.analysis.events import WINDUP_LEAD
+    from vfxglow.analysis.schema import JointMotion, PersonPose
+
+    def frame(i: int, vx: float) -> FrameRecord:
+        wrist = JointMotion(name="left_wrist", speed=abs(vx), direction_deg=0.0, vx=vx, vy=0.0)
+        return FrameRecord(frame=i, time_s=i / 30, people=[PersonPose(person_id="person_1", motion=[wrist])])
+
+    frames = [frame(i, 0.5 if i <= 12 else -0.2) for i in range(20)]
+    contact = MotionEvent(
+        name="person_contact",
+        target="person_1:left_wrist",
+        start_frame=10,
+        end_frame=11,
+        confidence=0.8,
+        peak_speed=0.5,
+        attacker="person_1",
+        receiver="person_0",
+    )
+    detector = EventDetector(EventsConfig())
+    detector.frames = frames
+    phases = {event.name: event for event in detector._strike_phases([contact])}
+    windup, recoil = phases["strike_windup"], phases["strike_recoil"]
+    assert (windup.start_frame, windup.end_frame) == (10 - WINDUP_LEAD, 9)
+    assert windup.attacker == "person_1" and windup.target == "person_1:left_wrist"
+    assert (recoil.start_frame, recoil.end_frame) == (12, 13)

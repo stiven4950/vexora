@@ -17,6 +17,12 @@ from vfxglow.analysis.kinematics import _runs, torso_length_px
 from vfxglow.analysis.schema import FrameRecord, MotionEvent, VideoMeta
 from vfxglow.config import EventsConfig
 
+# Anticipación antes de un contacto y búsqueda máxima del retroceso, en fotogramas.
+# A 30 fps un golpe dura 1-2 fotogramas y el tracker no resuelve la aceleración previa,
+# así que la preparación no se mide: el análisis es offline y conoce el contacto de antemano.
+WINDUP_LEAD = 8
+RECOIL_MAX = 15
+
 EVENT_CATALOG: dict[str, str] = {
     "fast_swing": "La muñeca supera la velocidad umbral varios fotogramas seguidos.",
     "impact": "Una muñeca o tobillo frena de golpe tras moverse rápido.",
@@ -32,6 +38,8 @@ EVENT_CATALOG: dict[str, str] = {
     "raise_hand": "La muñeca sube por encima del hombro.",
     "still": "El cuerpo permanece casi quieto.",
     "person_contact": "La muñeca de una persona alcanza el torso o la cabeza de la otra.",
+    "strike_windup": "Anticipación fija antes de un contacto entre personas (carga previa al golpe).",
+    "strike_recoil": "Tras el contacto, la muñeca invierte su dirección (retroceso).",
     "tool_touch": "La mano se mueve junto al rostro, como un pincel que pinta.",
 }
 
@@ -75,7 +83,9 @@ class EventDetector:
         events += self._jump()
         events += self._arms_crossed()
         events += self._still()
-        events += self._person_contact()
+        contacts = self._person_contact()
+        events += contacts
+        events += self._strike_phases(contacts)
         events += self._people_swings()
         events += self._tool_touch()
         events.sort(key=lambda event: (event.start_frame, event.name))
@@ -441,6 +451,62 @@ class EventDetector:
                         hits.append((index, attacker.person_id, receiver.person_id, f"{side}_wrist", speed, wrist[0], wrist[1]))
         return _cluster_contacts(hits, EVENT_CATALOG["person_contact"])
 
+    def _strike_phases(self, contacts: list[MotionEvent]) -> list[MotionEvent]:
+        """Descompone cada contacto en approach/acceleration -> contact -> recoil.
+
+        windup: WINDUP_LEAD fotogramas antes del contacto (anticipación, no medida).
+        recoil: desde el final del contacto hasta que la muñeca se mueve en sentido opuesto al golpe.
+        """
+        from vfxglow.analysis.schema import MotionEvent
+
+        phases: list[MotionEvent] = []
+        for contact in contacts:
+            if not contact.attacker or ":" not in contact.target:
+                continue
+            joint = contact.target.split(":", 1)[1]
+
+            def motion(index: int):
+                if not 0 <= index < len(self.frames):
+                    return None
+                return _person_motion(self.frames[index], contact.attacker, joint)
+
+            first = max(contact.start_frame - WINDUP_LEAD, 0)
+            if first < contact.start_frame:
+                phases.append(
+                    MotionEvent(
+                        name="strike_windup",
+                        target=contact.target,
+                        start_frame=first,
+                        end_frame=contact.start_frame - 1,
+                        confidence=contact.confidence,
+                        detail=EVENT_CATALOG["strike_windup"],
+                        peak_speed=contact.peak_speed,
+                        attacker=contact.attacker,
+                        receiver=contact.receiver,
+                    )
+                )
+            hit = motion(contact.end_frame)
+            if hit is None or hit.speed <= 0:
+                continue
+            for index in range(contact.end_frame + 1, contact.end_frame + 1 + RECOIL_MAX):
+                after = motion(index)
+                if after is not None and after.vx * hit.vx + after.vy * hit.vy < 0:
+                    phases.append(
+                        MotionEvent(
+                            name="strike_recoil",
+                            target=contact.target,
+                            start_frame=contact.end_frame + 1,
+                            end_frame=index,
+                            confidence=contact.confidence,
+                            detail=EVENT_CATALOG["strike_recoil"],
+                            peak_speed=float(after.speed),
+                            attacker=contact.attacker,
+                            receiver=contact.receiver,
+                        )
+                    )
+                    break
+        return phases
+
     def _people_swings(self) -> list[MotionEvent]:
         """Swings por persona, con ancla person_N:joint, para que cada color siga a su actor."""
         from vfxglow.analysis.schema import MotionEvent
@@ -526,6 +592,15 @@ def _person_point(person, name: str) -> tuple[float, float] | None:
             )
         return pts.get("nose")
     return pts.get(name)
+
+
+def _person_motion(frame, person_id: str, name: str):
+    for person in frame.people:
+        if person.person_id == person_id:
+            for item in person.motion:
+                if item.name == name and not item.glitch:
+                    return item
+    return None
 
 
 def _person_speed(person, name: str) -> float:

@@ -8,7 +8,7 @@ grade:
   bloom_intensity: 0.85
   soft_knee: 0.85
 effects:
-- id: charge_0
+- id: charge_0_r
   type: charge
   target:
     kind: joint
@@ -60,18 +60,81 @@ effects:
     strength: 0.4
     keyframe_stride: 8
   triggers:
-  - event: fast_swing
+  - event: strike_windup
     joint: person_0:right_wrist
     min_speed: 0.0
     min_duration: 1
-    hold: 8
+    hold: 4
     cooldown: 4
     fade_in: 1
     fade_out: 5
     max_activations: 0
     attacker: null
   actor: person_0
-- id: charge_1
+- id: charge_0_l
+  type: charge
+  target:
+    kind: joint
+    id: person_0:left_wrist
+    secondary: null
+    space: image
+  time:
+    start_frame: 0
+    end_frame: -1
+    fade_in: 2
+    fade_out: 4
+  style:
+    preset: null
+    intensity: 1.0
+    colors:
+    - - 1.0
+      - 0.48
+      - 0.08
+    thickness: 0.05
+    hdr_gain: 2.4
+    noise:
+      scale: 48.0
+      speed: 0.8
+      octaves: 3
+      amplitude: 0.35
+    seed_offset: 0
+    lightning:
+      branches: 3
+      branch_depth: 2
+      branch_angle: 28.0
+      jitter: 0.22
+      reseed_every: 4
+      tail_frames: 6
+      sparks: 6
+      reach: 1.4
+    boil_frames: 0
+    glyph: ''
+    dash: 0.0
+  render:
+    blend: add
+    motion_blur: 0.15
+    occlude: false
+    group: interaction
+    persistence: 0.35
+    glow_layers: 2
+  refine:
+    enabled: false
+    prompt: ''
+    strength: 0.4
+    keyframe_stride: 8
+  triggers:
+  - event: strike_windup
+    joint: person_0:left_wrist
+    min_speed: 0.0
+    min_duration: 1
+    hold: 4
+    cooldown: 4
+    fade_in: 1
+    fade_out: 5
+    max_activations: 0
+    attacker: null
+  actor: person_0
+- id: charge_1_r
   type: charge
   target:
     kind: joint
@@ -123,11 +186,74 @@ effects:
     strength: 0.4
     keyframe_stride: 8
   triggers:
-  - event: fast_swing
+  - event: strike_windup
     joint: person_1:right_wrist
     min_speed: 0.0
     min_duration: 1
-    hold: 8
+    hold: 4
+    cooldown: 4
+    fade_in: 1
+    fade_out: 5
+    max_activations: 0
+    attacker: null
+  actor: person_1
+- id: charge_1_l
+  type: charge
+  target:
+    kind: joint
+    id: person_1:left_wrist
+    secondary: null
+    space: image
+  time:
+    start_frame: 0
+    end_frame: -1
+    fade_in: 2
+    fade_out: 4
+  style:
+    preset: null
+    intensity: 1.0
+    colors:
+    - - 0.35
+      - 0.72
+      - 1.0
+    thickness: 0.05
+    hdr_gain: 2.4
+    noise:
+      scale: 48.0
+      speed: 0.8
+      octaves: 3
+      amplitude: 0.35
+    seed_offset: 0
+    lightning:
+      branches: 3
+      branch_depth: 2
+      branch_angle: 28.0
+      jitter: 0.22
+      reseed_every: 4
+      tail_frames: 6
+      sparks: 6
+      reach: 1.4
+    boil_frames: 0
+    glyph: ''
+    dash: 0.0
+  render:
+    blend: add
+    motion_blur: 0.15
+    occlude: false
+    group: interaction
+    persistence: 0.35
+    glow_layers: 2
+  refine:
+    enabled: false
+    prompt: ''
+    strength: 0.4
+    keyframe_stride: 8
+  triggers:
+  - event: strike_windup
+    joint: person_1:left_wrist
+    min_speed: 0.0
+    min_duration: 1
+    hold: 4
     cooldown: 4
     fade_in: 1
     fade_out: 5
