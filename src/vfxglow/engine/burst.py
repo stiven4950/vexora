@@ -27,7 +27,9 @@ from vfxglow.engine.swoosh import swoosh_keys
 TAU = 2.0 * np.pi
 # Fracción de la vida de la llamarada en la que alcanza su tamaño completo.
 GROW = 0.3
-DROPLET_LIMIT = 90
+# Gotas en pantalla a la vez y nuevas por fotograma: pocas y pequeñas para no saturar el plano.
+DROPLET_LIMIT = 40
+DROPLETS_PER_FRAME = 2
 SPARK_LIMIT = 80
 
 
@@ -182,7 +184,7 @@ def draw_droplets(runtime, track: FrameRecord | None, points, frame_index: int, 
         if float(np.random.default_rng(seed).random()) >= style.chance or envelope <= 0:
             continue
         rng = np.random.default_rng(seed + frame_index)
-        for _ in range(min(3, DROPLET_LIMIT - len(bits))):
+        for _ in range(min(DROPLETS_PER_FRAME, DROPLET_LIMIT - len(bits))):
             spread = rng.normal(0, torso * 0.025, 2)
             life = float(rng.uniform(14, 26))
             size = torso * style.size * float(rng.uniform(0.05, 0.1))
