@@ -43,6 +43,7 @@ class EffectRuntime:
         self.burst_key: object = None
         self.burst_seed = 0
         self.bits: list = []
+        self.limb_frames: dict[str, int] = {}
 
 
 def render_effect(

@@ -24,6 +24,11 @@ from vfxglow.geom import catmull_rom, normals
 # Ángulo mínimo del codo (grados) y proporción horizontal mínima del brazo.
 MIN_ELBOW = 150.0
 MIN_LEVEL = 0.8
+# Histéresis: un brazo que ya se dibuja sigue mientras esté razonablemente recto.
+KEEP_ELBOW = 135.0
+KEEP_LEVEL = 0.6
+# Fotogramas de fundido de entrada: una aparición de un solo fotograma apenas se ve.
+FADE_IN = 3
 # Caída por fotograma de la actividad: un golpe sostenido se mantiene dibujado.
 RELEASE = 0.9
 # Perfil del medio ancho a lo largo del brazo (fracción de su longitud -> torsos).
@@ -42,7 +47,7 @@ def arm_chain(points: dict[str, np.ndarray], key: str) -> np.ndarray | None:
     return np.stack(chain)
 
 
-def is_punch_pose(chain: np.ndarray) -> bool:
+def is_punch_pose(chain: np.ndarray, min_elbow: float = MIN_ELBOW, min_level: float = MIN_LEVEL) -> bool:
     shoulder, elbow, wrist = chain
     upper, lower = shoulder - elbow, wrist - elbow
     norms = float(np.linalg.norm(upper) * np.linalg.norm(lower))
@@ -50,7 +55,7 @@ def is_punch_pose(chain: np.ndarray) -> bool:
         return False
     angle = float(np.degrees(np.arccos(np.clip(upper @ lower / norms, -1.0, 1.0))))
     reach = wrist - shoulder
-    return angle >= MIN_ELBOW and abs(reach[0]) >= MIN_LEVEL * abs(reach[1])
+    return angle >= min_elbow and abs(reach[0]) >= min_level * abs(reach[1])
 
 
 def draw_arm_outline(runtime, track: FrameRecord | None, points: dict[str, np.ndarray], frame_index: int, height: int, envelope: float, layer: np.ndarray) -> None:
@@ -67,15 +72,22 @@ def draw_arm_outline(runtime, track: FrameRecord | None, points: dict[str, np.nd
         target = float(np.clip((speed - floor) / floor, 0.0, 1.0))
         active = max(target, activity.get(key, 0.0) * RELEASE)
         activity[key] = active
+        drawn = runtime.limb_frames.get(key, 0)
         if active < 0.05:
             runtime.swoosh_stroke.pop(key, None)
+            runtime.limb_frames.pop(key, None)
             continue
         start = runtime.swoosh_stroke.setdefault(key, frame_index)
         seed = zlib.crc32(f"{style.seed_offset}:{key}:{start}".encode()) & 0xFFFFFFFF
-        if chain is None or not is_punch_pose(chain) or envelope <= 0:
+        pose_ok = chain is not None and (
+            is_punch_pose(chain, KEEP_ELBOW, KEEP_LEVEL) if drawn else is_punch_pose(chain)
+        )
+        if not pose_ok or envelope <= 0 or float(np.random.default_rng(seed).random()) >= style.chance:
+            runtime.limb_frames.pop(key, None)
             continue
-        if float(np.random.default_rng(seed).random()) >= style.chance:
-            continue
+        drawn += 1
+        runtime.limb_frames[key] = drawn
+        active *= min(1.0, drawn / FADE_IN)
         wobble = np.random.default_rng(seed + frame_index // max(style.boil_frames, 1))
         color = np.asarray(style.colors[person % len(style.colors)], dtype=np.float32)
         width = max(1.2, style.thickness * torso)
