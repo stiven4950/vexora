@@ -143,3 +143,4 @@ git checkout baseline -- <archivo>   # recuperar la versión original de un arch
 | `dff64c1` | Este documento de comandos |
 | `b998fdb` | `fight_comic` fase 2: llamarada, chispas y gotas (`engine/burst.py`) |
 | `52c17be` | Gotas más pequeñas y menos numerosas |
+| `e0385ba` | Partículas de varias formas en los puñetazos (gota, anillo, hoja, rizo, guion) |
