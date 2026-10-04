@@ -23,7 +23,7 @@ import numpy as np
 from vfxglow.analysis.schema import FrameRecord, MotionEvent
 from vfxglow.engine.anchors import joint_speed, resolve_anchor, torso_pixels
 from vfxglow.engine.raster import stroke_batch
-from vfxglow.engine.swoosh import swoosh_keys
+from vfxglow.engine.swoosh import neon_layers, swoosh_keys
 
 TAU = 2.0 * np.pi
 # Fracción de la vida de la llamarada en la que alcanza su tamaño completo.
@@ -31,6 +31,9 @@ GROW = 0.3
 # Gotas en pantalla a la vez y nuevas por fotograma: pocas y pequeñas para no saturar el plano.
 DROPLET_LIMIT = 40
 DROPLETS_PER_FRAME = 2
+# Topes de tamaño como fracción de la altura del cuadro (llamarada y partícula).
+MAX_BURST = 0.12
+MAX_BIT = 0.012
 SPARK_LIMIT = 80
 
 
@@ -73,8 +76,7 @@ def _palette(style, index: int) -> np.ndarray:
 
 
 def _neon(curve: np.ndarray, color: np.ndarray, width: float, alpha: float) -> list:
-    core = color * 0.25 + 0.75
-    return [(curve, color, width * 3.0, alpha * 0.16), (curve, color, width, alpha * 0.9), (curve, core, width * 0.4, alpha)]
+    return neon_layers(curve, color, width, alpha)
 
 
 # ----- llamarada -----
@@ -92,7 +94,8 @@ def draw_flame_burst(runtime, points, frame_index: int, height: int, envelope: f
         runtime.burst_key = key
         runtime.burst_seed = zlib.crc32(f"{style.seed_offset}:{event.start_frame}:{event.target}".encode()) & 0xFFFFFFFF
     torso = torso_pixels(points, height)
-    radius = style.size * torso
+    # En primeros planos el torso es enorme; el tope evita que la llamarada tape el cuadro.
+    radius = min(style.size * torso, MAX_BURST * height)
     grow = float(np.clip(runtime.active_frames / max(effect.triggers[0].hold * GROW, 1.0), 0.0, 1.0)) if effect.triggers else 1.0
     grow = 1.0 - (1.0 - grow) ** 2
     # Line boil: la forma tiembla cada `boil_frames` sin cambiar de identidad.
@@ -117,7 +120,7 @@ def draw_flame_burst(runtime, points, frame_index: int, height: int, envelope: f
         start = origin + direction * (radius * float(rng.uniform(0.22, 0.42)) + drift) + rise
         length = radius * float(rng.uniform(0.35, 0.65)) * grow
         curl = float(rng.choice([-1.0, 1.0]) * rng.uniform(0.4, 1.1))
-        tongue = flame_tongue(start, angle, length, length * 0.24, curl, jitter)
+        tongue = flame_tongue(start, angle, length, length * 0.17, curl, jitter)
         color = _palette(style, rival if index % 3 == 2 else own)
         strokes += _neon(tongue, color, width, envelope)
     # Óvalos sueltos alrededor del golpe.
@@ -206,7 +209,7 @@ def draw_droplets(runtime, track: FrameRecord | None, points, frame_index: int, 
         for _ in range(min(DROPLETS_PER_FRAME, DROPLET_LIMIT - len(bits))):
             spread = rng.normal(0, torso * 0.025, 2)
             life = float(rng.uniform(14, 26))
-            size = torso * style.size * float(rng.uniform(0.05, 0.1))
+            size = min(torso * style.size * float(rng.uniform(0.05, 0.1)), MAX_BIT * height)
             spin = float(rng.choice([-1.0, 1.0]))
             bits.append(
                 Bit(

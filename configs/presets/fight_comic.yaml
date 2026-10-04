@@ -180,7 +180,7 @@ effects:
     paint_chance: 0.0
     paint_width: 0.22
     paint_min_length: 0.8
-    size: 0.6
+    size: 0.45
   render:
     blend: add
     motion_blur: 0.0

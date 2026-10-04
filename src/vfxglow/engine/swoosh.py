@@ -160,14 +160,23 @@ def _smooth(points: np.ndarray, passes: int = 2) -> np.ndarray:
     return out
 
 
+def neon_layers(curve: np.ndarray, color: np.ndarray, width: float, alpha: float) -> list:
+    """Un tubo de neón: halo ancho del color, cuerpo del color y núcleo claro pero aún teñido.
+
+    Un núcleo casi blanco y un halo tenue lavan el color; aquí el color domina y el núcleo
+    solo lo aclara, para que el neón se vea vívido sobre el plano.
+    """
+    core = color * 0.5 + 0.5
+    return [(curve, color, width * 3.4, alpha * 0.3), (curve, color, width, alpha), (curve, core, width * 0.35, alpha * 0.9)]
+
+
 def _neon(curve: np.ndarray, color: np.ndarray, width: float, alpha: float, taper: bool = True) -> list:
-    """Tramos de cola a cabeza, cada vez más anchos y opacos; halo, cuerpo y núcleo.
+    """Tramos de cola a cabeza, cada vez más anchos y opacos.
 
     Sin `taper` el trazo es uniforme (un contorno cerrado no tiene cola).
     """
-    core = color * 0.25 + 0.75
     if not taper:
-        return [(curve, color, width * 3.0, alpha * 0.16), (curve, color, width, alpha * 0.9), (curve, core, width * 0.4, alpha)]
+        return neon_layers(curve, color, width, alpha)
     strokes = []
     bounds = np.linspace(0, len(curve) - 1, SEGMENTS + 1).astype(int)
     for index in range(SEGMENTS):
@@ -178,7 +187,5 @@ def _neon(curve: np.ndarray, color: np.ndarray, width: float, alpha: float, tape
         t = (index + 1) / SEGMENTS
         w = width * (0.3 + 0.7 * t)
         a = alpha * t**1.4
-        strokes.append((piece, color, w * 3.0, a * 0.16))
-        strokes.append((piece, color, w, a * 0.9))
-        strokes.append((piece, core, w * 0.4, a))
+        strokes += neon_layers(piece, color, w, a)
     return strokes
