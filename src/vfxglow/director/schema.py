@@ -141,6 +141,8 @@ class EffectStyle(_Strict):
     # flame_burst / spark_dashes / droplets: tamaño en torsos y probabilidad por golpe.
     size: float = 0.5
     chance: float = 1.0
+    # droplets: formas que puede elegir cada golpe (drop, ring, leaf, curl, dash).
+    shapes: list[str] = Field(default_factory=lambda: ["drop"])
 
 
 class EffectRender(_Strict):

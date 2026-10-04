@@ -6,8 +6,9 @@ Todo se dibuja como contorno o trazo fino (no manchas difusas), igual que el swo
   golpe, crecen deprisa, se enroscan y se apagan. Color del atacante, con alguna lengua del
   color del rival para que las dos energías se mezclen.
 - spark_dashes: guiones cortos que salen disparados del contacto y caen con gravedad.
-- droplets: en algunos puñetazos rápidos el puño suelta gotas contorneadas (forma de lágrima,
-  orientadas según su velocidad) que caen como lluvia.
+- droplets: en algunos puñetazos rápidos el puño suelta partículas contorneadas. Cada golpe
+  elige una forma de `style.shapes`: gota (cae como lluvia), anillo y hoja de fuego (suben
+  como brasas), rizo (deriva girando) o guion (sale disparado).
 
 Las tres usan el torso como unidad de tamaño, así que no dependen de la resolución.
 """
@@ -35,7 +36,7 @@ SPARK_LIMIT = 80
 
 @dataclass
 class Bit:
-    """Partícula de line-art: gota o guion."""
+    """Partícula de line-art: gota, anillo, hoja, rizo o guion."""
 
     x: float
     y: float
@@ -45,6 +46,19 @@ class Bit:
     max_life: float
     size: float
     color: int
+    shape: str = "dash"
+    gravity: float = 1.0
+    spin: float = 1.0
+
+
+# Forma -> (gravedad relativa: negativa sube, fracción de la velocidad de la mano que hereda).
+SHAPES: dict[str, tuple[float, float]] = {
+    "drop": (1.0, 0.55),
+    "ring": (-0.12, 0.3),
+    "leaf": (-0.25, 0.3),
+    "curl": (-0.1, 0.35),
+    "dash": (0.5, 0.9),
+}
 
 
 def person_index(person_id: str | None) -> int:
@@ -178,24 +192,69 @@ def draw_droplets(runtime, track: FrameRecord | None, points, frame_index: int, 
         if not fast:
             runtime.swoosh_stroke.pop(key, None)
             continue
-        # Un golpe empieza cuando la mano supera el umbral; ahí se decide si suelta gotas.
+        # Un golpe empieza cuando la mano supera el umbral; ahí se decide si suelta partículas
+        # y de qué forma, una sola para todo el golpe.
         start = runtime.swoosh_stroke.setdefault(key, frame_index)
         seed = zlib.crc32(f"{style.seed_offset}:{key}:{start}".encode()) & 0xFFFFFFFF
-        if float(np.random.default_rng(seed).random()) >= style.chance or envelope <= 0:
+        chooser = np.random.default_rng(seed)
+        if float(chooser.random()) >= style.chance or envelope <= 0:
             continue
+        shapes = [name for name in style.shapes if name in SHAPES] or ["drop"]
+        shape = shapes[int(chooser.integers(0, len(shapes)))]
+        gravity, inherit = SHAPES[shape]
         rng = np.random.default_rng(seed + frame_index)
         for _ in range(min(DROPLETS_PER_FRAME, DROPLET_LIMIT - len(bits))):
             spread = rng.normal(0, torso * 0.025, 2)
             life = float(rng.uniform(14, 26))
             size = torso * style.size * float(rng.uniform(0.05, 0.1))
-            bits.append(Bit(float(point[0]), float(point[1]), float(velocity[0] * 0.55 + spread[0]), float(velocity[1] * 0.55 + spread[1]), life, life, size, person))
+            spin = float(rng.choice([-1.0, 1.0]))
+            bits.append(
+                Bit(
+                    float(point[0]),
+                    float(point[1]),
+                    float(velocity[0] * inherit + spread[0]),
+                    float(velocity[1] * inherit + spread[1]),
+                    life,
+                    life,
+                    size,
+                    person,
+                    shape,
+                    gravity,
+                    spin,
+                )
+            )
     _step(bits, gravity=torso * 0.012, drag=0.03)
     width = max(1.0, style.thickness * torso * 0.7)
     strokes = []
     for bit in bits:
         fade = min(1.0, 2.5 * bit.life / bit.max_life)
-        strokes += _neon(teardrop(np.array([bit.x, bit.y]), np.array([bit.vx, bit.vy]), bit.size), _palette(style, bit.color), width, fade)
+        for line in bit_outline(bit):
+            strokes += _neon(line, _palette(style, bit.color), width, fade)
     stroke_batch(layer, strokes, style.hdr_gain * max(envelope, 0.0))
+
+
+def bit_outline(bit: Bit) -> list[np.ndarray]:
+    """Polilíneas de una partícula según su forma."""
+    center = np.array([bit.x, bit.y])
+    velocity = np.array([bit.vx, bit.vy])
+    age = 1.0 - bit.life / max(bit.max_life, 1e-6)
+    if bit.shape == "drop":
+        return [teardrop(center, velocity, bit.size)]
+    if bit.shape == "ring":
+        theta = np.linspace(0, TAU, 16)
+        tilt = bit.spin * (0.6 + age * 1.5)
+        ellipse = np.stack([np.cos(theta), np.sin(theta) * 0.65], axis=1) * bit.size * 1.3
+        rot = np.array([[np.cos(tilt), -np.sin(tilt)], [np.sin(tilt), np.cos(tilt)]])
+        return [center + ellipse @ rot.T]
+    if bit.shape == "leaf":
+        # Hoja de fuego pequeña, apuntando hacia arriba; rng fijo para que no parpadee.
+        return [flame_tongue(center, -np.pi / 2 + bit.spin * 0.3, bit.size * 3.5, bit.size, bit.spin * 0.9, np.random.default_rng(0))]
+    if bit.shape == "curl":
+        theta = np.linspace(0, 2.5 * np.pi, 24)
+        radius = bit.size * 1.6 * (1 - theta / (2.8 * np.pi))
+        turn = bit.spin * (theta + age * 3.0)
+        return [center + np.stack([np.cos(turn), np.sin(turn)], axis=1) * radius[:, None]]
+    return [np.array([center - velocity * 1.6, center])]
 
 
 def teardrop(center: np.ndarray, velocity: np.ndarray, radius: float) -> np.ndarray:
@@ -213,7 +272,7 @@ def _step(bits: list[Bit], gravity: float, drag: float) -> None:
     alive = []
     for bit in bits:
         bit.vx *= 1.0 - drag
-        bit.vy = bit.vy * (1.0 - drag) + gravity
+        bit.vy = bit.vy * (1.0 - drag) + gravity * bit.gravity
         bit.x += bit.vx
         bit.y += bit.vy
         bit.life -= 1.0

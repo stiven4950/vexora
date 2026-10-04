@@ -417,3 +417,18 @@ def test_flame_burst_draws_only_on_contact() -> None:
     alphas = [engine.render_frame(track, i, 128, 128, 12)[0][2][..., 3].max() for i in range(8)]
     assert alphas[0] == 0 and alphas[2] == 0
     assert max(alphas[3:]) > 0
+
+
+def test_particle_shapes_have_outlines_and_own_physics() -> None:
+    from vfxglow.engine.burst import SHAPES, Bit, _step, bit_outline
+
+    for shape, (gravity, _inherit) in SHAPES.items():
+        bit = Bit(50.0, 50.0, 2.0, 0.0, 10.0, 10.0, 4.0, 0, shape, gravity, 1.0)
+        lines = bit_outline(bit)
+        assert lines and all(len(line) >= 2 and np.isfinite(line).all() for line in lines)
+    drop = Bit(0.0, 0.0, 0.0, 0.0, 10.0, 10.0, 2.0, 0, "drop", SHAPES["drop"][0])
+    ember = Bit(0.0, 0.0, 0.0, 0.0, 10.0, 10.0, 2.0, 0, "leaf", SHAPES["leaf"][0])
+    bits = [drop, ember]
+    for _ in range(5):
+        _step(bits, gravity=1.0, drag=0.0)
+    assert drop.y > 0 > ember.y  # la gota cae, la brasa sube

@@ -42,6 +42,12 @@ def validate_script(script: EffectScript, anchors: set[str] | None = None, cuts:
                 _check_target(joint, "joint", known)
         else:
             _check_target(effect.target.id, effect.target.kind, known)
+        if effect.type == "droplets":
+            from vfxglow.engine.burst import SHAPES
+
+            unknown = [name for name in effect.style.shapes if name not in SHAPES]
+            if unknown or not effect.style.shapes:
+                raise ScriptError(f"{effect.id}: forma de partícula desconocida {unknown}. Usa {', '.join(SHAPES)}.")
         if effect.target.kind == "event_point" and not effect.triggers:
             raise ScriptError(f"{effect.id}: event_point necesita al menos un trigger.")
         if effect.type in INTERACTION_TYPES and effect.target.kind not in {"event_point", "object", "joint"}:

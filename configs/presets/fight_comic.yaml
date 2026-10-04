@@ -275,7 +275,7 @@ effects:
     max_activations: 0
     attacker: null
   actor: null
-- id: punch_droplets
+- id: punch_particles
   type: droplets
   target:
     kind: joint
@@ -326,6 +326,12 @@ effects:
     paint_min_length: 0.8
     size: 0.35
     chance: 0.35
+    shapes:
+    - drop
+    - ring
+    - leaf
+    - curl
+    - dash
   render:
     blend: add
     motion_blur: 0.0
