@@ -140,3 +140,5 @@ git checkout baseline -- <archivo>   # recuperar la versión original de un arch
 | `3e65dcf` | Carga de claves desde `.env` |
 | `46f0d49` | `fight_comic` fase 1: swoosh por velocidad con trazo de neón |
 | `4bf07c0` | `fight_comic` fase 1b: hebras y modo pintura, `tools/preview.py` |
+| `dff64c1` | Este documento de comandos |
+| `b998fdb` | `fight_comic` fase 2: llamarada, chispas y gotas (`engine/burst.py`) |
