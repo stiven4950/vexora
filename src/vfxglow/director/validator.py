@@ -5,7 +5,9 @@ from __future__ import annotations
 from vfxglow.analysis.names import CHAINS, FACE_REGIONS, known_joint_names
 from vfxglow.director.schema import EVENT_NAMES, SUPPORTED_TYPES, EffectScript
 
-INTERACTION_TYPES = {"cracks", "ripples", "sparks"}
+INTERACTION_TYPES = {"cracks", "ripples", "sparks", "flame_burst", "spark_dashes"}
+# Siguen a cada persona presente y cortan su estela solos: pueden cruzar un corte.
+JOINT_LIST_TYPES = {"swoosh", "droplets"}
 # Siguen a la cara o al cuerpo y se vuelven a trazar en cada corte, así que pueden cruzarlo.
 REDRAW_TYPES = {"eye_rings", "face_linework", "drawing"}
 MAX_STROKES = 24
@@ -34,7 +36,7 @@ def validate_script(script: EffectScript, anchors: set[str] | None = None, cuts:
             raise ScriptError(f"Tipo de efecto desconocido: {effect.type}")
         if effect.type in REDRAW_TYPES:
             _check_face_effect(effect)
-        elif effect.type == "swoosh":
+        elif effect.type in JOINT_LIST_TYPES:
             # Lista de articulaciones; se aplica a cada persona presente.
             for joint in (token.strip() for token in effect.target.id.split(",") if token.strip()):
                 _check_target(joint, "joint", known)
@@ -56,7 +58,7 @@ def validate_script(script: EffectScript, anchors: set[str] | None = None, cuts:
             raise ScriptError(f"{effect.id}: persistence debe estar en [0, 1).")
         if effect.style.glyph:
             _check_glyph(effect.id, effect.style.glyph)
-        if cuts and not effect.triggers and effect.type not in REDRAW_TYPES | {"swoosh"}:
+        if cuts and not effect.triggers and effect.type not in REDRAW_TYPES | JOINT_LIST_TYPES:
             end = effect.time.end_frame
             for cut in cuts:
                 if effect.time.start_frame < cut <= end:

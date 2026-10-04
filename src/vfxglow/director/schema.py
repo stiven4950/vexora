@@ -31,6 +31,9 @@ EffectType = Literal[
     "face_linework",
     "drawing",
     "swoosh",
+    "flame_burst",
+    "spark_dashes",
+    "droplets",
 ]
 TargetKind = Literal["joint", "chain", "face_region", "mask", "object", "event_point", "contour"]
 BlendMode = Literal["add", "screen", "over", "multiply"]
@@ -135,6 +138,9 @@ class EffectStyle(_Strict):
     paint_chance: float = 0.0
     paint_width: float = 0.2
     paint_min_length: float = 0.8
+    # flame_burst / spark_dashes / droplets: tamaño en torsos y probabilidad por golpe.
+    size: float = 0.5
+    chance: float = 1.0
 
 
 class EffectRender(_Strict):
@@ -219,6 +225,9 @@ SUPPORTED_TYPES: tuple[str, ...] = (
     "face_linework",
     "drawing",
     "swoosh",
+    "flame_burst",
+    "spark_dashes",
+    "droplets",
 )
 
 # Efectos que por defecto pertenecen a un grupo distinto de glow.
@@ -237,6 +246,8 @@ DEFAULT_GROUPS: dict[str, str] = {
     "contour": "glow",
     "tip_flame": "glow",
     "feature_light": "glow",
+    "spark_dashes": "particles",
+    "droplets": "particles",
 }
 
 

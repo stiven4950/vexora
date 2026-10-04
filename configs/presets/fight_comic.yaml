@@ -27,8 +27,8 @@ effects:
     - - 1.0
       - 0.55
       - 0.12
-    - - 0.3
-      - 0.75
+    - - 0.18
+      - 0.5
       - 1.0
     thickness: 0.012
     hdr_gain: 1.8
@@ -90,8 +90,8 @@ effects:
     - - 1.0
       - 0.55
       - 0.12
-    - - 0.3
-      - 0.75
+    - - 0.18
+      - 0.5
       - 1.0
     thickness: 0.01
     hdr_gain: 1.8
@@ -131,261 +131,9 @@ effects:
     keyframe_stride: 8
   triggers: []
   actor: null
-- id: charge_0_r
-  type: charge
-  target:
-    kind: joint
-    id: person_0:right_wrist
-    secondary: null
-    space: image
-  time:
-    start_frame: 0
-    end_frame: -1
-    fade_in: 2
-    fade_out: 4
-  style:
-    preset: null
-    intensity: 1.0
-    colors:
-    - - 1.0
-      - 0.48
-      - 0.08
-    thickness: 0.05
-    hdr_gain: 2.4
-    noise:
-      scale: 48.0
-      speed: 0.8
-      octaves: 3
-      amplitude: 0.35
-    seed_offset: 0
-    lightning:
-      branches: 3
-      branch_depth: 2
-      branch_angle: 28.0
-      jitter: 0.22
-      reseed_every: 4
-      tail_frames: 6
-      sparks: 6
-      reach: 1.4
-    boil_frames: 0
-    glyph: ''
-    dash: 0.0
-  render:
-    blend: add
-    motion_blur: 0.15
-    occlude: false
-    group: interaction
-    persistence: 0.35
-    glow_layers: 2
-  refine:
-    enabled: false
-    prompt: ''
-    strength: 0.4
-    keyframe_stride: 8
-  triggers:
-  - event: strike_windup
-    joint: person_0:right_wrist
-    min_speed: 0.0
-    min_duration: 1
-    hold: 4
-    cooldown: 4
-    fade_in: 1
-    fade_out: 5
-    max_activations: 0
-    attacker: null
-  actor: person_0
-- id: charge_0_l
-  type: charge
-  target:
-    kind: joint
-    id: person_0:left_wrist
-    secondary: null
-    space: image
-  time:
-    start_frame: 0
-    end_frame: -1
-    fade_in: 2
-    fade_out: 4
-  style:
-    preset: null
-    intensity: 1.0
-    colors:
-    - - 1.0
-      - 0.48
-      - 0.08
-    thickness: 0.05
-    hdr_gain: 2.4
-    noise:
-      scale: 48.0
-      speed: 0.8
-      octaves: 3
-      amplitude: 0.35
-    seed_offset: 0
-    lightning:
-      branches: 3
-      branch_depth: 2
-      branch_angle: 28.0
-      jitter: 0.22
-      reseed_every: 4
-      tail_frames: 6
-      sparks: 6
-      reach: 1.4
-    boil_frames: 0
-    glyph: ''
-    dash: 0.0
-  render:
-    blend: add
-    motion_blur: 0.15
-    occlude: false
-    group: interaction
-    persistence: 0.35
-    glow_layers: 2
-  refine:
-    enabled: false
-    prompt: ''
-    strength: 0.4
-    keyframe_stride: 8
-  triggers:
-  - event: strike_windup
-    joint: person_0:left_wrist
-    min_speed: 0.0
-    min_duration: 1
-    hold: 4
-    cooldown: 4
-    fade_in: 1
-    fade_out: 5
-    max_activations: 0
-    attacker: null
-  actor: person_0
-- id: charge_1_r
-  type: charge
-  target:
-    kind: joint
-    id: person_1:right_wrist
-    secondary: null
-    space: image
-  time:
-    start_frame: 0
-    end_frame: -1
-    fade_in: 2
-    fade_out: 4
-  style:
-    preset: null
-    intensity: 1.0
-    colors:
-    - - 0.35
-      - 0.72
-      - 1.0
-    thickness: 0.05
-    hdr_gain: 2.4
-    noise:
-      scale: 48.0
-      speed: 0.8
-      octaves: 3
-      amplitude: 0.35
-    seed_offset: 0
-    lightning:
-      branches: 3
-      branch_depth: 2
-      branch_angle: 28.0
-      jitter: 0.22
-      reseed_every: 4
-      tail_frames: 6
-      sparks: 6
-      reach: 1.4
-    boil_frames: 0
-    glyph: ''
-    dash: 0.0
-  render:
-    blend: add
-    motion_blur: 0.15
-    occlude: false
-    group: interaction
-    persistence: 0.35
-    glow_layers: 2
-  refine:
-    enabled: false
-    prompt: ''
-    strength: 0.4
-    keyframe_stride: 8
-  triggers:
-  - event: strike_windup
-    joint: person_1:right_wrist
-    min_speed: 0.0
-    min_duration: 1
-    hold: 4
-    cooldown: 4
-    fade_in: 1
-    fade_out: 5
-    max_activations: 0
-    attacker: null
-  actor: person_1
-- id: charge_1_l
-  type: charge
-  target:
-    kind: joint
-    id: person_1:left_wrist
-    secondary: null
-    space: image
-  time:
-    start_frame: 0
-    end_frame: -1
-    fade_in: 2
-    fade_out: 4
-  style:
-    preset: null
-    intensity: 1.0
-    colors:
-    - - 0.35
-      - 0.72
-      - 1.0
-    thickness: 0.05
-    hdr_gain: 2.4
-    noise:
-      scale: 48.0
-      speed: 0.8
-      octaves: 3
-      amplitude: 0.35
-    seed_offset: 0
-    lightning:
-      branches: 3
-      branch_depth: 2
-      branch_angle: 28.0
-      jitter: 0.22
-      reseed_every: 4
-      tail_frames: 6
-      sparks: 6
-      reach: 1.4
-    boil_frames: 0
-    glyph: ''
-    dash: 0.0
-  render:
-    blend: add
-    motion_blur: 0.15
-    occlude: false
-    group: interaction
-    persistence: 0.35
-    glow_layers: 2
-  refine:
-    enabled: false
-    prompt: ''
-    strength: 0.4
-    keyframe_stride: 8
-  triggers:
-  - event: strike_windup
-    joint: person_1:left_wrist
-    min_speed: 0.0
-    min_duration: 1
-    hold: 4
-    cooldown: 4
-    fade_in: 1
-    fade_out: 5
-    max_activations: 0
-    attacker: null
-  actor: person_1
-- id: hit_0
-  type: impact_accent
-  target:
+- id: impact_flame
+  type: flame_burst
+  target: &id001
     kind: event_point
     id: contact
     secondary: null
@@ -400,10 +148,13 @@ effects:
     intensity: 1.0
     colors:
     - - 1.0
-      - 0.48
-      - 0.08
-    thickness: 0.05
-    hdr_gain: 2.4
+      - 0.55
+      - 0.12
+    - - 0.18
+      - 0.5
+      - 1.0
+    thickness: 0.012
+    hdr_gain: 1.3
     noise:
       scale: 48.0
       speed: 0.8
@@ -419,15 +170,23 @@ effects:
       tail_frames: 6
       sparks: 6
       reach: 1.4
-    boil_frames: 3
+    boil_frames: 2
     glyph: ''
     dash: 0.0
+    rings: 2
+    trail_frames: 10
+    min_speed: 0.12
+    strands: 1
+    paint_chance: 0.0
+    paint_width: 0.22
+    paint_min_length: 0.8
+    size: 0.6
   render:
     blend: add
-    motion_blur: 0.15
+    motion_blur: 0.0
     occlude: false
     group: glow
-    persistence: 0.35
+    persistence: 0.0
     glow_layers: 2
   refine:
     enabled: false
@@ -442,80 +201,13 @@ effects:
     hold: 14
     cooldown: 4
     fade_in: 1
-    fade_out: 5
+    fade_out: 6
     max_activations: 0
-    attacker: person_0
-  actor: person_0
-- id: hit_1
-  type: impact_accent
-  target:
-    kind: event_point
-    id: contact
-    secondary: null
-    space: image
-  time:
-    start_frame: 0
-    end_frame: -1
-    fade_in: 2
-    fade_out: 4
-  style:
-    preset: null
-    intensity: 1.0
-    colors:
-    - - 0.35
-      - 0.72
-      - 1.0
-    thickness: 0.05
-    hdr_gain: 2.4
-    noise:
-      scale: 48.0
-      speed: 0.8
-      octaves: 3
-      amplitude: 0.35
-    seed_offset: 0
-    lightning:
-      branches: 3
-      branch_depth: 2
-      branch_angle: 28.0
-      jitter: 0.22
-      reseed_every: 4
-      tail_frames: 6
-      sparks: 6
-      reach: 1.4
-    boil_frames: 3
-    glyph: ''
-    dash: 0.0
-  render:
-    blend: add
-    motion_blur: 0.15
-    occlude: false
-    group: glow
-    persistence: 0.35
-    glow_layers: 2
-  refine:
-    enabled: false
-    prompt: ''
-    strength: 0.4
-    keyframe_stride: 8
-  triggers:
-  - event: person_contact
-    joint: null
-    min_speed: 0.0
-    min_duration: 1
-    hold: 14
-    cooldown: 4
-    fade_in: 1
-    fade_out: 5
-    max_activations: 0
-    attacker: person_1
-  actor: person_1
-- id: debris
-  type: sparks
-  target:
-    kind: event_point
-    id: contact
-    secondary: null
-    space: image
+    attacker: null
+  actor: null
+- id: impact_sparks
+  type: spark_dashes
+  target: *id001
   time:
     start_frame: 0
     end_frame: -1
@@ -526,10 +218,13 @@ effects:
     intensity: 1.0
     colors:
     - - 1.0
-      - 0.6
-      - 0.2
-    thickness: 0.05
-    hdr_gain: 2.4
+      - 0.55
+      - 0.12
+    - - 0.18
+      - 0.5
+      - 1.0
+    thickness: 0.01
+    hdr_gain: 1.5
     noise:
       scale: 48.0
       speed: 0.8
@@ -545,15 +240,23 @@ effects:
       tail_frames: 6
       sparks: 6
       reach: 1.4
-    boil_frames: 0
+    boil_frames: 2
     glyph: ''
     dash: 0.0
+    rings: 2
+    trail_frames: 10
+    min_speed: 0.12
+    strands: 1
+    paint_chance: 0.0
+    paint_width: 0.22
+    paint_min_length: 0.8
+    size: 0.5
   render:
     blend: add
-    motion_blur: 0.15
+    motion_blur: 0.0
     occlude: false
-    group: particles
-    persistence: 0.35
+    group: glow
+    persistence: 0.0
     glow_layers: 2
   refine:
     enabled: false
@@ -563,12 +266,77 @@ effects:
   triggers:
   - event: person_contact
     joint: null
-    min_speed: 0.25
+    min_speed: 0.0
     min_duration: 1
     hold: 16
     cooldown: 4
     fade_in: 1
-    fade_out: 5
+    fade_out: 6
     max_activations: 0
     attacker: null
+  actor: null
+- id: punch_droplets
+  type: droplets
+  target:
+    kind: joint
+    id: left_wrist,right_wrist
+    secondary: null
+    space: image
+  time:
+    start_frame: 0
+    end_frame: -1
+    fade_in: 2
+    fade_out: 4
+  style:
+    preset: null
+    intensity: 1.0
+    colors:
+    - - 1.0
+      - 0.55
+      - 0.12
+    - - 0.18
+      - 0.5
+      - 1.0
+    thickness: 0.009
+    hdr_gain: 1.8
+    noise:
+      scale: 48.0
+      speed: 0.8
+      octaves: 3
+      amplitude: 0.35
+    seed_offset: 0
+    lightning:
+      branches: 3
+      branch_depth: 2
+      branch_angle: 28.0
+      jitter: 0.22
+      reseed_every: 4
+      tail_frames: 6
+      sparks: 6
+      reach: 1.4
+    boil_frames: 2
+    glyph: ''
+    dash: 0.0
+    rings: 2
+    trail_frames: 10
+    min_speed: 0.25
+    strands: 1
+    paint_chance: 0.0
+    paint_width: 0.22
+    paint_min_length: 0.8
+    size: 0.6
+    chance: 0.35
+  render:
+    blend: add
+    motion_blur: 0.0
+    occlude: false
+    group: glow
+    persistence: 0.0
+    glow_layers: 2
+  refine:
+    enabled: false
+    prompt: ''
+    strength: 0.4
+    keyframe_stride: 8
+  triggers: []
   actor: null

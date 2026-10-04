@@ -40,6 +40,9 @@ class EffectRuntime:
         self.swoosh_activity: dict[str, float] = {}
         self.swoosh_stroke: dict[str, int] = {}
         self.swoosh_paint: set[str] = set()
+        self.burst_key: object = None
+        self.burst_seed = 0
+        self.bits: list = []
 
 
 def render_effect(
@@ -87,6 +90,15 @@ def render_effect(
         from vfxglow.engine.swoosh import draw_swoosh
 
         draw_swoosh(runtime, track, points, frame_index, height, envelope, layer)
+    elif kind in {"flame_burst", "spark_dashes"}:
+        from vfxglow.engine.burst import draw_flame_burst, draw_spark_dashes
+
+        draw = draw_flame_burst if kind == "flame_burst" else draw_spark_dashes
+        draw(runtime, points, frame_index, height, envelope, layer, event)
+    elif kind == "droplets":
+        from vfxglow.engine.burst import draw_droplets
+
+        draw_droplets(runtime, track, points, frame_index, height, envelope, layer)
     elif kind in {"eye_rings", "face_linework", "drawing"}:
         from vfxglow.engine.face_fx import draw_drawing, draw_eye_rings, draw_face_linework
 

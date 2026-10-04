@@ -8,10 +8,10 @@ import numpy as np
 import pytest
 
 from vfxglow.analysis.flow import farneback
-from vfxglow.analysis.schema import FrameRecord, Landmark, VideoMeta
+from vfxglow.analysis.schema import FrameRecord, Landmark, MotionEvent, VideoMeta
 from vfxglow.config import EngineConfig, RefinerConfig
 from vfxglow.director.presets import load_preset
-from vfxglow.director.schema import Effect, EffectScript, EffectStyle, EffectTarget, EffectTime
+from vfxglow.director.schema import Effect, EffectScript, EffectStyle, EffectTarget, EffectTime, EffectTrigger
 from vfxglow.engine.engine import EffectEngine
 from vfxglow.io.store import write_jsonl, write_model
 from vfxglow.io.video import write_silent_video
@@ -387,3 +387,33 @@ def test_swoosh_strands_and_paint_outline_geometry() -> None:
     tail = outline[np.argmin(outline[:, 0])]
     assert abs(tail[1] - 50.0) < 1.0  # la cola termina en punta
     assert outline[:, 0].max() > 100  # la cabeza redondeada pasa la mano
+
+
+def test_burst_shapes_are_closed_outlines() -> None:
+    from vfxglow.engine.burst import flame_tongue, person_index, teardrop
+
+    tongue = flame_tongue(np.array([50.0, 50.0]), 0.0, 40.0, 10.0, 0.8, np.random.default_rng(0))
+    assert np.allclose(tongue[0], tongue[-1])
+    assert tongue[:, 0].max() > 80  # se aleja del golpe
+    drop = teardrop(np.array([10.0, 10.0]), np.array([0.0, 5.0]), 3.0)
+    assert np.allclose(drop[0], drop[-1])
+    assert drop[0][1] < 10.0  # la cola queda detrás (arriba) de una gota que cae
+    assert drop[:, 1].max() == pytest.approx(13.0, abs=0.2)  # la cabeza va delante
+    assert person_index("person_1") == 1 and person_index(None) == 0
+
+
+def test_flame_burst_draws_only_on_contact() -> None:
+    effect = Effect(
+        id="fl",
+        type="flame_burst",
+        target=EffectTarget(kind="event_point", id="contact"),
+        triggers=[EffectTrigger(event="person_contact", hold=6)],
+    )
+    script = EffectScript(title="t", theme="t", effects=[effect])
+    contact = MotionEvent(name="person_contact", target="person_1:left_wrist", start_frame=3, end_frame=3,
+                          confidence=1.0, position=(0.5, 0.5), attacker="person_1", receiver="person_0")
+    engine = EffectEngine(script, EngineConfig(), events=[contact])
+    track = FrameRecord(frame=0, time_s=0.0, pose=[Landmark(name="nose", x=0.5, y=0.3, c=0.9)])
+    alphas = [engine.render_frame(track, i, 128, 128, 12)[0][2][..., 3].max() for i in range(8)]
+    assert alphas[0] == 0 and alphas[2] == 0
+    assert max(alphas[3:]) > 0
