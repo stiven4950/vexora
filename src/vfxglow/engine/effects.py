@@ -38,6 +38,8 @@ class EffectRuntime:
         self.fps = 30.0
         self.swoosh: dict[str, deque] = {}
         self.swoosh_activity: dict[str, float] = {}
+        self.swoosh_stroke: dict[str, int] = {}
+        self.swoosh_paint: set[str] = set()
 
 
 def render_effect(

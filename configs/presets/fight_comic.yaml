@@ -53,6 +53,10 @@ effects:
     rings: 2
     trail_frames: 10
     min_speed: 0.12
+    strands: 3
+    paint_chance: 0.35
+    paint_width: 0.22
+    paint_min_length: 0.8
   render:
     blend: add
     motion_blur: 0.0
@@ -109,9 +113,10 @@ effects:
     boil_frames: 2
     glyph: ''
     dash: 0.0
-    rings: 1
+    rings: 2
     trail_frames: 8
     min_speed: 0.09
+    strands: 2
   render:
     blend: add
     motion_blur: 0.0

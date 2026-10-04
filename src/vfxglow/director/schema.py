@@ -129,6 +129,12 @@ class EffectStyle(_Strict):
     # swoosh: fotogramas de estela y velocidad (torsos/fotograma) a partir de la cual se enciende.
     trail_frames: int = 10
     min_speed: float = 0.12
+    # swoosh: hebras paralelas; probabilidad de dibujar el contorno de "pintura" en una
+    # trayectoria de al menos paint_min_length torsos, con un ancho máximo de paint_width torsos.
+    strands: int = 1
+    paint_chance: float = 0.0
+    paint_width: float = 0.2
+    paint_min_length: float = 0.8
 
 
 class EffectRender(_Strict):

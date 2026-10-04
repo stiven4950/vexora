@@ -369,3 +369,21 @@ def test_swoosh_follows_speed_and_breaks_on_jumps() -> None:
     assert layer[..., 3].max() > 0
     fast.render_frame(frame(6, 0.95, 0.4), 6, 128, 128, 20)  # el tracker saltó de persona
     assert len(fast.runtimes[0].swoosh["person_0:right_wrist"]) == 1
+
+
+def test_swoosh_strands_and_paint_outline_geometry() -> None:
+    from vfxglow.engine.swoosh import paint_outline, strands
+
+    curve = np.stack([np.linspace(0, 100, 40), np.full(40, 50.0)], axis=1)
+    lines = strands(curve, 3, 2.0)
+    assert len(lines) == 3
+    assert lines[0][0] is curve
+    assert len(lines[2][0]) < len(lines[1][0]) < len(curve)  # las hebras extra son más cortas
+    assert np.allclose(lines[1][0][-1], curve[-1], atol=2.0)  # y se juntan en la mano
+
+    outline = paint_outline(curve, 20.0, frame_index=0)
+    assert np.allclose(outline[0], outline[-1])  # contorno cerrado
+    assert np.ptp(outline[:, 1]) > 15  # ancho cerca de la mano
+    tail = outline[np.argmin(outline[:, 0])]
+    assert abs(tail[1] - 50.0) < 1.0  # la cola termina en punta
+    assert outline[:, 0].max() > 100  # la cabeza redondeada pasa la mano

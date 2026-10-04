@@ -6,10 +6,18 @@ rápido, con más brillo cuanto más rápido. La estela se corta si el punto sal
 
 El trazo imita un tubo de neón: halo ancho y tenue del color, cuerpo del color y núcleo
 casi blanco. Se afina y se apaga hacia la cola.
+
+Dos variantes de dibujo a mano:
+- hebras (`style.strands`): varias líneas que se separan a mitad de la estela y se juntan
+  en la mano, cada una de distinto largo.
+- pintura (`style.paint_chance`): en algunas trayectorias largas se dibuja solo el borde de
+  la forma que barrería un puño cargado de pintura: fina en la cola, ancha y redondeada
+  en la mano, sin relleno. Se decide una vez por golpe, con semilla fija.
 """
 
 from __future__ import annotations
 
+import zlib
 from collections import deque
 
 import numpy as np
@@ -27,6 +35,9 @@ MAX_GAP = 2
 # Caída por fotograma de la actividad cuando la extremidad frena.
 RELEASE = 0.8
 SEGMENTS = 8
+# Cuerda / longitud mínima de la estela para dibujarla como contorno de pintura.
+PAINT_STRAIGHTNESS = 0.6
+PAINT_KEEP = 0.4
 
 
 def swoosh_keys(track: FrameRecord | None, joints: list[str]) -> list[tuple[str, int]]:
@@ -63,19 +74,79 @@ def draw_swoosh(runtime, track: FrameRecord | None, points: dict[str, np.ndarray
         active = max(target, activity.get(key, 0.0) * RELEASE)
         activity[key] = active
         if active < 0.03 or len(trail) < 3 or envelope <= 0:
+            runtime.swoosh_stroke.pop(key, None)
+            runtime.swoosh_paint.discard(key)
             continue
+        # Un golpe empieza cuando la extremidad se enciende; ahí se decide si es pintura.
+        start = runtime.swoosh_stroke.setdefault(key, frame_index)
         color = np.asarray(style.colors[person % len(style.colors)], dtype=np.float32)
         # El tracker de la muñeca tiembla; un swoosh dibujado es un arco limpio.
         curve = catmull_rom(_smooth(np.stack([p for _f, p in trail])), samples_per_seg=6)
         width = max(1.2, style.thickness * torso)
         # Line boil: el arco entero se desplaza un poco cada N fotogramas, sin rizarse.
         curve = curve + boil_jitter(effect, frame_index, 1, width * 0.6)
-        strokes += _neon(curve, color, width, active)
-        if style.rings >= 2 and len(curve) >= 3:
-            # Segundo arco paralelo, más fino, como en un swoosh dibujado a mano.
-            offset = curve + normals(curve) * width * 2.2
-            strokes += _neon(offset, color, width * 0.6, active * 0.6)
+        length = float(np.linalg.norm(np.diff(curve, axis=0), axis=1).sum())
+        chord = float(np.linalg.norm(curve[-1] - curve[0]))
+        # Una trayectoria que da la vuelta sobre sí misma enreda el contorno: ahí van hebras.
+        # Histéresis: un golpe que ya es pintura sigue siéndolo mientras no se enrede del todo,
+        # para que el contorno no parpadee uno o dos fotogramas.
+        painting = key in runtime.swoosh_paint
+        straight = chord >= (PAINT_KEEP if painting else PAINT_STRAIGHTNESS) * length
+        long_enough = painting or length >= style.paint_min_length * torso
+        if long_enough and straight and _chosen(style, key, start):
+            runtime.swoosh_paint.add(key)
+            outline = paint_outline(curve, style.paint_width * torso, frame_index)
+            strokes += _neon(outline, color, width, active, taper=False)
+            continue
+        for strand in strands(curve, max(style.strands, 1), width):
+            strokes += _neon(strand[0], color, width * strand[1], active * strand[2])
     stroke_batch(layer, strokes, style.hdr_gain * envelope)
+
+
+def _chosen(style, key: str, start: int) -> bool:
+    if style.paint_chance <= 0:
+        return False
+    seed = zlib.crc32(f"{style.seed_offset}:{key}:{start}".encode()) & 0xFFFFFFFF
+    return float(np.random.default_rng(seed).random()) < style.paint_chance
+
+
+def strands(curve: np.ndarray, count: int, width: float) -> list[tuple[np.ndarray, float, float]]:
+    """(curva, factor de ancho, factor de alfa) por hebra. La primera es la estela principal.
+
+    Las demás se apartan hacia los dos lados, más en el centro de la estela que en los
+    extremos, y empiezan más tarde: son más cortas y se juntan en la mano.
+    """
+    out = [(curve, 1.0, 1.0)]
+    if count <= 1 or len(curve) < 4:
+        return out
+    nrm = normals(curve)
+    t = np.linspace(0.0, 1.0, len(curve))[:, None]
+    bulge = np.sin(np.pi * np.clip(t * 1.15, 0.0, 1.0))
+    for index in range(1, count):
+        side = 1.0 if index % 2 else -1.0
+        spread = width * (2.0 + 1.6 * ((index + 1) // 2))
+        shifted = curve + nrm * bulge * spread * side
+        skip = int(len(curve) * 0.18 * index)
+        if len(curve) - skip >= 3:
+            out.append((shifted[skip:], 0.65 ** index, 0.75 ** index))
+    return out
+
+
+def paint_outline(curve: np.ndarray, max_width: float, frame_index: int) -> np.ndarray:
+    """Borde cerrado de la forma barrida: cola en punta, cuerpo que engorda, cabeza redonda."""
+    nrm = normals(curve)
+    t = np.linspace(0.0, 1.0, len(curve))
+    # Un borde dibujado a mano no es perfecto: ondula un poco y cambia cada pocos fotogramas.
+    wobble = 1.0 + 0.12 * np.sin(t * 9.0 + (frame_index // 3) * 1.7)
+    half = max_width * 0.5 * t**0.75 * wobble
+    left = curve + nrm * half[:, None]
+    right = curve - nrm * half[:, None]
+    head, back = curve[-1], curve[-1] - curve[-2]
+    forward = back / max(float(np.linalg.norm(back)), 1e-6)
+    side = nrm[-1]
+    angles = np.linspace(0.0, np.pi, 12)
+    cap = head + (np.cos(angles)[:, None] * side + np.sin(angles)[:, None] * forward) * half[-1]
+    return np.vstack([left, cap, right[::-1], left[:1]])
 
 
 def _smooth(points: np.ndarray, passes: int = 2) -> np.ndarray:
@@ -89,9 +160,14 @@ def _smooth(points: np.ndarray, passes: int = 2) -> np.ndarray:
     return out
 
 
-def _neon(curve: np.ndarray, color: np.ndarray, width: float, alpha: float) -> list:
-    """Tramos de cola a cabeza, cada vez más anchos y opacos; halo, cuerpo y núcleo."""
+def _neon(curve: np.ndarray, color: np.ndarray, width: float, alpha: float, taper: bool = True) -> list:
+    """Tramos de cola a cabeza, cada vez más anchos y opacos; halo, cuerpo y núcleo.
+
+    Sin `taper` el trazo es uniforme (un contorno cerrado no tiene cola).
+    """
     core = color * 0.25 + 0.75
+    if not taper:
+        return [(curve, color, width * 3.0, alpha * 0.16), (curve, color, width, alpha * 0.9), (curve, core, width * 0.4, alpha)]
     strokes = []
     bounds = np.linspace(0, len(curve) - 1, SEGMENTS + 1).astype(int)
     for index in range(SEGMENTS):
