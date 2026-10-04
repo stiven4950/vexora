@@ -432,3 +432,26 @@ def test_particle_shapes_have_outlines_and_own_physics() -> None:
     for _ in range(5):
         _step(bits, gravity=1.0, drag=0.0)
     assert drop.y > 0 > ember.y  # la gota cae, la brasa sube
+
+
+def test_punch_pose_and_muscle_arm_outline() -> None:
+    from vfxglow.engine.limb import is_punch_pose, muscle_arm
+
+    punch = np.array([[100.0, 200.0], [160.0, 205.0], [220.0, 210.0]])
+    hanging = np.array([[100.0, 200.0], [102.0, 260.0], [104.0, 320.0]])
+    bent = np.array([[100.0, 200.0], [160.0, 205.0], [150.0, 150.0]])
+    assert is_punch_pose(punch)
+    assert not is_punch_pose(hanging)  # recto pero colgando
+    assert not is_punch_pose(bent)
+    outline, dashes = muscle_arm(punch, 100.0, np.random.default_rng(0))
+    assert outline[:, 0].max() > 220  # el puño pasa la muñeca
+    assert not np.allclose(outline[0], outline[-1])  # abierto en el hombro
+    assert len(dashes) == 3
+
+
+def test_clash_zigzag_reaches_out() -> None:
+    from vfxglow.engine.burst import zigzag
+
+    bolt = zigzag(np.array([0.0, 0.0]), 0.0, 5.0, 50.0, np.random.default_rng(1))
+    assert bolt[0] == pytest.approx([5.0, 0.0])
+    assert bolt[-1] == pytest.approx([50.0, 0.0])

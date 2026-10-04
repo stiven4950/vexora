@@ -132,3 +132,25 @@ def test_strike_phases_anticipate_contact_and_find_recoil() -> None:
     assert (windup.start_frame, windup.end_frame) == (10 - WINDUP_LEAD, 9)
     assert windup.attacker == "person_1" and windup.target == "person_1:left_wrist"
     assert (recoil.start_frame, recoil.end_frame) == (12, 13)
+
+
+def test_fist_clash_needs_a_fast_approach() -> None:
+    from vfxglow.analysis.schema import PersonPose
+
+    def person(pid: str, wrist_x: float) -> PersonPose:
+        return PersonPose(
+            person_id=pid,
+            pose=[
+                _lm("left_shoulder", 0.4 if pid == "person_0" else 0.7, 0.3),
+                _lm("left_hip", 0.4 if pid == "person_0" else 0.7, 0.5),
+                _lm("right_wrist", wrist_x, 0.35),
+            ],
+        )
+
+    meta = VideoMeta(path="x", fps=30.0, width=100, height=100, frame_count=12, duration_s=0.4)
+    fast = [FrameRecord(frame=i, time_s=i / 30, people=[person("person_0", 0.3 + 0.05 * min(i, 6)), person("person_1", 0.62)]) for i in range(12)]
+    slow = [FrameRecord(frame=i, time_s=i / 30, people=[person("person_0", 0.58), person("person_1", 0.62)]) for i in range(12)]
+    detector = EventDetector(EventsConfig())
+    clashes = [e for e in detector.detect(fast, meta) if e.name == "fist_clash"]
+    assert len(clashes) == 1 and clashes[0].attacker == "person_0"
+    assert not [e for e in EventDetector(EventsConfig()).detect(slow, meta) if e.name == "fist_clash"]

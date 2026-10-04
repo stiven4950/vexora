@@ -22,6 +22,12 @@ from vfxglow.config import EventsConfig
 # así que la preparación no se mide: el análisis es offline y conoce el contacto de antemano.
 WINDUP_LEAD = 8
 RECOIL_MAX = 15
+# Choque de puños: muñecas de personas distintas a menos de CLASH_RADIUS torsos, tras
+# acercarse al menos CLASH_CLOSING torsos en los CLASH_WINDOW fotogramas previos.
+CLASH_RADIUS = 0.35
+CLASH_CLOSING = 0.4
+CLASH_WINDOW = 4
+CLASH_COOLDOWN = 10
 
 EVENT_CATALOG: dict[str, str] = {
     "fast_swing": "La muñeca supera la velocidad umbral varios fotogramas seguidos.",
@@ -40,6 +46,7 @@ EVENT_CATALOG: dict[str, str] = {
     "person_contact": "La muñeca de una persona alcanza el torso o la cabeza de la otra.",
     "strike_windup": "Anticipación fija antes de un contacto entre personas (carga previa al golpe).",
     "strike_recoil": "Tras el contacto, la muñeca invierte su dirección (retroceso).",
+    "fist_clash": "Las manos de dos personas se acercan deprisa y se tocan (choque de puños).",
     "tool_touch": "La mano se mueve junto al rostro, como un pincel que pinta.",
 }
 
@@ -86,6 +93,7 @@ class EventDetector:
         contacts = self._person_contact()
         events += contacts
         events += self._strike_phases(contacts)
+        events += self._fist_clash()
         events += self._people_swings()
         events += self._tool_touch()
         events.sort(key=lambda event: (event.start_frame, event.name))
@@ -507,6 +515,72 @@ class EventDetector:
                     break
         return phases
 
+    def _fist_clash(self) -> list[MotionEvent]:
+        """Dos manos de personas distintas que se encuentran tras acercarse deprisa.
+
+        Estar cerca no basta (pelean de cerca durante tramos largos): hace falta que la
+        distancia se haya cerrado rápido justo antes.
+        """
+        from vfxglow.analysis.schema import MotionEvent
+
+        width, height = self.meta.width, self.meta.height
+        closest: dict[int, tuple[float, str, str, np.ndarray, np.ndarray]] = {}
+        for index, frame in enumerate(self.frames):
+            if len(frame.people) < 2:
+                continue
+            a, b = frame.people[0], frame.people[1]
+            scale = _torso_px(a, width, height) or _torso_px(b, width, height)
+            if not scale:
+                continue
+            best = None
+            for wa in ("left_wrist", "right_wrist"):
+                pa = _person_point(a, wa)
+                for wb in ("left_wrist", "right_wrist"):
+                    pb = _person_point(b, wb)
+                    if pa is None or pb is None:
+                        continue
+                    va, vb = np.array([pa[0] * width, pa[1] * height]), np.array([pb[0] * width, pb[1] * height])
+                    dist = float(np.linalg.norm(va - vb)) / scale
+                    if best is None or dist < best[0]:
+                        best = (dist, f"{a.person_id}:{wa}", f"{b.person_id}:{wb}", va, vb)
+            if best is not None:
+                closest[index] = best
+        events: list[MotionEvent] = []
+        last = -10_000
+        for index, (dist, key_a, key_b, va, vb) in sorted(closest.items()):
+            if dist > CLASH_RADIUS or index - last < CLASH_COOLDOWN:
+                continue
+            before = [closest[i] for i in range(index - CLASH_WINDOW, index) if i in closest]
+            if before:
+                if before[0][0] - dist < CLASH_CLOSING:
+                    continue
+            elif dist > CLASH_RADIUS * 0.5:
+                # Sin historia (el tracker acaba de recuperar a la segunda persona) solo cuenta
+                # si las manos ya aparecen juntas.
+                continue
+            else:
+                before = []
+            # Quien más movió la mano en la ventana es el que lanza el golpe.
+            moved_a = float(np.linalg.norm(va - before[0][3])) if before else 0.0
+            moved_b = float(np.linalg.norm(vb - before[0][4])) if before else 0.0
+            attacker, receiver = (key_a, key_b) if moved_a >= moved_b else (key_b, key_a)
+            mid = (va + vb) * 0.5
+            events.append(
+                MotionEvent(
+                    name="fist_clash",
+                    target=attacker,
+                    start_frame=index,
+                    end_frame=index,
+                    confidence=float(min(1.0, (before[0][0] - dist) / (2 * CLASH_CLOSING))) if before else 0.5,
+                    detail=EVENT_CATALOG["fist_clash"],
+                    position=(float(mid[0] / width), float(mid[1] / height)),
+                    attacker=attacker.split(":", 1)[0],
+                    receiver=receiver.split(":", 1)[0],
+                )
+            )
+            last = index
+        return events
+
     def _people_swings(self) -> list[MotionEvent]:
         """Swings por persona, con ancla person_N:joint, para que cada color siga a su actor."""
         from vfxglow.analysis.schema import MotionEvent
@@ -608,6 +682,14 @@ def _person_speed(person, name: str) -> float:
         if item.name == name and not item.glitch:
             return float(item.speed)
     return 0.0
+
+
+def _torso_px(person, width: int, height: int) -> float | None:
+    pts = {lm.name: (lm.x * width, lm.y * height) for lm in person.pose if lm.c > 0.15}
+    for side in ("left", "right"):
+        if f"{side}_shoulder" in pts and f"{side}_hip" in pts:
+            return float(max(np.hypot(*np.subtract(pts[f"{side}_shoulder"], pts[f"{side}_hip"])), 8.0))
+    return None
 
 
 def _torso_norm(person) -> float:

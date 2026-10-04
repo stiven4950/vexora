@@ -346,3 +346,148 @@ effects:
     keyframe_stride: 8
   triggers: []
   actor: null
+- id: energy_clash
+  type: clash
+  target:
+    kind: event_point
+    id: fist_clash
+    secondary: null
+    space: image
+  time:
+    start_frame: 0
+    end_frame: -1
+    fade_in: 2
+    fade_out: 4
+  style:
+    preset: null
+    intensity: 1.0
+    colors:
+    - - 1.0
+      - 0.55
+      - 0.12
+    - - 0.18
+      - 0.5
+      - 1.0
+    thickness: 0.012
+    hdr_gain: 1.4
+    noise:
+      scale: 48.0
+      speed: 0.8
+      octaves: 3
+      amplitude: 0.35
+    seed_offset: 0
+    lightning:
+      branches: 3
+      branch_depth: 2
+      branch_angle: 28.0
+      jitter: 0.22
+      reseed_every: 4
+      tail_frames: 6
+      sparks: 6
+      reach: 1.4
+    boil_frames: 2
+    glyph: ''
+    dash: 0.0
+    rings: 2
+    trail_frames: 10
+    min_speed: 0.12
+    strands: 1
+    paint_chance: 0.0
+    paint_width: 0.22
+    paint_min_length: 0.8
+    size: 0.5
+  render:
+    blend: add
+    motion_blur: 0.0
+    occlude: false
+    group: glow
+    persistence: 0.0
+    glow_layers: 2
+  refine:
+    enabled: false
+    prompt: ''
+    strength: 0.4
+    keyframe_stride: 8
+  triggers:
+  - event: fist_clash
+    joint: null
+    min_speed: 0.0
+    min_duration: 1
+    hold: 12
+    cooldown: 4
+    fade_in: 1
+    fade_out: 6
+    max_activations: 0
+    attacker: null
+  actor: null
+- id: muscle_arm
+  type: arm_outline
+  target:
+    kind: joint
+    id: left_wrist,right_wrist
+    secondary: null
+    space: image
+  time:
+    start_frame: 0
+    end_frame: -1
+    fade_in: 2
+    fade_out: 4
+  style:
+    preset: null
+    intensity: 1.0
+    colors:
+    - - 1.0
+      - 0.55
+      - 0.12
+    - - 0.18
+      - 0.5
+      - 1.0
+    thickness: 0.01
+    hdr_gain: 1.5
+    noise:
+      scale: 48.0
+      speed: 0.8
+      octaves: 3
+      amplitude: 0.35
+    seed_offset: 0
+    lightning:
+      branches: 3
+      branch_depth: 2
+      branch_angle: 28.0
+      jitter: 0.22
+      reseed_every: 4
+      tail_frames: 6
+      sparks: 6
+      reach: 1.4
+    boil_frames: 3
+    glyph: ''
+    dash: 0.0
+    rings: 2
+    trail_frames: 10
+    min_speed: 0.18
+    strands: 1
+    paint_chance: 0.0
+    paint_width: 0.22
+    paint_min_length: 0.8
+    size: 0.5
+    chance: 0.6
+    shapes:
+    - drop
+    - ring
+    - leaf
+    - curl
+    - dash
+  render:
+    blend: add
+    motion_blur: 0.0
+    occlude: false
+    group: glow
+    persistence: 0.0
+    glow_layers: 2
+  refine:
+    enabled: false
+    prompt: ''
+    strength: 0.4
+    keyframe_stride: 8
+  triggers: []
+  actor: null

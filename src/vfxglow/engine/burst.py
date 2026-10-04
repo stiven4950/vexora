@@ -282,3 +282,55 @@ def _step(bits: list[Bit], gravity: float, drag: float) -> None:
         if bit.life > 0:
             alive.append(bit)
     bits[:] = alive
+
+
+# ----- choque de energía -----
+
+
+def draw_clash(runtime, points, frame_index: int, height: int, envelope: float, layer: np.ndarray, event: MotionEvent | None) -> None:
+    """Energía liberada al chocar dos manos: rayos en zigzag de los dos colores y ondas rotas."""
+    effect = runtime.effect
+    style = effect.style
+    origin = resolve_anchor(points, effect.target.kind, effect.target.id, runtime.anchor_point)
+    if origin is None or envelope <= 0 or event is None:
+        return
+    key = (event.start_frame, event.target)
+    if runtime.burst_key != key:
+        runtime.burst_key = key
+        runtime.burst_seed = zlib.crc32(f"{style.seed_offset}:clash:{event.start_frame}".encode()) & 0xFFFFFFFF
+    torso = torso_pixels(points, height)
+    radius = min(style.size * torso, MAX_BURST * height)
+    hold = effect.triggers[0].hold if effect.triggers else 12
+    age = float(np.clip(runtime.active_frames / max(hold, 1), 0.0, 1.0))
+    own = person_index(event.attacker)
+    rival = person_index(event.receiver) if event.receiver else own + 1
+    width = max(1.2, style.thickness * torso)
+    # Los rayos se redibujan cada `boil_frames`: titilan como electricidad.
+    flicker = np.random.default_rng(runtime.burst_seed + (frame_index // max(style.boil_frames, 1)) * 7919)
+    strokes = []
+    count = 6
+    for index in range(count):
+        angle = index * TAU / count + float(flicker.normal(0, 0.35))
+        reach = radius * float(flicker.uniform(0.5, 1.0)) * (0.6 + 0.4 * (1 - age))
+        bolt = zigzag(origin, angle, radius * 0.12, reach, flicker)
+        strokes += _neon(bolt, _palette(style, own if index % 2 == 0 else rival), width * 0.8, envelope)
+    # Ondas de choque: arcos rotos que se expanden y se apagan.
+    shape = np.random.default_rng(runtime.burst_seed)
+    for wave in range(2):
+        r = radius * (0.35 + 0.9 * age + 0.3 * wave)
+        start = float(shape.uniform(0, TAU))
+        for arc in range(3):
+            theta = np.linspace(start + arc * TAU / 3, start + arc * TAU / 3 + TAU / 5, 10)
+            curve = origin + np.stack([np.cos(theta), np.sin(theta) * 0.8], axis=1) * r
+            strokes += _neon(curve, _palette(style, own if wave == 0 else rival), width * 0.7, envelope * (1 - age))
+    stroke_batch(layer, strokes, style.hdr_gain)
+
+
+def zigzag(origin: np.ndarray, angle: float, start: float, reach: float, rng: np.random.Generator, steps: int = 6) -> np.ndarray:
+    """Rayo quebrado desde `start` hasta `reach` en la dirección `angle`."""
+    direction = np.array([np.cos(angle), np.sin(angle)])
+    side = np.array([-direction[1], direction[0]])
+    radial = np.linspace(start, reach, steps)
+    offsets = rng.normal(0, (reach - start) * 0.12, steps)
+    offsets[0] = offsets[-1] = 0.0
+    return origin + radial[:, None] * direction + offsets[:, None] * side

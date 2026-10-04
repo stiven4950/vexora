@@ -5,9 +5,9 @@ from __future__ import annotations
 from vfxglow.analysis.names import CHAINS, FACE_REGIONS, known_joint_names
 from vfxglow.director.schema import EVENT_NAMES, SUPPORTED_TYPES, EffectScript
 
-INTERACTION_TYPES = {"cracks", "ripples", "sparks", "flame_burst", "spark_dashes"}
+INTERACTION_TYPES = {"cracks", "ripples", "sparks", "flame_burst", "spark_dashes", "clash"}
 # Siguen a cada persona presente y cortan su estela solos: pueden cruzar un corte.
-JOINT_LIST_TYPES = {"swoosh", "droplets"}
+JOINT_LIST_TYPES = {"swoosh", "droplets", "arm_outline"}
 # Siguen a la cara o al cuerpo y se vuelven a trazar en cada corte, así que pueden cruzarlo.
 REDRAW_TYPES = {"eye_rings", "face_linework", "drawing"}
 MAX_STROKES = 24

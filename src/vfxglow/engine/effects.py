@@ -90,11 +90,15 @@ def render_effect(
         from vfxglow.engine.swoosh import draw_swoosh
 
         draw_swoosh(runtime, track, points, frame_index, height, envelope, layer)
-    elif kind in {"flame_burst", "spark_dashes"}:
-        from vfxglow.engine.burst import draw_flame_burst, draw_spark_dashes
+    elif kind in {"flame_burst", "spark_dashes", "clash"}:
+        from vfxglow.engine.burst import draw_clash, draw_flame_burst, draw_spark_dashes
 
-        draw = draw_flame_burst if kind == "flame_burst" else draw_spark_dashes
+        draw = {"flame_burst": draw_flame_burst, "spark_dashes": draw_spark_dashes, "clash": draw_clash}[kind]
         draw(runtime, points, frame_index, height, envelope, layer, event)
+    elif kind == "arm_outline":
+        from vfxglow.engine.limb import draw_arm_outline
+
+        draw_arm_outline(runtime, track, points, frame_index, height, envelope, layer)
     elif kind == "droplets":
         from vfxglow.engine.burst import draw_droplets
 

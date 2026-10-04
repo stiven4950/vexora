@@ -34,6 +34,8 @@ EffectType = Literal[
     "flame_burst",
     "spark_dashes",
     "droplets",
+    "clash",
+    "arm_outline",
 ]
 TargetKind = Literal["joint", "chain", "face_region", "mask", "object", "event_point", "contour"]
 BlendMode = Literal["add", "screen", "over", "multiply"]
@@ -57,6 +59,7 @@ EVENT_NAMES: tuple[str, ...] = (
     "tool_touch",
     "strike_windup",
     "strike_recoil",
+    "fist_clash",
 )
 
 
@@ -230,6 +233,8 @@ SUPPORTED_TYPES: tuple[str, ...] = (
     "flame_burst",
     "spark_dashes",
     "droplets",
+    "clash",
+    "arm_outline",
 )
 
 # Efectos que por defecto pertenecen a un grupo distinto de glow.
