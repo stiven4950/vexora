@@ -42,7 +42,7 @@ reactions:
   - action: fast_swing
     options:
       - name: swoosh
-        weight: 0.5
+        weight: 0.6
         effects:
           - type: swoosh
             target: {kind: joint, id: "left_wrist,right_wrist,left_ankle,right_ankle"}
@@ -69,7 +69,7 @@ reactions:
             style: {thickness: 0.01, hdr_gain: 1.5, size: 0.5, min_speed: 0.18, chance: 1.0, boil_frames: 3}
             trigger: {hold: 12, fade_in: 1, fade_out: 5}
       - name: nada
-        weight: 0.25
+        weight: 0.15
 
   # Golpe que conecta: llamarada, estrellas (seg. 17.6) o descarga.
   - action: person_contact
