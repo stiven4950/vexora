@@ -20,6 +20,7 @@ analysis:
     detection_confidence: 0.5
     tracking_confidence: 0.5
     num_poses: 2
+    second_pass_confidence: 0.3   # 0 desactiva la búsqueda de la segunda persona tapando la primera
   hq:
     yolo_model: yolo11n.pt
     pose_mode: balanced

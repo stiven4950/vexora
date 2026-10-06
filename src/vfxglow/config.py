@@ -24,6 +24,9 @@ class MediaPipeConfig(_Strict):
     detection_confidence: float = 0.5
     tracking_confidence: float = 0.5
     num_poses: int = 2
+    # Con num_poses=2, si solo aparece una persona se tapa su caja y se busca otra con este
+    # umbral. MediaPipe Pose suele perder a la segunda persona aunque esté a la vista.
+    second_pass_confidence: float = 0.3
 
 
 class HQConfig(_Strict):
@@ -79,6 +82,15 @@ class SceneConfig(_Strict):
     api_key_env: str = "OPENAI_API_KEY"
 
 
+class AccessoriesConfig(_Strict):
+    # Clasifica qué lleva cada persona en la cabeza (gafas, máscara, gorra...) con el VLM de
+    # analysis.scene. Sin clave de API solo cuenta `manual`.
+    enabled: bool = True
+    crops: int = 6
+    # Declaración a mano, gana sobre el VLM: {"person_1": ["sunglasses"]}.
+    manual: dict[str, list[str]] = Field(default_factory=dict)
+
+
 class AnalysisConfig(_Strict):
     level: Literal["fast", "hq", "masks"] = "fast"
     store_face: bool = True
@@ -95,6 +107,7 @@ class AnalysisConfig(_Strict):
     events: EventsConfig = Field(default_factory=EventsConfig)
     beats: BeatsConfig = Field(default_factory=BeatsConfig)
     scene: SceneConfig = Field(default_factory=SceneConfig)
+    accessories: AccessoriesConfig = Field(default_factory=AccessoriesConfig)
 
 
 class DirectorConfig(_Strict):

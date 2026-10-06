@@ -33,6 +33,34 @@ def _pose_point(pose: list[Landmark], name: str) -> tuple[float, float] | None:
     return None
 
 
+# Altura mínima de la segunda persona respecto a la primera para aceptarla.
+SECOND_MIN_SCALE = 0.5
+# Peso de la firma nueva en la media de cada casilla.
+SIGNATURE_RATE = 0.05
+
+
+def torso_signature(frame_bgr: np.ndarray, pose: list[Landmark]) -> np.ndarray | None:
+    """Histograma tono-saturación del torso (hombros a caderas), normalizado."""
+    pts = {lm.name: (lm.x, lm.y) for lm in pose if lm.c > 0.3}
+    need = ("left_shoulder", "right_shoulder", "left_hip", "right_hip")
+    if not all(name in pts for name in need):
+        return None
+    height, width = frame_bgr.shape[:2]
+    xs = [pts[name][0] * width for name in need]
+    ys = [pts[name][1] * height for name in need]
+    x0, x1 = int(max(0, min(xs))), int(min(width, max(xs)))
+    y0, y1 = int(max(0, min(ys))), int(min(height, max(ys)))
+    # Recorte interior: el borde del torso se mezcla con el fondo.
+    dx, dy = (x1 - x0) // 5, (y1 - y0) // 6
+    patch = frame_bgr[y0 + dy : y1 - dy, x0 + dx : x1 - dx]
+    if patch.size < 300:
+        return None
+    hsv = cv2.cvtColor(patch, cv2.COLOR_BGR2HSV)
+    hist = cv2.calcHist([hsv], [0, 1], None, [18, 8], [0, 180, 0, 256])
+    cv2.normalize(hist, hist, 1.0, 0.0, cv2.NORM_L1)
+    return hist
+
+
 class MediaPipeDetector:
     """Tres landmarkers. Las manos que el video no sigue se buscan en un recorte de la muñeca."""
 
@@ -55,8 +83,22 @@ class MediaPipeDetector:
         self._store_face = store_face
         # CPU: MediaPipe 1.x intenta Metal en macOS y aborta el proceso.
         cpu = BaseOptions(model_asset_path=str(pose_path), delegate=BaseOptions.Delegate.CPU)
-        self._next_person = 0
-        self._tracks: list[tuple[int, tuple[float, float, float, float]]] = []
+        # Por casilla (person_0, person_1): firma de color del torso y última caja vista.
+        # La firma decide la identidad; la caja solo desempata. Así una persona que se tapa o
+        # sale un momento recupera su nombre (y su color) al volver.
+        self._signature: dict[int, np.ndarray] = {}
+        self._last_box: dict[int, tuple[float, float, float, float]] = {}
+        self._second = None
+        if int(cfg.num_poses) >= 2 and cfg.second_pass_confidence > 0:
+            self._second = PoseLandmarker.create_from_options(
+                PoseLandmarkerOptions(
+                    base_options=BaseOptions(model_asset_path=str(pose_path), delegate=BaseOptions.Delegate.CPU),
+                    running_mode=RunningMode.IMAGE,
+                    num_poses=1,
+                    min_pose_detection_confidence=cfg.second_pass_confidence,
+                    min_pose_presence_confidence=cfg.second_pass_confidence,
+                )
+            )
         self._pose = PoseLandmarker.create_from_options(
             PoseLandmarkerOptions(
                 base_options=cpu,
@@ -121,7 +163,7 @@ class MediaPipeDetector:
         }
 
     def close(self) -> None:
-        for landmarker in (self._pose, self._hands, self._hands_still, self._face, self._face_still):
+        for landmarker in (self._pose, self._hands, self._hands_still, self._face, self._face_still, self._second):
             if landmarker is not None:
                 landmarker.close()
 
@@ -142,8 +184,10 @@ class MediaPipeDetector:
         self._last_ts = ts
         height, width = frame_bgr.shape[:2]
         poses = self._read_poses(self._pose.detect_for_video(image, ts))
+        if len(poses) == 1 and self._second is not None:
+            poses += self._find_second(frame_bgr, poses[0])
         hands = self._read_hands(self._hands.detect_for_video(image, ts))
-        people = self._track_people(poses)
+        people = self._track_people(poses, frame_bgr)
         claimed: set[int] = set()
         for person in people:
             assigned, claimed = _assign_hands(hands, person.pose, claimed)
@@ -182,6 +226,28 @@ class MediaPipeDetector:
             people=people,
         )
 
+    def _find_second(self, frame_bgr: np.ndarray, first: list[Landmark]) -> list[list[Landmark]]:
+        """Tapa a la persona encontrada y busca otra en el resto del cuadro."""
+        import mediapipe as mp
+
+        box = _pose_box(first)
+        if box is None:
+            return []
+        height, width = frame_bgr.shape[:2]
+        pad = 0.04
+        masked = frame_bgr.copy()
+        masked[
+            max(0, int((box[1] - pad) * height)) : int((box[3] + pad) * height),
+            max(0, int((box[0] - pad) * width)) : int((box[2] + pad) * width),
+        ] = 127
+        rgb = np.ascontiguousarray(cv2.cvtColor(masked, cv2.COLOR_BGR2RGB))
+        found = self._read_poses(self._second.detect(mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)))
+        other = _pose_box(found[0]) if found else None
+        # Un peatón al fondo también es una persona: solo vale alguien de escala parecida.
+        if other is None or (other[3] - other[1]) < SECOND_MIN_SCALE * (box[3] - box[1]):
+            return []
+        return found[:1]
+
     def _read_poses(self, result: object) -> list[list[Landmark]]:
         groups = getattr(result, "pose_landmarks", None) or []
         poses: list[list[Landmark]] = []
@@ -195,42 +261,45 @@ class MediaPipeDetector:
                 poses.append(pose)
         return poses
 
-    def _track_people(self, poses: list[list[Landmark]]) -> list[PersonPose]:
-        """IDs estables por solapamiento de la caja. Como máximo dos personas."""
-        fresh: list[tuple[int, list[Landmark], tuple[float, float, float, float]]] = []
-        used: set[int] = set()
+    def _track_people(self, poses: list[list[Landmark]], frame_bgr: np.ndarray) -> list[PersonPose]:
+        """Como máximo dos personas en casillas estables, por apariencia del torso."""
+        found: list[tuple[list[Landmark], tuple[float, float, float, float], np.ndarray | None]] = []
         for pose in poses:
             box = _pose_box(pose)
-            if box is None:
+            if box is None or any(_iou(box, other) > 0.25 for _pose, other, _sig in found):
                 continue
-            best_i = -1
-            best_iou = 0.15
-            for index, (pid, previous) in enumerate(self._tracks):
-                if index in used:
-                    continue
-                overlap = _iou(box, previous)
-                if overlap > best_iou:
-                    best_iou = overlap
-                    best_i = index
-            if best_i >= 0:
-                pid = self._tracks[best_i][0]
-                used.add(best_i)
-            else:
-                pid = self._next_person
-                self._next_person += 1
-            fresh.append((pid, pose, box))
-        fresh.sort(key=lambda item: item[0])
-        kept: list[tuple[int, list[Landmark], tuple[float, float, float, float]]] = []
-        for pid, pose, box in fresh:
-            if any(_iou(box, other) > 0.25 for _pid, _pose, other in kept):
-                continue
-            kept.append((pid, pose, box))
-        fresh = kept[:2]
-        self._tracks = [(pid, box) for pid, _pose, box in fresh]
-        return [
-            PersonPose(person_id=f"person_{slot}", pose=pose, box=box)
-            for slot, (_pid, pose, box) in enumerate(fresh)
-        ]
+            found.append((pose, box, torso_signature(frame_bgr, pose)))
+        found = found[:2]
+        if not found:
+            return []
+        assignment = self._assign_slots(found)
+        people = []
+        for (pose, box, signature), slot in zip(found, assignment, strict=True):
+            if signature is not None:
+                previous = self._signature.get(slot)
+                self._signature[slot] = signature if previous is None else previous * (1 - SIGNATURE_RATE) + signature * SIGNATURE_RATE
+            self._last_box[slot] = box
+            people.append(PersonPose(person_id=f"person_{slot}", pose=pose, box=box))
+        return sorted(people, key=lambda person: person.person_id)
+
+    def _assign_slots(self, found) -> list[int]:
+        """Casilla de cada pose: la de firma más parecida; sin firmas, la de caja más cercana."""
+        def cost(item, slot: int) -> float:
+            _pose, box, signature = item
+            reference = self._signature.get(slot)
+            if signature is not None and reference is not None:
+                return 1.0 - float(cv2.compareHist(signature, reference, cv2.HISTCMP_CORREL))
+            last = self._last_box.get(slot)
+            if last is not None:
+                return 1.0 - _iou(box, last) + 0.5
+            # Casilla nunca vista: por orden de izquierda a derecha.
+            return 2.0 + (box[0] if slot == 0 else 1.0 - box[0])
+
+        if len(found) == 1:
+            return [min((0, 1), key=lambda slot: cost(found[0], slot))]
+        straight = cost(found[0], 0) + cost(found[1], 1)
+        crossed = cost(found[0], 1) + cost(found[1], 0)
+        return [0, 1] if straight <= crossed else [1, 0]
 
     def _read_hands(self, result: object) -> list[HandFrame]:
         groups = getattr(result, "hand_landmarks", None) or []
