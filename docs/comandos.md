@@ -165,3 +165,7 @@ git checkout baseline -- <archivo>   # recuperar la versión original de un arch
 | `5f1a11d` | `fight_comic` fase 3: evento `fist_clash`, energía de choque (`clash`) y brazo musculoso (`engine/limb.py`) |
 | `f5bfb62` | Brazo musculoso sin parpadeo (histéresis y fundido) |
 | `d9ae577` | Coreógrafo por catálogo (`--catalog pelea`, `--seed`), `body_bump`, rayo de ojos y estrellas |
+| `7a31f67` | Swoosh al 60% en `pelea` |
+| `5b1b634` | Segunda persona recuperada e identidad por apariencia |
+| `c3807c7` | Accesorios por persona (VLM) |
+| `ac38135` | Pausas, intenciones, gafas de figuras, marcas de intención y swoosh en cruz |
