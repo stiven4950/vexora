@@ -28,6 +28,12 @@ CLASH_RADIUS = 0.35
 CLASH_CLOSING = 0.4
 CLASH_WINDOW = 4
 CLASH_COOLDOWN = 10
+# Choque de cuerpos: cajas que se solapan al menos BUMP_OVERLAP (fracción del ancho de la
+# más estrecha) tras acercarse, sin golpe ni choque de puños a BUMP_QUIET fotogramas.
+BUMP_OVERLAP = 0.3
+BUMP_WINDOW = 4
+BUMP_QUIET = 6
+BUMP_COOLDOWN = 90
 
 EVENT_CATALOG: dict[str, str] = {
     "fast_swing": "La muñeca supera la velocidad umbral varios fotogramas seguidos.",
@@ -47,6 +53,7 @@ EVENT_CATALOG: dict[str, str] = {
     "strike_windup": "Anticipación fija antes de un contacto entre personas (carga previa al golpe).",
     "strike_recoil": "Tras el contacto, la muñeca invierte su dirección (retroceso).",
     "fist_clash": "Las manos de dos personas se acercan deprisa y se tocan (choque de puños).",
+    "body_bump": "Dos personas que se acercan chocan con el cuerpo (hombro con hombro).",
     "tool_touch": "La mano se mueve junto al rostro, como un pincel que pinta.",
 }
 
@@ -94,6 +101,14 @@ class EventDetector:
         events += contacts
         events += self._strike_phases(contacts)
         events += self._fist_clash()
+        bumps = self._body_bump(events)
+        # Un choque de puños "sin historia" junto a un choque de cuerpos es el mismo encuentro.
+        events = [
+            event
+            for event in events
+            if not (_weak_clash(event) and any(abs(event.start_frame - bump.start_frame) <= BUMP_QUIET * 2 for bump in bumps))
+        ]
+        events += bumps
         events += self._people_swings()
         events += self._tool_touch()
         events.sort(key=lambda event: (event.start_frame, event.name))
@@ -572,10 +587,70 @@ class EventDetector:
                     start_frame=index,
                     end_frame=index,
                     confidence=float(min(1.0, (before[0][0] - dist) / (2 * CLASH_CLOSING))) if before else 0.5,
-                    detail=EVENT_CATALOG["fist_clash"],
+                    detail=EVENT_CATALOG["fist_clash"] + ("" if before else WEAK_CLASH),
                     position=(float(mid[0] / width), float(mid[1] / height)),
                     attacker=attacker.split(":", 1)[0],
                     receiver=receiver.split(":", 1)[0],
+                )
+            )
+            last = index
+        return events
+
+    def _body_bump(self, found: list[MotionEvent]) -> list[MotionEvent]:
+        """Dos cuerpos que se juntan: cajas solapadas tras acercarse.
+
+        Al chocar se ocluyen y el tracker suele quedarse con una sola persona; el choque se
+        fecha en ese último fotograma con las dos (o en el primero con solape fuerte).
+        """
+        from vfxglow.analysis.schema import MotionEvent
+
+        busy = {
+            frame
+            for event in found
+            if event.name in {"person_contact", "fist_clash"} and not _weak_clash(event)
+            for frame in range(event.start_frame - BUMP_QUIET, event.end_frame + BUMP_QUIET + 1)
+        }
+        pairs: dict[int, tuple[tuple, tuple]] = {}
+        for index, frame in enumerate(self.frames):
+            boxes = [person.box for person in frame.people if person.box is not None]
+            if len(boxes) >= 2:
+                pairs[index] = (boxes[0], boxes[1])
+        events: list[MotionEvent] = []
+        last = -10_000
+        for index, (a, b) in sorted(pairs.items()):
+            if index in busy or index - last < BUMP_COOLDOWN:
+                continue
+            overlap = min(a[2], b[2]) - max(a[0], b[0])
+            narrow = max(min(a[2] - a[0], b[2] - b[0]), 1e-6)
+            merged = index + 1 < len(self.frames) and len(self.frames[index + 1].people) < 2
+            # Sin fusión, el solape solo cuenta si las dos poses son fiables (con hombros).
+            solid = all(
+                _person_point(person, "left_shoulder") or _person_point(person, "right_shoulder")
+                for person in self.frames[index].people[:2]
+            )
+            if overlap / narrow < BUMP_OVERLAP or not (merged or (overlap / narrow > 0.6 and solid)):
+                continue
+            earlier = [pairs[i] for i in range(index - BUMP_WINDOW, index) if i in pairs]
+            # Si el tracker los fusiona, eso ya prueba que se juntaron; las cajas previas pueden
+            # ser de poses parciales y no sirven para medir el acercamiento.
+            if earlier and not merged:
+                then = abs(_center(earlier[0][0])[0] - _center(earlier[0][1])[0])
+                if then <= abs(_center(a)[0] - _center(b)[0]):
+                    continue
+            # Punto del choque: entre los dos cuerpos, a la altura de los hombros.
+            x = (max(a[0], b[0]) + min(a[2], b[2])) * 0.5
+            y = min(a[1], b[1]) + 0.25 * (max(a[3], b[3]) - min(a[1], b[1]))
+            events.append(
+                MotionEvent(
+                    name="body_bump",
+                    target="body",
+                    start_frame=index,
+                    end_frame=index,
+                    confidence=float(min(1.0, overlap / narrow)),
+                    detail=EVENT_CATALOG["body_bump"],
+                    position=(float(x), float(y)),
+                    attacker=self.frames[index].people[0].person_id,
+                    receiver=self.frames[index].people[1].person_id,
                 )
             )
             last = index
@@ -682,6 +757,17 @@ def _person_speed(person, name: str) -> float:
         if item.name == name and not item.glitch:
             return float(item.speed)
     return 0.0
+
+
+WEAK_CLASH = " Sin historia previa: la segunda persona reapareció con las manos juntas."
+
+
+def _weak_clash(event) -> bool:
+    return event.name == "fist_clash" and event.detail.endswith(WEAK_CLASH)
+
+
+def _center(box: tuple[float, float, float, float]) -> tuple[float, float]:
+    return ((box[0] + box[2]) * 0.5, (box[1] + box[3]) * 0.5)
 
 
 def _torso_px(person, width: int, height: int) -> float | None:

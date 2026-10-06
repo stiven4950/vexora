@@ -334,3 +334,125 @@ def zigzag(origin: np.ndarray, angle: float, start: float, reach: float, rng: np
     offsets = rng.normal(0, (reach - start) * 0.12, steps)
     offsets[0] = offsets[-1] = 0.0
     return origin + radial[:, None] * direction + offsets[:, None] * side
+
+
+# ----- rayos de los ojos -----
+
+# Fases del rayo como fracción de su vida: los ojos se encienden, el rayo viaja, golpea.
+BEAM_TRAVEL = (0.15, 0.4)
+
+
+def actors(event: MotionEvent | None, track: FrameRecord | None) -> tuple[str | None, str | None]:
+    """(atacante, rival). Si el evento no nombra al rival, es la otra persona del cuadro."""
+    if event is None:
+        return None, None
+    attacker = event.attacker or (event.target.split(":", 1)[0] if ":" in event.target else None)
+    receiver = event.receiver
+    if receiver is None and track is not None:
+        receiver = next((person.person_id for person in track.people if person.person_id != attacker), None)
+    return attacker, receiver
+
+
+def _person_part(points, person: str | None, names: tuple[str, ...]) -> np.ndarray | None:
+    found = [points.get(f"{person}:{name}" if person else name) for name in names]
+    found = [point for point in found if point is not None]
+    return np.mean(found, axis=0) if found else None
+
+
+def draw_beam(runtime, track: FrameRecord | None, points, frame_index: int, height: int, envelope: float, layer: np.ndarray, event: MotionEvent | None) -> None:
+    """Rayo de los ojos del atacante a la cabeza del rival, que enciende fuego al llegar."""
+    effect = runtime.effect
+    style = effect.style
+    if envelope <= 0 or event is None:
+        return
+    attacker, receiver = actors(event, track)
+    eyes = _person_part(points, attacker, ("left_eye", "right_eye"))
+    target = _person_part(points, receiver, ("nose",))
+    if eyes is None or target is None:
+        return
+    key = (event.start_frame, event.target)
+    if runtime.burst_key != key:
+        runtime.burst_key = key
+        runtime.burst_seed = zlib.crc32(f"{style.seed_offset}:beam:{event.start_frame}".encode()) & 0xFFFFFFFF
+    torso = torso_pixels(points, height)
+    hold = effect.triggers[0].hold if effect.triggers else 16
+    age = float(np.clip(runtime.active_frames / max(hold, 1), 0.0, 1.0))
+    own = person_index(attacker)
+    rival = person_index(receiver)
+    width = max(1.2, style.thickness * torso)
+    flicker = np.random.default_rng(runtime.burst_seed + frame_index)
+    strokes = []
+    # Ojos encendidos: dos anillos pequeños que laten.
+    eye_r = max(3.0, torso * 0.05) * (1.0 + 0.15 * np.sin(frame_index * 1.3))
+    theta = np.linspace(0, TAU, 16)
+    for name in ("left_eye", "right_eye"):
+        eye = points.get(f"{attacker}:{name}" if attacker else name)
+        if eye is not None:
+            strokes += _neon(eye + np.stack([np.cos(theta), np.sin(theta)], axis=1) * eye_r, _palette(style, own), width * 0.7, envelope)
+    start, arrive = BEAM_TRAVEL
+    if age >= start:
+        reach = float(np.clip((age - start) / max(arrive - start, 1e-6), 0.0, 1.0))
+        tip = eyes + (target - eyes) * reach
+        # Dos hilos casi paralelos que titilan: el rayo vibra.
+        side = np.array([-(target - eyes)[1], (target - eyes)[0]])
+        side /= max(float(np.linalg.norm(side)), 1e-6)
+        for offset in (-1.0, 1.0):
+            line = np.linspace(eyes, tip, 12) + side * width * offset * float(flicker.uniform(0.6, 1.6))
+            line[1:-1] += flicker.normal(0, width * 0.5, (10, 2))
+            strokes += _neon(line, _palette(style, own), width, envelope)
+        if age >= arrive:
+            # Al llegar: lenguas de fuego del color del rival en su cabeza.
+            burn = float(np.clip((age - arrive) / 0.25, 0.0, 1.0))
+            shape = np.random.default_rng(runtime.burst_seed)
+            jitter = np.random.default_rng(runtime.burst_seed + (frame_index // max(style.boil_frames, 1)))
+            radius = min(style.size * torso, MAX_BURST * height)
+            for index in range(5):
+                angle = -np.pi / 2 + float(shape.uniform(-1.2, 1.2))
+                length = radius * float(shape.uniform(0.4, 0.75)) * burn
+                tongue = flame_tongue(target, angle, length, length * 0.2, float(shape.choice([-1.0, 1.0])) * 0.7, jitter)
+                strokes += _neon(tongue, _palette(style, rival), width, envelope)
+    stroke_batch(layer, strokes, style.hdr_gain)
+
+
+# ----- estrellas -----
+
+
+def draw_stars(runtime, points, frame_index: int, height: int, envelope: float, layer: np.ndarray, event: MotionEvent | None) -> None:
+    """Destellos de cuatro puntas alrededor del golpe: aparecen, titilan y se apagan."""
+    effect = runtime.effect
+    style = effect.style
+    origin = resolve_anchor(points, effect.target.kind, effect.target.id, runtime.anchor_point)
+    if origin is None or envelope <= 0 or event is None:
+        return
+    key = (event.start_frame, event.target)
+    if runtime.burst_key != key:
+        runtime.burst_key = key
+        runtime.burst_seed = zlib.crc32(f"{style.seed_offset}:stars:{event.start_frame}".encode()) & 0xFFFFFFFF
+    torso = torso_pixels(points, height)
+    radius = min(style.size * torso, MAX_BURST * height)
+    width = max(1.2, style.thickness * torso * 1.2)
+    shape = np.random.default_rng(runtime.burst_seed)
+    own = person_index(event.attacker)
+    strokes = []
+    for index in range(3 + int(shape.integers(0, 2))):
+        angle = float(shape.uniform(0, TAU))
+        center = origin + np.array([np.cos(angle), np.sin(angle)]) * radius * float(shape.uniform(0.2, 0.9))
+        phase = float(shape.uniform(0, TAU))
+        # Cada estrella entra con un pequeño retraso y titila a su ritmo.
+        delay = index * 1.5
+        grow = float(np.clip((runtime.active_frames - delay) / 3.0, 0.0, 1.0))
+        twinkle = 0.75 + 0.25 * np.sin(frame_index * 1.1 + phase)
+        size = radius * float(shape.uniform(0.35, 0.6)) * grow * twinkle
+        if size < 1.0:
+            continue
+        color = _palette(style, own if index % 2 == 0 else own + 1)
+        strokes += _neon(sparkle(center, size), color, width, envelope)
+    stroke_batch(layer, strokes, style.hdr_gain)
+
+
+def sparkle(center: np.ndarray, size: float) -> np.ndarray:
+    """Estrella de cuatro puntas cóncava: brazos largos y finos en cruz, cintura estrecha."""
+    angles = np.arange(8) * np.pi / 4
+    radii = np.where(np.arange(8) % 2 == 0, size, size * 0.16)
+    star = center + np.stack([np.sin(angles), -np.cos(angles)], axis=1) * radii[:, None]
+    return np.vstack([star, star[:1]])

@@ -90,16 +90,20 @@ def render_effect(
     elif kind == "swoosh":
         from vfxglow.engine.swoosh import draw_swoosh
 
-        draw_swoosh(runtime, track, points, frame_index, height, envelope, layer)
-    elif kind in {"flame_burst", "spark_dashes", "clash"}:
-        from vfxglow.engine.burst import draw_clash, draw_flame_burst, draw_spark_dashes
+        draw_swoosh(runtime, track, points, frame_index, height, envelope, layer, event if effect.triggers else None)
+    elif kind in {"flame_burst", "spark_dashes", "clash", "stars"}:
+        from vfxglow.engine.burst import draw_clash, draw_flame_burst, draw_spark_dashes, draw_stars
 
-        draw = {"flame_burst": draw_flame_burst, "spark_dashes": draw_spark_dashes, "clash": draw_clash}[kind]
+        draw = {"flame_burst": draw_flame_burst, "spark_dashes": draw_spark_dashes, "clash": draw_clash, "stars": draw_stars}[kind]
         draw(runtime, points, frame_index, height, envelope, layer, event)
+    elif kind == "beam":
+        from vfxglow.engine.burst import draw_beam
+
+        draw_beam(runtime, track, points, frame_index, height, envelope, layer, event)
     elif kind == "arm_outline":
         from vfxglow.engine.limb import draw_arm_outline
 
-        draw_arm_outline(runtime, track, points, frame_index, height, envelope, layer)
+        draw_arm_outline(runtime, track, points, frame_index, height, envelope, layer, event if effect.triggers else None)
     elif kind == "droplets":
         from vfxglow.engine.burst import draw_droplets
 

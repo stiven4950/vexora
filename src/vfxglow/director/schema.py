@@ -36,6 +36,8 @@ EffectType = Literal[
     "droplets",
     "clash",
     "arm_outline",
+    "beam",
+    "stars",
 ]
 TargetKind = Literal["joint", "chain", "face_region", "mask", "object", "event_point", "contour"]
 BlendMode = Literal["add", "screen", "over", "multiply"]
@@ -60,6 +62,7 @@ EVENT_NAMES: tuple[str, ...] = (
     "strike_windup",
     "strike_recoil",
     "fist_clash",
+    "body_bump",
 )
 
 
@@ -168,6 +171,9 @@ class EffectTrigger(_Strict):
     fade_out: int = 6
     max_activations: int = 0
     attacker: str | None = None
+    # Si no está vacío, solo las ocurrencias que empiezan en estos fotogramas (las que eligió
+    # el coreógrafo); el resto del mismo evento no enciende este efecto.
+    frames: list[int] = Field(default_factory=list)
 
 
 class EffectRefine(_Strict):
@@ -235,6 +241,8 @@ SUPPORTED_TYPES: tuple[str, ...] = (
     "droplets",
     "clash",
     "arm_outline",
+    "beam",
+    "stars",
 )
 
 # Efectos que por defecto pertenecen a un grupo distinto de glow.

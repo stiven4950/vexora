@@ -22,7 +22,7 @@ from collections import deque
 
 import numpy as np
 
-from vfxglow.analysis.schema import FrameRecord
+from vfxglow.analysis.schema import FrameRecord, MotionEvent
 from vfxglow.engine.anchors import joint_speed, torso_pixels
 from vfxglow.engine.glyphs import boil_jitter
 from vfxglow.engine.raster import stroke_batch
@@ -51,7 +51,16 @@ def swoosh_keys(track: FrameRecord | None, joints: list[str]) -> list[tuple[str,
     return [(joint, 0) for joint in joints]
 
 
-def draw_swoosh(runtime, track: FrameRecord | None, points: dict[str, np.ndarray], frame_index: int, height: int, envelope: float, layer: np.ndarray) -> None:
+def focused(event: MotionEvent | None, key: str) -> bool:
+    """Con un evento que nombra una extremidad, solo esa extremidad dibuja; sin evento, todas."""
+    if event is None or not event.target:
+        return True
+    if ":" in event.target:
+        return key == event.target
+    return key == event.target or key.endswith(f":{event.target}")
+
+
+def draw_swoosh(runtime, track: FrameRecord | None, points: dict[str, np.ndarray], frame_index: int, height: int, envelope: float, layer: np.ndarray, event: MotionEvent | None = None) -> None:
     effect = runtime.effect
     style = effect.style
     joints = [token.strip() for token in effect.target.id.split(",") if token.strip()]
@@ -73,7 +82,7 @@ def draw_swoosh(runtime, track: FrameRecord | None, points: dict[str, np.ndarray
         target = float(np.clip((speed - floor) / floor, 0.0, 1.0))
         active = max(target, activity.get(key, 0.0) * RELEASE)
         activity[key] = active
-        if active < 0.03 or len(trail) < 3 or envelope <= 0:
+        if active < 0.03 or len(trail) < 3 or envelope <= 0 or not focused(event, key):
             runtime.swoosh_stroke.pop(key, None)
             runtime.swoosh_paint.discard(key)
             continue

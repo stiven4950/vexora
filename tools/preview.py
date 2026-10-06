@@ -22,6 +22,7 @@ from vfxglow.analysis.schema import AnalysisHeader, MotionBrief
 from vfxglow.composite.composite import composite_frame
 from vfxglow.config import load_config
 from vfxglow.director.presets import load_preset
+from vfxglow.director.schema import EffectScript
 from vfxglow.engine.engine import EffectEngine, load_events, load_tracks
 from vfxglow.io.store import read_model
 
@@ -44,7 +45,8 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--run", type=Path, required=True)
     parser.add_argument("--video", type=Path, required=True)
-    parser.add_argument("--preset", required=True)
+    parser.add_argument("--preset", default=None)
+    parser.add_argument("--script", type=Path, default=None, help="Effect Script ya dirigido (p. ej. runs/<video>/scripts/pelea.json)")
     parser.add_argument("--frames", required=True, help="Lista separada por comas")
     parser.add_argument("--ref", type=Path, default=None)
     parser.add_argument("--warmup", type=int, default=15)
@@ -56,7 +58,13 @@ def main() -> int:
     cfg = load_config(args.config)
     analysis = args.run / "analysis"
     meta = read_model(analysis / "header.json", AnalysisHeader).video
-    script = load_preset(args.config.resolve().parent / "presets" / f"{args.preset}.yaml", meta.frame_count)
+    if args.script is not None:
+        script = read_model(args.script, EffectScript)
+    elif args.preset:
+        script = load_preset(args.config.resolve().parent / "presets" / f"{args.preset}.yaml", meta.frame_count)
+    else:
+        parser.error("Indica --preset o --script")
+    name = args.preset or script.theme
     cuts = cut_frames(read_model(analysis / "motion_brief.json", MotionBrief).beats)
     tracks = {track.frame: track for track in load_tracks(analysis / "tracks.jsonl")}
     events = load_events(analysis / "events.jsonl")
@@ -75,7 +83,7 @@ def main() -> int:
             script.grade,
             enabled_groups=cfg.composite.enabled_groups(),
         )
-        ours.append(tile(cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR), f"{args.preset} {target}", args.tile))
+        ours.append(tile(cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR), f"{name} {target}", args.tile))
         if reference is not None:
             refs.append(tile(grab(reference, target), f"REF {target}", args.tile))
     rows = [np.hstack(refs)] if refs else []

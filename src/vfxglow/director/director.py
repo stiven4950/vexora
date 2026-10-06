@@ -31,8 +31,19 @@ class CreativeDirector:
         self._complete = complete
         self.cache_dir = cache_dir
         self.video = video
+        # Registro de decisiones del coreógrafo de la última llamada (solo provider catalog).
+        self.choreography = None
 
     def create(self, brief: MotionBrief) -> EffectScript:
+        if self.config.provider == "catalog":
+            from vfxglow.director.choreography import choreograph, load_catalog
+
+            path = self.preset_dir.parent / "catalogs" / f"{self.config.catalog}.yaml"
+            if not path.exists():
+                raise FileNotFoundError(f"No existe el catálogo {path}")
+            script, self.choreography = choreograph(load_catalog(path), brief, self.config.seed)
+            validate_script(script, set(brief.anchors) | set(CHAINS) | set(FACE_REGIONS) | set(LIMB_JOINTS), cuts_of(brief))
+            return script
         if self.config.provider == "preset":
             path = self.preset_dir / f"{self.config.preset}.yaml"
             if not path.exists():

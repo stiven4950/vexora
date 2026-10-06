@@ -7,7 +7,7 @@ from pathlib import Path
 
 from vfxglow.analysis.analyzer import analyze_video
 from vfxglow.analysis.schema import AnalysisHeader, VideoMeta
-from vfxglow.config import LAYER_GROUPS, load_config, preset_file
+from vfxglow.config import LAYER_GROUPS, catalog_file, load_config, preset_file
 from vfxglow.device import require_cuda, resolve_device
 from vfxglow.director.director import CreativeDirector
 from vfxglow.director.schema import EffectScript, effect_group
@@ -56,6 +56,8 @@ class Pipeline:
         force: bool = False,
         layers: str | None = None,
         director: str | None = None,
+        catalog: str | None = None,
+        seed: int | None = None,
     ) -> None:
         self.config_path = config_path
         self.config = load_config(config_path)
@@ -64,6 +66,11 @@ class Pipeline:
         if preset:
             self.config.director.provider = "preset"
             self.config.director.preset = preset
+        if catalog:
+            self.config.director.provider = "catalog"
+            self.config.director.catalog = catalog
+        if seed is not None:
+            self.config.director.seed = seed
         if level:
             self.config.analysis.level = level  # type: ignore[assignment]
         self.video = video
@@ -115,6 +122,9 @@ class Pipeline:
         brief_path = self.run_dir / "analysis" / "motion_brief.json"
         preset_path = preset_file(self.config_path, self.config.director.preset)
         preset_hash = sha256_file(preset_path) if self.config.director.provider == "preset" and preset_path.exists() else ""
+        catalog_path = catalog_file(self.config_path, self.config.director.catalog)
+        if self.config.director.provider == "catalog" and catalog_path.exists():
+            preset_hash = sha256_file(catalog_path)
         key = stage_key(
             "direct-1",
             sha256_file(brief_path),
@@ -139,12 +149,17 @@ class Pipeline:
         write_model(dest, script)
         # Copia por tema: cada preset conserva su guion aunque se dirija otro después.
         write_model(dest.with_name(f"{script.theme}.json"), script)
+        if director.choreography is not None:
+            # Qué reacción salió en cada acción: la trazabilidad del sorteo.
+            write_model(dest.with_name("choreography.json"), director.choreography)
+            write_model(dest.with_name(f"{script.theme}.choreography.json"), director.choreography)
         log.info("Guion %s con %d efectos", script.theme, len(script.effects))
         self._mark(
             "direct",
             key,
             provider=self.config.director.provider,
-            preset=self.config.director.preset if self.config.director.provider == "preset" else "",
+            preset={"preset": self.config.director.preset, "catalog": self.config.director.catalog}.get(self.config.director.provider, ""),
+            seed=str(self.config.director.seed if self.config.director.seed is not None else ""),
             theme=script.theme,
             script=sha256_file(dest)[:12],
             code=_code("direct")[:12],

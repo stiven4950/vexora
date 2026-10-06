@@ -15,10 +15,10 @@ import zlib
 
 import numpy as np
 
-from vfxglow.analysis.schema import FrameRecord
+from vfxglow.analysis.schema import FrameRecord, MotionEvent
 from vfxglow.engine.anchors import joint_speed, torso_pixels
 from vfxglow.engine.raster import stroke_batch
-from vfxglow.engine.swoosh import neon_layers, swoosh_keys
+from vfxglow.engine.swoosh import focused, neon_layers, swoosh_keys
 from vfxglow.geom import catmull_rom, normals
 
 # Ángulo mínimo del codo (grados) y proporción horizontal mínima del brazo.
@@ -58,7 +58,7 @@ def is_punch_pose(chain: np.ndarray, min_elbow: float = MIN_ELBOW, min_level: fl
     return angle >= min_elbow and abs(reach[0]) >= min_level * abs(reach[1])
 
 
-def draw_arm_outline(runtime, track: FrameRecord | None, points: dict[str, np.ndarray], frame_index: int, height: int, envelope: float, layer: np.ndarray) -> None:
+def draw_arm_outline(runtime, track: FrameRecord | None, points: dict[str, np.ndarray], frame_index: int, height: int, envelope: float, layer: np.ndarray, event: MotionEvent | None = None) -> None:
     effect = runtime.effect
     style = effect.style
     torso = torso_pixels(points, height)
@@ -82,7 +82,7 @@ def draw_arm_outline(runtime, track: FrameRecord | None, points: dict[str, np.nd
         pose_ok = chain is not None and (
             is_punch_pose(chain, KEEP_ELBOW, KEEP_LEVEL) if drawn else is_punch_pose(chain)
         )
-        if not pose_ok or envelope <= 0 or float(np.random.default_rng(seed).random()) >= style.chance:
+        if not pose_ok or envelope <= 0 or not focused(event, key) or float(np.random.default_rng(seed).random()) >= style.chance:
             runtime.limb_frames.pop(key, None)
             continue
         drawn += 1

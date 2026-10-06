@@ -51,6 +51,16 @@ vfxglow run --video ../glowing/data/original/video_27.mp4 --preset doodle_dance
 El resultado queda en `runs/<video>/output/<preset>.mp4`. Se escribe primero como
 `<preset>.partial.mp4` y solo se publica si salieron todos los fotogramas.
 
+Coreografía por catálogo (reacciones sorteadas por acción; ver [catalogo_efectos.md](catalogo_efectos.md)):
+
+```bash
+vfxglow run --video ../glowing/data/original/video_1.mp4 --catalog pelea            # semilla del catálogo
+vfxglow run --video ../glowing/data/original/video_1.mp4 --catalog pelea --seed 7   # otra coreografía
+```
+
+Las decisiones quedan en `runs/<video>/scripts/choreography.json` y el video en
+`runs/<video>/output/pelea.mp4`.
+
 Director artista con gpt-5 (necesita la clave; una llamada por video, la respuesta queda en caché):
 
 ```bash
@@ -80,6 +90,13 @@ Con `--ref` añade una fila con el mismo fotograma del video de referencia:
 python tools/preview.py --run runs/video_1-34f2d20d \
   --video ../glowing/data/original/video_1.mp4 --preset fight_comic \
   --frames 300,500,584,660 --ref ../glowing/data/glowing/video_1.mp4 --tile 400 --out preview.jpg
+```
+
+Con un guion ya dirigido (por ejemplo, una coreografía) en vez de un preset:
+
+```bash
+python tools/preview.py --run runs/video_1-34f2d20d --video ../glowing/data/original/video_1.mp4 \
+  --script runs/video_1-34f2d20d/scripts/pelea.json --frames 46,352,528 --tile 400
 ```
 
 Fotograma ↔ segundo: `segundo = fotograma / 30` en estos videos.

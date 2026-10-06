@@ -1,0 +1,119 @@
+# Catálogo de reacciones para peleas, derivado de la referencia glowing/video_1.mp4.
+# Cada acción detectada sortea UNA reacción por ocurrencia según los pesos ("nada" incluida).
+# Las decisiones de cada corrida quedan en runs/<video>/scripts/choreography.json.
+# Ver docs/catalogo_efectos.md para el origen de cada reacción.
+name: pelea
+title: Pelea neón
+seed: 21
+colors:
+  - [1.0, 0.55, 0.12]   # person_0: naranja fuego
+  - [0.18, 0.5, 1.0]    # person_1: azul eléctrico
+
+defaults:
+  type: swoosh
+  target: {kind: joint, id: right_wrist}
+  time: {start_frame: 0, end_frame: -1, fade_in: 2, fade_out: 4}
+  style: {thickness: 0.012, hdr_gain: 1.6, boil_frames: 2}
+  render: {blend: add, motion_blur: 0.0, persistence: 0.0, group: glow}
+
+# Sin sorteo: tienen su propia probabilidad por golpe.
+always:
+  - type: droplets
+    target: {kind: joint, id: "left_wrist,right_wrist"}
+    style: {thickness: 0.009, hdr_gain: 1.8, size: 0.35, min_speed: 0.25, chance: 0.35,
+            shapes: [drop, ring, leaf, curl, dash]}
+
+reactions:
+  # Seg. 1-2 de la referencia: al chocar de hombros, descarga eléctrica en el punto de choque.
+  - action: body_bump
+    options:
+      - name: colision
+        weight: 0.85
+        effects:
+          - type: clash
+            target: {kind: event_point, id: body_bump}
+            style: {size: 0.6, hdr_gain: 1.4}
+            trigger: {hold: 16, fade_in: 1, fade_out: 6}
+      - name: nada
+        weight: 0.15
+
+  # Movimiento rápido de una extremidad. El swoosh es la reacción más común, pero no la única:
+  # a veces la mirada dispara un rayo al rival (seg. 14.7) o el brazo se dibuja musculoso.
+  - action: fast_swing
+    options:
+      - name: swoosh
+        weight: 0.5
+        effects:
+          - type: swoosh
+            target: {kind: joint, id: "left_wrist,right_wrist,left_ankle,right_ankle"}
+            style: {strands: 3, rings: 2, trail_frames: 10, min_speed: 0.12, paint_chance: 0.35,
+                    paint_width: 0.22, paint_min_length: 0.8, hdr_gain: 1.8}
+            trigger: {hold: 8, fade_in: 1, fade_out: 4}
+      - name: rayo_ojos
+        weight: 0.12
+        cooldown: 90
+        requires_person: true
+        effects:
+          - type: beam
+            target: {kind: event_point, id: eyes}
+            style: {size: 0.45, hdr_gain: 1.6}
+            trigger: {hold: 22, fade_in: 1, fade_out: 6}
+      - name: brazo_musculoso
+        weight: 0.13
+        cooldown: 30
+        requires_person: true
+        limbs: [left_wrist, right_wrist]
+        effects:
+          - type: arm_outline
+            target: {kind: joint, id: "left_wrist,right_wrist"}
+            style: {thickness: 0.01, hdr_gain: 1.5, size: 0.5, min_speed: 0.18, chance: 1.0, boil_frames: 3}
+            trigger: {hold: 12, fade_in: 1, fade_out: 5}
+      - name: nada
+        weight: 0.25
+
+  # Golpe que conecta: llamarada, estrellas (seg. 17.6) o descarga.
+  - action: person_contact
+    options:
+      - name: llamarada
+        weight: 0.45
+        effects:
+          - type: flame_burst
+            target: {kind: event_point, id: contact}
+            style: {size: 0.45, hdr_gain: 1.3}
+            trigger: {hold: 14, fade_in: 1, fade_out: 6}
+          - type: spark_dashes
+            target: {kind: event_point, id: contact}
+            style: {size: 0.5, thickness: 0.01, hdr_gain: 1.5}
+            trigger: {hold: 16, fade_in: 1, fade_out: 6}
+      - name: estrellas
+        weight: 0.35
+        effects:
+          - type: stars
+            target: {kind: event_point, id: contact}
+            style: {size: 0.5, hdr_gain: 1.6}
+            trigger: {hold: 12, fade_in: 1, fade_out: 5}
+      - name: descarga
+        weight: 0.2
+        effects:
+          - type: clash
+            target: {kind: event_point, id: contact}
+            style: {size: 0.5, hdr_gain: 1.4}
+            trigger: {hold: 12, fade_in: 1, fade_out: 6}
+
+  # Choque de puños: energía liberada (seg. 14.7, 21.6, 26.3) o estrellas.
+  - action: fist_clash
+    options:
+      - name: energia
+        weight: 0.7
+        effects:
+          - type: clash
+            target: {kind: event_point, id: fist_clash}
+            style: {size: 0.5, hdr_gain: 1.4}
+            trigger: {hold: 12, fade_in: 1, fade_out: 6}
+      - name: estrellas
+        weight: 0.3
+        effects:
+          - type: stars
+            target: {kind: event_point, id: fist_clash}
+            style: {size: 0.45, hdr_gain: 1.6}
+            trigger: {hold: 12, fade_in: 1, fade_out: 5}

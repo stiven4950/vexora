@@ -13,6 +13,7 @@ Pipeline de efectos visuales por capas. El video original es un plano intocable:
 `hq` añade YOLO y RTMW. `masks` añade SAM 2.1 y también exige CUDA. Esos extras no hacen falta para el primer resultado.
 
 Los comandos de trabajo (generar, revisar, regresión, historial) están en [docs/comandos.md](docs/comandos.md).
+El catálogo de acciones → reacciones y cómo extenderlo está en [docs/catalogo_efectos.md](docs/catalogo_efectos.md).
 
 ## Requisitos
 

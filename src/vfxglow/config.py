@@ -98,8 +98,11 @@ class AnalysisConfig(_Strict):
 
 
 class DirectorConfig(_Strict):
-    provider: Literal["preset", "openai", "anthropic"] = "preset"
+    provider: Literal["preset", "catalog", "openai", "anthropic"] = "preset"
     preset: str = "avatar_fire"
+    # catalog: configs/catalogs/<catalog>.yaml; seed sustituye la del catálogo (otra coreografía).
+    catalog: str = "pelea"
+    seed: int | None = None
     model: str = "gpt-5"
     api_key_env: str = "OPENAI_API_KEY"
     temperature: float = 0.4
@@ -166,3 +169,7 @@ def load_config(path: Path) -> AppConfig:
 
 def preset_file(config_path: Path, name: str) -> Path:
     return config_path.resolve().parent / "presets" / f"{name}.yaml"
+
+
+def catalog_file(config_path: Path, name: str) -> Path:
+    return config_path.resolve().parent / "catalogs" / f"{name}.yaml"

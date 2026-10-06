@@ -43,6 +43,8 @@ def main(argv: list[str] | None = None) -> int:
             default=None,
             help="openai: el director artista diseña el guion y sus dibujos",
         )
+        command.add_argument("--catalog", type=str, default=None, help="Coreografía por catálogo (configs/catalogs/<nombre>.yaml)")
+        command.add_argument("--seed", type=int, default=None, help="Semilla del catálogo: otra semilla, otra coreografía")
         command.add_argument("--level", choices=["fast", "hq", "masks"], default=None)
         command.add_argument("--force", action="store_true", help="Ignora la caché de etapas")
         command.add_argument(
@@ -70,6 +72,8 @@ def main(argv: list[str] | None = None) -> int:
         force=args.force,
         layers=args.layers,
         director=args.director,
+        catalog=args.catalog,
+        seed=args.seed,
     )
     getattr(pipeline, args.command if args.command != "run" else "run")()
     return 0
