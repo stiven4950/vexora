@@ -164,3 +164,4 @@ git checkout baseline -- <archivo>   # recuperar la versión original de un arch
 | `a269d3c` | Llamaradas más pequeñas con tope de tamaño; neón más vívido |
 | `5f1a11d` | `fight_comic` fase 3: evento `fist_clash`, energía de choque (`clash`) y brazo musculoso (`engine/limb.py`) |
 | `f5bfb62` | Brazo musculoso sin parpadeo (histéresis y fundido) |
+| `d9ae577` | Coreógrafo por catálogo (`--catalog pelea`, `--seed`), `body_bump`, rayo de ojos y estrellas |
