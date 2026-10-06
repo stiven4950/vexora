@@ -103,16 +103,16 @@ def _sample(cap: cv2.VideoCapture, beat: Beat) -> list[bytes]:
     return blobs
 
 
-def _ask(cfg: SceneConfig, key: str, frames: list[bytes]) -> tuple[str, tuple[int, int]]:
+def _ask(cfg: SceneConfig, key: str, frames: list[bytes], prompt: str = _PROMPT) -> tuple[str, tuple[int, int]]:
     """Devuelve el texto de la respuesta y los tokens de entrada y salida."""
     images = [base64.b64encode(blob).decode("ascii") for blob in frames]
     if cfg.provider == "gemini":
-        return _gemini(cfg.model, key, images)
-    return _openai(cfg.model, key, images)
+        return _gemini(cfg.model, key, images, prompt)
+    return _openai(cfg.model, key, images, prompt)
 
 
-def _openai(model: str, key: str, images: list[str]) -> tuple[str, tuple[int, int]]:
-    content: list[dict] = [{"type": "text", "text": _PROMPT}]
+def _openai(model: str, key: str, images: list[str], prompt: str = _PROMPT) -> tuple[str, tuple[int, int]]:
+    content: list[dict] = [{"type": "text", "text": prompt}]
     content.extend(
         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image}", "detail": "low"}}
         for image in images
@@ -140,8 +140,8 @@ def _openai(model: str, key: str, images: list[str]) -> tuple[str, tuple[int, in
     return text, (int(usage.get("prompt_tokens", 0)), int(usage.get("completion_tokens", 0)))
 
 
-def _gemini(model: str, key: str, images: list[str]) -> tuple[str, tuple[int, int]]:
-    parts: list[dict] = [{"text": _PROMPT}]
+def _gemini(model: str, key: str, images: list[str], prompt: str = _PROMPT) -> tuple[str, tuple[int, int]]:
+    parts: list[dict] = [{"text": prompt}]
     parts.extend({"inline_data": {"mime_type": "image/jpeg", "data": image}} for image in images)
     body = {"contents": [{"parts": parts}], "generationConfig": {"temperature": 0.2, "responseMimeType": "application/json"}}
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"

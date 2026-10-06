@@ -132,6 +132,8 @@ class MotionEvent(_Strict):
     object_label: str | None = None
     attacker: str | None = None
     receiver: str | None = None
+    # Subtipo de la acción (p. ej. intent: hand_to_chest, guard_up, arm_back, stir).
+    kind: str = ""
 
 
 class Beat(_Strict):
@@ -156,6 +158,17 @@ class SceneBeat(_Strict):
     objects: list[str] = Field(default_factory=list)
 
 
+class Accessory(_Strict):
+    """Algo que una persona lleva en la cabeza o la cara durante un tramo."""
+
+    person: str
+    kind: str
+    start_frame: int
+    end_frame: int
+    confidence: float = 1.0
+    source: str = "vlm"
+
+
 class MotionBrief(_Strict):
     version: str = "1.0"
     video: VideoMeta
@@ -169,3 +182,4 @@ class MotionBrief(_Strict):
     people: list[str] = Field(default_factory=list)
     scene: list[SceneBeat] = Field(default_factory=list)
     audio_onsets: list[int] = Field(default_factory=list)
+    accessories: list[Accessory] = Field(default_factory=list)

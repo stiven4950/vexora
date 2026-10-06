@@ -95,6 +95,10 @@ def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: st
     analysis = run_dir / "analysis"
     scenes = read_scenes(video_path, beats, analysis / "scene_cache", config.analysis.scene)
     brief = build_brief(frames, meta, events=events, beats=beats, scene=scenes, audio_onsets=onsets)
+    from vfxglow.analysis.accessories import detect_accessories
+
+    accessories = detect_accessories(video_path, frames, analysis / "scene_cache", config.analysis.accessories, config.analysis.scene)
+    brief = brief.model_copy(update={"accessories": accessories})
     header = AnalysisHeader(
         video=meta,
         device=device,
