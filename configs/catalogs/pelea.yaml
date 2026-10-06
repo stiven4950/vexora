@@ -117,3 +117,71 @@ reactions:
             target: {kind: event_point, id: fist_clash}
             style: {size: 0.45, hdr_gain: 1.6}
             trigger: {hold: 12, fade_in: 1, fade_out: 5}
+
+  # Seg. 7.6-8.9: tras un golpe la pelea se calma y empieza otra ronda. En la pausa, a quien
+  # lleva gafas se le encienden (figura al azar). Sin gafas no se inventan.
+  - action: lull
+    options:
+      - name: gafas_ronda
+        weight: 0.65
+        accessories: [sunglasses, glasses]
+        effects:
+          - type: eyewear
+            target: {kind: joint, id: nose}
+            style: {thickness: 0.06, hdr_gain: 1.8, boil_frames: 3,
+                    shapes: [frames, stars, hearts, mask, visor, rings, glint]}
+            trigger: {hold: 20, fade_in: 3, fade_out: 8}
+      - name: nada
+        weight: 0.35
+
+  # Seg. 8.1-8.9: cada uno empieza a mover una parte del cuerpo y esa parte se resalta. La
+  # figura depende de lo que anuncia el gesto (MotionEvent.kind) y se sortea entre varias.
+  - action: intent
+    options:
+      - name: runa_pecho
+        weight: 0.5
+        kinds: [hand_to_chest]
+        effects:
+          - type: intent_mark
+            target: {kind: joint, id: right_wrist}
+            style: {size: 0.35, thickness: 0.012, hdr_gain: 1.7, boil_frames: 3, shapes: [rune, halo]}
+            trigger: {hold: 24, fade_in: 2, fade_out: 8}
+      - name: rayos_brazo
+        weight: 0.5
+        kinds: [arm_back, stir, guard_up]
+        effects:
+          - type: intent_mark
+            target: {kind: joint, id: right_wrist}
+            style: {size: 0.35, thickness: 0.011, hdr_gain: 1.7, boil_frames: 2, shapes: [rays, spiral]}
+            trigger: {hold: 18, fade_in: 2, fade_out: 6}
+      - name: destellos
+        weight: 0.2
+        effects:
+          - type: intent_mark
+            target: {kind: joint, id: right_wrist}
+            style: {size: 0.3, thickness: 0.01, hdr_gain: 1.7, shapes: [sparkle, halo]}
+            trigger: {hold: 16, fade_in: 2, fade_out: 6}
+      - name: gafas_intencion
+        weight: 0.25
+        cooldown: 120
+        accessories: [sunglasses, glasses]
+        effects:
+          - type: eyewear
+            target: {kind: joint, id: nose}
+            style: {thickness: 0.06, hdr_gain: 1.8, boil_frames: 3, shapes: [stars, mask, visor, glint]}
+            trigger: {hold: 20, fade_in: 2, fade_out: 8}
+      - name: nada
+        weight: 0.15
+
+  # Seg. 9.1: el golpe que sigue a una intención se dibuja como un swoosh en cruz.
+  - action: intended_strike
+    options:
+      - name: cruz
+        weight: 0.6
+        effects:
+          - type: swoosh
+            target: {kind: joint, id: "left_wrist,right_wrist"}
+            style: {strands: 2, rings: 2, trail_frames: 10, min_speed: 0.1, cross: true, hdr_gain: 1.9}
+            trigger: {hold: 10, fade_in: 1, fade_out: 4}
+      - name: nada
+        weight: 0.4

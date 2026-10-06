@@ -455,3 +455,26 @@ def test_clash_zigzag_reaches_out() -> None:
     bolt = zigzag(np.array([0.0, 0.0]), 0.0, 5.0, 50.0, np.random.default_rng(1))
     assert bolt[0] == pytest.approx([5.0, 0.0])
     assert bolt[-1] == pytest.approx([50.0, 0.0])
+
+
+def test_eyewear_shapes_and_marks_have_outlines() -> None:
+    from vfxglow.engine.eyewear import SHAPES as EYEWEAR, figure
+    from vfxglow.engine.marks import SHAPES as MARKS, mark
+    from vfxglow.engine.swoosh import crossed
+
+    left, right = np.array([100.0, 100.0]), np.array([140.0, 104.0])
+    for shape in EYEWEAR:
+        lines = figure(shape, left, right, 3)
+        assert lines and all(len(line) >= 2 and np.isfinite(line).all() for line in lines)
+        span = np.vstack(lines)
+        assert span[:, 0].min() < 105 and span[:, 0].max() > 135  # cubre los dos ojos
+    rng = np.random.default_rng(0)
+    for shape in MARKS:
+        lines = mark(shape, np.array([50.0, 50.0]), np.array([20.0, 80.0]), 30.0, 0, rng, rng)
+        assert lines and all(np.isfinite(line).all() for line in lines)
+    # Un ida y vuelta (bucle estrecho) igual da una cruz: dos arcos con direcciones distintas.
+    loop = np.vstack([np.linspace([0, 0], [100, 0], 10), np.linspace([100, 5], [0, 5], 10)])
+    a, b = crossed(loop)
+    da, db = a[-1] - a[0], b[-1] - b[0]
+    cos = abs(da @ db) / (np.linalg.norm(da) * np.linalg.norm(db))
+    assert cos < np.cos(np.radians(45))

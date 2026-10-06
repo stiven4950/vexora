@@ -87,4 +87,38 @@ def test_fight_catalog_is_valid() -> None:
         MotionEvent(name="body_bump", target="body", start_frame=30, end_frame=30, confidence=1.0, position=(0.5, 0.5)),
     ]
     script, _ = choreograph(catalog, _brief(events))
-    validate_script(script)
+    validate_script(script, max_effects=40)
+
+
+def test_kind_and_accessory_filters_and_same_frame_targets() -> None:
+    from vfxglow.analysis.schema import Accessory
+
+    catalog = Catalog.model_validate(
+        {
+            "name": "t",
+            "defaults": {"type": "intent_mark", "target": {"kind": "joint", "id": "right_wrist"}},
+            "reactions": [
+                {
+                    "action": "intent",
+                    "options": [
+                        {"name": "pecho", "kinds": ["hand_to_chest"], "effects": [{"style": {"shapes": ["rune"]}}]},
+                        {"name": "gafas", "accessories": ["sunglasses"], "effects": [{"type": "eyewear", "style": {"shapes": ["stars"]}}]},
+                    ],
+                }
+            ],
+        }
+    )
+    intents = [
+        MotionEvent(name="intent", target="person_0:right_wrist", start_frame=10, end_frame=12, confidence=1.0, attacker="person_0", kind="stir"),
+        MotionEvent(name="intent", target="person_1:left_wrist", start_frame=10, end_frame=12, confidence=1.0, attacker="person_1", kind="hand_to_chest"),
+    ]
+    brief = _brief(intents).model_copy(update={"accessories": [Accessory(person="person_0", kind="sunglasses", start_frame=0, end_frame=899)]})
+    script, log = choreograph(catalog, brief)
+    choices = {d.target: d.choice for d in log.decisions}
+    # person_0 se agita y lleva gafas: solo puede salir "gafas"; person_1 sin gafas lleva la mano al pecho.
+    assert choices == {"person_0:right_wrist": "gafas", "person_1:left_wrist": "pecho"}
+    by_id = {e.id: e for e in script.effects}
+    assert by_id["intent_gafas_0"].style.people == ["person_0"]
+    pecho = by_id["intent_pecho_0"]
+    # Mismo fotograma, otra persona: el trigger distingue por target.
+    assert [w.event.target for w in ActivationTimeline(pecho, intents).windows] == ["person_1:left_wrist"]

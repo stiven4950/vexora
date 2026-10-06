@@ -41,6 +41,11 @@ class Option(_Strict):
     # Si no está vacío, la opción solo entra en el sorteo cuando la acción es de una de estas
     # extremidades (un brazo musculoso no tiene sentido en una patada).
     limbs: list[str] = Field(default_factory=list)
+    # Subtipos de la acción admitidos (MotionEvent.kind; p. ej. intent: hand_to_chest).
+    kinds: list[str] = Field(default_factory=list)
+    # La persona de la acción debe llevar uno de estos accesorios (gafas, máscara...). Si la
+    # acción no es de una persona (una pausa), el efecto se dibuja en todos los que lo lleven.
+    accessories: list[str] = Field(default_factory=list)
     effects: list[dict] = Field(default_factory=list)
 
 
@@ -84,20 +89,20 @@ def load_catalog(path: Path) -> Catalog:
 def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -> tuple[EffectScript, Choreography]:
     seed = catalog.seed if seed is None else seed
     fps = brief.video.fps or 30.0
-    chosen: dict[tuple[str, str], list[int]] = {}
+    chosen: dict[tuple[str, str], list[tuple[int, str]]] = {}
     decisions: list[Decision] = []
     for reaction in catalog.reactions:
         last = -10_000
         used: dict[str, int] = {}
         for event in sorted((e for e in brief.events if e.name == reaction.action), key=lambda e: e.start_frame):
             resting = {name for name, frame in used.items() if event.start_frame - frame < _option(reaction, name).cooldown}
-            option = _draw(reaction, event, seed, resting)
+            option = _draw(reaction, event, seed, resting, brief)
             if option.effects and event.start_frame - last < reaction.cooldown:
                 option = Option(name="nada (enfriamiento)")
             if option.effects:
                 last = event.start_frame
                 used[option.name] = event.start_frame
-                chosen.setdefault((reaction.action, option.name), []).append(event.start_frame)
+                chosen.setdefault((reaction.action, option.name), []).append((event.start_frame, event.target))
             decisions.append(
                 Decision(
                     frame=event.start_frame,
@@ -110,14 +115,18 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -
     effects: list[dict] = [_effect(catalog, raw, f"always_{index}") for index, raw in enumerate(catalog.always)]
     for reaction in catalog.reactions:
         for option in reaction.options:
-            frames = chosen.get((reaction.action, option.name))
-            if not frames:
+            picked = sorted(chosen.get((reaction.action, option.name), []))
+            if not picked:
                 continue
             for index, raw in enumerate(option.effects):
                 effect = _effect(catalog, raw, f"{reaction.action}_{option.name}_{index}")
                 trigger = dict(raw.get("trigger", {}))
-                trigger.update(event=reaction.action, frames=sorted(frames))
+                trigger.update(event=reaction.action, frames=[f for f, _t in picked], targets=[t for _f, t in picked])
                 effect["triggers"] = [trigger]
+                if option.accessories:
+                    effect["style"]["people"] = sorted(
+                        {a.person for a in brief.accessories if a.kind in option.accessories}
+                    )
                 effects.append(effect)
     script = EffectScript.model_validate(
         {"title": catalog.title or catalog.name, "theme": catalog.name, "seed": seed, "effects": effects}
@@ -130,13 +139,26 @@ def _option(reaction: Reaction, name: str) -> Option:
     return next(option for option in reaction.options if option.name == name)
 
 
-def _draw(reaction: Reaction, event: MotionEvent, seed: int, resting: set[str] = frozenset()) -> Option:
+def _wears(brief: MotionBrief | None, event: MotionEvent, kinds: list[str]) -> bool:
+    """La persona del evento (o cualquiera, si el evento no es de una persona) lleva algo de `kinds`."""
+    if brief is None:
+        return False
+    person = event.attacker or (event.target.split(":", 1)[0] if event.target.startswith("person_") else None)
+    return any(
+        a.kind in kinds and a.start_frame <= event.start_frame <= a.end_frame and (person is None or a.person == person)
+        for a in brief.accessories
+    )
+
+
+def _draw(reaction: Reaction, event: MotionEvent, seed: int, resting: set[str] = frozenset(), brief: MotionBrief | None = None) -> Option:
     limb = event.target.rsplit(":", 1)[-1]
     options = [
         o
         for o in reaction.options
         if not (o.requires_person and not event.target.startswith("person_"))
         and (not o.limbs or limb in o.limbs)
+        and (not o.kinds or event.kind in o.kinds)
+        and (not o.accessories or _wears(brief, event, o.accessories))
         and o.name not in resting
     ]
     if not options:

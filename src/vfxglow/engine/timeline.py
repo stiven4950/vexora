@@ -28,8 +28,12 @@ def _matches(event: MotionEvent, trigger: EffectTrigger) -> bool:
         return False
     if trigger.attacker and event.attacker != trigger.attacker:
         return False
-    if trigger.frames and event.start_frame not in trigger.frames:
-        return False
+    if trigger.frames:
+        if trigger.targets:
+            if (event.start_frame, event.target) not in set(zip(trigger.frames, trigger.targets, strict=False)):
+                return False
+        elif event.start_frame not in trigger.frames:
+            return False
     return True
 
 

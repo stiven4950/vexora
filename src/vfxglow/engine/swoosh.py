@@ -107,8 +107,12 @@ def draw_swoosh(runtime, track: FrameRecord | None, points: dict[str, np.ndarray
             outline = paint_outline(curve, style.paint_width * torso, frame_index)
             strokes += _neon(outline, color, width, active, taper=False)
             continue
-        for strand in strands(curve, max(style.strands, 1), width):
+        for strand in ([] if style.cross else strands(curve, max(style.strands, 1), width)):
             strokes += _neon(strand[0], color, width * strand[1], active * strand[2])
+        if style.cross:
+            # Las dos aspas enteras, sin fundido de cola: con fundido solo se ve una "V".
+            for arc in crossed(curve):
+                strokes += _neon(arc, color, width * 0.85, active * 0.9, taper=False)
     stroke_batch(layer, strokes, style.hdr_gain * envelope)
 
 
@@ -198,3 +202,27 @@ def _neon(curve: np.ndarray, color: np.ndarray, width: float, alpha: float, tape
         a = alpha * t**1.4
         strokes += neon_layers(piece, color, w, a)
     return strokes
+
+
+CROSS_ANGLE = np.radians(70.0)
+
+
+def crossed(curve: np.ndarray, angle: float = CROSS_ANGLE) -> list[np.ndarray]:
+    """Dos arcos que se cruzan en el centro de la estela, sobre su eje principal.
+
+    Se usa el eje principal y no la estela tal cual: si el brazo fue y volvió, la estela es un
+    bucle estrecho y girarla dibuja un triángulo en vez de una cruz.
+    """
+    middle = curve.mean(axis=0)
+    centered = curve - middle
+    _, _, axes = np.linalg.svd(centered, full_matrices=False)
+    axis = axes[0]
+    reach = float(np.abs(centered @ axis).max())
+    normal = np.array([-axis[1], axis[0]])
+    t = np.linspace(-1.0, 1.0, 24)
+    arcs = []
+    for turn in (angle / 2, -angle / 2):
+        rot = np.array([[np.cos(turn), -np.sin(turn)], [np.sin(turn), np.cos(turn)]])
+        along, across = rot @ axis, rot @ normal
+        arcs.append(middle + t[:, None] * along * reach + (1 - t**2)[:, None] * across * reach * 0.18)
+    return arcs

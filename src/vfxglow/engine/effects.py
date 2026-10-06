@@ -96,6 +96,14 @@ def render_effect(
 
         draw = {"flame_burst": draw_flame_burst, "spark_dashes": draw_spark_dashes, "clash": draw_clash, "stars": draw_stars}[kind]
         draw(runtime, points, frame_index, height, envelope, layer, event)
+    elif kind == "intent_mark":
+        from vfxglow.engine.marks import draw_intent_mark
+
+        draw_intent_mark(runtime, track, points, frame_index, height, envelope, layer, event)
+    elif kind == "eyewear":
+        from vfxglow.engine.eyewear import draw_eyewear
+
+        draw_eyewear(runtime, track, points, frame_index, height, envelope, layer, event if effect.triggers else None)
     elif kind == "beam":
         from vfxglow.engine.burst import draw_beam
 

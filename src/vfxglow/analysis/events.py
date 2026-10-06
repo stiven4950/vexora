@@ -34,6 +34,23 @@ BUMP_OVERLAP = 0.3
 BUMP_WINDOW = 4
 BUMP_QUIET = 6
 BUMP_COOLDOWN = 90
+# Pausa: la mediana (LULL_MEDIAN fotogramas) de la actividad máxima de todos queda bajo
+# LULL_SPEED durante LULL_MIN fotogramas, con acción en los LULL_AFTER previos. La mediana
+# ignora un pico suelto: alguien que se acomoda la chaqueta no rompe la pausa.
+LULL_SPEED = 0.12
+LULL_MEDIAN = 9
+LULL_MIN = 12
+LULL_AFTER = 60
+# Intención: en la pausa o hasta INTENT_TAIL después, una muñeca se desplaza al menos
+# INTENT_MOVE torsos en INTENT_SPAN fotogramas. Se mide desplazamiento y no velocidad: llevar
+# la mano al pecho es lento. Como mucho INTENT_MAX por persona y pausa, separadas INTENT_GAP.
+# Golpe intencionado: swing hasta STRIKE_AFTER fotogramas después de una intención.
+INTENT_MOVE = 0.35
+INTENT_SPAN = 8
+INTENT_TAIL = 25
+INTENT_MAX = 2
+INTENT_GAP = 12
+STRIKE_AFTER = 45
 
 EVENT_CATALOG: dict[str, str] = {
     "fast_swing": "La muñeca supera la velocidad umbral varios fotogramas seguidos.",
@@ -54,6 +71,9 @@ EVENT_CATALOG: dict[str, str] = {
     "strike_recoil": "Tras el contacto, la muñeca invierte su dirección (retroceso).",
     "fist_clash": "Las manos de dos personas se acercan deprisa y se tocan (choque de puños).",
     "body_bump": "Dos personas que se acercan chocan con el cuerpo (hombro con hombro).",
+    "lull": "Pausa: tras un tramo de acción, todos quedan casi quietos (fin de una ronda).",
+    "intent": "Durante o justo después de una pausa, una persona empieza a mover una extremidad: anuncia lo que va a hacer.",
+    "intended_strike": "Golpe rápido que llega poco después de una intención de la misma persona.",
     "tool_touch": "La mano se mueve junto al rostro, como un pincel que pinta.",
 }
 
@@ -111,6 +131,9 @@ class EventDetector:
         events += bumps
         events += self._people_swings()
         events += self._tool_touch()
+        lulls = self._lulls()
+        intents = self._intents(lulls)
+        events += lulls + intents + self._intended_strikes(intents, events)
         events.sort(key=lambda event: (event.start_frame, event.name))
         return events
 
@@ -656,6 +679,133 @@ class EventDetector:
             last = index
         return events
 
+    def _activity(self) -> dict[str, np.ndarray]:
+        """Por persona, velocidad máxima de las muñecas por fotograma (NaN si no está)."""
+        series: dict[str, np.ndarray] = {}
+        for index, frame in enumerate(self.frames):
+            for person in frame.people:
+                speeds = [m.speed for m in person.motion if m.name in ("left_wrist", "right_wrist") and not m.glitch]
+                if speeds:
+                    series.setdefault(person.person_id, np.full(self.n, np.nan))[index] = max(speeds)
+        return {pid: _smooth_nan(values, 5) for pid, values in series.items()}
+
+    def _lulls(self) -> list[MotionEvent]:
+        from vfxglow.analysis.schema import MotionEvent
+
+        activity = self._activity()
+        if not activity:
+            return []
+        stacked = np.vstack(list(activity.values()))
+        present = ~np.isnan(stacked)
+        peak = np.where(present.any(axis=0), np.nanmax(np.where(present, stacked, -1.0), axis=0), np.nan)
+        filled = np.where(np.isnan(peak), LULL_SPEED * 10, peak)
+        half = LULL_MEDIAN // 2
+        median = np.array([np.median(filled[max(0, i - half) : i + half + 1]) for i in range(self.n)])
+        quiet = (median < LULL_SPEED) & ~np.isnan(peak)
+        busy = peak >= self.cfg.swing_speed
+        events: list[MotionEvent] = []
+        index = 0
+        while index < self.n:
+            if not quiet[index]:
+                index += 1
+                continue
+            end = index
+            while end + 1 < self.n and (quiet[end + 1] or np.isnan(peak[end + 1])):
+                end += 1
+            if end - index + 1 >= LULL_MIN and busy[max(0, index - LULL_AFTER) : index].any():
+                events.append(
+                    MotionEvent(
+                        name="lull",
+                        target="scene",
+                        start_frame=index,
+                        end_frame=end,
+                        confidence=1.0,
+                        detail=EVENT_CATALOG["lull"],
+                    )
+                )
+            index = end + 1
+        return events
+
+    def _intents(self, lulls: list[MotionEvent]) -> list[MotionEvent]:
+        """Las muñecas que se ponen en marcha durante una pausa, por persona."""
+        from vfxglow.analysis.schema import MotionEvent
+
+        events: list[MotionEvent] = []
+        people = sorted({p.person_id for frame in self.frames for p in frame.people})
+        for lull in lulls:
+            for pid in people:
+                found = 0
+                last = -10_000
+                for index in range(max(lull.start_frame, INTENT_SPAN), min(self.n, lull.end_frame + INTENT_TAIL)):
+                    if found >= INTENT_MAX or index - last < INTENT_GAP:
+                        continue
+                    person = next((p for p in self.frames[index].people if p.person_id == pid), None)
+                    before = next((p for p in self.frames[index - INTENT_SPAN].people if p.person_id == pid), None)
+                    if person is None or before is None:
+                        continue
+                    torso = _torso_norm(person)
+                    best = None
+                    for joint in ("left_wrist", "right_wrist"):
+                        now, then = _person_point(person, joint), _person_point(before, joint)
+                        if now is None or then is None:
+                            continue
+                        move = float(np.hypot(now[0] - then[0], now[1] - then[1])) / torso
+                        if move >= INTENT_MOVE and (best is None or move > best[0]):
+                            best = (move, joint, now)
+                    if best is None:
+                        continue
+                    move, joint, wrist = best
+                    start = index - INTENT_SPAN // 2
+                    # Dos pausas seguidas comparten ventana: la misma intención no se cuenta dos veces.
+                    if any(e.attacker == pid and abs(e.start_frame - start) < INTENT_GAP for e in events):
+                        continue
+                    events.append(
+                        MotionEvent(
+                            name="intent",
+                            target=f"{pid}:{joint}",
+                            start_frame=start,
+                            end_frame=index,
+                            confidence=float(min(1.0, move)),
+                            detail=EVENT_CATALOG["intent"],
+                            position=wrist,
+                            peak_speed=move / INTENT_SPAN,
+                            attacker=pid,
+                            kind=_intent_kind(person, joint, self._rival(index, pid)),
+                        )
+                    )
+                    found += 1
+                    last = index
+        return events
+
+    def _rival(self, index: int, pid: str):
+        return next((p for p in self.frames[index].people if p.person_id != pid), None)
+
+    def _intended_strikes(self, intents: list[MotionEvent], found: list[MotionEvent]) -> list[MotionEvent]:
+        from vfxglow.analysis.schema import MotionEvent
+
+        strikes: list[MotionEvent] = []
+        taken: set[tuple[int, str]] = set()
+        for intent in intents:
+            pid = intent.attacker
+            swing = next(
+                (
+                    e
+                    for e in sorted(found, key=lambda e: e.start_frame)
+                    if e.name == "fast_swing"
+                    and e.target.startswith(f"{pid}:")
+                    and intent.start_frame < e.start_frame <= intent.end_frame + STRIKE_AFTER
+                ),
+                None,
+            )
+            if swing is not None and (swing.start_frame, swing.target) not in taken:
+                taken.add((swing.start_frame, swing.target))
+                strikes.append(
+                    swing.model_copy(
+                        update={"name": "intended_strike", "detail": EVENT_CATALOG["intended_strike"], "kind": intent.kind, "attacker": pid}
+                    )
+                )
+        return strikes
+
     def _people_swings(self) -> list[MotionEvent]:
         """Swings por persona, con ancla person_N:joint, para que cada color siga a su actor."""
         from vfxglow.analysis.schema import MotionEvent
@@ -757,6 +907,39 @@ def _person_speed(person, name: str) -> float:
         if item.name == name and not item.glitch:
             return float(item.speed)
     return 0.0
+
+
+def _smooth_nan(values: np.ndarray, size: int) -> np.ndarray:
+    """Media móvil que ignora los huecos (NaN) y los conserva."""
+    filled = np.nan_to_num(values, nan=0.0)
+    weight = (~np.isnan(values)).astype(np.float64)
+    kernel = np.ones(size)
+    total = np.convolve(filled, kernel, mode="same")
+    count = np.convolve(weight, kernel, mode="same")
+    out = np.where(count > 0, total / np.maximum(count, 1e-9), np.nan)
+    out[np.isnan(values)] = np.nan
+    return out
+
+
+def _intent_kind(person, joint: str, rival) -> str:
+    """Qué anuncia la mano: al pecho, guardia alta, brazo atrás (carga) o solo se agita."""
+    side = joint.split("_", 1)[0]
+    wrist = _person_point(person, joint)
+    shoulder = _person_point(person, f"{side}_shoulder")
+    chest = _person_point(person, "mid")
+    nose = _person_point(person, "nose")
+    if wrist is None or shoulder is None:
+        return "stir"
+    torso = _torso_norm(person)
+    if chest is not None and float(np.hypot(wrist[0] - chest[0], wrist[1] - chest[1])) < 0.45 * torso:
+        return "hand_to_chest"
+    if nose is not None and wrist[1] < shoulder[1] and float(np.hypot(wrist[0] - nose[0], wrist[1] - nose[1])) < 0.8 * torso:
+        return "guard_up"
+    if rival is not None:
+        target = _person_point(rival, "mid")
+        if target is not None and abs(wrist[0] - target[0]) > abs(shoulder[0] - target[0]):
+            return "arm_back"
+    return "stir"
 
 
 WEAK_CLASH = " Sin historia previa: la segunda persona reapareció con las manos juntas."

@@ -71,7 +71,45 @@ musculoso solo dibujan esa extremidad.
 | `strike_windup` / `strike_recoil` | 8 fotogramas antes de un contacto / retroceso de la muñeca después |
 | `fist_clash` | Manos de dos personas que se acercan deprisa y se tocan |
 | `body_bump` | Dos cuerpos que chocan (cajas solapadas; el tracker suele fusionarlos) |
+| `lull` | Pausa tras un tramo de acción: todos casi quietos (fin de una ronda). Mediana de la actividad, ignora picos sueltos |
+| `intent` | En la pausa, una mano que se pone en marcha (por desplazamiento, no velocidad: llevar la mano al pecho es lento). `kind`: `hand_to_chest`, `guard_up`, `arm_back`, `stir` |
+| `intended_strike` | Golpe rápido que llega poco después de una intención de la misma persona |
 | `foot_strike`, `jump`, `turn`, `still`, `raise_hand`, `arms_crossed`, `hand_open/closed` | Ver `analysis/events.py` |
+
+## Filtros de una opción
+
+| Campo | Efecto |
+| --- | --- |
+| `limbs` | Solo si la acción es de estas extremidades |
+| `kinds` | Solo para estos subtipos de la acción (`MotionEvent.kind`, p. ej. `hand_to_chest`) |
+| `accessories` | Solo si la persona lleva uno de estos accesorios; en acciones de escena (una pausa) se dibuja en todos los que lo lleven |
+| `requires_person` | La acción debe venir de una persona identificada |
+| `cooldown` | Fotogramas mínimos entre dos usos de la opción |
+
+## Accesorios
+
+Qué lleva cada persona (`sunglasses`, `glasses`, `mask`, `hat`, `cap`, `headband`, `hood`,
+`earrings`) se clasifica una vez por persona con el VLM de `analysis.scene`: una hoja con 6
+recortes de su cabeza repartidos en el video, una llamada. Queda en `motion_brief.json` →
+`accessories` con el tramo de cada uno. La posición en cada fotograma sale de los ojos de la
+pose, escalada con los hombros. Sin clave de API, o para forzarlo:
+
+```yaml
+analysis:
+  accessories:
+    manual: {person_1: [sunglasses]}
+```
+
+Un umbral de píxeles no sirve aquí: a 720 px los ojos miden ~17 px y el tono de piel confunde.
+
+## Figuras disponibles
+
+| Efecto | Figuras (`style.shapes`, una por activación al azar) |
+| --- | --- |
+| `eyewear` | `frames`, `stars`, `hearts`, `mask` (antifaz), `visor`, `rings`, `glint` |
+| `intent_mark` | `rune`, `rays`, `halo`, `spiral`, `sparkle` |
+| `droplets` | `drop`, `ring`, `leaf`, `curl`, `dash` |
+| `swoosh` | normal, varias hebras (`strands`), pintura (`paint_chance`), cruz (`cross`) |
 
 ## Observado en la referencia de pelea (`glowing/video_1.mp4`)
 
@@ -82,7 +120,7 @@ Análisis cada 4 fotogramas cruzando el video de referencia con los eventos dete
 | --- | --- | --- | --- |
 | 1.5–1.7 | Chocan de hombros al cruzarse | Descarga eléctrica de dos colores en el punto de choque | ✅ `body_bump → colision` (`clash`) |
 | 1.9–2.4 | Tras el choque, se separan | Anillos y óvalos pequeños flotando alrededor de ambos | 🔜 partículas ambientales tras un choque |
-| 3.2–4.1 | Se acomoda las gafas / mira al rival | Gafas que brillan; rayas cortas en los cristales | 🔜 brillo de ojos sin rayo (`still` + mirada) |
+| 3.2–4.1 | Se acomoda las gafas / mira al rival | Gafas que brillan; rayas cortas en los cristales | ✅ `lull`/`intent → gafas` (`eyewear`, solo a quien lleva gafas) |
 | 4.3–4.8 | Agarra al rival del cuello | Rayos que recorren el brazo del atacante hasta el punto de agarre | 🔜 rayo a lo largo de la cadena del brazo |
 | 4.8–5.2 | El agarrado queda quieto | Lenguas de fuego azul en el cuello y la cabeza del agarrado | 🔜 aura en la zona agarrada |
 | 5.3–5.9 | Carga antes de golpear | Contorno de fuego en las manos y líneas de energía en el torso | 🔜 puños en llamas (`strike_windup`) |
@@ -91,7 +129,8 @@ Análisis cada 4 fotogramas cruzando el video de referencia con los eventos dete
 | 6.7–7.0 | Patada giratoria | Arco alrededor de la pierna con puntos | ✅ `fast_swing → swoosh` (tobillos) |
 | 7.2–7.5 | Postura de guardia | Óvalos que envuelven el cuerpo (aura de contorno) | 🔜 aura de cuerpo |
 | 7.6–8.1 | Después de moverse | Gotas que caen al suelo | ✅ partículas `drop` |
-| 8.3–8.9 | Mano en el pecho, desafiante | Glifo/runa en el pecho | 🔜 sigilo en el pecho |
+| 7.6–8.9 | Pausa entre rondas; cada uno mueve una parte del cuerpo | Runa en el pecho del de negro, rayos en el brazo del de azul, gafas encendidas | ✅ `lull`, `intent → runa_pecho / rayos_brazo / gafas` |
+| 9.0–9.3 | El golpe que sigue a la intención | Swoosh en cruz | ✅ `intended_strike → cruz` |
 | 9.2, 16.4, 16.7, 18.8 | Brazo que barre | Swoosh de una o varias líneas | ✅ `fast_swing → swoosh` |
 | 10.1, 16.9, 19.2 | Puñetazo que choca | Estallido en estrella de puntas | ✅ `clash`/`stars` |
 | 10.4–10.7 | Golpeado aturdido | Remolino o nube garabateada alrededor de la cabeza | 🔜 aturdimiento |

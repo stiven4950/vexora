@@ -38,6 +38,8 @@ EffectType = Literal[
     "arm_outline",
     "beam",
     "stars",
+    "eyewear",
+    "intent_mark",
 ]
 TargetKind = Literal["joint", "chain", "face_region", "mask", "object", "event_point", "contour"]
 BlendMode = Literal["add", "screen", "over", "multiply"]
@@ -63,6 +65,9 @@ EVENT_NAMES: tuple[str, ...] = (
     "strike_recoil",
     "fist_clash",
     "body_bump",
+    "lull",
+    "intent",
+    "intended_strike",
 )
 
 
@@ -147,8 +152,12 @@ class EffectStyle(_Strict):
     # flame_burst / spark_dashes / droplets: tamaño en torsos y probabilidad por golpe.
     size: float = 0.5
     chance: float = 1.0
-    # droplets: formas que puede elegir cada golpe (drop, ring, leaf, curl, dash).
+    # droplets / eyewear / intent_mark: figuras entre las que se sortea por activación.
     shapes: list[str] = Field(default_factory=lambda: ["drop"])
+    # Si no está vacío, el efecto solo se dibuja en estas personas (p. ej. quienes llevan gafas).
+    people: list[str] = Field(default_factory=list)
+    # swoosh: dibuja además la estela girada sobre su centro, formando una cruz.
+    cross: bool = False
 
 
 class EffectRender(_Strict):
@@ -174,6 +183,9 @@ class EffectTrigger(_Strict):
     # Si no está vacío, solo las ocurrencias que empiezan en estos fotogramas (las que eligió
     # el coreógrafo); el resto del mismo evento no enciende este efecto.
     frames: list[int] = Field(default_factory=list)
+    # Paralela a `frames`: el target de cada ocurrencia elegida (dos personas pueden tener la
+    # misma acción en el mismo fotograma y solo una salir sorteada).
+    targets: list[str] = Field(default_factory=list)
 
 
 class EffectRefine(_Strict):
@@ -243,6 +255,8 @@ SUPPORTED_TYPES: tuple[str, ...] = (
     "arm_outline",
     "beam",
     "stars",
+    "eyewear",
+    "intent_mark",
 )
 
 # Efectos que por defecto pertenecen a un grupo distinto de glow.

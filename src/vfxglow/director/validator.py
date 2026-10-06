@@ -19,11 +19,17 @@ class ScriptError(ValueError):
     pass
 
 
-def validate_script(script: EffectScript, anchors: set[str] | None = None, cuts: list[int] | None = None) -> None:
+def validate_script(
+    script: EffectScript,
+    anchors: set[str] | None = None,
+    cuts: list[int] | None = None,
+    max_effects: int = 12,
+) -> None:
+    """`max_effects` frena a un director LLM; un catálogo genera un efecto por opción usada."""
     if not script.effects:
         raise ScriptError("El guion no contiene efectos.")
-    if len(script.effects) > 12:
-        raise ScriptError("El guion supera el máximo de 12 efectos.")
+    if len(script.effects) > max_effects:
+        raise ScriptError(f"El guion supera el máximo de {max_effects} efectos.")
     ids: set[str] = set()
     known = known_joint_names() | set(CHAINS) | set(FACE_REGIONS) | {"person", "person_0"}
     if anchors:
@@ -36,14 +42,21 @@ def validate_script(script: EffectScript, anchors: set[str] | None = None, cuts:
             raise ScriptError(f"Tipo de efecto desconocido: {effect.type}")
         if effect.type in REDRAW_TYPES:
             _check_face_effect(effect)
+        elif effect.type in {"eyewear", "intent_mark"}:
+            pass  # se ancla a los ojos de cada persona; no hay ancla que validar
         elif effect.type in JOINT_LIST_TYPES:
             # Lista de articulaciones; se aplica a cada persona presente.
             for joint in (token.strip() for token in effect.target.id.split(",") if token.strip()):
                 _check_target(joint, "joint", known)
         else:
             _check_target(effect.target.id, effect.target.kind, known)
-        if effect.type == "droplets":
-            from vfxglow.engine.burst import SHAPES
+        if effect.type in {"droplets", "eyewear", "intent_mark"}:
+            if effect.type == "droplets":
+                from vfxglow.engine.burst import SHAPES
+            elif effect.type == "eyewear":
+                from vfxglow.engine.eyewear import SHAPES
+            else:
+                from vfxglow.engine.marks import SHAPES
 
             unknown = [name for name in effect.style.shapes if name not in SHAPES]
             if unknown or not effect.style.shapes:

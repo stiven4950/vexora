@@ -154,3 +154,24 @@ def test_fist_clash_needs_a_fast_approach() -> None:
     clashes = [e for e in detector.detect(fast, meta) if e.name == "fist_clash"]
     assert len(clashes) == 1 and clashes[0].attacker == "person_0"
     assert not [e for e in EventDetector(EventsConfig()).detect(slow, meta) if e.name == "fist_clash"]
+
+
+def test_lull_then_intent_by_displacement() -> None:
+    from vfxglow.analysis.schema import JointMotion, PersonPose
+
+    def frame(i: int) -> FrameRecord:
+        fast = 20 <= i < 30
+        speed = 0.5 if fast else 0.01
+        # La mano derecha se desplaza despacio hacia el pecho a partir del fotograma 50.
+        wx = 0.6 - 0.012 * max(0, min(i, 62) - 50)
+        pose = [_lm("left_shoulder", 0.42, 0.3), _lm("right_shoulder", 0.58, 0.3), _lm("left_hip", 0.44, 0.55),
+                _lm("right_hip", 0.56, 0.55), _lm("nose", 0.5, 0.2), _lm("right_wrist", wx, 0.42), _lm("left_wrist", 0.35, 0.6)]
+        motion = [JointMotion(name=n, speed=speed, direction_deg=0, vx=0, vy=0) for n in ("left_wrist", "right_wrist")]
+        return FrameRecord(frame=i, time_s=i / 30, people=[PersonPose(person_id="person_0", pose=pose, motion=motion)])
+
+    meta = VideoMeta(path="x", fps=30.0, width=100, height=100, frame_count=90, duration_s=3.0)
+    events = EventDetector(EventsConfig()).detect([frame(i) for i in range(90)], meta)
+    names = [e.name for e in events]
+    assert "lull" in names
+    intents = [e for e in events if e.name == "intent"]
+    assert intents and intents[0].target == "person_0:right_wrist"

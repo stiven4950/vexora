@@ -17,6 +17,10 @@ from vfxglow.director.strategies import StrategyPlan, applicable, cuts_of, descr
 from vfxglow.director.validator import ScriptError, validate_script
 
 
+# Un catálogo crea un efecto por opción elegida al menos una vez.
+CATALOG_MAX_EFFECTS = 40
+
+
 class CreativeDirector:
     def __init__(
         self,
@@ -42,7 +46,12 @@ class CreativeDirector:
             if not path.exists():
                 raise FileNotFoundError(f"No existe el catálogo {path}")
             script, self.choreography = choreograph(load_catalog(path), brief, self.config.seed)
-            validate_script(script, set(brief.anchors) | set(CHAINS) | set(FACE_REGIONS) | set(LIMB_JOINTS), cuts_of(brief))
+            validate_script(
+                script,
+                set(brief.anchors) | set(CHAINS) | set(FACE_REGIONS) | set(LIMB_JOINTS),
+                cuts_of(brief),
+                max_effects=CATALOG_MAX_EFFECTS,
+            )
             return script
         if self.config.provider == "preset":
             path = self.preset_dir / f"{self.config.preset}.yaml"
