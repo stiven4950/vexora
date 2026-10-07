@@ -11,13 +11,22 @@ da "líneas" en el 78% de las manos, así que no puede decidir sola si hay una e
 
 **Qué hacer, de menor a mayor esfuerzo:**
 
-1. **YOLO-World** (ya integrado, sin probar): `analysis.blades.detector: yoloworld`. Requiere
-   `pip install -e ".[objects]"` (ultralytics, ~1 GB con torch). Detecta "sword", "katana",
-   "stick" por texto, sin entrenar; da una caja y se usa la diagonal que pasa por la mano.
-   Validar en video_39 4,4–5,8 s antes de confiar.
+1. **YOLO-World** (integrado y **medido: no mejora**): `analysis.blades.detector: yoloworld`,
+   requiere `pip install -e ".[objects]"`. En video_39, con el modelo grande (`yolov8x-worldv2`,
+   1280 px, palabras "sword", "blade", "metal rod", "long thin metal pole") detecta hojas en 3 de
+   8 fotogramas de muestra, y solo con las katanas quietas (4,4–5,8 s), donde la detección clásica
+   ya acierta. En los giros, que es donde fallamos, no ve nada. Como respaldo de la detección
+   clásica: 63% de hojas bien ubicadas, igual que sin él. Con "sword/katana/stick/lightsaber":
+   1 de 8. Queda apagado.
 2. **Modelo propio de puntos clave**: etiquetar 300–500 fotogramas con empuñadura y punta
    (CVAT o Label Studio) y entrenar un YOLO-pose pequeño de dos puntos. Es la solución estable;
    también resuelve "¿hay espada en este video?".
+
+   **Etiquetas casi gratis:** cada par original/referencia (`glowing/data/original` y
+   `glowing/data/glowing`) ya trae la hoja pintada por un editor. La diferencia entre los dos
+   fotogramas aísla el trazo de la hoja; su eje da empuñadura y punta. Con video_38 y video_39
+   salen ~490 fotogramas etiquetados sin trabajo manual (revisando a ojo los dudosos), y cada
+   referencia nueva suma más. Es el camino con más impacto medido por delante.
 3. **Segmentación con SAM 2** a partir de la caja de YOLO-World: da la hoja completa aunque esté
    curvada o desenfocada. Requiere CUDA.
 

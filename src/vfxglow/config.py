@@ -93,9 +93,10 @@ class BladesConfig(_Strict):
     smooth: float = 0.5
     # lines: solo visión clásica; yoloworld: además YOLO-World por texto (extra `objects`).
     detector: Literal["lines", "yoloworld"] = "lines"
-    yolo_model: str = "yolov8s-worldv2.pt"
-    yolo_classes: list[str] = Field(default_factory=lambda: ["sword", "katana", "stick", "lightsaber"])
-    yolo_confidence: float = 0.15
+    # El modelo grande con estas palabras es lo mejor medido en video_39 (ver docs/pendientes.md).
+    yolo_model: str = "models/yolov8x-worldv2.pt"
+    yolo_classes: list[str] = Field(default_factory=lambda: ["sword", "blade", "metal rod", "long thin metal pole"])
+    yolo_confidence: float = 0.05
 
 
 class AccessoriesConfig(_Strict):

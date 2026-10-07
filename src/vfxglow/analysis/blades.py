@@ -64,7 +64,13 @@ class BladeFinder:
         self._yolo = None
         if cfg.detector == "yoloworld":
             try:
+                import os
+
+                import certifi
                 from ultralytics import YOLOWorld  # type: ignore[import-not-found]
+
+                # YOLO-World baja CLIP con urllib; el Python de python.org no trae la cadena raíz.
+                os.environ.setdefault("SSL_CERT_FILE", certifi.where())
 
                 self._yolo = YOLOWorld(cfg.yolo_model)
                 self._yolo.set_classes(list(cfg.yolo_classes))

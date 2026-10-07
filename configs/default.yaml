@@ -33,7 +33,7 @@ analysis:
     sam2_model_cfg: configs/sam2.1/sam2.1_hiera_s.yaml
     sam2_checkpoint: models/sam2.1_hiera_small.pt
   objects:
-    enabled: true          # requiere el extra `objects` (ultralytics); si falta, se omite con aviso
+    enabled: false         # YOLO11n genérico (COCO): en video_1/39 solo da ruido (tv, tie, skateboard)
     model: yolo11n.pt
     confidence: 0.35
     labels_of_interest: [] # vacío = cualquier clase excepto persona

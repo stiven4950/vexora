@@ -16,3 +16,4 @@ build/
 models/*.tflite
 *.mp4
 .env
+*.pt
