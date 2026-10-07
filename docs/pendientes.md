@@ -18,6 +18,20 @@ da "líneas" en el 78% de las manos, así que no puede decidir sola si hay una e
    ya acierta. En los giros, que es donde fallamos, no ve nada. Como respaldo de la detección
    clásica: 63% de hojas bien ubicadas, igual que sin él. Con "sword/katana/stick/lightsaber":
    1 de 8. Queda apagado.
+1b. **Grounding DINO** (`IDEA-Research/grounding-dino-base`, medido con `tools/blade_eval.py`
+   en video_39, 132 fotogramas, prompt "a sword. a katana. a metal blade."):
+
+   | Detector | Hojas | Fotogramas con hoja | Bien ubicadas |
+   | --- | --- | --- | --- |
+   | Clásico (actual) | 194 | 123 | 63% |
+   | Grounding DINO solo (diagonal de la caja) | 123 | 90 | 61% |
+   | Clásico + DINO de respaldo | 219 | 127 | 63% |
+   | Clásico filtrado por las cajas de DINO | 122 | 93 | **71%** |
+
+   Como filtro sube la precisión 8 puntos pero pierde un cuarto de las hojas, y cuesta ~2,4 s por
+   fotograma en MPS (~35 min para un video de 28 s). Mejora modesta: no se integra en el
+   pipeline. Sí es útil como pre-etiquetador de cajas para el modelo propio (punto 2).
+
 2. **Modelo propio de puntos clave**: etiquetar 300–500 fotogramas con empuñadura y punta
    (CVAT o Label Studio) y entrenar un YOLO-pose pequeño de dos puntos. Es la solución estable;
    también resuelve "¿hay espada en este video?".

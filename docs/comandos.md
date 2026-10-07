@@ -115,6 +115,14 @@ FF=$(python -c "import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())")
 $FF -i runs/video_1-34f2d20d/output/fight_comic.mp4 -map 0:v:0 -c copy -f null - 2>&1 | grep -o "frame= *[0-9]*" | tail -1
 ```
 
+Acierto de la detección de hojas contra lo pintado en la referencia (requiere el par original/glow):
+
+```bash
+python tools/blade_eval.py --run runs/video_39-9961beb5 \
+  --original ../glowing/data/original/video_39.mp4 --reference ../glowing/data/glowing/video_39.mp4 --frames 132
+# --boxes gdino [--gate | --only-boxes]: con Grounding DINO (pip install transformers)
+```
+
 ## 4. Regresión
 
 Huella dorada de un preset (hash de cada capa cada 10 fotogramas sobre una copia congelada del
