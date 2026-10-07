@@ -102,6 +102,14 @@ analysis:
 
 Un umbral de píxeles no sirve aquí: a 720 px los ojos miden ~17 px y el tono de piel confunde.
 
+## Colores y chispas diminutas
+
+- `style.palette`: lista de colores; cada activación (un golpe, un swoosh, unas gafas) sortea dos
+  de ella con semilla. En `pelea.yaml` está en `defaults` con 10 neones, así que la heredan todos
+  los efectos. Sin `palette`, se usa `colors` (un color fijo por persona).
+- `style.micro_sparks`: en `flame_burst`, `clash` y `stars`, cantidad de chispas muy finas que
+  salen disparadas del golpe al empezar el impacto y caen (un tercio casi blancas).
+
 ## Figuras disponibles
 
 | Efecto | Figuras (`style.shapes`, una por activación al azar) |

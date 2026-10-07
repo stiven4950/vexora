@@ -478,3 +478,24 @@ def test_eyewear_shapes_and_marks_have_outlines() -> None:
     da, db = a[-1] - a[0], b[-1] - b[0]
     cos = abs(da @ db) / (np.linalg.norm(da) * np.linalg.norm(db))
     assert cos < np.cos(np.radians(45))
+
+
+def test_palette_varies_by_activation_and_micro_sparks_spawn() -> None:
+    from vfxglow.engine.burst import MICRO_LIMIT, micro_sparks
+    from vfxglow.engine.effects import EffectRuntime, _pick_colors
+
+    palette = [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0), (1.0, 1.0, 0.0), (1.0, 0.0, 1.0), (0.0, 1.0, 1.0)]
+    effect = Effect(id="e", type="stars", target=EffectTarget(kind="event_point", id="contact"),
+                    style=EffectStyle(palette=palette, micro_sparks=30))
+    runtime = EffectRuntime(effect, 1, 10)
+    seen = set()
+    for start in range(0, 200, 10):
+        event = MotionEvent(name="person_contact", target="person_0:right_wrist", start_frame=start, end_frame=start, confidence=1.0)
+        _pick_colors(runtime, start, event)
+        assert len(effect.style.colors) == 2 and effect.style.colors[0] != effect.style.colors[1]
+        seen.add(tuple(effect.style.colors[0]))
+    assert len(seen) >= 4  # los colores cambian entre activaciones
+    strokes = micro_sparks(runtime, np.array([50.0, 50.0]), 100.0, "golpe", 0)
+    assert len(runtime.micro) == 30 <= MICRO_LIMIT and strokes
+    micro_sparks(runtime, np.array([50.0, 50.0]), 100.0, "golpe", 1)
+    assert len(runtime.micro) == 30  # la misma activación no vuelve a soltar chispas

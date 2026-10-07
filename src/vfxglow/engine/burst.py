@@ -133,6 +133,7 @@ def draw_flame_burst(runtime, points, frame_index: int, height: int, envelope: f
         ellipse = np.stack([np.cos(theta) * size, np.sin(theta) * size * 0.65], axis=1)
         rot = np.array([[np.cos(tilt), -np.sin(tilt)], [np.sin(tilt), np.cos(tilt)]])
         strokes += _neon(center + (ellipse * (1 + jitter.normal(0, 0.05, (22, 1)))) @ rot.T, _palette(style, own), width * 0.8, envelope)
+    strokes += micro_sparks(runtime, origin, torso, key, frame_index)
     stroke_batch(layer, strokes, style.hdr_gain)
 
 
@@ -323,6 +324,7 @@ def draw_clash(runtime, points, frame_index: int, height: int, envelope: float, 
             theta = np.linspace(start + arc * TAU / 3, start + arc * TAU / 3 + TAU / 5, 10)
             curve = origin + np.stack([np.cos(theta), np.sin(theta) * 0.8], axis=1) * r
             strokes += _neon(curve, _palette(style, own if wave == 0 else rival), width * 0.7, envelope * (1 - age))
+    strokes += micro_sparks(runtime, origin, torso, key, frame_index)
     stroke_batch(layer, strokes, style.hdr_gain)
 
 
@@ -447,6 +449,7 @@ def draw_stars(runtime, points, frame_index: int, height: int, envelope: float, 
             continue
         color = _palette(style, own if index % 2 == 0 else own + 1)
         strokes += _neon(sparkle(center, size), color, width, envelope)
+    strokes += micro_sparks(runtime, origin, torso, key, frame_index)
     stroke_batch(layer, strokes, style.hdr_gain)
 
 
@@ -456,3 +459,38 @@ def sparkle(center: np.ndarray, size: float) -> np.ndarray:
     radii = np.where(np.arange(8) % 2 == 0, size, size * 0.16)
     star = center + np.stack([np.sin(angles), -np.cos(angles)], axis=1) * radii[:, None]
     return np.vstack([star, star[:1]])
+
+
+# ----- chispas diminutas -----
+
+# Cantidad máxima en pantalla por efecto y ancho del trazo (px): finas como polvo de chispa.
+MICRO_LIMIT = 160
+MICRO_WIDTH = 0.9
+
+
+def micro_sparks(runtime, origin: np.ndarray, torso: float, key: object, frame_index: int) -> list:
+    """Lluvia de chispas muy pequeñas que sale del golpe al empezar cada impacto y cae."""
+    style = runtime.effect.style
+    if style.micro_sparks <= 0:
+        return []
+    micro: list[Bit] = runtime.micro
+    if runtime.micro_key != key:
+        runtime.micro_key = key
+        rng = np.random.default_rng(zlib.crc32(f"{style.seed_offset}:micro:{key}".encode()) & 0xFFFFFFFF)
+        for _ in range(min(style.micro_sparks, MICRO_LIMIT - len(micro))):
+            angle = float(rng.uniform(0, TAU))
+            speed = torso * float(rng.uniform(0.03, 0.13))
+            life = float(rng.uniform(5, 13))
+            micro.append(
+                Bit(float(origin[0]), float(origin[1]), np.cos(angle) * speed, np.sin(angle) * speed - torso * 0.015,
+                    life, life, 0.0, int(rng.integers(0, 3)))
+            )
+    _step(micro, gravity=torso * 0.005, drag=0.1)
+    strokes = []
+    for bit in micro:
+        fade = bit.life / bit.max_life
+        tail = np.array([bit.x - bit.vx * 0.7, bit.y - bit.vy * 0.7])
+        # Un tercio sale casi blanco: el destello caliente de la chispa.
+        color = np.array([1.0, 0.95, 0.85], dtype=np.float32) if bit.color == 2 else _palette(style, bit.color)
+        strokes += _neon(np.array([tail, [bit.x, bit.y]]), color, MICRO_WIDTH, fade)
+    return strokes

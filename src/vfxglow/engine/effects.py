@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import zlib
 from collections import deque
 
 import cv2
@@ -40,6 +41,9 @@ class EffectRuntime:
         self.swoosh_activity: dict[str, float] = {}
         self.swoosh_stroke: dict[str, int] = {}
         self.swoosh_paint: set[str] = set()
+        self.palette_key: object = None
+        self.micro: list = []
+        self.micro_key: object = None
         self.burst_key: object = None
         self.burst_seed = 0
         self.bits: list = []
@@ -59,6 +63,8 @@ def render_effect(
     event: MotionEvent | None = None,
 ) -> np.ndarray:
     effect = runtime.effect
+    if effect.style.palette:
+        _pick_colors(runtime, frame_index, event)
     if runtime.anchor_point is not None:
         points = dict(points)
         points["event_point"] = runtime.anchor_point
@@ -157,6 +163,19 @@ def render_effect(
         layer[..., :3] *= keep[..., None]
         layer[..., 3] *= keep
     return layer
+
+
+def _pick_colors(runtime: EffectRuntime, frame_index: int, event: MotionEvent | None) -> None:
+    """Sortea dos colores distintos de la paleta por activación (o por tramo, sin evento)."""
+    style = runtime.effect.style
+    key = (event.start_frame, event.target) if event is not None else frame_index // max(style.palette_every, 1)
+    if runtime.palette_key == key:
+        return
+    runtime.palette_key = key
+    rng = np.random.default_rng(zlib.crc32(f"{style.seed_offset}:{runtime.effect.id}:{key}".encode()) & 0xFFFFFFFF)
+    count = min(2, len(style.palette))
+    picks = rng.choice(len(style.palette), size=count, replace=False)
+    style.colors = [style.palette[int(i)] for i in picks]
 
 
 def _width(effect: Effect, points: dict[str, np.ndarray], height: int, envelope: float) -> float:

@@ -158,6 +158,12 @@ class EffectStyle(_Strict):
     people: list[str] = Field(default_factory=list)
     # swoosh: dibuja además la estela girada sobre su centro, formando una cruz.
     cross: bool = False
+    # Si no está vacío, cada activación sortea sus colores de esta paleta (sustituyen a
+    # `colors`). Sin evento, se vuelve a sortear cada `palette_every` fotogramas.
+    palette: list[tuple[float, float, float]] = Field(default_factory=list)
+    palette_every: int = 45
+    # Impactos: cantidad de chispas diminutas que salen disparadas del golpe (0 = ninguna).
+    micro_sparks: int = 0
 
 
 class EffectRender(_Strict):
