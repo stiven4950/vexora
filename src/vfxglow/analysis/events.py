@@ -57,6 +57,11 @@ BLADE_FRAMES = 2
 # Voltereta: cabeza por debajo de las caderas durante FLIP_FRAMES; aterrizaje hasta
 # LAND_WITHIN fotogramas después de un salto o voltereta, cuando los tobillos dejan de subir.
 FLIP_FRAMES = 3
+# Torso a más de TUMBLE_TILT grados de la vertical durante TUMBLE_FRAMES: cuerpo en el aire o
+# en el suelo. Más fiable que la cabeza bajo la cadera, que la pose pierde a mitad del giro.
+TUMBLE_TILT = 55.0
+GROUND_WINDOW = 30
+TUMBLE_FRAMES = 3
 LAND_WITHIN = 20
 
 EVENT_CATALOG: dict[str, str] = {
@@ -85,6 +90,7 @@ EVENT_CATALOG: dict[str, str] = {
     "blade_ground": "La punta de una hoja baja deprisa hasta el piso: golpe contra el suelo.",
     "flip": "El cuerpo queda invertido (cabeza por debajo de las caderas): voltereta o mortal.",
     "landing": "Los pies vuelven al suelo tras un salto o una voltereta.",
+    "tumble": "El torso se inclina mucho (acostado, de lado o boca abajo): rueda, mortal, caída.",
     "entrance": "La persona aparece al inicio del plano.",
     "tool_touch": "La mano se mueve junto al rostro, como un pincel que pinta.",
 }
@@ -148,8 +154,9 @@ class EventDetector:
         events += lulls + intents + self._intended_strikes(intents, events)
         swings = self._blade_swings()
         flips = self._flips()
-        events += swings + self._blade_ground(swings) + flips
-        events += self._landings([e for e in events if e.name in {"jump", "flip"}])
+        tumbles = self._tumbles()
+        events += swings + self._blade_ground(swings) + flips + tumbles
+        events += self._landings([e for e in events if e.name in {"jump", "flip", "tumble"}])
         events += self._entrance()
         events.sort(key=lambda event: (event.start_frame, event.name))
         return events
@@ -876,12 +883,21 @@ class EventDetector:
         ys = [lm.y for lm in self.frames[index].pose if lm.name in ("left_ankle", "right_ankle", "left_heel", "right_heel") and lm.c > 0.3]
         return max(ys) if ys else None
 
+    def _ground(self, index: int) -> float | None:
+        """Piso estable: el pie más bajo en un entorno de ±GROUND_WINDOW fotogramas.
+
+        Con el tobillo del propio fotograma, una persona en el aire "lleva el piso" consigo.
+        """
+        lows = [self._floor(i) for i in range(max(0, index - GROUND_WINDOW), min(self.n, index + GROUND_WINDOW + 1))]
+        lows = [y for y in lows if y is not None]
+        return float(np.percentile(lows, 90)) if lows else None
+
     def _blade_ground(self, swings: list[MotionEvent]) -> list[MotionEvent]:
         from vfxglow.analysis.schema import MotionEvent
 
         events = []
         for swing in swings:
-            floor = self._floor(swing.end_frame)
+            floor = self._ground(swing.end_frame)
             if floor is None or swing.position is None:
                 continue
             if swing.position[1] >= floor - 0.04:
@@ -904,6 +920,29 @@ class EventDetector:
                 out.append(event)
         return out
 
+    def _tumbles(self) -> list[MotionEvent]:
+        aspect = self.meta.width / max(self.meta.height, 1)
+        tilted = np.zeros(self.n, dtype=bool)
+        for index, frame in enumerate(self.frames):
+            pts = {lm.name: (lm.x * aspect, lm.y) for lm in frame.pose if lm.c > 0.3}
+            need = ("left_shoulder", "right_shoulder", "left_hip", "right_hip")
+            if not all(name in pts for name in need):
+                continue
+            shoulders = np.mean([pts["left_shoulder"], pts["right_shoulder"]], axis=0)
+            hips = np.mean([pts["left_hip"], pts["right_hip"]], axis=0)
+            up = shoulders - hips
+            if np.linalg.norm(up) < 1e-6:
+                continue
+            tilt = np.degrees(np.arccos(np.clip(-up[1] / np.linalg.norm(up), -1.0, 1.0)))
+            tilted[index] = tilt > TUMBLE_TILT
+        out = []
+        for start, end in _runs(tilted):
+            if end - start + 1 >= TUMBLE_FRAMES:
+                event = self._event("tumble", "mid_hip", start, end, 0.8, EVENT_CATALOG["tumble"])
+                event.position = self._mid_hip((start + end) // 2)
+                out.append(event)
+        return out
+
     def _landings(self, airborne: list[MotionEvent]) -> list[MotionEvent]:
         out = []
         for event in sorted(airborne, key=lambda e: e.end_frame):
@@ -915,7 +954,8 @@ class EventDetector:
                     pts = {lm.name: (lm.x, lm.y) for lm in self.frames[index].pose if lm.c > 0.3}
                     feet = [pts[name] for name in ("left_ankle", "right_ankle") if name in pts]
                     landing = self._event("landing", "feet", index, index, 0.7, EVENT_CATALOG["landing"])
-                    landing.position = (float(np.mean([f[0] for f in feet])), floor) if feet else None
+                    ground = self._ground(index)
+                    landing.position = (float(np.mean([f[0] for f in feet])), ground) if feet and ground is not None else None
                     out.append(landing)
                     break
         return out

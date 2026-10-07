@@ -79,6 +79,7 @@ EVENT_NAMES: tuple[str, ...] = (
     "flip",
     "landing",
     "entrance",
+    "tumble",
 )
 
 

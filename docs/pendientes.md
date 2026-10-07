@@ -21,6 +21,12 @@ da "líneas" en el 78% de las manos, así que no puede decidir sola si hay una e
 3. **Segmentación con SAM 2** a partir de la caja de YOLO-World: da la hoja completa aunque esté
    curvada o desenfocada. Requiere CUDA.
 
+**Medido (2026-10-07)** contra lo pintado en las referencias, sobre los originales: video_38
+(bastones con luz de fondo) 99% de hojas bien ubicadas; video_39 (katanas plateadas, cámara en
+mano, volteretas) 63%. Los fallos de video_39 son hojas plateadas sobre el piso gris, hojas en
+escorzo hacia la cámara y desenfoque de movimiento en los giros. El tajo de fuego del segundo
+0,5 y las nubes de humo dependen de ver la hoja en ese instante, y ahí es donde más falla.
+
 ## 2. Saber de qué tipo es el video
 
 **Problema.** Hoy el usuario elige el catálogo (`--catalog pelea`, `espadas_fuego`...).

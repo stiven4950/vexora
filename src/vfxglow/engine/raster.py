@@ -187,3 +187,28 @@ def soften_alpha(layer: np.ndarray, radius: float = 1.15) -> None:
     if layer[..., 3].max() <= 1e-5:
         return
     layer[..., 3] = cv2.GaussianBlur(layer[..., 3], (3, 3), radius)
+
+
+def fill_polygon(
+    layer: np.ndarray,
+    points: np.ndarray,
+    color: np.ndarray,
+    alpha: float,
+    gain: float,
+    feather: float = 2.0,
+    holes: list[np.ndarray] | None = None,
+) -> None:
+    """Rellena un polígono (menos sus huecos) con energía de color y borde suavizado."""
+    if alpha <= 0 or len(points) < 3:
+        return
+    height, width = layer.shape[:2]
+    mask = np.zeros((height, width), dtype=np.uint8)
+    cv2.fillPoly(mask, [np.round(points).astype(np.int32)], 255, lineType=cv2.LINE_AA)
+    for hole in holes or []:
+        cv2.fillPoly(mask, [np.round(hole).astype(np.int32)], 0, lineType=cv2.LINE_AA)
+    weight = mask.astype(np.float32) / 255.0
+    if feather > 0:
+        weight = cv2.GaussianBlur(weight, (0, 0), feather)
+    weight *= np.float32(alpha)
+    layer[..., :3] += np.asarray(color, dtype=np.float32) * np.float32(gain) * weight[..., None]
+    layer[..., 3] = 1.0 - (1.0 - layer[..., 3]) * (1.0 - weight)

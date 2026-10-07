@@ -17,12 +17,12 @@ import numpy as np
 
 from vfxglow.analysis.schema import FrameRecord, MotionEvent
 from vfxglow.engine.anchors import torso_pixels
-from vfxglow.engine.raster import stroke_batch
+from vfxglow.engine.raster import fill_polygon, stroke_batch
 from vfxglow.engine.swoosh import neon_layers
 
 TAU = 2.0 * np.pi
 # Copias de la hoja: retrasos en fotogramas y velocidad mínima de la punta (torsos/fotograma).
-ECHO_LAGS = (3, 6, 9)
+ECHO_LAGS = (3, 7)
 ECHO_SPEED = 0.12
 
 
@@ -58,7 +58,7 @@ def draw_blade_glow(runtime, track, points, frame_index: int, height: int, envel
     stroke_batch(layer, strokes, style.hdr_gain)
 
 
-def draw_blade_echo(runtime, track, points, frame_index: int, height: int, envelope: float, layer: np.ndarray) -> None:
+def draw_blade_echo(runtime, track, points, frame_index: int, height: int, envelope: float, layer: np.ndarray, event: MotionEvent | None = None) -> None:
     effect = runtime.effect
     style = effect.style
     width_px = layer.shape[1]
@@ -72,6 +72,11 @@ def draw_blade_echo(runtime, track, points, frame_index: int, height: int, envel
             trail.clear()
         trail.append((frame_index, hilt.copy(), tip.copy()))
         if envelope <= 0 or len(trail) < 2:
+            continue
+        # Disparado por un tajo: solo la hoja de ese tajo deja copias.
+        if event is not None and event.target != f"{blade.person}:blade_{blade.hand}_tip":
+            continue
+        if blade.source == "prior":
             continue
         speed = float(np.linalg.norm(trail[-1][2] - trail[-2][2])) / max(torso, 1.0)
         if speed < ECHO_SPEED:
@@ -176,11 +181,17 @@ def draw_ground_cloud(runtime, points, frame_index: int, height: int, envelope: 
     lobes = int(rng.integers(9, 13))
     phase = float(rng.uniform(0, TAU))
     strokes = []
-    for ring, scale in ((0, 1.0), (1, 0.62)):
+    rings = []
+    for ring, scale in ((0, 1.0), (1, 0.35 + 0.35 * age)):
         bumps = 1.0 + 0.12 * np.abs(np.sin(theta * lobes / 2 + phase + ring))
         r = radius * scale * bumps
         outline = origin + np.stack([np.cos(theta) * r, np.sin(theta) * r * 0.32], axis=1)
+        rings.append(outline)
         strokes += neon_layers(outline, color, width * (1.3 if ring == 0 else 0.9), envelope * (1.0 - 0.5 * age))
+    # Relleno blanco del humo; el centro se abre a medida que la nube se expande.
+    fade = envelope * (1.0 - 0.6 * age)
+    fill_polygon(layer, rings[0], np.array([1.0, 0.97, 0.92], dtype=np.float32), 0.85 * fade, style.hdr_gain * 0.6, holes=[rings[1]])
+    fill_polygon(layer, rings[0], color, 0.35 * fade, style.hdr_gain * 0.6, feather=6.0, holes=[rings[1]])
     for _ in range(4):
         angle = float(rng.uniform(0, TAU))
         center = origin + np.array([np.cos(angle), np.sin(angle) * 0.32]) * radius * 1.15

@@ -3,8 +3,8 @@
 Cada mano que sostiene algo largo y recto recibe un segmento empuñadura → punta por fotograma.
 Tres fuentes, de más a menos fiable:
 
-- line: una recta fina en el mapa de crestas (top-hat + black-hat) que, prolongada, pasa por
-  la mano y apunta en la dirección del agarre. Es la hoja real.
+- line: la dirección desde la mano con la cresta (top-hat + black-hat) más larga y continua.
+  Es la hoja real.
 - yolo: caja de "sword"/"knife"/"stick" de YOLO-World (opcional, si ultralytics está instalado);
   se usa la diagonal que pasa por la mano.
 - prior: sin línea, la hoja se estima con la dirección del agarre y el largo medio de la hoja en
@@ -37,6 +37,15 @@ MIN_LENGTH = 0.6
 # Ángulo mínimo con el antebrazo (una recta hacia el codo es el brazo, no la hoja).
 FOREARM_EXCLUDE = np.radians(35.0)
 HAND_MAX_OFFSET = 0.5
+# Fracción mínima del largo típico con la que se dibuja una hoja (escorzo hacia la cámara).
+MIN_SHARE = 0.8
+# Barrido de rayos: dónde empieza y acaba la búsqueda (torsos), ancho de la banda perpendicular,
+# paso angular y fracción mínima de la racha con cresta.
+RAY_START = 0.2
+RAY_REACH = 2.4
+RAY_BAND = 0.18
+RAY_STEP_DEG = 3
+RAY_COVER = 0.6
 # Una recta del fondo (raya del piso) cruza la mano y sigue del otro lado; la hoja acaba en
 # la empuñadura. Si más de BEYOND_MAX de los puntos tras la mano son cresta, se descarta.
 BEYOND = 0.6
@@ -87,7 +96,11 @@ class BladeFinder:
                     hand = None
                 grip = hand["center"] if hand else wrist
                 prior = _grip_direction(hand, wrist, elbow)
+                # Rayos primero (más precisos); rectas de Hough si no encuentran nada (más
+                # cobertura: en video_38 los bastones negros sobre el mural escapan a los rayos).
                 best = _best_line(ridge, grip, prior, elbow, torso)
+                if best is None:
+                    best = _best_hough(ridge, grip, prior, elbow, torso)
                 if best is None and boxes:
                     best = _best_box(boxes, grip, prior, elbow, torso)
                 if best is None:
@@ -181,6 +194,71 @@ def _score_segment(a: np.ndarray, b: np.ndarray, grip: np.ndarray, prior: np.nda
 
 
 def _best_line(ridge: np.ndarray, grip: np.ndarray, prior, elbow, torso: float):
+    """Barre direcciones desde la mano y se queda con la que tiene una cresta larga y continua.
+
+    Cada dirección se prueba en una banda de desplazamientos perpendiculares: el mango queda
+    bajo el puño y la hoja no pasa justo por la muñeca. Medido contra lo pintado en la
+    referencia de video_39, acierta 68% de las hojas frente a 54% de Hough sobre la zona.
+    """
+    height, width = ridge.shape
+    threshold = max(float(np.percentile(ridge, 92)), 15.0)
+    steps = np.arange(torso * RAY_START, torso * RAY_REACH, 3.0)
+    offsets = np.linspace(-torso * RAY_BAND, torso * RAY_BAND, 7)
+    arm = None
+    if elbow is not None and np.linalg.norm(elbow - grip) > 1e-6:
+        arm = (elbow - grip) / np.linalg.norm(elbow - grip)
+    best = None
+    for angle in np.radians(np.arange(0, 360, RAY_STEP_DEG)):
+        direction = np.array([np.cos(angle), np.sin(angle)])
+        if arm is not None and direction @ arm > np.cos(FOREARM_EXCLUDE):
+            continue
+        normal = np.array([-direction[1], direction[0]])
+        lane = None
+        for offset in offsets:
+            pts = grip + normal * offset + steps[:, None] * direction
+            inside = (pts[:, 0] >= 0) & (pts[:, 0] < width) & (pts[:, 1] >= 0) & (pts[:, 1] < height)
+            values = np.zeros(len(steps))
+            values[inside] = ridge[pts[inside, 1].astype(int), pts[inside, 0].astype(int)]
+            end = _supported_end(values > threshold)
+            if end < 0:
+                continue
+            cover = float((values[: end + 1] > threshold).mean())
+            length = float(steps[end])
+            if length < MIN_LENGTH * torso or cover < RAY_COVER:
+                continue
+            score = (length / torso) * cover
+            if lane is None or score > lane[0]:
+                lane = (score, offset, length)
+        if lane is None:
+            continue
+        score, offset, length = lane
+        hilt = grip + normal * offset + direction * steps[0]
+        if _beyond(ridge, threshold, hilt, direction, torso) > BEYOND_MAX:
+            continue
+        agree = abs(float(direction @ prior)) if prior is not None else 0.5
+        score *= 0.8 + 0.4 * agree
+        if best is None or score > best[2]:
+            best = (hilt, grip + normal * offset + direction * length, score)
+    if best is None:
+        return None
+    hilt, tip, score = best
+    return hilt, tip, "line", min(1.0, 0.4 + 0.2 * score)
+
+
+def _supported_end(hits: np.ndarray, max_miss: int = 4) -> int:
+    """Último índice de la racha que empieza en la mano, tolerando huecos cortos."""
+    miss, end = 0, -1
+    for index, hit in enumerate(hits):
+        if hit:
+            miss, end = 0, index
+        else:
+            miss += 1
+            if miss > max_miss:
+                break
+    return end
+
+
+def _best_hough(ridge: np.ndarray, grip: np.ndarray, prior, elbow, torso: float):
     height, width = ridge.shape
     reach = int(torso * 2.6)
     x0, y0 = int(max(0, grip[0] - reach)), int(max(0, grip[1] - reach))
@@ -253,7 +331,9 @@ def finalize_blades(frames: list[FrameRecord], cfg: BladesConfig, width: int, he
         lengths = [np.hypot(b.tip[0] - b.hilt[0], b.tip[1] - b.hilt[1]) for b in hits.values()]
         if not lengths:
             continue
-        typical = float(np.median(lengths))
+        # La hoja no cambia de largo; el desenfoque sí acorta lo que se ve. El percentil alto es
+        # el largo real, y ninguna hoja se dibuja más corta que MIN_SHARE de él.
+        typical = float(np.percentile(lengths, 80))
         ordered = sorted(hits)
         for a, b in zip(ordered, ordered[1:]):
             if 1 < b - a <= cfg.fill_gap:
@@ -266,13 +346,22 @@ def finalize_blades(frames: list[FrameRecord], cfg: BladesConfig, width: int, he
                     hilt = ha + (hb - ha) * t
                     tip = hilt + np.array([np.cos(angle), np.sin(angle)]) * typical
                     hits[frame] = Blade(person=person, hand=hand, hilt=tuple(hilt), tip=tuple(tip), confidence=0.3, source="prior")
-        smoothed = {frame: _to_norm(blade, scale) for frame, blade in _smooth_angles(hits, typical, cfg.smooth).items()}
+        smoothed = {frame: _to_norm(_at_least(blade, typical * MIN_SHARE), scale) for frame, blade in _smooth_angles(hits, typical, cfg.smooth).items()}
         for record in frames:
             record.blades = [b for b in record.blades if not (b.person == person and b.hand == hand)]
             if record.frame in smoothed:
                 record.blades.append(smoothed[record.frame])
     total = sum(len(record.blades) for record in frames)
     log.info("Hojas: %d segmentos (%.0f%% de manos con línea)", total, ratio * 100)
+
+
+def _at_least(blade: Blade, length: float) -> Blade:
+    hilt, tip = np.array(blade.hilt), np.array(blade.tip)
+    current = float(np.linalg.norm(tip - hilt))
+    if current >= length or current < 1e-6:
+        return blade
+    tip = hilt + (tip - hilt) * (length / current)
+    return blade.model_copy(update={"tip": (float(tip[0]), float(tip[1]))})
 
 
 def _to_px(blade: Blade, scale: np.ndarray) -> Blade:

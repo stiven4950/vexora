@@ -29,7 +29,7 @@ from vfxglow.engine.swoosh import neon_layers
 
 SHAPES = ("frames", "stars", "hearts", "mask", "visor", "rings", "glint", "band")
 # Grosor relativo por figura: la banda es un trazo grueso de lado a lado (mirada encendida).
-WIDTH = {"band": 5.0}
+WIDTH = {"band": 9.0}
 TAU = 2.0 * np.pi
 # Distancia mínima entre ojos (px) para dibujar: más pequeño sería un borrón.
 MIN_EYE_DIST = 6.0
@@ -112,9 +112,9 @@ def figure(shape: str, left: np.ndarray, right: np.ndarray, frame_index: int = 0
     lenses = [np.array([-0.5, 0.0]), np.array([0.5, 0.0])]
     theta = np.linspace(0, TAU, 28)
     if shape == "band":
-        t = np.linspace(-1.1, 1.0, 20)
-        band = np.stack([t, 0.06 * t**2 - 0.05], axis=1)
-        hook = np.array([[-1.1, -0.05], [-1.25, 0.12], [-1.15, 0.3]])
+        t = np.linspace(-1.6, 1.5, 24)
+        band = np.stack([t, 0.05 * t**2 - 0.05], axis=1)
+        hook = np.array([[-1.6, 0.08], [-1.85, 0.35], [-1.7, 0.65]])
         return [place(np.vstack([hook[::-1], band]))]
     if shape == "visor":
         bar = np.array([[-1.0, -0.22], [1.0, -0.22], [1.05, 0.0], [1.0, 0.22], [-1.0, 0.22], [-1.05, 0.0], [-1.0, -0.22]])

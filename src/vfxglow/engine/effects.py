@@ -105,7 +105,10 @@ def render_effect(
     elif kind in {"blade_glow", "blade_echo"}:
         from vfxglow.engine.sword import draw_blade_echo, draw_blade_glow
 
-        (draw_blade_glow if kind == "blade_glow" else draw_blade_echo)(runtime, track, points, frame_index, height, envelope, layer)
+        if kind == "blade_glow":
+            draw_blade_glow(runtime, track, points, frame_index, height, envelope, layer)
+        else:
+            draw_blade_echo(runtime, track, points, frame_index, height, envelope, layer, event if effect.triggers else None)
     elif kind in {"body_outline", "ground_burst", "ground_cloud", "floor_streak"}:
         from vfxglow.engine import sword
 
