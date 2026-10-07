@@ -17,3 +17,7 @@ models/*.tflite
 *.mp4
 .env
 *.pt
+training/data/
+training/datasets/
+training/runs/
+training/review/**/sheet_*.jpg

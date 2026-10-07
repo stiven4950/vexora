@@ -62,6 +62,11 @@ class BladeFinder:
     def __init__(self, cfg: BladesConfig) -> None:
         self.cfg = cfg
         self._yolo = None
+        self._obb = None
+        if cfg.detector == "model":
+            from ultralytics import YOLO  # type: ignore[import-not-found]
+
+            self._obb = YOLO(cfg.model_path)
         if cfg.detector == "yoloworld":
             try:
                 import os
@@ -85,6 +90,7 @@ class BladeFinder:
         gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY).astype(np.float32)
         ridge = np.maximum(cv2.morphologyEx(gray, cv2.MORPH_TOPHAT, _KERNEL), cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, _KERNEL))
         boxes = self._yolo_boxes(frame_bgr) if self._yolo is not None else []
+        segments = self._model_segments(frame_bgr) if self._obb is not None else []
         found: list[Blade] = []
         for person in people:
             pts = {lm.name: np.array([lm.x * width, lm.y * height]) for lm in person.pose if lm.c > 0.3}
@@ -104,7 +110,9 @@ class BladeFinder:
                 prior = _grip_direction(hand, wrist, elbow)
                 # Rayos primero (más precisos); rectas de Hough si no encuentran nada (más
                 # cobertura: en video_38 los bastones negros sobre el mural escapan a los rayos).
-                best = _best_line(ridge, grip, prior, elbow, torso)
+                best = _best_segment(segments, grip, prior, elbow, torso) if segments else None
+                if best is None:
+                    best = _best_line(ridge, grip, prior, elbow, torso)
                 if best is None:
                     best = _best_hough(ridge, grip, prior, elbow, torso)
                 if best is None and boxes:
@@ -123,6 +131,17 @@ class BladeFinder:
                     )
                 )
         return found
+
+    def _model_segments(self, frame_bgr: np.ndarray) -> list[tuple[np.ndarray, np.ndarray, float]]:
+        """Eje largo de cada caja rotada del detector entrenado, con su confianza."""
+        from vfxglow.training.geometry import obb_to_segment
+
+        result = self._obb.predict(frame_bgr, conf=self.cfg.model_confidence, verbose=False)[0]
+        if result.obb is None:
+            return []
+        corners = result.obb.xyxyxyxy.cpu().numpy()
+        scores = result.obb.conf.cpu().numpy()
+        return [(*obb_to_segment(c), float(s)) for c, s in zip(corners, scores, strict=True)]
 
     def _yolo_boxes(self, frame_bgr: np.ndarray) -> list[tuple[float, float, float, float]]:
         results = self._yolo.predict(frame_bgr, conf=self.cfg.yolo_confidence, verbose=False)
@@ -293,6 +312,18 @@ def _best_hough(ridge: np.ndarray, grip: np.ndarray, prior, elbow, torso: float)
         return None
     hilt, tip, score = best
     return hilt, tip, "line", min(1.0, 0.4 + 0.2 * score)
+
+
+def _best_segment(segments, grip, prior, elbow, torso: float):
+    """La hoja del detector que sale de esta mano (mismas reglas que las líneas)."""
+    best = None
+    for a, b, conf in segments:
+        scored = _score_segment(a, b, grip, prior, elbow, torso)
+        if scored is not None and (best is None or scored[2] + conf > best[2]):
+            best = (scored[0], scored[1], scored[2] + conf, conf)
+    if best is None:
+        return None
+    return best[0], best[1], "model", best[3]
 
 
 def _best_box(boxes, grip, prior, elbow, torso: float):

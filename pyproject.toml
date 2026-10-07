@@ -23,10 +23,12 @@ hq = ["ultralytics>=8.3", "rtmlib>=0.0.13", "onnxruntime>=1.17"]
 masks = ["torch>=2.5", "sam-2"]
 refiner = ["torch>=2.5", "diffusers>=0.30", "transformers>=4.44", "accelerate>=0.34"]
 dev = ["pytest>=8.0"]
+train = ["ultralytics>=8.3"]
 scene = ["scenedetect>=0.6.4", "librosa>=0.10"]
 
 [project.scripts]
 vfxglow = "vfxglow.cli:main"
+vfxglow-train = "vfxglow.training.cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]

@@ -78,6 +78,7 @@ def main() -> int:
     parser.add_argument("--frames", type=int, default=10_000, help="Evalúa los primeros N fotogramas")
     parser.add_argument("--boxes", choices=["none", "gdino"], default="none")
     parser.add_argument("--only-boxes", action="store_true", help="Sin líneas: solo cajas (mide el detector solo)")
+    parser.add_argument("--model", type=Path, default=None, help="Pesos entrenados con vfxglow-train (detector 'model')")
     parser.add_argument("--gate", action="store_true", help="Descarta hojas cuyo centro cae fuera de las cajas de --boxes")
     parser.add_argument("--gdino-model", default="IDEA-Research/grounding-dino-base")
     parser.add_argument("--prompt", default="a sword. a katana. a metal blade.")
@@ -94,6 +95,11 @@ def main() -> int:
     if args.only_boxes:
         B._best_line = lambda *a: None
         B._best_hough = lambda *a: None
+    if args.model:
+        finder = B.BladeFinder(cfg.model_copy(update={"detector": "model", "model_path": str(args.model)}))
+    from vfxglow.training.pairs import Aligner
+
+    aligner = Aligner()
     rows = [FrameRecord.model_validate_json(line) for line in (args.run / "analysis" / "tracks.jsonl").open()]
     original, reference = cv2.VideoCapture(str(args.original)), cv2.VideoCapture(str(args.reference))
     scores, framed = [], 0
@@ -102,6 +108,10 @@ def main() -> int:
         ok_b, painted = reference.read()
         if not (ok_a and ok_b):
             break
+        # La referencia puede venir reencuadrada (video_38): se alinea antes de comparar.
+        painted = aligner(frame, painted)
+        if painted is None:
+            continue
         zone = (np.abs(painted.astype(int) - frame.astype(int)).max(axis=2) > DIFF).astype(np.uint8)
         zone = cv2.dilate(zone, np.ones((DILATE, DILATE), np.uint8))
         found = finder.detect(rows[index], frame)

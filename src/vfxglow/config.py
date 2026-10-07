@@ -92,7 +92,10 @@ class BladesConfig(_Strict):
     fill_gap: int = 8
     smooth: float = 0.5
     # lines: solo visión clásica; yoloworld: además YOLO-World por texto (extra `objects`).
-    detector: Literal["lines", "yoloworld"] = "lines"
+    # model: detector entrenado con vfxglow-train (model_path); las líneas quedan de respaldo.
+    detector: Literal["lines", "yoloworld", "model"] = "lines"
+    model_path: str = "models/blade-obb.pt"
+    model_confidence: float = 0.25
     # El modelo grande con estas palabras es lo mejor medido en video_39 (ver docs/pendientes.md).
     yolo_model: str = "models/yolov8x-worldv2.pt"
     yolo_classes: list[str] = Field(default_factory=lambda: ["sword", "blade", "metal rod", "long thin metal pole"])

@@ -1,0 +1,36 @@
+# Detector de hojas (espadas, katanas, bastones) como cajas rotadas (YOLO-OBB).
+# Comandos: ver training/README.md.
+name: blade
+type: obb
+classes: [blade]
+frame_stride: 2
+
+# video_39 (katanas plateadas, el caso difícil) nunca entra al entrenamiento: con él se mide.
+holdout: [video_39]
+
+pairs:
+  - name: video_38
+    original: ../glowing/data/original/video_38.mp4
+    reference: ../glowing/data/glowing/video_38.mp4
+  - name: video_39
+    original: ../glowing/data/original/video_39.mp4
+    reference: ../glowing/data/glowing/video_39.mp4
+
+openimages:
+  enabled: true
+  classes: ["/m/06y5r"]      # Sword. Dagger es /m/02gzp.
+  max_images: 1500
+
+videos: []                   # videos sin glow: {name, video}; se pre-etiquetan y se revisan
+
+augment:
+  motion_blur_copies: 1
+  motion_blur_px: [9, 31]
+
+train:
+  model: yolo11n-obb.pt
+  epochs: 80
+  imgsz: 960
+  batch: 8
+  device: auto
+  patience: 20
