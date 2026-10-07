@@ -25,7 +25,7 @@ import numpy as np
 from vfxglow.analysis.schema import FrameRecord, MotionEvent
 from vfxglow.engine.anchors import joint_speed, torso_pixels
 from vfxglow.engine.glyphs import boil_jitter
-from vfxglow.engine.raster import stroke_batch
+from vfxglow.engine.raster import splat, stroke_batch
 from vfxglow.geom import catmull_rom, normals
 
 # Salto entre fotogramas (en torsos) que se trata como cambio de persona y corta la estela.
@@ -107,8 +107,16 @@ def draw_swoosh(runtime, track: FrameRecord | None, points: dict[str, np.ndarray
             outline = paint_outline(curve, style.paint_width * torso, frame_index)
             strokes += _neon(outline, color, width, active, taper=False)
             continue
+        if style.trail_style == "dots":
+            # Bolas de fuego a lo largo de la estela, más grandes cerca de la extremidad.
+            for k, t in enumerate(np.linspace(0.15, 1.0, 6)):
+                at = curve[int(t * (len(curve) - 1))]
+                splat(layer, float(at[0]), float(at[1]), width * (2.5 + 4.0 * t), color * style.hdr_gain * envelope, active * (0.4 + 0.6 * t), runtime.kernels)
+            continue
         for strand in ([] if style.cross else strands(curve, max(style.strands, 1), width)):
             strokes += _neon(strand[0], color, width * strand[1], active * strand[2])
+        if style.trail_style == "flame":
+            strokes += flame_tongues(curve, width, color, active, frame_index, style.boil_frames)
         if style.cross:
             # Las dos aspas enteras, sin fundido de cola: con fundido solo se ve una "V".
             for arc in crossed(curve):
@@ -226,3 +234,23 @@ def crossed(curve: np.ndarray, angle: float = CROSS_ANGLE) -> list[np.ndarray]:
         along, across = rot @ axis, rot @ normal
         arcs.append(middle + t[:, None] * along * reach + (1 - t**2)[:, None] * across * reach * 0.18)
     return arcs
+
+
+def flame_tongues(curve: np.ndarray, width: float, color: np.ndarray, alpha: float, frame_index: int, boil_frames: int) -> list:
+    """Lenguas cortas que salen del lado exterior del arco: el tajo parece de fuego."""
+    if len(curve) < 6:
+        return []
+    rng = np.random.default_rng(frame_index // max(boil_frames, 1) + 7)
+    nrm = normals(curve)
+    # Lado exterior: hacia donde se abre la curva respecto a su centro.
+    side = 1.0 if float(((curve - curve.mean(axis=0)) * nrm).sum()) >= 0 else -1.0
+    strokes = []
+    for index in range(2, len(curve) - 1, 3):
+        t = index / (len(curve) - 1)
+        length = width * float(rng.uniform(2.0, 5.0)) * t
+        tangent = curve[index] - curve[index - 1]
+        tangent = tangent / max(float(np.linalg.norm(tangent)), 1e-6)
+        base = curve[index]
+        tongue = np.stack([base, base + (nrm[index] * side * 0.8 - tangent * 0.6) * length])
+        strokes += neon_layers(tongue, color, width * 0.5 * t, alpha * t)
+    return strokes

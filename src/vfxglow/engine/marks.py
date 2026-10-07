@@ -8,6 +8,7 @@ resalta. La figura se sortea por activación entre `style.shapes`:
 - halo: garabato circular alrededor de la mano.
 - spiral: espiral que gira en la mano.
 - sparkle: tres destellos pequeños alrededor de la mano.
+- cross: cruz de dos trazos (video_38: cruz sobre el pecho antes de un tajo).
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ from vfxglow.engine.burst import sparkle
 from vfxglow.engine.raster import stroke_batch
 from vfxglow.engine.swoosh import neon_layers
 
-SHAPES = ("rune", "rays", "halo", "spiral", "sparkle")
+SHAPES = ("rune", "rays", "halo", "spiral", "sparkle", "cross")
 TAU = 2.0 * np.pi
 
 
@@ -96,6 +97,13 @@ def mark(shape: str, hand: np.ndarray, elbow: np.ndarray | None, size: float, fr
         radius = size * 0.6 * theta / theta[-1]
         turn = theta + frame_index * 0.3
         return [hand + np.stack([np.cos(turn), np.sin(turn)], axis=1) * radius[:, None]]
+    if shape == "cross":
+        tilt = float(shape_rng.uniform(-0.3, 0.3))
+        arms = []
+        for angle in (tilt, tilt + np.pi / 2):
+            d = np.array([np.cos(angle), np.sin(angle)])
+            arms.append(np.vstack([hand - d * size * 0.6, hand + d * size * 0.6]) + boil.normal(0, jitter, (2, 2)))
+        return arms
     angles = shape_rng.uniform(0, TAU, 3)
     return [
         sparkle(hand + np.array([np.cos(a), np.sin(a)]) * size * 0.7, size * float(shape_rng.uniform(0.18, 0.3)) * (0.8 + 0.2 * np.sin(frame_index + a)))

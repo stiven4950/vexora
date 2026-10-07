@@ -5,9 +5,11 @@ from __future__ import annotations
 from vfxglow.analysis.names import CHAINS, FACE_REGIONS, known_joint_names
 from vfxglow.director.schema import EVENT_NAMES, SUPPORTED_TYPES, EffectScript
 
-INTERACTION_TYPES = {"cracks", "ripples", "sparks", "flame_burst", "spark_dashes", "clash", "stars"}
+INTERACTION_TYPES = {"cracks", "ripples", "sparks", "flame_burst", "spark_dashes", "clash", "stars", "ground_burst", "ground_cloud", "floor_streak"}
 # Siguen a cada persona presente y cortan su estela solos: pueden cruzar un corte.
 JOINT_LIST_TYPES = {"swoosh", "droplets", "arm_outline"}
+# Se redibujan con los datos de cada fotograma (hoja, silueta): un corte de plano no los rompe.
+FRAME_DATA_TYPES = {"blade_glow", "blade_echo", "body_outline", "eyewear"}
 # Siguen a la cara o al cuerpo y se vuelven a trazar en cada corte, así que pueden cruzarlo.
 REDRAW_TYPES = {"eye_rings", "face_linework", "drawing"}
 MAX_STROKES = 24
@@ -42,7 +44,7 @@ def validate_script(
             raise ScriptError(f"Tipo de efecto desconocido: {effect.type}")
         if effect.type in REDRAW_TYPES:
             _check_face_effect(effect)
-        elif effect.type in {"eyewear", "intent_mark"}:
+        elif effect.type in {"eyewear", "intent_mark", "blade_glow", "blade_echo", "body_outline"}:
             pass  # se ancla a los ojos de cada persona; no hay ancla que validar
         elif effect.type in JOINT_LIST_TYPES:
             # Lista de articulaciones; se aplica a cada persona presente.
@@ -77,7 +79,7 @@ def validate_script(
             raise ScriptError(f"{effect.id}: persistence debe estar en [0, 1).")
         if effect.style.glyph:
             _check_glyph(effect.id, effect.style.glyph)
-        if cuts and not effect.triggers and effect.type not in REDRAW_TYPES | JOINT_LIST_TYPES:
+        if cuts and not effect.triggers and effect.type not in REDRAW_TYPES | JOINT_LIST_TYPES | FRAME_DATA_TYPES:
             end = effect.time.end_frame
             for cut in cuts:
                 if effect.time.start_frame < cut <= end:
@@ -107,6 +109,8 @@ def _known_anchor(name: str, known: set[str]) -> bool:
     if name in known or name.startswith("face") or name.startswith("object"):
         return True
     if name in {"mouth", "head_top", "paint_contour", "contact", "person", "eye_glint"}:
+        return True
+    if name.startswith("blade_") and name.endswith(("_tip", "_hilt")):
         return True
     if name.startswith("person_") and ":" in name:
         joint = name.split(":", 1)[1]

@@ -51,6 +51,13 @@ INTENT_TAIL = 25
 INTENT_MAX = 2
 INTENT_GAP = 12
 STRIKE_AFTER = 45
+# Tajo: la punta recorre al menos BLADE_SWING torsos por fotograma durante BLADE_FRAMES.
+BLADE_SWING = 0.25
+BLADE_FRAMES = 2
+# Voltereta: cabeza por debajo de las caderas durante FLIP_FRAMES; aterrizaje hasta
+# LAND_WITHIN fotogramas después de un salto o voltereta, cuando los tobillos dejan de subir.
+FLIP_FRAMES = 3
+LAND_WITHIN = 20
 
 EVENT_CATALOG: dict[str, str] = {
     "fast_swing": "La muñeca supera la velocidad umbral varios fotogramas seguidos.",
@@ -74,6 +81,11 @@ EVENT_CATALOG: dict[str, str] = {
     "lull": "Pausa: tras un tramo de acción, todos quedan casi quietos (fin de una ronda).",
     "intent": "Durante o justo después de una pausa, una persona empieza a mover una extremidad: anuncia lo que va a hacer.",
     "intended_strike": "Golpe rápido que llega poco después de una intención de la misma persona.",
+    "blade_swing": "La punta de una hoja (espada, bastón) se mueve deprisa: un tajo.",
+    "blade_ground": "La punta de una hoja baja deprisa hasta el piso: golpe contra el suelo.",
+    "flip": "El cuerpo queda invertido (cabeza por debajo de las caderas): voltereta o mortal.",
+    "landing": "Los pies vuelven al suelo tras un salto o una voltereta.",
+    "entrance": "La persona aparece al inicio del plano.",
     "tool_touch": "La mano se mueve junto al rostro, como un pincel que pinta.",
 }
 
@@ -134,6 +146,11 @@ class EventDetector:
         lulls = self._lulls()
         intents = self._intents(lulls)
         events += lulls + intents + self._intended_strikes(intents, events)
+        swings = self._blade_swings()
+        flips = self._flips()
+        events += swings + self._blade_ground(swings) + flips
+        events += self._landings([e for e in events if e.name in {"jump", "flip"}])
+        events += self._entrance()
         events.sort(key=lambda event: (event.start_frame, event.name))
         return events
 
@@ -806,6 +823,111 @@ class EventDetector:
                 )
         return strikes
 
+    # ----- hojas y acrobacias -----
+
+    def _blade_tips(self) -> dict[tuple[str, str], dict[int, np.ndarray]]:
+        tips: dict[tuple[str, str], dict[int, np.ndarray]] = {}
+        for index, frame in enumerate(self.frames):
+            for blade in frame.blades:
+                tips.setdefault((blade.person, blade.hand), {})[index] = np.array(blade.tip)
+        return tips
+
+    def _scale(self, index: int) -> float:
+        """Torso en coordenadas normalizadas de alto (las de las hojas no son cuadradas)."""
+        frame = self.frames[index]
+        person = frame.people[0] if frame.people else None
+        torso = _torso_norm(person) if person is not None else 0.2
+        return max(torso, 0.05)
+
+    def _blade_swings(self) -> list[MotionEvent]:
+        from vfxglow.analysis.schema import MotionEvent
+
+        aspect = self.meta.width / max(self.meta.height, 1)
+        events: list[MotionEvent] = []
+        for (person, hand), tips in self._blade_tips().items():
+            fast = []
+            for index, tip in tips.items():
+                before = tips.get(index - 1)
+                if before is None:
+                    continue
+                step = float(np.hypot((tip[0] - before[0]) * aspect, tip[1] - before[1]))
+                if step >= BLADE_SWING * self._scale(index):
+                    fast.append(index)
+            for start, end in _spans(fast, gap=1):
+                if end - start + 1 < BLADE_FRAMES:
+                    continue
+                peak = tips[end]
+                events.append(
+                    MotionEvent(
+                        name="blade_swing",
+                        target=f"{person}:blade_{hand}_tip",
+                        start_frame=start,
+                        end_frame=end,
+                        confidence=0.8,
+                        detail=EVENT_CATALOG["blade_swing"],
+                        position=(float(peak[0]), float(peak[1])),
+                        attacker=person,
+                    )
+                )
+        return events
+
+    def _floor(self, index: int) -> float | None:
+        """Altura del piso: el tobillo más bajo, normalizado."""
+        ys = [lm.y for lm in self.frames[index].pose if lm.name in ("left_ankle", "right_ankle", "left_heel", "right_heel") and lm.c > 0.3]
+        return max(ys) if ys else None
+
+    def _blade_ground(self, swings: list[MotionEvent]) -> list[MotionEvent]:
+        from vfxglow.analysis.schema import MotionEvent
+
+        events = []
+        for swing in swings:
+            floor = self._floor(swing.end_frame)
+            if floor is None or swing.position is None:
+                continue
+            if swing.position[1] >= floor - 0.04:
+                events.append(
+                    swing.model_copy(update={"name": "blade_ground", "detail": EVENT_CATALOG["blade_ground"], "position": (swing.position[0], floor)})
+                )
+        return events
+
+    def _flips(self) -> list[MotionEvent]:
+        inverted = np.zeros(self.n, dtype=bool)
+        for index, frame in enumerate(self.frames):
+            pts = {lm.name: lm.y for lm in frame.pose if lm.c > 0.3}
+            if "nose" in pts and "left_hip" in pts and "right_hip" in pts:
+                inverted[index] = pts["nose"] > (pts["left_hip"] + pts["right_hip"]) * 0.5
+        out = []
+        for start, end in _runs(inverted):
+            if end - start + 1 >= FLIP_FRAMES:
+                event = self._event("flip", "mid_hip", start, end, 0.8, EVENT_CATALOG["flip"])
+                event.position = self._mid_hip((start + end) // 2)
+                out.append(event)
+        return out
+
+    def _landings(self, airborne: list[MotionEvent]) -> list[MotionEvent]:
+        out = []
+        for event in sorted(airborne, key=lambda e: e.end_frame):
+            if out and event.end_frame - out[-1].start_frame < LAND_WITHIN:
+                continue
+            for index in range(event.end_frame, min(self.n - 1, event.end_frame + LAND_WITHIN)):
+                floor, after = self._floor(index), self._floor(index + 1)
+                if floor is not None and after is not None and after <= floor + 0.003:
+                    pts = {lm.name: (lm.x, lm.y) for lm in self.frames[index].pose if lm.c > 0.3}
+                    feet = [pts[name] for name in ("left_ankle", "right_ankle") if name in pts]
+                    landing = self._event("landing", "feet", index, index, 0.7, EVENT_CATALOG["landing"])
+                    landing.position = (float(np.mean([f[0] for f in feet])), floor) if feet else None
+                    out.append(landing)
+                    break
+        return out
+
+    def _entrance(self) -> list[MotionEvent]:
+        first = next((index for index, frame in enumerate(self.frames) if frame.pose), None)
+        if first is None or first > 15:
+            return []
+        event = self._event("entrance", "nose", first, first, 1.0, EVENT_CATALOG["entrance"])
+        event.attacker = self.frames[first].people[0].person_id if self.frames[first].people else "person_0"
+        return [event]
+
     def _people_swings(self) -> list[MotionEvent]:
         """Swings por persona, con ancla person_N:joint, para que cada color siga a su actor."""
         from vfxglow.analysis.schema import MotionEvent
@@ -907,6 +1029,16 @@ def _person_speed(person, name: str) -> float:
         if item.name == name and not item.glitch:
             return float(item.speed)
     return 0.0
+
+
+def _spans(frames: list[int], gap: int = 1) -> list[tuple[int, int]]:
+    spans: list[tuple[int, int]] = []
+    for frame in sorted(frames):
+        if spans and frame - spans[-1][1] <= gap:
+            spans[-1] = (spans[-1][0], frame)
+        else:
+            spans.append((frame, frame))
+    return spans
 
 
 def _smooth_nan(values: np.ndarray, size: int) -> np.ndarray:

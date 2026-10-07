@@ -40,6 +40,12 @@ EffectType = Literal[
     "stars",
     "eyewear",
     "intent_mark",
+    "blade_glow",
+    "blade_echo",
+    "body_outline",
+    "ground_burst",
+    "ground_cloud",
+    "floor_streak",
 ]
 TargetKind = Literal["joint", "chain", "face_region", "mask", "object", "event_point", "contour"]
 BlendMode = Literal["add", "screen", "over", "multiply"]
@@ -68,6 +74,11 @@ EVENT_NAMES: tuple[str, ...] = (
     "lull",
     "intent",
     "intended_strike",
+    "blade_swing",
+    "blade_ground",
+    "flip",
+    "landing",
+    "entrance",
 )
 
 
@@ -164,6 +175,8 @@ class EffectStyle(_Strict):
     palette_every: int = 45
     # Impactos: cantidad de chispas diminutas que salen disparadas del golpe (0 = ninguna).
     micro_sparks: int = 0
+    # swoosh: neon (trazo), flame (con lenguas de fuego) o dots (bolas de fuego).
+    trail_style: Literal["neon", "flame", "dots"] = "neon"
 
 
 class EffectRender(_Strict):
@@ -263,6 +276,12 @@ SUPPORTED_TYPES: tuple[str, ...] = (
     "stars",
     "eyewear",
     "intent_mark",
+    "blade_glow",
+    "blade_echo",
+    "body_outline",
+    "ground_burst",
+    "ground_cloud",
+    "floor_streak",
 )
 
 # Efectos que por defecto pertenecen a un grupo distinto de glow.

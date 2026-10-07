@@ -1,0 +1,136 @@
+# Catálogo de espadas estilo fuego (referencia glowing/video_39.mp4): una persona con katanas,
+# acrobacias. Un solo color de fuego naranja; la mirada encendida en magenta al empezar,
+# tajos con lenguas de fuego, bolas de fuego en las patadas, silueta en casi cada voltereta,
+# y una nube de humo enorme cuando la hoja golpea el piso. Al final, calma: sin efectos.
+name: espadas_fuego
+title: Espadas fuego
+seed: 39
+needs: [blades]
+colors:
+  - [1.0, 0.5, 0.1]     # fuego
+  - [1.0, 0.62, 0.18]   # fuego claro
+
+defaults:
+  type: swoosh
+  target: {kind: joint, id: right_wrist}
+  time: {start_frame: 0, end_frame: -1, fade_in: 2, fade_out: 4}
+  style: {thickness: 0.014, hdr_gain: 1.9, boil_frames: 2}
+  render: {blend: add, motion_blur: 0.0, persistence: 0.0, group: glow}
+
+always:
+  - type: blade_glow
+    target: {kind: joint, id: blade_right_tip}
+    style: {thickness: 0.03, hdr_gain: 2.1}
+  # Brasas que se desprenden de las extremidades rápidas (seg. 0.6).
+  - type: droplets
+    target: {kind: joint, id: "left_wrist,right_wrist,left_ankle,right_ankle"}
+    style: {thickness: 0.008, hdr_gain: 1.9, size: 0.3, min_speed: 0.25, chance: 0.3, shapes: [dash, leaf]}
+
+reactions:
+  # Seg. 0.0-0.3: la mirada se enciende con una banda magenta sobre los ojos.
+  - action: entrance
+    options:
+      - name: mirada
+        weight: 1.0
+        effects:
+          - type: eyewear
+            target: {kind: joint, id: nose}
+            style: {colors: [[1.0, 0.2, 0.85]], thickness: 0.06, hdr_gain: 2.2, shapes: [band]}
+            trigger: {hold: 10, fade_in: 1, fade_out: 6}
+
+  # Tajo: arco con lenguas de fuego (seg. 0.5, 0.6) o arco limpio.
+  - action: blade_swing
+    options:
+      - name: tajo_fuego
+        weight: 0.5
+        effects:
+          - type: swoosh
+            target: {kind: joint, id: "blade_left_tip,blade_right_tip"}
+            style: {strands: 1, trail_frames: 12, min_speed: 0.15, thickness: 0.02, trail_style: flame}
+            trigger: {hold: 8, fade_in: 1, fade_out: 5}
+      - name: tajo
+        weight: 0.2
+        effects:
+          - type: swoosh
+            target: {kind: joint, id: "blade_left_tip,blade_right_tip"}
+            style: {strands: 1, trail_frames: 10, min_speed: 0.15, thickness: 0.016}
+            trigger: {hold: 8, fade_in: 1, fade_out: 5}
+      - name: nada
+        weight: 0.3
+
+  # Patada: bolas de fuego que siguen al pie (seg. 1.6-2.0).
+  - action: fast_swing
+    options:
+      - name: bolas_fuego
+        weight: 0.4
+        limbs: [left_ankle, right_ankle]
+        effects:
+          - type: swoosh
+            target: {kind: joint, id: "left_ankle,right_ankle"}
+            style: {trail_frames: 10, min_speed: 0.1, thickness: 0.012, trail_style: dots}
+            trigger: {hold: 10, fade_in: 1, fade_out: 5}
+      - name: nada
+        weight: 0.6
+
+  # Voltereta o salto: silueta de fuego (seg. 0.7, 0.9, 1.1-1.3, 2.2-3.5: casi todas).
+  - action: flip
+    options:
+      - name: silueta
+        weight: 0.85
+        effects:
+          - type: body_outline
+            target: {kind: mask, id: person}
+            style: {thickness: 0.01, hdr_gain: 2.0, boil_frames: 2, shapes: [outline]}
+            trigger: {hold: 10, fade_in: 1, fade_out: 5}
+      - name: nada
+        weight: 0.15
+  - action: jump
+    options:
+      - name: silueta
+        weight: 0.7
+        effects:
+          - type: body_outline
+            target: {kind: mask, id: person}
+            style: {thickness: 0.01, hdr_gain: 2.0, boil_frames: 2, shapes: [outline]}
+            trigger: {hold: 8, fade_in: 1, fade_out: 5}
+      - name: nada
+        weight: 0.3
+
+  # Aterrizaje: raya larga en el piso (seg. 1.3-1.8) o salpicadura.
+  - action: landing
+    options:
+      - name: raya_piso
+        weight: 0.4
+        effects:
+          - type: floor_streak
+            target: {kind: event_point, id: landing}
+            style: {size: 1.6, thickness: 0.016, hdr_gain: 2.0}
+            trigger: {hold: 14, fade_in: 1, fade_out: 8}
+      - name: salpicadura
+        weight: 0.3
+        effects:
+          - type: ground_burst
+            target: {kind: event_point, id: landing}
+            style: {size: 0.4, thickness: 0.012, hdr_gain: 2.0}
+            trigger: {hold: 10, fade_in: 1, fade_out: 5}
+      - name: nada
+        weight: 0.3
+
+  # La hoja golpea el piso: nube de humo de dibujo animado (seg. 3.7-3.9) o estallido blanco (4.4).
+  - action: blade_ground
+    cooldown: 30
+    options:
+      - name: nube
+        weight: 0.55
+        effects:
+          - type: ground_cloud
+            target: {kind: event_point, id: blade_ground}
+            style: {size: 1.3, thickness: 0.014, hdr_gain: 2.1}
+            trigger: {hold: 18, fade_in: 1, fade_out: 8}
+      - name: estallido
+        weight: 0.45
+        effects:
+          - type: ground_burst
+            target: {kind: event_point, id: blade_ground}
+            style: {colors: [[1.0, 0.95, 0.85], [1.0, 0.5, 0.1]], size: 0.35, thickness: 0.012, hdr_gain: 2.0, micro_sparks: 0}
+            trigger: {hold: 10, fade_in: 1, fade_out: 5}

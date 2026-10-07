@@ -13,6 +13,8 @@ Figuras (unidad = distancia entre ojos, eje x = de ojo a ojo):
 - visor: barra única de lado a lado con línea de barrido.
 - rings: anillos concéntricos que giran (hipnosis).
 - glint: monturas con destellos diagonales sobre los cristales.
+- band: banda gruesa de luz sobre los ojos, con un gancho en un extremo (video_39: la mirada
+  encendida al empezar).
 """
 
 from __future__ import annotations
@@ -25,7 +27,9 @@ from vfxglow.analysis.schema import FrameRecord, MotionEvent
 from vfxglow.engine.raster import stroke_batch
 from vfxglow.engine.swoosh import neon_layers
 
-SHAPES = ("frames", "stars", "hearts", "mask", "visor", "rings", "glint")
+SHAPES = ("frames", "stars", "hearts", "mask", "visor", "rings", "glint", "band")
+# Grosor relativo por figura: la banda es un trazo grueso de lado a lado (mirada encendida).
+WIDTH = {"band": 5.0}
 TAU = 2.0 * np.pi
 # Distancia mínima entre ojos (px) para dibujar: más pequeño sería un borrón.
 MIN_EYE_DIST = 6.0
@@ -86,7 +90,7 @@ def draw_eyewear(runtime, track: FrameRecord | None, points: dict[str, np.ndarra
         shape = names[int(np.random.default_rng(seed).integers(0, len(names)))]
         index = int(person.rsplit("_", 1)[-1]) if person and person[-1].isdigit() else 0
         color = np.asarray(style.colors[index % len(style.colors)], dtype=np.float32)
-        width = max(1.0, unit * style.thickness)
+        width = max(1.0, unit * style.thickness * WIDTH.get(shape, 1.0))
         for line in figure(shape, left, right, frame_index):
             strokes += neon_layers(line, color, width, envelope)
     stroke_batch(layer, strokes, style.hdr_gain)
@@ -107,6 +111,11 @@ def figure(shape: str, left: np.ndarray, right: np.ndarray, frame_index: int = 0
 
     lenses = [np.array([-0.5, 0.0]), np.array([0.5, 0.0])]
     theta = np.linspace(0, TAU, 28)
+    if shape == "band":
+        t = np.linspace(-1.1, 1.0, 20)
+        band = np.stack([t, 0.06 * t**2 - 0.05], axis=1)
+        hook = np.array([[-1.1, -0.05], [-1.25, 0.12], [-1.15, 0.3]])
+        return [place(np.vstack([hook[::-1], band]))]
     if shape == "visor":
         bar = np.array([[-1.0, -0.22], [1.0, -0.22], [1.05, 0.0], [1.0, 0.22], [-1.0, 0.22], [-1.05, 0.0], [-1.0, -0.22]])
         scan_x = -0.9 + 1.8 * ((frame_index % 24) / 24)

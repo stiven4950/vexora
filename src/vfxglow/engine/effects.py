@@ -102,6 +102,18 @@ def render_effect(
 
         draw = {"flame_burst": draw_flame_burst, "spark_dashes": draw_spark_dashes, "clash": draw_clash, "stars": draw_stars}[kind]
         draw(runtime, points, frame_index, height, envelope, layer, event)
+    elif kind in {"blade_glow", "blade_echo"}:
+        from vfxglow.engine.sword import draw_blade_echo, draw_blade_glow
+
+        (draw_blade_glow if kind == "blade_glow" else draw_blade_echo)(runtime, track, points, frame_index, height, envelope, layer)
+    elif kind in {"body_outline", "ground_burst", "ground_cloud", "floor_streak"}:
+        from vfxglow.engine import sword
+
+        if kind == "body_outline":
+            sword.draw_body_outline(runtime, track, points, frame_index, height, envelope, layer, event)
+        else:
+            draw = {"ground_burst": sword.draw_ground_burst, "ground_cloud": sword.draw_ground_cloud, "floor_streak": sword.draw_floor_streak}[kind]
+            draw(runtime, points, frame_index, height, envelope, layer, event)
     elif kind == "intent_mark":
         from vfxglow.engine.marks import draw_intent_mark
 
