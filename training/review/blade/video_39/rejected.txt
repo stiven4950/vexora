@@ -1,0 +1,1 @@
+# Una clave por línea (la que aparece arriba de cada mosaico) para excluirla del entrenamiento.

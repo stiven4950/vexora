@@ -36,6 +36,9 @@ da "líneas" en el 78% de las manos, así que no puede decidir sola si hay una e
    (CVAT o Label Studio) y entrenar un YOLO-pose pequeño de dos puntos. Es la solución estable;
    también resuelve "¿hay espada en este video?".
 
+   **Hecho:** sistema completo en `training/` (`vfxglow-train`). Primera prueba sin revisar:
+   no generaliza a video_39 (detalle en training/README.md). Falta material variado.
+
    **Etiquetas casi gratis:** cada par original/referencia (`glowing/data/original` y
    `glowing/data/glowing`) ya trae la hoja pintada por un editor. La diferencia entre los dos
    fotogramas aísla el trazo de la hoja; su eje da empuñadura y punta. Con video_38 y video_39
