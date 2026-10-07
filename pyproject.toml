@@ -24,11 +24,13 @@ masks = ["torch>=2.5", "sam-2"]
 refiner = ["torch>=2.5", "diffusers>=0.30", "transformers>=4.44", "accelerate>=0.34"]
 dev = ["pytest>=8.0"]
 train = ["ultralytics>=8.3"]
+api = ["fastapi>=0.115", "uvicorn[standard]>=0.30", "python-multipart>=0.0.9"]
 scene = ["scenedetect>=0.6.4", "librosa>=0.10"]
 
 [project.scripts]
 vfxglow = "vfxglow.cli:main"
 vfxglow-train = "vfxglow.training.cli:main"
+vfxglow-api = "vfxglow.api.server:main"
 
 [build-system]
 requires = ["setuptools>=68"]

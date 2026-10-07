@@ -59,6 +59,8 @@ class Reaction(_Strict):
 class Catalog(_Strict):
     name: str
     title: str = ""
+    # Una línea para mostrar al elegir estilo (interfaz web).
+    description: str = ""
     seed: int = 1
     colors: list[tuple[float, float, float]] = Field(default_factory=lambda: [(1.0, 0.55, 0.12), (0.18, 0.5, 1.0)])
     # Plantilla común de los efectos; cada efecto del catálogo solo escribe lo que cambia.

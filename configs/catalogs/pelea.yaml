@@ -4,6 +4,7 @@
 # Ver docs/catalogo_efectos.md para el origen de cada reacción.
 name: pelea
 title: Pelea neón
+description: "Combate cuerpo a cuerpo: trayectorias de neón, llamaradas en cada golpe, estrellas, rayos desde la mirada y energía al chocar puños."
 seed: 21
 colors:
   - [1.0, 0.55, 0.12]   # person_0: naranja fuego

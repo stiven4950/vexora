@@ -72,6 +72,8 @@ def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: st
                     record.flow = flow_stats(flow.between(previous, frame))
                 previous = frame
                 raw.append(record)
+                if (index + 1) % 25 == 0:
+                    log.info("Analizados %d/%d fotogramas", index + 1, meta.frame_count)
         finally:
             closer = getattr(detector, "close", None)
             if closer:

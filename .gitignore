@@ -21,3 +21,6 @@ training/data/
 training/datasets/
 training/runs/
 training/review/**/sheet_*.jpg
+api_data/
+web/node_modules/
+web/dist/

@@ -4,6 +4,7 @@
 # Ver docs/catalogo_efectos.md, sección "Espadas".
 name: espadas_neon
 title: Espadas neón
+description: "Hojas pintadas de neón cian y lima, ecos fantasma, arcos en cada tajo y siluetas en las acrobacias."
 seed: 38
 needs: [blades]
 colors:
