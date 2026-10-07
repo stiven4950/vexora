@@ -169,3 +169,4 @@ git checkout baseline -- <archivo>   # recuperar la versión original de un arch
 | `5b1b634` | Segunda persona recuperada e identidad por apariencia |
 | `c3807c7` | Accesorios por persona (VLM) |
 | `ac38135` | Pausas, intenciones, gafas de figuras, marcas de intención y swoosh en cruz |
+| `0cd4285` | Colores al azar por activación y chispas diminutas en impactos |
