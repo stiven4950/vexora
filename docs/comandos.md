@@ -61,6 +61,13 @@ vfxglow run --video ../glowing/data/original/video_1.mp4 --catalog pelea --seed 
 Las decisiones quedan en `runs/<video>/scripts/choreography.json` y el video en
 `runs/<video>/output/pelea.mp4`.
 
+Espadas (activan la detección de hojas; ver [catalogo_efectos.md](catalogo_efectos.md#espadas)):
+
+```bash
+vfxglow run --video <original>.mp4 --catalog espadas_neon    # estilo video_38: neón cian y lima
+vfxglow run --video <original>.mp4 --catalog espadas_fuego   # estilo video_39: fuego y mirada magenta
+```
+
 Director artista con gpt-5 (necesita la clave; una llamada por video, la respuesta queda en caché):
 
 ```bash
@@ -170,3 +177,6 @@ git checkout baseline -- <archivo>   # recuperar la versión original de un arch
 | `c3807c7` | Accesorios por persona (VLM) |
 | `ac38135` | Pausas, intenciones, gafas de figuras, marcas de intención y swoosh en cruz |
 | `0cd4285` | Colores al azar por activación y chispas diminutas en impactos |
+| `fa24efa` | Detección de hojas y contorno del cuerpo |
+| `41f7c87` | Catálogos `espadas_neon` y `espadas_fuego` con sus eventos y efectos |
+| `382808f` | Análisis de referencias de espadas y `docs/pendientes.md` |
