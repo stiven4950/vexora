@@ -165,3 +165,67 @@ Análisis cada 4 fotogramas cruzando el video de referencia con los eventos dete
    catálogo. Si falta la acción, se añade al análisis (`analysis/events.py`).
 4. Un catálogo por tipo de escena (`pelea`, `baile`, `maquillaje`…). Los pesos se ajustan mirando
    `choreography.json` y la vista previa, no a ojo sobre el YAML.
+
+## Espadas
+
+Dos referencias de una persona sola con hojas y acrobacias. No es pelea (no hay rival), así que
+los catálogos son propios: `espadas_neon` y `espadas_fuego`. Los dos piden `needs: [blades]`,
+que enciende la detección de hojas en el análisis (apagada por defecto: ver más abajo).
+
+```bash
+vfxglow run --video <original>.mp4 --catalog espadas_neon
+vfxglow run --video <original>.mp4 --catalog espadas_fuego
+```
+
+### video_38: neón cian y lima (10,6 s)
+
+Dos hojas cortas (bastones negros) pintadas de neón: una cian y otra verde lima. La cámara se
+mueve y hay tres escenarios (pared azul, gimnasio, espejo). Análisis cada 3 fotogramas.
+
+| Seg. | Qué hace | Efecto en la referencia | Implementado |
+| --- | --- | --- | --- |
+| Todo | Sostiene las hojas | **Hojas pintadas de neón siempre**, una de cada color | ✅ `blade_glow` (siempre) |
+| 0.2, 1.1, 4.3, 7.8 | Gira las hojas deprisa | **Copias fantasma** de la hoja flotando donde estuvo | ✅ `blade_echo` (siempre, solo con la punta rápida) |
+| 0.8–1.5 | Tajos amplios | La hoja deja un rastro recto que se desvanece | ✅ parte de `blade_echo` |
+| 1.9 | Patada | **Rayas de velocidad en el pie** | ✅ `fast_swing → pies` (swoosh en tobillos) |
+| 2.0–2.3 | Mortal en el aire | Rayas cortas **sobre el cuerpo** | ✅ `flip → rayas` (`body_outline` en guiones) |
+| 2.3, 4.2–4.5, 6.6, 7.4 | Aterriza / pisa fuerte | **Salpicadura en abanico** en el piso, amarilla | ✅ `landing → salpicadura` (`ground_burst`) |
+| 3.1–3.5 | Patada giratoria / voltereta | **Contorno del cuerpo entero** en amarillo, y un **arco** grande | ✅ `flip → silueta` (`body_outline`), `blade_swing → arco` |
+| 3.7, 3.9 | Tajo amplio | **Arco en media luna** que sigue la punta | ✅ `blade_swing → arco` (swoosh en `blade_*_tip`) |
+| 7.2 | Pausa antes de atacar | **Cruz** amarilla sobre el pecho | ✅ `intent → cruz` (`intent_mark` `cross`) |
+| 10.4 | Agachado, hoja abajo | **Venas de energía** dentro de la pierna | 🔜 rayos dentro del contorno |
+| 5.5 / 9.6 | Corte de plano | La hoja sigue pintada en el plano nuevo | ✅ `blade_glow` no depende de eventos |
+
+### video_39: fuego naranja y mirada magenta (5,8 s)
+
+Dos katanas reales. Un solo color de fuego naranja; la mirada en magenta. Mucho más gráfico y de
+dibujo animado que video_38. Los últimos 1,4 s no tienen efectos: la calma final es parte del
+ritmo.
+
+| Seg. | Qué hace | Efecto en la referencia | Implementado |
+| --- | --- | --- | --- |
+| 0.0–0.3 | Arranca, mira a cámara | **Banda magenta sobre los ojos** con un gancho: la mirada encendida | ✅ `entrance → mirada` (`eyewear` `band`) |
+| Todo hasta 4.3 | Sostiene las katanas | Hojas pintadas de **fuego naranja** | ✅ `blade_glow` |
+| 0.5 | Tajo bajo | **Arco de fuego** con lenguas que salen del borde exterior | ✅ `blade_swing → tajo_fuego` (swoosh `flame`) |
+| 0.6 | Tajo hacia arriba | Arco con **brasas** que caen | ✅ `tajo_fuego` + partículas `dash`/`leaf` |
+| 0.7–1.3, 2.2–3.5 | Saltos y volteretas | **Silueta de fuego** en casi cada voltereta | ✅ `flip`/`jump → silueta` (85%) |
+| 1.3–1.8 | Aterriza tras el giro | **Raya larga y recta en el piso** | ✅ `landing → raya_piso` (`floor_streak`) |
+| 1.6–2.0 | Patada alta | **Bolas de fuego** que siguen la pierna, más grandes cerca del pie | ✅ `fast_swing → bolas_fuego` (swoosh `dots`) |
+| 3.7–3.9 | Clava las hojas en el piso | **Nube de humo de dibujo animado** que rodea los pies | ✅ `blade_ground → nube` (`ground_cloud`) |
+| 4.4–4.5 | Apoya las puntas en el piso | **Estallido blanco con borde naranja** en cada punta | ✅ `blade_ground → estallido` (`ground_burst`) |
+| 4.6–5.8 | Se levanta, mira a cámara | Nada: las katanas ya sin pintar | ✅ natural: sin eventos no hay efectos |
+
+### Detección de hojas (`analysis/blades.py`)
+
+Por cada mano: la recta fina más plausible cerca de la mano (mapa de crestas + Hough), filtrada
+por cuatro reglas — pasa por la mano, no va hacia el codo (antebrazo), no sigue del otro lado de
+la empuñadura (raya del piso) y no sale de la zona de búsqueda. Dirección del agarre por la línea
+de los nudillos. Luego, por mano: se descartan saltos de largo o de ángulo, se rellenan huecos de
+hasta 8 fotogramas con el largo típico y se suaviza el ángulo.
+
+Medido sobre el tramo de katanas sin pintar de video_39 (4,4–5,8 s): bien con las hojas
+separadas del cuerpo (5,4–5,8 s); falla con las hojas verticales apoyadas en el piso, donde la
+raya blanca del suelo pasa justo por las manos. **No sirve para decidir si hay espada**: en la
+pelea de video_1 encuentra "líneas" en el 78% de las manos (brazos, ropa, fondo), igual que en
+los videos de espadas. Por eso está apagada por defecto y la enciende el catálogo. Mejoras en
+[pendientes.md](pendientes.md).

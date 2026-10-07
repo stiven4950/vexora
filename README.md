@@ -14,6 +14,7 @@ Pipeline de efectos visuales por capas. El video original es un plano intocable:
 
 Los comandos de trabajo (generar, revisar, regresión, historial) están en [docs/comandos.md](docs/comandos.md).
 El catálogo de acciones → reacciones y cómo extenderlo está en [docs/catalogo_efectos.md](docs/catalogo_efectos.md).
+Las mejoras conocidas que quedan pendientes están en [docs/pendientes.md](docs/pendientes.md).
 
 ## Requisitos
 
