@@ -66,6 +66,8 @@ class Catalog(_Strict):
     # Efectos que no dependen de una elección (por ejemplo, partículas con su propia probabilidad).
     always: list[dict] = Field(default_factory=list)
     reactions: list[Reaction]
+    # Lo que el análisis debe calcular para este catálogo (p. ej. [blades] para espadas).
+    needs: list[str] = Field(default_factory=list)
 
 
 class Decision(_Strict):

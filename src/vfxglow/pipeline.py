@@ -71,6 +71,8 @@ class Pipeline:
             self.config.director.catalog = catalog
         if seed is not None:
             self.config.director.seed = seed
+        if self.config.director.provider == "catalog":
+            self._apply_catalog_needs()
         if level:
             self.config.analysis.level = level  # type: ignore[assignment]
         self.video = video
@@ -92,6 +94,17 @@ class Pipeline:
             video_sha256=digest,
             device=self.device,
         )
+
+    def _apply_catalog_needs(self) -> None:
+        """Un catálogo puede pedir señales que el análisis no calcula por defecto."""
+        from vfxglow.director.choreography import load_catalog
+
+        path = catalog_file(self.config_path, self.config.director.catalog)
+        if not path.exists():
+            return
+        needs = set(load_catalog(path).needs)
+        if "blades" in needs and self.config.analysis.blades.mode == "off":
+            self.config.analysis.blades.mode = "always"
 
     def _guard_optional_stages(self) -> None:
         if self.config.refiner.enabled:

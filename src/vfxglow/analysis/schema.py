@@ -55,6 +55,17 @@ class HandState(_Strict):
     valid: bool = False
 
 
+class Blade(_Strict):
+    """Hoja (espada, bastón) en una mano: empuñadura y punta, normalizadas."""
+
+    person: str
+    hand: str
+    hilt: tuple[float, float]
+    tip: tuple[float, float]
+    confidence: float = 1.0
+    source: str = "line"
+
+
 class PersonPose(_Strict):
     """Una persona dentro del fotograma. person_0 se copia también a los campos planos."""
 
@@ -87,6 +98,9 @@ class FrameRecord(_Strict):
     # segmentador o de brillo (`eye_glint`) y contorno de la cabeza, normalizados.
     fallback: list[Landmark] = Field(default_factory=list)
     head_contour: list[tuple[float, float]] | None = None
+    blades: list[Blade] = Field(default_factory=list)
+    # Contorno del cuerpo (persona más grande del Selfie Segmenter), normalizado.
+    body_contour: list[tuple[float, float]] | None = None
 
 
 class VideoMeta(_Strict):

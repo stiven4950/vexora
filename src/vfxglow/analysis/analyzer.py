@@ -42,14 +42,27 @@ def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: st
         previous = None
         detector = _open_detector(config, device, models_dir)
         fallback = _open_fallback(config, models_dir)
+        blades = None
+        if config.analysis.blades.mode != "off":
+            from vfxglow.analysis.blades import BladeFinder
+
+            blades = BladeFinder(config.analysis.blades)
         try:
             model_names = dict(getattr(detector, "models", {}))
             if objects.enabled:
                 model_names["objects"] = config.analysis.objects.model
             for index, frame in reader:
                 record = _detect(detector, config, index, frame, meta.fps)
-                if fallback is not None and len(record.face or []) < MIN_FACE_POINTS:
-                    fallback.apply(record, frame)
+                needs_face = fallback is not None and config.analysis.face_fallback and len(record.face or []) < MIN_FACE_POINTS
+                mask = fallback.mask(frame) if fallback is not None and (needs_face or config.analysis.body_contour) else None
+                if needs_face:
+                    fallback.apply(record, frame, mask)
+                if mask is not None and config.analysis.body_contour:
+                    from vfxglow.analysis.fallback import body_outline
+
+                    record.body_contour = body_outline(mask)
+                if blades is not None:
+                    record.blades = blades.detect(record, frame)
                 if objects.enabled:
                     if index % stride == 0:
                         record.objects = objects.update(objects.detect(frame))
@@ -84,6 +97,10 @@ def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: st
         from vfxglow.analysis.fallback import stabilize_heads
 
         stabilize_heads(raw, meta.width, meta.height)
+    if config.analysis.blades.mode != "off":
+        from vfxglow.analysis.blades import finalize_blades
+
+        finalize_blades(raw, config.analysis.blades, meta.width, meta.height)
     frames = smooth_tracks(raw, meta.fps, config.analysis)
     add_motion(frames, meta, config.analysis.events.glitch_speed)
     events = EventDetector(config.analysis.events).detect(frames, meta)
@@ -130,7 +147,7 @@ def _open_detector(config: AppConfig, device: str, models_dir: Path):
 
 
 def _open_fallback(config: AppConfig, models_dir: Path):
-    if not config.analysis.face_fallback or config.analysis.level != "fast":
+    if not (config.analysis.face_fallback or config.analysis.body_contour) or config.analysis.level != "fast":
         return None
     from vfxglow.analysis.fallback import FaceFallback
     from vfxglow.analysis.models_store import ensure_model

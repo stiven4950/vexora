@@ -82,6 +82,22 @@ class SceneConfig(_Strict):
     api_key_env: str = "OPENAI_API_KEY"
 
 
+class BladesConfig(_Strict):
+    # off: nunca; auto: solo si el video tiene líneas en las manos en `min_presence` de los
+    # casos; always: siempre. Por defecto off: en una pelea sin armas los bordes de brazos y
+    # ropa dan "líneas" en el 78% de las manos (igual que con espadas), así que auto no
+    # distingue. Un catálogo que necesita hojas las activa (`needs: [blades]`).
+    mode: Literal["off", "auto", "always"] = "off"
+    min_presence: float = 0.25
+    fill_gap: int = 8
+    smooth: float = 0.5
+    # lines: solo visión clásica; yoloworld: además YOLO-World por texto (extra `objects`).
+    detector: Literal["lines", "yoloworld"] = "lines"
+    yolo_model: str = "yolov8s-worldv2.pt"
+    yolo_classes: list[str] = Field(default_factory=lambda: ["sword", "katana", "stick", "lightsaber"])
+    yolo_confidence: float = 0.15
+
+
 class AccessoriesConfig(_Strict):
     # Clasifica qué lleva cada persona en la cabeza (gafas, máscara, gorra...) con el VLM de
     # analysis.scene. Sin clave de API solo cuenta `manual`.
@@ -108,6 +124,9 @@ class AnalysisConfig(_Strict):
     beats: BeatsConfig = Field(default_factory=BeatsConfig)
     scene: SceneConfig = Field(default_factory=SceneConfig)
     accessories: AccessoriesConfig = Field(default_factory=AccessoriesConfig)
+    blades: BladesConfig = Field(default_factory=BladesConfig)
+    # Contorno del cuerpo por fotograma con el Selfie Segmenter (siluetas de neón).
+    body_contour: bool = True
 
 
 class DirectorConfig(_Strict):

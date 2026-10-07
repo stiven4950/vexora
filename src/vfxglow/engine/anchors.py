@@ -76,6 +76,13 @@ def collect_points(track: FrameRecord | None, width: int, height: int) -> PointS
             points[f"{person.person_id}:mid_shoulder"] = (
                 points[f"{person.person_id}:left_shoulder"] + points[f"{person.person_id}:right_shoulder"]
             ) * 0.5
+    for blade in track.blades:
+        # person_N:blade_<mano>_tip / _hilt; la persona principal también sin prefijo.
+        for part, value in (("tip", blade.tip), ("hilt", blade.hilt)):
+            point = np.array([value[0] * width, value[1] * height], dtype=np.float64)
+            points.put(f"{blade.person}:blade_{blade.hand}_{part}", point, blade.confidence, f"blade_{blade.source}")
+            if blade.person == track.person_id:
+                points.put(f"blade_{blade.hand}_{part}", point, blade.confidence, f"blade_{blade.source}")
     for obj in track.objects:
         center = np.array(
             [((obj.box[0] + obj.box[2]) * 0.5) * width, ((obj.box[1] + obj.box[3]) * 0.5) * height],

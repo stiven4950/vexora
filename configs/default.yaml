@@ -55,6 +55,10 @@ analysis:
     enabled: true
     cut_correlation: 0.86
     min_beat: 8
+  blades:
+    mode: "off"            # off | auto | always. Los catálogos de espadas la activan (needs: [blades])
+    detector: lines        # lines | yoloworld (requiere el extra objects: ultralytics)
+  body_contour: true       # contorno del cuerpo por fotograma (siluetas de neón)
   scene:
     enabled: true
     provider: openai

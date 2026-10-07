@@ -41,18 +41,42 @@ class FaceFallback:
             )
         )
 
-    def apply(self, record: FrameRecord, frame_bgr: np.ndarray) -> None:
+    def mask(self, frame_bgr: np.ndarray) -> np.ndarray:
         import mediapipe as mp
 
         rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
         result = self._segmenter.segment(mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb))
-        mask = (np.squeeze(result.confidence_masks[0].numpy_view()) > 0.5).astype(np.uint8)
+        return (np.squeeze(result.confidence_masks[0].numpy_view()) > 0.5).astype(np.uint8)
+
+    def apply(self, record: FrameRecord, frame_bgr: np.ndarray, mask: np.ndarray | None = None) -> None:
+        mask = self.mask(frame_bgr) if mask is None else mask
         contour, glint = locate_head(frame_bgr, mask)
         record.head_contour = contour
         record.fallback = [glint] if glint is not None else []
 
     def close(self) -> None:
         self._segmenter.close()
+
+
+BODY_POINTS = 140
+
+
+def body_outline(mask: np.ndarray) -> list[tuple[float, float]] | None:
+    """Contorno cerrado de la silueta más grande, con huecos rellenos, normalizado."""
+    height, width = mask.shape[:2]
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
+    if count < 2:
+        return None
+    body = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
+    if stats[body, cv2.CC_STAT_AREA] < 0.01 * width * height:
+        return None
+    solid = _solid((labels == body).astype(np.uint8), width)
+    contours, _ = cv2.findContours(solid, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    if not contours:
+        return None
+    outline = max(contours, key=cv2.contourArea).reshape(-1, 2).astype(np.float64)
+    outline = resample(np.vstack([outline, outline[:1]]), BODY_POINTS)
+    return [(float(x) / width, float(y) / height) for x, y in outline]
 
 
 def locate_head(frame_bgr: np.ndarray, mask: np.ndarray) -> tuple[list[tuple[float, float]] | None, Landmark | None]:
