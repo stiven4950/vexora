@@ -17,7 +17,7 @@ import numpy as np
 
 from vfxglow.analysis.schema import FrameRecord, MotionEvent
 from vfxglow.engine.anchors import torso_pixels
-from vfxglow.engine.raster import fill_polygon, stroke_batch
+from vfxglow.engine.raster import fill_polygon, splat, stroke_batch
 from vfxglow.engine.swoosh import neon_layers
 
 TAU = 2.0 * np.pi
@@ -42,14 +42,26 @@ def _blades(track: FrameRecord | None, width: int, height: int, people: list[str
     ]
 
 
+# Materiales de la hoja: cada activación sortea uno de style.shapes.
+BLADE_MATERIALS = ("neon", "lightning", "fire", "chainsaw")
+
+
 def draw_blade_glow(runtime, track, points, frame_index: int, height: int, envelope: float, layer: np.ndarray, event: MotionEvent | None = None) -> None:
-    """La hoja pintada de neón. Disparada por un tajo, solo la hoja de ese tajo se enciende."""
+    """La hoja encendida: neón, rayo, fuego o motosierra (uno por activación, de style.shapes).
+
+    Disparada por un tajo, solo se enciende la hoja de ese tajo.
+    """
     effect = runtime.effect
     style = effect.style
     if envelope <= 0:
         return
     width_px = layer.shape[1]
     torso = torso_pixels(points, height)
+    names = [name for name in style.shapes if name in BLADE_MATERIALS] or ["neon"]
+    key = event.start_frame if event is not None else frame_index // max(style.palette_every, 1)
+    seed = zlib.crc32(f"{style.seed_offset}:blade:{key}".encode()) & 0xFFFFFFFF
+    material = names[int(np.random.default_rng(seed).integers(0, len(names)))]
+    flicker = np.random.default_rng(seed + frame_index)
     strokes = []
     for blade, hilt, tip in _blades(track, width_px, height, style.people):
         if event is not None and event.target != f"{blade.person}:blade_{blade.hand}_tip":
@@ -57,8 +69,100 @@ def draw_blade_glow(runtime, track, points, frame_index: int, height: int, envel
         # Una estimación (prior) se pinta más tenue que una hoja vista.
         alpha = envelope * (1.0 if blade.source != "prior" else 0.6)
         width = max(2.0, style.thickness * torso)
-        strokes += neon_layers(np.stack([hilt, tip]), _hand_color(style, blade.hand), width, alpha)
+        color = _hand_color(style, blade.hand)
+        draw = {"neon": _neon_blade, "lightning": _lightning_blade, "fire": _fire_blade, "chainsaw": _chainsaw_blade}[material]
+        strokes += draw(hilt, tip, color, width, alpha, frame_index, flicker, runtime, layer)
     stroke_batch(layer, strokes, style.hdr_gain)
+
+
+def _neon_blade(hilt, tip, color, width, alpha, frame_index, rng, runtime, layer) -> list:
+    return neon_layers(np.stack([hilt, tip]), color, width, alpha)
+
+
+def _axes(hilt: np.ndarray, tip: np.ndarray) -> tuple[np.ndarray, np.ndarray, float]:
+    d = tip - hilt
+    length = max(float(np.linalg.norm(d)), 1e-6)
+    u = d / length
+    return u, np.array([-u[1], u[0]]), length
+
+
+def _jagged(a: np.ndarray, b: np.ndarray, amplitude: float, rng: np.random.Generator, depth: int = 5) -> np.ndarray:
+    """Rayo por desplazamiento del punto medio: cada nivel parte los tramos y los empuja de lado."""
+    pts = [a, b]
+    amp = amplitude
+    for _ in range(depth):
+        out = [pts[0]]
+        for p, q in zip(pts, pts[1:]):
+            d = q - p
+            n = np.array([-d[1], d[0]]) / max(float(np.linalg.norm(d)), 1e-6)
+            out += [(p + q) / 2 + n * rng.normal(0, amp), q]
+        pts, amp = out, amp * 0.55
+    return np.array(pts)
+
+
+def _lightning_blade(hilt, tip, color, width, alpha, frame_index, rng, runtime, layer) -> list:
+    """Hilo claro en el eje y descargas quebradas que se redibujan cada fotograma, con ramas."""
+    u, n, length = _axes(hilt, tip)
+    core = color * 0.6 + 0.4
+    strokes = neon_layers(np.stack([hilt, tip]), core, width * 0.25, alpha * 0.7)
+    for _ in range(2):
+        bolt = _jagged(hilt, tip, max(width * 3.0, length * 0.05), rng, depth=4)
+        strokes += neon_layers(bolt, color, width * 0.4, alpha)
+    for _ in range(int(rng.integers(2, 5))):
+        start = hilt + u * length * float(rng.uniform(0.25, 0.95))
+        angle = float(rng.choice([-1.0, 1.0])) * float(rng.uniform(0.4, 1.1))
+        direction = u * np.cos(angle) + n * np.sin(angle)
+        branch = _jagged(start, start + direction * length * float(rng.uniform(0.15, 0.35)), width * 1.5, rng, depth=3)
+        strokes += neon_layers(branch, color, width * 0.3, alpha * 0.8)
+    splat(layer, float(tip[0]), float(tip[1]), width * 2.5, np.asarray(color, dtype=np.float32), alpha * 0.6, runtime.kernels)
+    return strokes
+
+
+def _fire_blade(hilt, tip, color, width, alpha, frame_index, rng, runtime, layer) -> list:
+    """Hoja al rojo con lenguas que suben de su filo (hacia arriba de la imagen) y brasas."""
+    from vfxglow.engine.burst import flame_tongue
+
+    u, n, length = _axes(hilt, tip)
+    strokes = neon_layers(np.stack([hilt, tip]), color, width * 0.8, alpha)
+    up = -np.pi / 2
+    for k in range(9):
+        t = (k + 0.5) / 9
+        base = hilt + u * length * t
+        tongue_len = length * float(rng.uniform(0.2, 0.38)) * (0.6 + 0.4 * t)
+        angle = up + float(rng.normal(0, 0.35))
+        tongue = flame_tongue(base, angle, tongue_len, tongue_len * 0.28, float(rng.choice([-1.0, 1.0])) * 0.8, rng)
+        strokes += neon_layers(tongue, color, width * 0.4, alpha * float(rng.uniform(0.6, 1.0)))
+    for _ in range(4):
+        start = hilt + u * length * float(rng.uniform(0.1, 1.0)) + np.array([0.0, -length * float(rng.uniform(0.15, 0.4))])
+        strokes += neon_layers(np.stack([start, start + np.array([0.0, -width * 1.5])]), color, width * 0.3, alpha * 0.7)
+    return strokes
+
+
+def _chainsaw_blade(hilt, tip, color, width, alpha, frame_index, rng, runtime, layer) -> list:
+    """Barra con dientes en el filo que corren hacia la punta, y chispas que saltan de ella."""
+    u, n, length = _axes(hilt, tip)
+    half = width * 1.4
+    bar = [np.stack([hilt + n * half, tip + n * half]), np.stack([hilt - n * half, tip - n * half])]
+    nose = tip + (np.cos(np.linspace(-np.pi / 2, np.pi / 2, 10))[:, None] * u + np.sin(np.linspace(-np.pi / 2, np.pi / 2, 10))[:, None] * n) * half
+    strokes = []
+    for line in bar + [nose]:
+        strokes += neon_layers(line, color, width * 0.45, alpha)
+    tooth = max(width * 3.5, length / 14)
+    count = max(int(length / tooth), 4)
+    phase = (frame_index * 0.35) % 1.0  # los dientes corren hacia la punta
+    for side in (1.0, -1.0):
+        teeth = []
+        for k in range(count + 1):
+            t = min((k + phase) / count, 1.0)
+            base = hilt + u * length * t + n * half * side
+            teeth += [base, base + n * side * tooth * 0.7 + u * tooth * 0.5]
+        strokes += neon_layers(np.array(teeth), color, width * 0.45, alpha)
+    for _ in range(5):
+        angle = float(rng.uniform(-0.9, 0.9))
+        direction = u * np.cos(angle) + n * np.sin(angle)
+        start = tip + direction * half
+        strokes += neon_layers(np.stack([start, start + direction * length * float(rng.uniform(0.08, 0.2))]), np.array([1.0, 0.85, 0.5], dtype=np.float32), width * 0.25, alpha)
+    return strokes
 
 
 def draw_blade_echo(runtime, track, points, frame_index: int, height: int, envelope: float, layer: np.ndarray, event: MotionEvent | None = None) -> None:

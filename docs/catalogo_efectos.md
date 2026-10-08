@@ -115,7 +115,8 @@ Un umbral de píxeles no sirve aquí: a 720 px los ojos miden ~17 px y el tono d
 | Efecto | Figuras (`style.shapes`, una por activación al azar) |
 | --- | --- |
 | `eyewear` | `frames`, `stars`, `hearts`, `mask` (antifaz), `visor`, `rings`, `glint` |
-| `intent_mark` | `rune`, `rays`, `halo`, `spiral`, `sparkle` |
+| `intent_mark` | `rune`, `rays`, `halo`, `spiral`, `sparkle`, `cross` |
+| `blade_glow` | `neon`, `lightning` (rayo), `fire` (fuego), `chainsaw` (motosierra) |
 | `droplets` | `drop`, `ring`, `leaf`, `curl`, `dash` |
 | `swoosh` | normal, varias hebras (`strands`), pintura (`paint_chance`), cruz (`cross`) |
 

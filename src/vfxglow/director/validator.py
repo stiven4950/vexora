@@ -52,8 +52,10 @@ def validate_script(
                 _check_target(joint, "joint", known)
         else:
             _check_target(effect.target.id, effect.target.kind, known)
-        if effect.type in {"droplets", "eyewear", "intent_mark"}:
-            if effect.type == "droplets":
+        if effect.type in {"droplets", "eyewear", "intent_mark"} or (effect.type == "blade_glow" and effect.style.shapes != ["drop"]):
+            if effect.type == "blade_glow":
+                from vfxglow.engine.sword import BLADE_MATERIALS as SHAPES
+            elif effect.type == "droplets":
                 from vfxglow.engine.burst import SHAPES
             elif effect.type == "eyewear":
                 from vfxglow.engine.eyewear import SHAPES

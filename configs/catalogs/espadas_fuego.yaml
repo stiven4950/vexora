@@ -39,13 +39,14 @@ reactions:
   # Tajo: arco con lenguas de fuego (seg. 0.5, 0.6) o arco limpio.
   - action: blade_swing
     options:
-      # La hoja solo se enciende en algunos tajos, y solo la que corta (no siempre pintada).
+      # La hoja solo se enciende en algunos tajos, y solo la que corta. Material al azar:
+      # neón, rayo, fuego o motosierra (repetido = más probable).
       - name: hoja_encendida
         weight: 0.35
         effects:
           - type: blade_glow
             target: {kind: joint, id: blade_right_tip}
-            style: {thickness: 0.05, hdr_gain: 1.6}
+            style: {thickness: 0.05, hdr_gain: 1.6, shapes: [fire, fire, lightning, chainsaw]}
             trigger: {hold: 12, fade_in: 2, fade_out: 8}
       - name: tajo_fuego
         weight: 0.5

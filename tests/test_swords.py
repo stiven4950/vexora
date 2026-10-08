@@ -123,3 +123,12 @@ def test_blade_glow_triggered_by_a_cut_lights_only_that_blade() -> None:
     assert alpha[int(0.4 * 200), int(0.75 * 200)] > 0.3  # la hoja del tajo
     assert alpha[int(0.4 * 200), int(0.25 * 200)] == 0  # la otra no
     assert _render(glow, track, [], frames=3)[..., 3].max() == 0  # sin tajo, nada
+
+
+@pytest.mark.parametrize("material", ["neon", "lightning", "fire", "chainsaw"])
+def test_blade_materials_draw_along_the_blade(material: str) -> None:
+    glow = Effect(id="g", type="blade_glow", target=EffectTarget(kind="joint", id="blade_right_tip"),
+                  style=EffectStyle(colors=[(1, 0.4, 0.1), (0.3, 0.7, 1)], thickness=0.04, shapes=[material]))
+    alpha = _render(glow, _track(), frames=2)[..., 3]
+    assert alpha[int(0.4 * 200), int(0.75 * 200)] > 0.2  # mitad de la hoja
+    assert alpha[190, 10] == 0

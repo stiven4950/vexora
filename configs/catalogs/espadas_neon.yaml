@@ -24,13 +24,14 @@ reactions:
   # Tajo: arco en la punta de la hoja (seg. 3.3, 3.7).
   - action: blade_swing
     options:
-      # La hoja solo se enciende en algunos tajos, y solo la que corta (no siempre pintada).
+      # La hoja solo se enciende en algunos tajos, y solo la que corta. Material al azar:
+      # neón, rayo, fuego o motosierra (repetido = más probable).
       - name: hoja_encendida
         weight: 0.35
         effects:
           - type: blade_glow
             target: {kind: joint, id: blade_right_tip}
-            style: {thickness: 0.035, hdr_gain: 2.0}
+            style: {thickness: 0.035, hdr_gain: 2.0, shapes: [neon, neon, lightning, chainsaw, fire]}
             trigger: {hold: 12, fade_in: 2, fade_out: 8}
       - name: arco
         weight: 0.4
