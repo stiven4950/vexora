@@ -203,19 +203,22 @@ def job_original(job_id: str) -> FileResponse:
 
 
 @app.get("/api/jobs/{job_id}/thumbnail")
-def job_thumbnail(job_id: str) -> Response:
+def job_thumbnail(job_id: str, original: bool = False, first: bool = False) -> Response:
+    """Fotograma del editado (o del original con ?original=true): a un tercio del video, o el
+    primero con ?first=true (póster del comparador: coincide con el inicio de la reproducción)."""
     job = _job(job_id)
-    source = job.output if job.output and Path(job.output).exists() else job.video_path
-    cache = Path(job.video_path).parent / f"thumb-{job.id}-{'out' if source == job.output else 'in'}.jpg"
+    source = job.output if not original and job.output and Path(job.output).exists() else job.video_path
+    kind = f"{'out' if source == job.output else 'in'}{'-first' if first else ''}"
+    cache = Path(job.video_path).parent / f"thumb-{job.id}-{kind}.jpg"
     if not cache.exists():
         cap = cv2.VideoCapture(source)
         total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
-        cap.set(cv2.CAP_PROP_POS_FRAMES, max(total // 3, 0))
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 0 if first else max(total // 3, 0))
         ok, frame = cap.read()
         cap.release()
         if not ok:
             raise HTTPException(404, "Sin miniatura")
-        scale = 480 / max(frame.shape[:2])
+        scale = (960 if first else 480) / max(frame.shape[:2])
         cv2.imwrite(str(cache), cv2.resize(frame, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA), [int(cv2.IMWRITE_JPEG_QUALITY), 85])
     return FileResponse(cache, media_type="image/jpeg")
 
@@ -247,7 +250,17 @@ def health() -> dict:
 
 _web = ROOT / "web" / "dist"
 if _web.exists():
-    app.mount("/", StaticFiles(directory=_web, html=True), name="web")
+    app.mount("/assets", StaticFiles(directory=_web / "assets"), name="assets")
+
+    @app.get("/{path:path}", include_in_schema=False)
+    def spa(path: str) -> FileResponse:
+        """El front es una SPA: cualquier ruta que no sea /api ni un archivo devuelve index.html."""
+        if path.startswith("api/"):
+            raise HTTPException(404, "No encontrado")
+        target = (_web / path).resolve()
+        if path and target.is_file() and target.is_relative_to(_web.resolve()):
+            return FileResponse(target)
+        return FileResponse(_web / "index.html")
 
 
 def main() -> None:
