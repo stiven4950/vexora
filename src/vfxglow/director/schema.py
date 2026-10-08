@@ -40,6 +40,8 @@ EffectType = Literal[
     "stars",
     "eyewear",
     "intent_mark",
+    "body_glow",
+    "adornment",
     "blade_glow",
     "blade_echo",
     "body_outline",
@@ -48,7 +50,7 @@ EffectType = Literal[
     "floor_streak",
 ]
 TargetKind = Literal["joint", "chain", "face_region", "mask", "object", "event_point", "contour"]
-BlendMode = Literal["add", "screen", "over", "multiply"]
+BlendMode = Literal["add", "screen", "over", "multiply", "tint"]
 LayerGroup = Literal["grade", "glow", "particles", "interaction", "lightning"]
 
 EVENT_NAMES: tuple[str, ...] = (
@@ -80,6 +82,7 @@ EVENT_NAMES: tuple[str, ...] = (
     "landing",
     "entrance",
     "tumble",
+    "spotlight",
 )
 
 
@@ -176,6 +179,8 @@ class EffectStyle(_Strict):
     palette_every: int = 45
     # Impactos: cantidad de chispas diminutas que salen disparadas del golpe (0 = ninguna).
     micro_sparks: int = 0
+    # body_glow: opacidad del tinte de color que rellena la parte del cuerpo (0 = solo contorno).
+    fill: float = 0.35
     # swoosh: neon (trazo), flame (con lenguas de fuego) o dots (bolas de fuego).
     trail_style: Literal["neon", "flame", "dots"] = "neon"
 
@@ -277,6 +282,8 @@ SUPPORTED_TYPES: tuple[str, ...] = (
     "stars",
     "eyewear",
     "intent_mark",
+    "body_glow",
+    "adornment",
     "blade_glow",
     "blade_echo",
     "body_outline",

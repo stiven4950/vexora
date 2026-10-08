@@ -61,6 +61,8 @@ SHAPES: dict[str, tuple[float, float]] = {
     "leaf": (-0.25, 0.3),
     "curl": (-0.1, 0.35),
     "dash": (0.5, 0.9),
+    "heart": (-0.15, 0.3),
+    "note": (-0.18, 0.35),
 }
 
 
@@ -258,6 +260,15 @@ def bit_outline(bit: Bit) -> list[np.ndarray]:
         radius = bit.size * 1.6 * (1 - theta / (2.8 * np.pi))
         turn = bit.spin * (theta + age * 3.0)
         return [center + np.stack([np.cos(turn), np.sin(turn)], axis=1) * radius[:, None]]
+    if bit.shape == "heart":
+        t = np.linspace(0, TAU, 30)
+        r = bit.size * 0.11
+        return [center + np.stack([16 * np.sin(t) ** 3, -(13 * np.cos(t) - 5 * np.cos(2 * t) - 2 * np.cos(3 * t) - np.cos(4 * t))], axis=1) * r]
+    if bit.shape == "note":
+        r = bit.size
+        head = center + np.stack([np.cos(np.linspace(0, TAU, 14)), np.sin(np.linspace(0, TAU, 14)) * 0.7], axis=1) * r
+        stem_top = center + np.array([r, -3.2 * r])
+        return [head, np.array([center + np.array([r, 0.0]), stem_top]), np.array([stem_top, stem_top + np.array([1.2 * r, 0.9 * r])])]
     return [np.array([center - velocity * 1.6, center])]
 
 

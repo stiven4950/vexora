@@ -60,6 +60,18 @@ FLIP_FRAMES = 3
 # Torso a más de TUMBLE_TILT grados de la vertical durante TUMBLE_FRAMES: cuerpo en el aire o
 # en el suelo. Más fiable que la cabeza bajo la cadera, que la pose pierde a mitad del giro.
 TUMBLE_TILT = 55.0
+# Foco: tramos de SPOT_WINDOW fotogramas. Un tramo cuenta si alguna parte recorre SPOT_MIN torsos;
+# gana la parte que más supera su propio recorrido habitual (ver _spotlights).
+SPOT_WINDOW = 36
+SPOT_MIN = 0.4
+SPOT_PARTS: dict[str, tuple[tuple[str, ...], float]] = {
+    "left_arm": (("left_elbow", "left_wrist"), 1.0),
+    "right_arm": (("right_elbow", "right_wrist"), 1.0),
+    "legs": (("left_knee", "right_knee", "left_ankle", "right_ankle"), 1.0),
+    "feet": (("left_heel", "right_heel", "left_foot_index", "right_foot_index"), 0.8),
+    "head": (("nose", "left_ear", "right_ear"), 0.9),
+    "torso": (("left_shoulder", "right_shoulder", "left_hip", "right_hip"), 0.8),
+}
 GROUND_WINDOW = 30
 TUMBLE_FRAMES = 3
 LAND_WITHIN = 20
@@ -90,6 +102,7 @@ EVENT_CATALOG: dict[str, str] = {
     "blade_ground": "La punta de una hoja baja deprisa hasta el piso: golpe contra el suelo.",
     "flip": "El cuerpo queda invertido (cabeza por debajo de las caderas): voltereta o mortal.",
     "landing": "Los pies vuelven al suelo tras un salto o una voltereta.",
+    "spotlight": "En este tramo, la parte del cuerpo que más se mueve (brazo, piernas, cabeza, torso, pies).",
     "tumble": "El torso se inclina mucho (acostado, de lado o boca abajo): rueda, mortal, caída.",
     "entrance": "La persona aparece al inicio del plano.",
     "tool_touch": "La mano se mueve junto al rostro, como un pincel que pinta.",
@@ -158,6 +171,7 @@ class EventDetector:
         events += swings + self._blade_ground(swings) + flips + tumbles
         events += self._landings([e for e in events if e.name in {"jump", "flip", "tumble"}])
         events += self._entrance()
+        events += self._spotlights()
         events.sort(key=lambda event: (event.start_frame, event.name))
         return events
 
@@ -967,6 +981,62 @@ class EventDetector:
         event = self._event("entrance", "nose", first, first, 1.0, EVENT_CATALOG["entrance"])
         event.attacker = self.frames[first].people[0].person_id if self.frames[first].people else "person_0"
         return [event]
+
+    def _spotlights(self) -> list[MotionEvent]:
+        """Por tramo y persona, la parte que más se mueve respecto a lo habitual para esa parte.
+
+        En un baile los brazos siempre recorren más que la cabeza o el torso; comparar recorridos
+        crudos elegiría casi siempre un brazo. Se divide el recorrido de cada parte en el tramo
+        por su mediana en todo el video: gana lo que se mueve más de lo normal.
+        """
+        from vfxglow.analysis.schema import MotionEvent
+
+        aspect = self.meta.width / max(self.meta.height, 1)
+        people = sorted({p.person_id for frame in self.frames for p in frame.people}) or ["person_0"]
+        windows = list(range(0, self.n, SPOT_WINDOW))
+        events: list[MotionEvent] = []
+        for pid in people:
+            table: list[tuple[int, int, dict[str, float], object]] = []
+            for start in windows:
+                end = min(start + SPOT_WINDOW, self.n) - 1
+                travel = {part: 0.0 for part in SPOT_PARTS}
+                torsos, previous, middle = [], None, None
+                for index in range(start, end + 1):
+                    frame = self.frames[index]
+                    person = next((p for p in frame.people if p.person_id == pid), None)
+                    pose = person.pose if person is not None else (frame.pose if pid == "person_0" else [])
+                    pts = {lm.name: np.array([lm.x * aspect, lm.y]) for lm in pose if lm.c > 0.5}
+                    if person is not None:
+                        torsos.append(_torso_norm(person))
+                        middle = person
+                    if previous is not None:
+                        for part, (joints, _w) in SPOT_PARTS.items():
+                            steps = [np.linalg.norm(pts[j] - previous[j]) for j in joints if j in pts and j in previous]
+                            if steps:
+                                travel[part] += float(np.mean(steps))
+                    previous = pts
+                torso = max(float(np.median(torsos)) if torsos else 0.2, 0.05)
+                table.append((start, end, {k: v / torso for k, v in travel.items()}, middle))
+            typical = {part: max(float(np.median([row[2][part] for row in table])), 0.05) for part in SPOT_PARTS}
+            for start, end, travel, middle in table:
+                if max(travel.values()) < SPOT_MIN:
+                    continue  # tramo quieto: nada que resaltar
+                scored = {part: travel[part] / typical[part] * SPOT_PARTS[part][1] for part in travel}
+                part, score = max(scored.items(), key=lambda item: item[1])
+                events.append(
+                    MotionEvent(
+                        name="spotlight",
+                        target=f"{pid}:{part}",
+                        start_frame=start,
+                        end_frame=end,
+                        confidence=float(min(1.0, score / 3.0)),
+                        detail=EVENT_CATALOG["spotlight"],
+                        position=_person_point(middle, "mid") if middle is not None else None,
+                        attacker=pid,
+                        kind=part,
+                    )
+                )
+        return events
 
     def _people_swings(self) -> list[MotionEvent]:
         """Swings por persona, con ancla person_N:joint, para que cada color siga a su actor."""

@@ -1,0 +1,165 @@
+# Baile en solitario (referencia glowing/video_33.mp4). Cada tramo de ~1 s se enciende la parte
+# del cuerpo que más se mueve (spotlight): tinte de color pegado a la silueta, línea casi blanca y
+# halo, a veces con abdominales o bíceps dibujados. En las pausas aparecen accesorios dibujados
+# (collar, estrellas en el pecho, gorra, sombrero, audífonos, gafas). El color cambia por tramo.
+# Ver docs/catalogo_efectos.md, sección "Baile".
+name: baile_neon
+title: Baile neón
+description: 'Lo que más se mueve se enciende: brazos, torso, piernas o pies teñidos de neón, abdominales dibujados, collares, estrellas en el
+  pecho y sombreros.'
+seed: 33
+defaults:
+  type: body_glow
+  target: {kind: joint, id: body}
+  time: {start_frame: 0, end_frame: -1, fade_in: 2, fade_out: 4}
+  style:
+    thickness: 0.018
+    hdr_gain: 1.7
+    boil_frames: 3
+    fill: 0.6
+    palette:
+    - [0.35, 1.0, 0.2]
+    - [1.0, 0.25, 0.85]
+    - [0.2, 1.0, 0.85]
+    - [1.0, 0.92, 0.15]
+    - [0.55, 0.35, 1.0]
+    - [1.0, 0.45, 0.65]
+  render: {blend: add, motion_blur: 0.0, persistence: 0.0, group: glow}
+always: []
+reactions:
+- action: spotlight
+  options:
+  - name: brazo
+    weight: 0.6
+    kinds: [left_arm, right_arm]
+    effects:
+    - type: body_glow
+      trigger: &id001 {hold: 4, fade_in: 3, fade_out: 6}
+      style:
+        shapes: [no_outline]
+        fill: 0.85
+      render: {blend: tint}
+    - type: body_glow
+      style:
+        shapes: [biceps]
+        fill: 0.0
+      trigger: *id001
+  - name: piernas
+    weight: 0.6
+    kinds: [legs, feet]
+    effects:
+    - type: body_glow
+      trigger: &id002 {hold: 4, fade_in: 3, fade_out: 6}
+      style:
+        shapes: [no_outline]
+        fill: 0.85
+      render: {blend: tint}
+    - type: body_glow
+      trigger: *id002
+      style: {fill: 0.0}
+  - name: torso_abdominales
+    weight: 0.3
+    kinds: [torso, left_arm, right_arm]
+    effects:
+    - type: body_glow
+      target: &id003 {kind: joint, id: torso}
+      trigger: &id004 {hold: 4, fade_in: 3, fade_out: 6}
+      style:
+        shapes: [no_outline]
+        fill: 0.85
+      render: {blend: tint}
+    - type: body_glow
+      target: *id003
+      style:
+        shapes: [abs]
+        fill: 0.0
+      trigger: *id004
+  - name: collar_estrellas
+    weight: 0.4
+    kinds: [torso]
+    effects:
+    - type: adornment
+      style:
+        thickness: 0.016
+        shapes: [necklace, chest_stars]
+      trigger: {hold: 6, fade_in: 4, fade_out: 8}
+  - name: cabeza_accesorio
+    weight: 0.5
+    kinds: [head]
+    effects:
+    - type: adornment
+      style:
+        thickness: 0.016
+        shapes: [cap, cowboy_hat, headphones, crown]
+      trigger: {hold: 6, fade_in: 4, fade_out: 8}
+  - name: cabeza_gafas
+    weight: 0.3
+    kinds: [head]
+    effects:
+    - type: eyewear
+      target: {kind: joint, id: nose}
+      style:
+        thickness: 0.07
+        shapes: [frames, glint, hearts, stars, visor]
+      trigger: {hold: 6, fade_in: 3, fade_out: 8}
+  - name: cabeza_brillo
+    weight: 0.3
+    kinds: [head]
+    effects:
+    - type: body_glow
+      target: &id005 {kind: joint, id: head}
+      trigger: &id006 {hold: 4, fade_in: 3, fade_out: 6}
+      style:
+        shapes: [no_outline]
+        fill: 0.85
+      render: {blend: tint}
+    - type: body_glow
+      target: *id005
+      trigger: *id006
+      style: {fill: 0.0}
+  - name: silueta_completa
+    weight: 0.06
+    effects:
+    - type: body_glow
+      target: &id007 {kind: joint, id: body}
+      trigger: &id008 {hold: 2, fade_in: 2, fade_out: 6}
+      style:
+        shapes: [no_outline]
+        fill: 0.85
+      render: {blend: tint}
+    - type: body_glow
+      target: *id007
+      style:
+        shapes: [abs]
+        fill: 0.0
+      trigger: *id008
+  - name: nada
+    weight: 0.12
+    effects: []
+- action: still
+  cooldown: 60
+  options:
+  - name: accesorio
+    weight: 0.5
+    effects:
+    - type: adornment
+      style:
+        thickness: 0.016
+        shapes: [necklace, chest_stars, cap, cowboy_hat]
+      trigger: {hold: 20, fade_in: 4, fade_out: 8}
+  - name: nada
+    weight: 0.5
+    effects: []
+- action: fast_swing
+  options:
+  - name: estela
+    weight: 0.3
+    limbs: [left_wrist, right_wrist]
+    effects:
+    - type: swoosh
+      target: {kind: joint, id: 'left_wrist,right_wrist'}
+      style: {strands: 1, trail_frames: 10, min_speed: 0.18, thickness: 0.03, paint_chance: 0.6, paint_width: 0.25}
+      trigger: {hold: 8, fade_in: 1, fade_out: 5}
+  - name: nada
+    weight: 0.7
+    effects: []

@@ -1,0 +1,96 @@
+# Baile en pareja (referencia glowing/video_34.mp4). Cada persona tiene su color durante todo el
+# video (cian y magenta). Aureolas y ojos encendidos al entrar, corazones y notas musicales que
+# salen de las manos, rayos que recorren el cuerpo, contornos de la ropa, rodillas que brillan y
+# bandas en los tobillos al pisar. Ver docs/catalogo_efectos.md, sección "Baile".
+name: baile_duo
+title: Baile en pareja
+description: 'Dos personas, dos colores: aureolas, corazones y notas musicales, rayos sobre el cuerpo, rodillas encendidas y siluetas al moverse.'
+seed: 34
+colors:
+- [0.2, 0.85, 1.0]
+- [1.0, 0.3, 0.6]
+defaults:
+  type: body_glow
+  target: {kind: joint, id: body}
+  time: {start_frame: 0, end_frame: -1, fade_in: 2, fade_out: 4}
+  style: {thickness: 0.016, hdr_gain: 1.7, boil_frames: 3, fill: 0.0}
+  render: {blend: add, motion_blur: 0.0, persistence: 0.0, group: glow}
+always:
+- type: droplets
+  target: {kind: joint, id: 'left_wrist,right_wrist'}
+  style:
+    thickness: 0.008
+    hdr_gain: 1.8
+    size: 0.45
+    min_speed: 0.2
+    chance: 0.4
+    shapes: [heart, note]
+reactions:
+- action: entrance
+  options:
+  - name: aureola
+    weight: 1.0
+    effects:
+    - type: adornment
+      style:
+        shapes: [halo]
+      trigger: {hold: 45, fade_in: 4, fade_out: 10}
+    - type: eyewear
+      target: {kind: joint, id: nose}
+      style:
+        thickness: 0.06
+        shapes: [glint]
+      trigger: {hold: 45, fade_in: 4, fade_out: 10}
+- action: spotlight
+  options:
+  - name: contorno
+    weight: 0.35
+    effects:
+    - type: body_glow
+      trigger: {hold: 4, fade_in: 3, fade_out: 6}
+      style: {fill: 0.0}
+  - name: rodillas
+    weight: 0.25
+    kinds: [legs, feet]
+    effects:
+    - type: adornment
+      style:
+        shapes: [knee_dots]
+      trigger: {hold: 4, fade_in: 2, fade_out: 6}
+  - name: tobillos
+    weight: 0.2
+    kinds: [legs, feet]
+    effects:
+    - type: adornment
+      style:
+        shapes: [ankle_bands]
+        thickness: 0.02
+      trigger: {hold: 4, fade_in: 2, fade_out: 6}
+    - type: body_glow
+      target: {kind: joint, id: legs}
+      trigger: {hold: 4, fade_in: 2, fade_out: 6}
+      style: {fill: 0.0}
+  - name: nada
+    weight: 0.2
+    effects: []
+- action: fast_swing
+  options:
+  - name: rayo
+    weight: 0.15
+    cooldown: 60
+    requires_person: true
+    effects:
+    - type: lightning
+      target: {kind: joint, id: right_wrist}
+      style: {thickness: 0.02, hdr_gain: 1.8}
+      trigger: {hold: 10, fade_in: 1, fade_out: 5}
+  - name: estela
+    weight: 0.25
+    effects:
+    - type: swoosh
+      target: {kind: joint, id: 'left_wrist,right_wrist,left_ankle,right_ankle'}
+      style: {strands: 2, trail_frames: 10, min_speed: 0.15}
+      trigger: {hold: 8, fade_in: 1, fade_out: 5}
+  - name: nada
+    weight: 0.6
+    effects: []

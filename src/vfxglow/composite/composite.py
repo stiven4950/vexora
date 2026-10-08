@@ -25,6 +25,16 @@ def _blend(base: np.ndarray, rgb: np.ndarray, alpha: np.ndarray, mode: str) -> n
         fg = np.clip(straight, 0.0, 1.0)
         screen = 1.0 - (1.0 - np.clip(base, 0.0, 1.0)) * (1.0 - fg)
         return base * (1.0 - a) + screen * a
+    if mode == "tint":
+        # Tiñe el plano conservando su luz (piel verde, ropa magenta) y deja que lo más caliente
+        # del trazo (el núcleo blanco) sume luz encima.
+        straight = np.divide(rgb, np.maximum(a, 1e-4))
+        peak = np.maximum(straight.max(axis=-1, keepdims=True), 1e-4)
+        hue = straight / peak
+        luma = (base * np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)).sum(axis=-1, keepdims=True)
+        dyed = (0.15 + luma * 2.0) * hue
+        hot = np.clip(peak - 1.0, 0.0, None) * (hue * 0.4 + 0.6)
+        return base * (1.0 - a) + (dyed + hot) * a
     return rgb + base * (1.0 - a)
 
 

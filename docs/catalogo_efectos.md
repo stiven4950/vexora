@@ -230,3 +230,61 @@ raya blanca del suelo pasa justo por las manos. **No sirve para decidir si hay e
 pelea de video_1 encuentra "líneas" en el 78% de las manos (brazos, ropa, fondo), igual que en
 los videos de espadas. Por eso está apagada por defecto y la enciende el catálogo. Mejoras en
 [pendientes.md](pendientes.md).
+
+## Baile
+
+Dos referencias de baile con un lenguaje distinto al de pelea: **lo que más se mueve se enciende**.
+Catálogos `baile_neon` (solista, video_33) y `baile_duo` (pareja, video_34).
+
+```bash
+vfxglow run --video ../glowing/data/original/video_33.mp4 --catalog baile_neon
+vfxglow run --video "../glowing/data/original/video_34 (1).mp4" --catalog baile_duo
+```
+
+### El neón de estas referencias (aplicado a todo el motor)
+
+Medido sobre los píxeles pintados de video_33: la línea es casi blanca y el color vive en el
+resplandor. `neon_layers` (engine/swoosh.py) dibuja ahora, de fuera hacia dentro: halo ancho y
+tenue del color, halo medio, tubo apenas teñido (30% color) y núcleo blanco. Afecta a todos los
+efectos de línea (swoosh, llamaradas, gafas, hojas, siluetas...).
+
+Las partes del cuerpo encendidas usan **dos pasadas**, como haría un editor: una capa con
+`blend: tint` que tiñe la piel o la ropa conservando su luz (piel verde, pantalón cian) y otra
+`add` con el borde blanco y su halo encima.
+
+### video_33: solista, cada tramo una parte del cuerpo
+
+| Seg. | Qué se mueve | Efecto en la referencia | Implementado |
+| --- | --- | --- | --- |
+| 0.0–2.4 | Brazo extendido con la gorra | Brazo y gorra teñidos de verde, con contorno blanco | ✅ `spotlight` → `body_glow` del brazo |
+| 4.0–6.4 | Torso de frente | Torso magenta con **abdominales y pectorales dibujados** | ✅ `spotlight → torso_abdominales` (`shapes: [abs]`) |
+| 6.6–7.3 | Se pone la gorra | Gorra dibujada en neón sobre la cabeza | ✅ `spotlight` de cabeza → `adornment` (gorra, sombrero, audífonos, corona) |
+| 9.3–10.3 | Brazo flexionado arriba | **Brazo musculoso** verde | ✅ `body_glow` del brazo con `shapes: [biceps]` |
+| 10.8–11.3 | Pecho quieto | **Collar** con dije sobre el cuello | ✅ `adornment` `necklace` |
+| 12.1–13.1 | Mirada a cámara | Gafas y ojos en X dibujados | ✅ `cabeza_gafas` (`eyewear`) |
+| 14.0–14.9 | Torso que gira | Torso amarillo con abdominales | ✅ `torso_abdominales` |
+| 18.6–20.0 | De espaldas | Espalda teñida con un símbolo | ✅ tinte de torso (el símbolo concreto, 🔜) |
+| 20.8–22.3 | Pecho al frente | **Estrellas en el pecho** que titilan | ✅ `adornment` `chest_stars` |
+| 24.0–24.8 | Piernas abiertas | Pantalón cian con contorno blanco | ✅ `spotlight → piernas` |
+| 27.2 | Barrido del brazo | Estela blanca gruesa | ✅ `fast_swing → estela` (modo pintura) |
+| 28.1–28.7 | Cadera | **Sombrero vaquero** y cinturón dibujados | ✅ sombrero; cinturón 🔜 |
+
+### video_34: pareja, un color por persona
+
+| Seg. | Efecto en la referencia | Implementado |
+| --- | --- | --- |
+| 0.0–1.5 | Aureolas sobre la cabeza y ojos encendidos | ✅ `entrance → aureola` (`adornment halo` + `eyewear glint`) |
+| 5.2–6.1 | Notas musicales que salen de las manos | ✅ partículas `note` |
+| 19.2–20.7 | Corazones que salen de las manos | ✅ partículas `heart` |
+| 9.9–10.5 | Contorno de la chaqueta | ✅ `spotlight → contorno` (solo borde, `fill: 0`) |
+| 14.5–15.6 | Rayo que recorre el cuerpo | ✅ `fast_swing → rayo` |
+| 24.1–25.5 | Rodillas que brillan | ✅ `spotlight → rodillas` (`knee_dots`) |
+| 33.7–34.5 | Rayas en las piernas y bandas en los tobillos | ✅ `spotlight → tobillos` (`ankle_bands`) |
+
+### Cómo se elige la parte (`spotlight`)
+
+Por tramos de 1,2 s y por persona se mide el recorrido de cada parte (brazo izquierdo, brazo
+derecho, piernas, pies, cabeza, torso) en torsos, y se divide por su recorrido habitual en todo
+el video: gana la parte que se mueve **más de lo normal**, no la que más se mueve en absoluto
+(los brazos siempre recorren más que la cabeza). El catálogo elige el efecto según esa parte
+(`kinds`).

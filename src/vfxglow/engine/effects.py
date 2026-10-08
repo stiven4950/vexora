@@ -117,6 +117,10 @@ def render_effect(
         else:
             draw = {"ground_burst": sword.draw_ground_burst, "ground_cloud": sword.draw_ground_cloud, "floor_streak": sword.draw_floor_streak}[kind]
             draw(runtime, points, frame_index, height, envelope, layer, event)
+    elif kind in {"body_glow", "adornment"}:
+        from vfxglow.engine.bodyglow import draw_adornment, draw_body_glow
+
+        (draw_body_glow if kind == "body_glow" else draw_adornment)(runtime, track, points, frame_index, height, envelope, layer, event if effect.triggers else None)
     elif kind == "intent_mark":
         from vfxglow.engine.marks import draw_intent_mark
 

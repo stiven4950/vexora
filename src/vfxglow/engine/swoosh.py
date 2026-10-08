@@ -182,13 +182,21 @@ def _smooth(points: np.ndarray, passes: int = 2) -> np.ndarray:
 
 
 def neon_layers(curve: np.ndarray, color: np.ndarray, width: float, alpha: float) -> list:
-    """Un tubo de neón: halo ancho del color, cuerpo del color y núcleo claro pero aún teñido.
+    """Un tubo de neón (referencias video_33/34): línea casi blanca y el color en el resplandor.
 
-    Un núcleo casi blanco y un halo tenue lavan el color; aquí el color domina y el núcleo
-    solo lo aclara, para que el neón se vea vívido sobre el plano.
+    De fuera hacia dentro: halo ancho y tenue, halo medio, tubo apenas teñido y núcleo blanco.
+    El ojo lee el color del halo y el blanco como la parte más caliente del gas. El bloom de la
+    composición extiende después el halo.
     """
-    core = color * 0.5 + 0.5
-    return [(curve, color, width * 3.4, alpha * 0.3), (curve, color, width, alpha), (curve, core, width * 0.35, alpha * 0.9)]
+    color = np.asarray(color, dtype=np.float32)
+    tube = color * 0.3 + 0.7
+    white = np.array([1.0, 1.0, 1.0], dtype=np.float32)
+    return [
+        (curve, color, width * 6.0, alpha * 0.09),
+        (curve, color, width * 2.8, alpha * 0.3),
+        (curve, tube, width * 1.1, alpha * 0.95),
+        (curve, white, width * 0.5, alpha),
+    ]
 
 
 def _neon(curve: np.ndarray, color: np.ndarray, width: float, alpha: float, taper: bool = True) -> list:
