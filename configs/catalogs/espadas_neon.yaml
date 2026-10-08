@@ -4,7 +4,7 @@
 # Ver docs/catalogo_efectos.md, sección "Espadas".
 name: espadas_neon
 title: Espadas neón
-description: "Hojas pintadas de neón cian y lima, ecos fantasma, arcos en cada tajo y siluetas en las acrobacias."
+description: "Hojas que se encienden en neón cian y lima en algunos tajos, ecos fantasma, arcos en cada tajo y siluetas en las acrobacias."
 seed: 38
 needs: [blades]
 colors:
@@ -18,16 +18,20 @@ defaults:
   style: {thickness: 0.014, hdr_gain: 1.8, boil_frames: 2}
   render: {blend: add, motion_blur: 0.0, persistence: 0.0, group: glow}
 
-always:
-  # La hoja está pintada de neón en todo momento.
-  - type: blade_glow
-    target: {kind: joint, id: blade_right_tip}
-    style: {thickness: 0.035, hdr_gain: 2.0}
+always: []
 
 reactions:
   # Tajo: arco en la punta de la hoja (seg. 3.3, 3.7).
   - action: blade_swing
     options:
+      # La hoja solo se enciende en algunos tajos, y solo la que corta (no siempre pintada).
+      - name: hoja_encendida
+        weight: 0.35
+        effects:
+          - type: blade_glow
+            target: {kind: joint, id: blade_right_tip}
+            style: {thickness: 0.035, hdr_gain: 2.0}
+            trigger: {hold: 12, fade_in: 2, fade_out: 8}
       - name: arco
         weight: 0.4
         effects:

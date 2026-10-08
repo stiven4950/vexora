@@ -4,7 +4,7 @@
 # y una nube de humo enorme cuando la hoja golpea el piso. Al final, calma: sin efectos.
 name: espadas_fuego
 title: Espadas fuego
-description: "Katanas de fuego: mirada magenta, tajos con lenguas de fuego, bolas de fuego en las patadas y nubes de humo de cómic."
+description: "Katanas que se encienden de fuego en algunos tajos: mirada magenta, tajos con lenguas de fuego, bolas de fuego en las patadas y nubes de humo de cómic."
 seed: 39
 needs: [blades]
 colors:
@@ -19,9 +19,6 @@ defaults:
   render: {blend: add, motion_blur: 0.0, persistence: 0.0, group: glow}
 
 always:
-  - type: blade_glow
-    target: {kind: joint, id: blade_right_tip}
-    style: {thickness: 0.05, hdr_gain: 1.6}
   # Brasas que se desprenden de las extremidades rápidas (seg. 0.6).
   - type: droplets
     target: {kind: joint, id: "left_wrist,right_wrist,left_ankle,right_ankle"}
@@ -42,6 +39,14 @@ reactions:
   # Tajo: arco con lenguas de fuego (seg. 0.5, 0.6) o arco limpio.
   - action: blade_swing
     options:
+      # La hoja solo se enciende en algunos tajos, y solo la que corta (no siempre pintada).
+      - name: hoja_encendida
+        weight: 0.35
+        effects:
+          - type: blade_glow
+            target: {kind: joint, id: blade_right_tip}
+            style: {thickness: 0.05, hdr_gain: 1.6}
+            trigger: {hold: 12, fade_in: 2, fade_out: 8}
       - name: tajo_fuego
         weight: 0.5
         effects:

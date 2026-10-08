@@ -184,7 +184,7 @@ mueve y hay tres escenarios (pared azul, gimnasio, espejo). Análisis cada 3 fot
 
 | Seg. | Qué hace | Efecto en la referencia | Implementado |
 | --- | --- | --- | --- |
-| Todo | Sostiene las hojas | **Hojas pintadas de neón siempre**, una de cada color | ✅ `blade_glow` (siempre) |
+| Todo | Sostiene las hojas | **Hojas pintadas de neón siempre**, una de cada color | ✅ `blade_glow`, por decisión solo en algunos tajos (`blade_swing → hoja_encendida`) |
 | 0.2, 1.1, 4.3, 7.8 | Gira las hojas deprisa | **Copias fantasma** de la hoja flotando donde estuvo | ✅ `blade_echo` (siempre, solo con la punta rápida) |
 | 0.8–1.5 | Tajos amplios | La hoja deja un rastro recto que se desvanece | ✅ parte de `blade_echo` |
 | 1.9 | Patada | **Rayas de velocidad en el pie** | ✅ `fast_swing → pies` (swoosh en tobillos) |
@@ -205,7 +205,7 @@ ritmo.
 | Seg. | Qué hace | Efecto en la referencia | Implementado |
 | --- | --- | --- | --- |
 | 0.0–0.3 | Arranca, mira a cámara | **Banda magenta sobre los ojos** con un gancho: la mirada encendida | ✅ `entrance → mirada` (`eyewear` `band`) |
-| Todo hasta 4.3 | Sostiene las katanas | Hojas pintadas de **fuego naranja** | ✅ `blade_glow` |
+| Todo hasta 4.3 | Sostiene las katanas | Hojas pintadas de **fuego naranja** | ✅ `blade_glow`, por decisión solo en algunos tajos (`blade_swing → hoja_encendida`) |
 | 0.5 | Tajo bajo | **Arco de fuego** con lenguas que salen del borde exterior | ✅ `blade_swing → tajo_fuego` (swoosh `flame`) |
 | 0.6 | Tajo hacia arriba | Arco con **brasas** que caen | ✅ `tajo_fuego` + partículas `dash`/`leaf` |
 | 0.7–1.3, 2.2–3.5 | Saltos y volteretas | **Silueta de fuego** en casi cada voltereta | ✅ `flip`/`jump → silueta` (85%) |

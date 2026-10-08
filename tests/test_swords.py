@@ -108,3 +108,18 @@ def test_eyewear_band_and_cross_mark_shapes() -> None:
     assert len(band) == 1 and np.ptp(band[0][:, 0]) > 40
     rng = np.random.default_rng(0)
     assert len(mark("cross", np.array([50.0, 50.0]), None, 30.0, 0, rng, rng)) == 2
+
+
+def test_blade_glow_triggered_by_a_cut_lights_only_that_blade() -> None:
+    track = _track().model_copy(update={"blades": [
+        Blade(person="person_0", hand="right", hilt=(0.6, 0.5), tip=(0.9, 0.3)),
+        Blade(person="person_0", hand="left", hilt=(0.4, 0.5), tip=(0.1, 0.3)),
+    ]})
+    cut = MotionEvent(name="blade_swing", target="person_0:blade_right_tip", start_frame=1, end_frame=2, confidence=1.0)
+    glow = Effect(id="g", type="blade_glow", target=EffectTarget(kind="joint", id="blade_right_tip"),
+                  style=EffectStyle(colors=[(0, 1, 1), (1, 1, 0)], thickness=0.05),
+                  triggers=[EffectTrigger(event="blade_swing", hold=6)])
+    alpha = _render(glow, track, [cut], frames=3)[..., 3]
+    assert alpha[int(0.4 * 200), int(0.75 * 200)] > 0.3  # la hoja del tajo
+    assert alpha[int(0.4 * 200), int(0.25 * 200)] == 0  # la otra no
+    assert _render(glow, track, [], frames=3)[..., 3].max() == 0  # sin tajo, nada

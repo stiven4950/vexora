@@ -42,7 +42,8 @@ def _blades(track: FrameRecord | None, width: int, height: int, people: list[str
     ]
 
 
-def draw_blade_glow(runtime, track, points, frame_index: int, height: int, envelope: float, layer: np.ndarray) -> None:
+def draw_blade_glow(runtime, track, points, frame_index: int, height: int, envelope: float, layer: np.ndarray, event: MotionEvent | None = None) -> None:
+    """La hoja pintada de neón. Disparada por un tajo, solo la hoja de ese tajo se enciende."""
     effect = runtime.effect
     style = effect.style
     if envelope <= 0:
@@ -51,6 +52,8 @@ def draw_blade_glow(runtime, track, points, frame_index: int, height: int, envel
     torso = torso_pixels(points, height)
     strokes = []
     for blade, hilt, tip in _blades(track, width_px, height, style.people):
+        if event is not None and event.target != f"{blade.person}:blade_{blade.hand}_tip":
+            continue
         # Una estimación (prior) se pinta más tenue que una hoja vista.
         alpha = envelope * (1.0 if blade.source != "prior" else 0.6)
         width = max(2.0, style.thickness * torso)
