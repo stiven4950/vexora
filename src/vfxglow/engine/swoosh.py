@@ -181,21 +181,37 @@ def _smooth(points: np.ndarray, passes: int = 2) -> np.ndarray:
     return out
 
 
-def neon_layers(curve: np.ndarray, color: np.ndarray, width: float, alpha: float) -> list:
-    """Un tubo de neón (referencias video_33/34): línea casi blanca y el color en el resplandor.
+# Grosor del núcleo blanco como fracción del ancho del cuadro: 0,5% = 3,6 px a 720 y 5,4 px a 1080,
+# el rango de 3-5 px que hace leer la línea como filamento incandescente y no como pintura.
+# Medido en la referencia video_33: 2,7-3,8 px a 720 de ancho.
+CORE_FRACTION = 0.005
+_core_px = 3.6
 
-    De fuera hacia dentro: halo ancho y tenue, halo medio, tubo apenas teñido y núcleo blanco.
-    El ojo lee el color del halo y el blanco como la parte más caliente del gas. El bloom de la
-    composición extiende después el halo.
+
+def set_resolution(frame_width: int) -> None:
+    """El motor la llama por fotograma: el núcleo depende de la resolución, no del tamaño del cuerpo."""
+    global _core_px
+    _core_px = max(frame_width * CORE_FRACTION, 1.5)
+
+
+def neon_layers(curve: np.ndarray, color: np.ndarray, width: float, alpha: float, core_scale: float = 1.0) -> list:
+    """Un tubo de neón como el de las referencias de baile: filamento blanco y el color en el halo.
+
+    - Núcleo blanco de grosor fijo por resolución (90% de opacidad: el blanco puro satura).
+    - Borde de color nítido de 2x el núcleo.
+    - Dos halos desenfocados del color (como las box-shadow de un neón en CSS), de 3,5x y 8x el
+      núcleo como mínimo. `width` solo controla hasta dónde se extiende el halo.
+    Trazos de menos de 1,5 px (chispas diminutas) conservan su grosor propio.
     """
     color = np.asarray(color, dtype=np.float32)
-    tube = color * 0.3 + 0.7
     white = np.array([1.0, 1.0, 1.0], dtype=np.float32)
+    core = (_core_px if width >= 1.5 else width) * core_scale
+    spread = max(width, core)
     return [
-        (curve, color, width * 6.0, alpha * 0.09),
-        (curve, color, width * 2.8, alpha * 0.3),
-        (curve, tube, width * 1.1, alpha * 0.95),
-        (curve, white, width * 0.5, alpha),
+        (curve, color, max(spread * 3.0, core * 8.0), alpha * 0.35, max(spread * 1.8, core * 5.0)),
+        (curve, color, max(spread * 1.4, core * 3.5), alpha * 0.5, core * 1.5),
+        (curve, color, core * 2.0, alpha * 0.85, core * 0.4),
+        (curve, white, core, alpha * 0.9),
     ]
 
 
@@ -216,7 +232,7 @@ def _neon(curve: np.ndarray, color: np.ndarray, width: float, alpha: float, tape
         t = (index + 1) / SEGMENTS
         w = width * (0.3 + 0.7 * t)
         a = alpha * t**1.4
-        strokes += neon_layers(piece, color, w, a)
+        strokes += neon_layers(piece, color, w, a, core_scale=0.45 + 0.55 * t)
     return strokes
 
 

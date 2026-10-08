@@ -24,19 +24,31 @@ def sample_gradient(colors: list[tuple[float, float, float]], t: float) -> np.nd
     return cols[i] * (1.0 - f) + cols[i + 1] * f
 
 
+def _pixels(surface) -> np.ndarray:
+    """RGBA premultiplicado: el `toarray()` por defecto de Skia lo devuelve sin premultiplicar y
+    entonces el alfa de cada trazo no atenúa su energía."""
+    import skia
+
+    return surface.makeImageSnapshot().toarray(alphaType=skia.kPremul_AlphaType)
+
+
 def _stamp(layer: np.ndarray, rgba: np.ndarray, gain: float) -> None:
     alpha = rgba[..., 3:4].astype(np.float32) / 255.0
     rgb = rgba[..., :3].astype(np.float32) / 255.0
     straight = np.divide(rgb, np.maximum(alpha, 1e-4))
-    energy = straight * np.float32(gain)
+    # La ganancia HDR empuja el color; el blanco se queda cerca de 1 para que el núcleo de un
+    # neón siga siendo una línea fina y el bloom no lo convierta en una mancha blanca.
+    peak = straight.max(axis=-1, keepdims=True)
+    saturation = (peak - straight.min(axis=-1, keepdims=True)) / np.maximum(peak, 1e-4)
+    energy = straight * (1.0 + np.float32(gain - 1.0) * saturation)
     layer[..., :3] += energy * alpha
     layer[..., 3] = 1.0 - (1.0 - layer[..., 3]) * (1.0 - alpha[..., 0])
 
 
-def _paint(color: np.ndarray | tuple[float, float, float], width: float, alpha: float):
+def _paint(color: np.ndarray | tuple[float, float, float], width: float, alpha: float, blur: float = 0.0):
     import skia
 
-    return skia.Paint(
+    paint = skia.Paint(
         AntiAlias=True,
         Style=skia.Paint.kStroke_Style,
         StrokeWidth=float(width),
@@ -44,6 +56,9 @@ def _paint(color: np.ndarray | tuple[float, float, float], width: float, alpha: 
         StrokeJoin=skia.Paint.kRound_Join,
         Color=skia.Color4f(float(color[0]), float(color[1]), float(color[2]), float(np.clip(alpha, 0.0, 1.0))),
     )
+    if blur > 0.3:
+        paint.setMaskFilter(skia.MaskFilter.MakeBlur(skia.kNormal_BlurStyle, float(blur)))
+    return paint
 
 
 def _path(points: np.ndarray):
@@ -69,10 +84,11 @@ def stroke_polyline(
 
 def stroke_batch(
     layer: np.ndarray,
-    strokes: list[tuple[np.ndarray, np.ndarray | tuple[float, float, float], float, float]],
+    strokes: list[tuple],
     gain: float,
 ) -> None:
-    """Varios trazos (puntos, color, ancho, alfa) en una sola superficie y un solo volcado."""
+    """Varios trazos (puntos, color, ancho, alfa[, desenfoque]) en una sola superficie y un solo
+    volcado. El desenfoque (sigma en px) da halos suaves, como un box-shadow."""
     strokes = [
         item
         for item in strokes
@@ -83,7 +99,7 @@ def stroke_batch(
     import skia
 
     height, width_px = layer.shape[:2]
-    pad = max(item[2] for item in strokes) + 2
+    pad = max(item[2] + 3.0 * (item[4] if len(item) > 4 else 0.0) for item in strokes) + 2
     stacked = np.concatenate([item[0] for item in strokes])
     x0 = int(max(0, np.floor(stacked[:, 0].min() - pad)))
     y0 = int(max(0, np.floor(stacked[:, 1].min() - pad)))
@@ -96,9 +112,9 @@ def stroke_batch(
     canvas = surface.getCanvas()
     canvas.clear(skia.Color4f(0, 0, 0, 0))
     canvas.translate(-x0, -y0)
-    for points, color, width, alpha in strokes:
-        canvas.drawPath(_path(points), _paint(color, width, alpha))
-    _stamp(layer[y0:y1, x0:x1], surface.makeImageSnapshot().toarray(), gain)
+    for points, color, width, alpha, *blur in strokes:
+        canvas.drawPath(_path(points), _paint(color, width, alpha, blur[0] if blur else 0.0))
+    _stamp(layer[y0:y1, x0:x1], _pixels(surface), gain)
 
 
 def stroke_gradient(
@@ -126,7 +142,7 @@ def stroke_gradient(
             continue
         color = sample_gradient(style.colors, index / max(chunks - 1, 1))
         canvas.drawPath(_path(segment), _paint(color, width, alpha))
-    _stamp(layer, surface.makeImageSnapshot().toarray(), style.hdr_gain * alpha)
+    _stamp(layer, _pixels(surface), style.hdr_gain)
 
 
 def splat(layer: np.ndarray, x: float, y: float, radius: float, color: np.ndarray, alpha: float, kernels: dict[int, np.ndarray]) -> None:

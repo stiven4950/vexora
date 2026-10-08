@@ -16,6 +16,7 @@ from vfxglow.engine.anchors import PointSet, collect_points, joint_velocity
 from vfxglow.engine.constraints import FrameState, gain_for
 from vfxglow.engine.effects import EffectRuntime, render_effect
 from vfxglow.engine.raster import directional_blur, soften_alpha
+from vfxglow.engine.swoosh import set_resolution
 from vfxglow.engine.timeline import ActivationTimeline
 from vfxglow.io.store import read_jsonl
 
@@ -69,6 +70,7 @@ class EffectEngine:
         frame_count: int,
         run_dir: Path | None = None,
     ) -> list[tuple[str, str, np.ndarray]]:
+        set_resolution(width)
         points = collect_points(track, width, height)
         cut = frame_index in self.cuts
         if cut:
