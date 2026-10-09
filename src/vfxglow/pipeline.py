@@ -102,9 +102,12 @@ class Pipeline:
         path = catalog_file(self.config_path, self.config.director.catalog)
         if not path.exists():
             return
-        needs = set(load_catalog(path).needs)
+        catalog = load_catalog(path)
+        needs = set(catalog.needs)
         if "blades" in needs and self.config.analysis.blades.mode == "off":
             self.config.analysis.blades.mode = "always"
+        if "props" in needs and not self.config.analysis.props.query:
+            self.config.analysis.props.query = catalog.prop
 
     def _guard_optional_stages(self) -> None:
         if self.config.refiner.enabled:

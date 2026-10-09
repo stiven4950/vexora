@@ -95,6 +95,13 @@ def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: st
             config.analysis.masks.sam2_checkpoint,
             device,
         ).apply(video_path, raw, run_dir)
+    if config.analysis.props.query:
+        from vfxglow.analysis.props import PropTracker
+
+        log.info("Siguiendo el objeto protagonista: %s", config.analysis.props.query)
+        seen = PropTracker(config.analysis.props).track(video_path, raw)
+        log.info("Objeto visto en %d/%d fotogramas", seen, len(raw))
+        model_names["props"] = f"{config.analysis.props.detector_model} + {config.analysis.props.sam_model}"
     if config.analysis.face_fallback:
         from vfxglow.analysis.fallback import stabilize_heads
 
@@ -106,6 +113,11 @@ def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: st
     frames = smooth_tracks(raw, meta.fps, config.analysis)
     add_motion(frames, meta, config.analysis.events.glitch_speed)
     events = EventDetector(config.analysis.events).detect(frames, meta)
+    if config.analysis.props.query:
+        from vfxglow.analysis.props import assign_states, prop_events
+
+        assign_states(frames, meta.width, meta.height)
+        events.extend(prop_events(frames, meta.fps))
     beats, onsets = segment_beats(frames, video_path, meta, config.analysis.beats)
     appearance = analyze_appearance(video_path, frames, meta)
     beats = retag_paint_beats(beats, appearance)

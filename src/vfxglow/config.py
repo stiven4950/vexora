@@ -102,6 +102,24 @@ class BladesConfig(_Strict):
     yolo_confidence: float = 0.05
 
 
+class PropsConfig(_Strict):
+    # Objeto protagonista descrito en inglés, terminado en punto ("a baseball cap."). Vacío =
+    # apagado. Un catálogo con `needs: [props]` pone su `prop` si aquí no hay nada.
+    query: str = ""
+    detector_model: str = "IDEA-Research/grounding-dino-base"
+    threshold: float = 0.3
+    # Confianza mínima para sembrar SAM 2 (la gorra real da 0,48-0,75; el pelo, hasta 0,48,
+    # pero ese lo descarta el filtro de color).
+    seed_threshold: float = 0.4
+    sam_model: str = "facebook/sam2.1-hiera-tiny"
+    # Sin objeto, Grounding DINO lo busca cada `search_every` fotogramas; con objeto, comprueba
+    # cada `check_every` que SAM 2 no se haya ido a otra cosa (y lo re-siembra si es así).
+    search_every: int = 5
+    check_every: int = 30
+    # Puntos máximos del contorno guardado por fotograma.
+    contour_points: int = 80
+
+
 class AccessoriesConfig(_Strict):
     # Clasifica qué lleva cada persona en la cabeza (gafas, máscara, gorra...) con el VLM de
     # analysis.scene. Sin clave de API solo cuenta `manual`.
@@ -129,6 +147,7 @@ class AnalysisConfig(_Strict):
     scene: SceneConfig = Field(default_factory=SceneConfig)
     accessories: AccessoriesConfig = Field(default_factory=AccessoriesConfig)
     blades: BladesConfig = Field(default_factory=BladesConfig)
+    props: PropsConfig = Field(default_factory=PropsConfig)
     # Contorno del cuerpo por fotograma con el Selfie Segmenter (siluetas de neón).
     body_contour: bool = True
 

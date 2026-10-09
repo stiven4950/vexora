@@ -106,6 +106,8 @@ EVENT_CATALOG: dict[str, str] = {
     "tumble": "El torso se inclina mucho (acostado, de lado o boca abajo): rueda, mortal, caída.",
     "entrance": "La persona aparece al inicio del plano.",
     "tool_touch": "La mano se mueve junto al rostro, como un pincel que pinta.",
+    "prop_transfer": "El objeto protagonista (p. ej. una gorra) pasa de una mano a la otra.",
+    "prop_worn": "El objeto protagonista llega a la cabeza (se pone la gorra).",
 }
 
 

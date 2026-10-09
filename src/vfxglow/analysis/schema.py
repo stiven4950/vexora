@@ -66,6 +66,21 @@ class Blade(_Strict):
     source: str = "line"
 
 
+class Prop(_Strict):
+    """Objeto protagonista (la gorra de video_33): contorno exacto y quién lo tiene.
+
+    state: left / right (en esa mano), both (en las dos), air (suelto, en vuelo), worn (puesto
+    en la cabeza), fitting (en la cabeza con una mano encima: se lo está poniendo).
+    """
+
+    label: str
+    contour: list[tuple[float, float]]
+    box: tuple[float, float, float, float]
+    confidence: float = 1.0
+    person: str = "person_0"
+    state: str = "air"
+
+
 class PersonPose(_Strict):
     """Una persona dentro del fotograma. person_0 se copia también a los campos planos."""
 
@@ -101,6 +116,7 @@ class FrameRecord(_Strict):
     blades: list[Blade] = Field(default_factory=list)
     # Contorno del cuerpo (persona más grande del Selfie Segmenter), normalizado.
     body_contour: list[tuple[float, float]] | None = None
+    prop: Prop | None = None
 
 
 class VideoMeta(_Strict):

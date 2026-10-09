@@ -70,6 +70,8 @@ class Catalog(_Strict):
     reactions: list[Reaction]
     # Lo que el análisis debe calcular para este catálogo (p. ej. [blades] para espadas).
     needs: list[str] = Field(default_factory=list)
+    # Con needs: [props], el objeto protagonista que se sigue (en inglés, terminado en punto).
+    prop: str = "a baseball cap. a hat."
 
 
 class Decision(_Strict):

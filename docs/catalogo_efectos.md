@@ -244,9 +244,22 @@ vfxglow run --video "../glowing/data/original/video_34 (1).mp4" --catalog baile_
 ### El neón de estas referencias (aplicado a todo el motor)
 
 Medido sobre los píxeles pintados de video_33: la línea es casi blanca y el color vive en el
-resplandor. `neon_layers` (engine/swoosh.py) dibuja ahora, de fuera hacia dentro: halo ancho y
-tenue del color, halo medio, tubo apenas teñido (30% color) y núcleo blanco. Afecta a todos los
-efectos de línea (swoosh, llamaradas, gafas, hojas, siluetas...).
+resplandor, con un núcleo de 2,7–3,8 px a 720 de ancho. `neon_layers` (engine/swoosh.py) dibuja,
+de fuera hacia dentro:
+
+- Dos halos **desenfocados** del color (como las `box-shadow` de un neón en CSS), de 8x y 3,5x
+  el núcleo.
+- Un borde de color nítido de 2x.
+- Un núcleo blanco al 90%, de grosor fijo según la resolución: 0,5% del ancho del cuadro
+  (≈3,6 px a 720), con extremos redondos.
+
+Afecta a todos los efectos de línea (swoosh, llamaradas, gafas, hojas, siluetas...). Dos
+detalles del raster lo hacen posible:
+
+- El alfa de cada trazo atenúa de verdad su energía (antes Skia devolvía píxeles sin
+  premultiplicar y el alfa casi no contaba).
+- La ganancia HDR solo empuja el color: el blanco queda cerca de 1, así que el bloom no
+  convierte el núcleo en una mancha.
 
 Las partes del cuerpo encendidas usan **dos pasadas**, como haría un editor: una capa con
 `blend: tint` que tiñe la piel o la ropa conservando su luz (piel verde, pantalón cian) y otra
@@ -256,9 +269,10 @@ Las partes del cuerpo encendidas usan **dos pasadas**, como haría un editor: un
 
 | Seg. | Qué se mueve | Efecto en la referencia | Implementado |
 | --- | --- | --- | --- |
-| 0.0–2.4 | Brazo extendido con la gorra | Brazo y gorra teñidos de verde, con contorno blanco | ✅ `spotlight` → `body_glow` del brazo |
+| 0.0–2.4 | Brazo extendido con la gorra | Brazo y gorra teñidos de verde, con contorno blanco | ✅ `spotlight` → `body_glow` del brazo; la gorra con `prop_outline` (contorno exacto de SAM 2) |
+| 0.0–9.0 | La gorra pasa de mano en mano | Gorra teñida y contorneada mientras se mueve | ✅ `prop_outline` siempre activo + `prop_transfer → doble_contorno` |
 | 4.0–6.4 | Torso de frente | Torso magenta con **abdominales y pectorales dibujados** | ✅ `spotlight → torso_abdominales` (`shapes: [abs]`) |
-| 6.6–7.3 | Se pone la gorra | Gorra dibujada en neón sobre la cabeza | ✅ `spotlight` de cabeza → `adornment` (gorra, sombrero, audífonos, corona) |
+| 6.6–7.3 | Se pone la gorra | Gorra dibujada en neón sobre la cabeza | ✅ `prop_worn → gorra_puesta` (contorno real); además `adornment` en otros tramos de cabeza |
 | 9.3–10.3 | Brazo flexionado arriba | **Brazo musculoso** verde | ✅ `body_glow` del brazo con `shapes: [biceps]` |
 | 10.8–11.3 | Pecho quieto | **Collar** con dije sobre el cuello | ✅ `adornment` `necklace` |
 | 12.1–13.1 | Mirada a cámara | Gafas y ojos en X dibujados | ✅ `cabeza_gafas` (`eyewear`) |
@@ -280,6 +294,41 @@ Las partes del cuerpo encendidas usan **dos pasadas**, como haría un editor: un
 | 14.5–15.6 | Rayo que recorre el cuerpo | ✅ `fast_swing → rayo` |
 | 24.1–25.5 | Rodillas que brillan | ✅ `spotlight → rodillas` (`knee_dots`) |
 | 33.7–34.5 | Rayas en las piernas y bandas en los tobillos | ✅ `spotlight → tobillos` (`ankle_bands`) |
+
+### Objeto protagonista (`needs: [props]`)
+
+En los segundos 0–9 de video_33 la gorra es la protagonista: pasa de una mano a la otra, vuela y
+acaba en la cabeza. `analysis/props.py` la sigue con dos modelos:
+
+1. **Grounding DINO** (`a baseball cap. a hat.`) encuentra la caja, incluso boca arriba o tapada
+   por la mano. Mientras no hay objeto, la busca cada 5 fotogramas; después, cada 30 comprueba
+   que SAM 2 sigue sobre ella y la vuelve a sembrar si no.
+2. **SAM 2** (`facebook/sam2.1-hiera-tiny`, modo video en streaming) recorta el contorno exacto
+   y lo propaga de un fotograma al siguiente.
+
+Para volver a sembrar SAM 2 hacen falta dos cosas: confianza de 0,4 o más y el **color** de la
+gorra, aprendido en los primeros 60 fotogramas seguros. Cuando la gorra sale volando del cuadro
+(seg. 27,5), Grounding DINO llama "hat" al pelo (0,48) y a un zapato (0,35); por distancia de
+color (Bhattacharyya H-S) la gorra da 0,36–0,47, el zapato 0,73 y el pelo 0,89, y el corte está
+en 0,6. Si Grounding DINO no la ve en 3 comprobaciones seguidas, se da por perdida y se borran
+esos fotogramas.
+
+Coste medido en MPS: ~1,2 s por fotograma (unos 18 min para los 903 de video_33). Queda en la
+caché del análisis.
+
+Cada fotograma recibe un estado según las manos y la cabeza de la pose: `left`, `right`, `both`,
+`air`, `worn` (puesta) o `fitting` (en la cabeza con una mano encima). Los cambios de estado
+dan dos eventos:
+
+- `prop_transfer`: el objeto pasa de una mano a la otra (kind `left_to_right` /
+  `right_to_left`), aunque pase por las dos manos o por el aire hasta 1 s.
+- `prop_worn`: llega a la cabeza (kind `fit` con una mano encima, `drop` si cae solo).
+
+El efecto `prop_outline` pinta ese contorno: relleno de tinte (`fill`, con `blend: tint`) y
+contorno de neón. Formas: `double` (segundo contorno), `no_outline` (solo relleno) y `worn` (lo
+pinta también puesto; por defecto no, porque puesta deja de ser protagonista).
+
+El objeto se cambia con `prop:` en el catálogo o con `analysis.props.query` en la configuración.
 
 ### Cómo se elige la parte (`spotlight`)
 

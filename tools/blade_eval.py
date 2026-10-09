@@ -14,7 +14,6 @@ propio): mismo video, mismos fotogramas, misma regla.
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
@@ -22,6 +21,7 @@ import cv2
 import numpy as np
 
 from vfxglow.analysis import blades as B
+from vfxglow.analysis.gdino import GroundingDino
 from vfxglow.analysis.schema import FrameRecord
 from vfxglow.config import load_config
 
@@ -29,36 +29,6 @@ from vfxglow.config import load_config
 DIFF = 50
 DILATE = 17
 GOOD = 0.6
-
-
-class GroundingDino:
-    """Cajas de Grounding DINO (Hugging Face) con el mismo formato que YOLO-World."""
-
-    def __init__(self, model_id: str, prompt: str, threshold: float) -> None:
-        import certifi
-        import torch
-        from transformers import AutoModelForZeroShotObjectDetection, AutoProcessor
-
-        os.environ.setdefault("SSL_CERT_FILE", certifi.where())
-        os.environ.setdefault("REQUESTS_CA_BUNDLE", certifi.where())
-        self.device = "mps" if torch.backends.mps.is_available() else "cpu"
-        self.processor = AutoProcessor.from_pretrained(model_id)
-        self.model = AutoModelForZeroShotObjectDetection.from_pretrained(model_id).to(self.device)
-        self.prompt = prompt
-        self.threshold = threshold
-
-    def __call__(self, frame_bgr: np.ndarray) -> list[tuple[float, float, float, float]]:
-        import torch
-        from PIL import Image
-
-        image = Image.fromarray(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB))
-        inputs = self.processor(images=image, text=self.prompt, return_tensors="pt").to(self.device)
-        with torch.no_grad():
-            outputs = self.model(**inputs)
-        result = self.processor.post_process_grounded_object_detection(
-            outputs, inputs.input_ids, threshold=self.threshold, text_threshold=self.threshold, target_sizes=[image.size[::-1]]
-        )[0]
-        return [tuple(map(float, box)) for box in result["boxes"].cpu().numpy()]
 
 
 def _inside(blade, boxes, width: int, height: int, pad: float = 0.15) -> bool:

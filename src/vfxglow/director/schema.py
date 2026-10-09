@@ -48,6 +48,7 @@ EffectType = Literal[
     "ground_burst",
     "ground_cloud",
     "floor_streak",
+    "prop_outline",
 ]
 TargetKind = Literal["joint", "chain", "face_region", "mask", "object", "event_point", "contour"]
 BlendMode = Literal["add", "screen", "over", "multiply", "tint"]
@@ -83,6 +84,8 @@ EVENT_NAMES: tuple[str, ...] = (
     "entrance",
     "tumble",
     "spotlight",
+    "prop_transfer",
+    "prop_worn",
 )
 
 
@@ -290,6 +293,7 @@ SUPPORTED_TYPES: tuple[str, ...] = (
     "ground_burst",
     "ground_cloud",
     "floor_streak",
+    "prop_outline",
 )
 
 # Efectos que por defecto pertenecen a un grupo distinto de glow.
