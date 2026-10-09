@@ -442,10 +442,12 @@ def spin_events(frames: list[FrameRecord], fps: float, transfers: list[MotionEve
     active = (smooth > SPIN_SCORE) & held
     # Los fotogramas de un traspaso (con su anticipación) no cuentan como giro.
     lead = int(round(0.35 * fps))
+    busy = np.zeros(len(frames), dtype=bool)
     for event in transfers:
         for index, record in enumerate(frames):
             if event.start_frame - lead <= record.frame <= event.end_frame:
-                active[index] = False
+                busy[index] = True
+    active &= ~busy
     events: list[MotionEvent] = []
     index = 0
     while index < len(frames):

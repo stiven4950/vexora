@@ -180,6 +180,10 @@ reactions:
       style: {shapes: [no_outline, spin], fill: 0.5, palette_every: 30}
       render: {blend: tint}
       trigger: {hold: 4, fade_in: 3, fade_out: 5}
+    # Seg. 3.3-4.1: al terminar de girar, a la gorra le sale una oreja puntiaguda y un corazoncito.
+    - type: prop_doodle
+      style: {shapes: [horn, heart], palette_every: 30}
+      trigger: {anchor: end, hold: 22, fade_in: 2, fade_out: 6}
   - name: nada
     weight: 0.2
     effects: []
@@ -192,6 +196,29 @@ reactions:
       style: {shapes: [double, worn], fill: 0.0, palette_every: 30}
       # Corto: en la referencia la gorra deja de dibujarse ~1 s después de ponérsela.
       trigger: {hold: 6, fade_in: 2, fade_out: 8}
+    # Seg. 6.9-7.2 ("ajustado"): con la gorra recién puesta, la cara teñida y dibujada como
+    # caricatura (mandíbula, orejas, ojos de punto, nariz y boca).
+    - type: face_toon
+      style: {shapes: [tint], fill: 0.75, palette_every: 30}
+      render: {blend: tint}
+      trigger: {hold: 6, fade_in: 2, fade_out: 8}
+    - type: face_toon
+      style: {shapes: [caricature], palette_every: 30}
+      trigger: {hold: 6, fade_in: 2, fade_out: 8}
+- action: face_touch
+  options:
+  # Seg. 8.2-9.2: la mano en la cara la vuelve caricatura (ojos con pestañas, labios de beso) y,
+  # al apartarse, los labios viajan hasta los dedos y los ojos se estiran ("jalón").
+  - name: beso
+    weight: 1.0
+    effects:
+    - type: face_toon
+      style: {shapes: [tint], fill: 0.8, palette_every: 30}
+      render: {blend: tint}
+      trigger: &beso {lead: 8, hold: 10, fade_in: 3, fade_out: 4}
+    - type: face_toon
+      style: {shapes: [kiss], palette_every: 30}
+      trigger: *beso
 - action: still
   cooldown: 60
   options:

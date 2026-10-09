@@ -55,9 +55,10 @@ class ActivationTimeline:
                 if trigger.max_activations > 0 and count >= trigger.max_activations:
                     break
                 end = event.end_frame + trigger.hold
+                begin = event.start_frame if trigger.anchor == "start" else event.end_frame
                 self.windows.append(
                     ActivationWindow(
-                        start=max(event.start_frame - trigger.lead, 0),
+                        start=max(begin - trigger.lead, 0),
                         end=end,
                         fade_in=trigger.fade_in,
                         fade_out=trigger.fade_out,

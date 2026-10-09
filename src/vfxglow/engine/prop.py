@@ -18,6 +18,9 @@ también mientras gira (por defecto no, si no va disparado: ahí manda el anillo
   a lo largo de su eje: sube con el color principal y baja con el acento (video_33, fotogramas
   70-94). La mitad de atrás va tenue, como tapada por el objeto. `rings` = anillos a la vez;
   `trail_frames` = fotogramas de una subida.
+- prop_doodle: garabatos sobre el objeto, orientados con su eje: `ears` (dos orejas puntiagudas
+  en el extremo de arriba), `horn` (un cuerno) y `heart` (corazoncito al costado). En la
+  referencia aparecen al terminar el giro (fotogramas 98-122): `trigger.anchor: end`.
 """
 
 from __future__ import annotations
@@ -31,6 +34,7 @@ from vfxglow.analysis.schema import FrameRecord, MotionEvent
 from vfxglow.engine.anchors import torso_pixels
 from vfxglow.engine.raster import fill_polygon, stroke_batch
 from vfxglow.engine.swoosh import neon_layers
+from vfxglow.geom import catmull_rom
 
 # Puntos del contorno remuestreado y suavizado (en puntos) para que no se lea dentado.
 RESAMPLE = 120
@@ -217,4 +221,51 @@ def draw_prop_rings(runtime, track, points, frame_index: int, height: int, envel
             for piece in pieces:
                 if len(piece) >= 2 and mask[piece[0]]:
                     strokes += neon_layers(ellipse[piece], color, line, envelope * alpha)
+    stroke_batch(layer, strokes, style.hdr_gain)
+
+
+DOODLE_SHAPES = ("ears", "horn", "heart")
+
+
+def _ear(base: np.ndarray, out: np.ndarray, side: np.ndarray, size: float) -> np.ndarray:
+    """Oreja puntiaguda de lados curvos: base sobre el borde, punta hacia afuera."""
+    left, right = base - side * size * 0.45, base + side * size * 0.45
+    tip = base + out * size * 1.1 + side * size * 0.15
+    return np.vstack([catmull_rom(np.stack([left, left + out * size * 0.55 - side * size * 0.05, tip]), 6), catmull_rom(np.stack([tip, right + out * size * 0.5, right]), 6)])
+
+
+def _heart(center: np.ndarray, up: np.ndarray, side: np.ndarray, size: float) -> np.ndarray:
+    t = np.linspace(0.0, 2.0 * np.pi, 40)
+    x = 16 * np.sin(t) ** 3
+    y = 13 * np.cos(t) - 5 * np.cos(2 * t) - 2 * np.cos(3 * t) - np.cos(4 * t)
+    return center + np.outer(x / 17.0 * size, side) + np.outer(y / 17.0 * size, up)
+
+
+def draw_prop_doodle(runtime, track, points, frame_index: int, height: int, envelope: float, layer: np.ndarray, event: MotionEvent | None = None) -> None:
+    style = runtime.effect.style
+    if envelope <= 0 or track is None or track.prop is None:
+        return
+    polygon = prop_polygon(track, layer.shape[1], height)
+    if polygon is None:
+        return
+    center, up, side, half = object_axis(polygon)
+    width = float(np.ptp((polygon - center) @ side)) * 0.5
+    color = np.asarray(style.colors[0], dtype=np.float32)
+    line = max(1.5, style.thickness * torso_pixels(points, height))
+    shapes = set(style.shapes) & set(DOODLE_SHAPES) or {"ears"}
+    strokes = []
+
+    def edge(offset: float) -> np.ndarray:
+        """Punto del contorno más alto a lo largo del eje, a `offset` del centro a lo ancho."""
+        target = center + up * half + side * width * offset
+        return polygon[int(np.argmin(np.linalg.norm(polygon - target, axis=1)))]
+
+    ear = max(width * 0.35, 6.0)
+    if "ears" in shapes:
+        for offset in (-0.45, 0.45):
+            strokes += neon_layers(_ear(edge(offset), up, side, ear), color, line, envelope)
+    if "horn" in shapes:
+        strokes += neon_layers(_ear(edge(0.0), up, side, ear * 1.2), color, line, envelope)
+    if "heart" in shapes:
+        strokes += neon_layers(_heart(center + side * width * 1.25 + up * half * 0.2, up, side, ear * 0.45), color, line, envelope)
     stroke_batch(layer, strokes, style.hdr_gain)

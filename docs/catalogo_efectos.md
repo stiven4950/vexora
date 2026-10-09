@@ -273,8 +273,10 @@ Las partes del cuerpo encendidas usan **dos pasadas**, como haría un editor: un
 | 0.0–9.0 | La gorra pasa de mano en mano | Gorra teñida y contorneada mientras se mueve | ✅ `prop_outline` siempre activo + `prop_transfer → doble_contorno` |
 | 0.6–1.3 | Traspaso de mano a mano | Resorte de la gorra a la mano que la recibe | ✅ `prop_transfer → resorte` (`prop_spring`) |
 | 2.3–3.4 | La gorra gira en las manos | Anillo que sube y baja por la gorra, gorra teñida | ✅ `prop_spin → anillos` (`prop_rings` + tinte) |
+| 3.3–4.1 | Termina de girar | Oreja puntiaguda y corazoncito sobre la gorra | ✅ `prop_doodle` (`anchor: end`) |
 | 4.0–6.4 | Torso de frente | Torso magenta con **abdominales y pectorales dibujados** | ✅ `spotlight → torso_abdominales` (`shapes: [abs]`) |
-| 6.6–7.3 | Se pone la gorra | Gorra dibujada en neón sobre la cabeza | ✅ `prop_worn → gorra_puesta` (contorno real); además `adornment` en otros tramos de cabeza |
+| 6.6–7.3 | Se pone la gorra | Gorra dibujada en neón sobre la cabeza, cara de caricatura | ✅ `prop_worn → gorra_puesta` (contorno real + `face_toon caricature`) |
+| 8.2–9.2 | Mano en la cara y la aparta | Ojos con pestañas, labios de beso; los labios viajan a los dedos | ✅ `face_touch → beso` (`face_toon kiss` + jalón) |
 | 9.3–10.3 | Brazo flexionado arriba | **Brazo musculoso** verde | ✅ `body_glow` del brazo con `shapes: [biceps]` |
 | 10.8–11.3 | Pecho quieto | **Collar** con dije sobre el cuello | ✅ `adornment` `necklace` |
 | 12.1–13.1 | Mirada a cámara | Gafas y ojos en X dibujados | ✅ `cabeza_gafas` (`eyewear`) |
@@ -349,6 +351,28 @@ El giro lo detecta el análisis (`prop_spin`): el contorno cambia de orientació
 área de forma sostenida (media de 9 fotogramas sobre 10, al menos 0,4 s) con la gorra en las
 manos, sin contar los fotogramas de un traspaso. En video_33 marca 40–104 (los anillos de la
 referencia están en 70–103) y 791–809.
+
+**Oreja y corazoncito** (`prop_doodle`, seg. 3,3–4,1): al terminar de girar, a la gorra le sale
+una oreja puntiaguda en el extremo de arriba de su eje y un corazoncito al costado (`horn`,
+`ears`, `heart`). Se enciende al **final** del giro con `trigger.anchor: end`: la ventana empieza
+cuando el evento termina y dura `hold`.
+
+**"Ajustado"** (`prop_worn → gorra_puesta`, seg. 6,9–7,2): con la gorra recién puesta, la cara se
+tiñe y se dibuja como caricatura (`face_toon`, forma `caricature`: mandíbula, orejas, ojos de
+punto, nariz y boca).
+
+**Cara de caricatura y "jalón"** (`face_touch → beso`, seg. 8,2–9,2): la mano en la cara la vuelve
+caricatura (`face_toon`, forma `kiss`: ojos cerrados con pestañas y labios de beso, con la cara
+teñida). Cuando la mano se aparta, en 0,3 s los labios viajan hasta los dedos (de lado, como un
+"3") y los ojos se estiran en rayas hacia la mano.
+
+`face_toon` usa los puntos de la cara **de la pose** y no la malla facial: con la gorra puesta y
+la mano encima, Face Mesh se pierde justo ahí (fotogramas 205–260 de video_33).
+
+El toque (`face_touch`, `analysis/touch.py`) es una punta de dedo a menos de 0,6 tamaños de cara
+(distancia entre orejas) del centro de la cara durante al menos 0,25 s. No cuenta la mano que
+sostiene la gorra ni la que se la acomoda puesta (dedos sobre su contorno). En video_33 marca
+256–268, el beso de la referencia.
 
 ### Color por capítulo (`chapters: true`)
 

@@ -1,0 +1,172 @@
+"""Cara de caricatura dibujada sobre la cara real (video_33, seg. 6,8-9,2).
+
+Usa los puntos de la cara de la pose (ojos, orejas, nariz, comisuras) y no la malla facial: con
+la gorra puesta y la mano en la cara, Face Mesh se pierde justo en esos fotogramas.
+
+- face_toon, formas (`style.shapes`):
+  - `tint`: óvalo de la cara relleno (con `blend: tint`, la cara teñida del color del capítulo).
+  - `kiss`: ojos cerrados con pestañas y labios grandes de beso (la mano toca la cara).
+  - `caricature`: mandíbula, orejas, ojos de punto, nariz y boca (la gorra recién puesta).
+- Disparada por `face_touch`, cuando la mano se aparta (después de `end_frame`) llega el
+  "jalón": los labios viajan hasta los dedos y los ojos y el tinte se estiran hacia la mano.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+
+from vfxglow.analysis.schema import FrameRecord, MotionEvent
+from vfxglow.analysis.touch import face_frame, fingertips
+from vfxglow.engine.raster import fill_polygon, stroke_batch
+from vfxglow.engine.swoosh import neon_layers
+from vfxglow.geom import catmull_rom
+
+SHAPES = ("tint", "kiss", "caricature")
+# Duración del jalón, en segundos.
+YANK_S = 0.3
+
+# Plantillas en coordenadas de cara: x a lo largo de la línea de los ojos, y hacia la frente, en
+# tamaños de cara (distancia entre orejas). Origen: el punto medio entre los ojos.
+_LIP_UPPER = np.array([(-1.0, 0.0), (-0.55, 0.45), (-0.15, 0.5), (0.0, 0.3), (0.15, 0.5), (0.55, 0.45), (1.0, 0.0)])
+_LIP_LOWER = np.array([(1.0, 0.0), (0.6, -0.55), (0.0, -0.7), (-0.6, -0.55), (-1.0, 0.0)])
+_LIP_SEAM = np.array([(-0.9, 0.0), (0.0, -0.1), (0.9, 0.0)])
+_JAW = np.array([(-0.5, 0.0), (-0.47, -0.35), (-0.3, -0.68), (0.0, -0.8), (0.3, -0.68), (0.47, -0.35), (0.5, 0.0)])
+_EAR = np.array([(0.5, 0.05), (0.62, 0.02), (0.63, -0.14), (0.52, -0.2)])
+_NOSE = np.array([(0.02, -0.08), (-0.07, -0.3), (0.05, -0.33)])
+_MOUTH = np.array([(-0.13, -0.5), (0.0, -0.53), (0.13, -0.5)])
+
+
+class FaceFrame:
+    """Ejes de la cara en píxeles: centro entre los ojos, eje de los ojos y eje hacia la frente."""
+
+    def __init__(self, pts: dict[str, np.ndarray], size: float) -> None:
+        self.size = size
+        left, right = pts["left_eye"], pts["right_eye"]
+        self.origin = (left + right) * 0.5
+        across = right - left
+        norm = float(np.linalg.norm(across))
+        # Sin línea de ojos fiable (de perfil), la cara se dibuja derecha.
+        self.x = across / norm if norm > size * 0.15 else np.array([1.0, 0.0])
+        self.y = np.array([self.x[1], -self.x[0]])
+        if self.y[1] > 0:
+            self.y = -self.y
+            self.x = -self.x
+
+    def place(self, local: np.ndarray, scale: float = 1.0, origin: np.ndarray | None = None) -> np.ndarray:
+        base = self.origin if origin is None else origin
+        local = np.asarray(local, dtype=np.float64) * self.size * scale
+        return base + np.outer(local[:, 0], self.x) + np.outer(local[:, 1], self.y)
+
+
+def _face_points(person) -> dict[str, np.ndarray]:
+    return {lm.name: np.array([lm.x, lm.y]) for lm in person.pose if lm.c > 0.3}
+
+
+def _people(track: FrameRecord, event: MotionEvent | None, style) -> list:
+    from vfxglow.analysis.touch import _people as people
+
+    found = people(track)
+    if event is not None:
+        owner = event.target.split(":")[0]
+        found = [p for p in found if p.person_id == owner]
+    if style.people:
+        found = [p for p in found if p.person_id in style.people]
+    return found
+
+
+def _ellipse(face: FaceFrame, stretch_to: np.ndarray | None = None, amount: float = 0.0) -> np.ndarray:
+    theta = np.linspace(0.0, 2.0 * np.pi, 48, endpoint=False)
+    local = np.stack([0.55 * np.cos(theta), -0.25 + 0.75 * np.sin(theta)], axis=1)
+    oval = face.place(local)
+    if stretch_to is None or amount <= 0:
+        return oval
+    # El tinte se alarga hacia la mano: envolvente del óvalo y una copia más chica desplazada.
+    import cv2
+
+    pulled = (oval - face.origin) * (1.0 - 0.5 * amount) + face.origin + (stretch_to - face.origin) * amount * 0.6
+    hull = cv2.convexHull(np.vstack([oval, pulled]).astype(np.float32))
+    return hull[:, 0, :].astype(np.float64)
+
+
+def _closed_eye(face: FaceFrame, center: np.ndarray) -> list[np.ndarray]:
+    """Párpado cerrado (arco hacia abajo) con tres pestañas."""
+    half, depth = 0.15, 0.11
+    xs = np.linspace(-1.0, 1.0, 11)
+    lid = face.place(np.stack([xs * half, -depth * (1.0 - xs**2)], axis=1), origin=center)
+    lashes = []
+    for k in (-0.7, 0.0, 0.7):
+        base = np.array([[k * half, -depth * (1.0 - k**2)]])
+        tip = base + np.array([[k * 0.04, -0.05]])
+        lashes.append(face.place(np.vstack([base, tip]), origin=center))
+    return [lid, *lashes]
+
+
+def _lips(face: FaceFrame, center: np.ndarray, scale: float, angle: float = 0.0) -> list[np.ndarray]:
+    hw, hh = 0.3 * scale, 0.2 * scale
+    rot = np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
+    shapes = []
+    for template in (_LIP_UPPER, _LIP_LOWER, _LIP_SEAM):
+        local = (template * [hw, hh]) @ rot.T
+        shapes.append(catmull_rom(face.place(local, origin=center), 6))
+    return shapes
+
+
+def draw_face_toon(runtime, track, points, frame_index: int, height: int, envelope: float, layer: np.ndarray, event: MotionEvent | None = None) -> None:
+    style = runtime.effect.style
+    if envelope <= 0 or track is None:
+        return
+    width = layer.shape[1]
+    shapes = set(style.shapes) & set(SHAPES) or {"kiss"}
+    color = np.asarray(style.colors[0], dtype=np.float32)
+    strokes: list = []
+    for person in _people(track, event, style):
+        frame = face_frame(person, width, height)
+        pts = {name: value * [width, height] for name, value in _face_points(person).items()}
+        if frame is None or "left_eye" not in pts or "right_eye" not in pts:
+            continue
+        _, size = frame
+        face = FaceFrame(pts, size)
+        mouth = (pts["mouth_left"] + pts["mouth_right"]) * 0.5 if "mouth_left" in pts and "mouth_right" in pts else face.place(np.array([[0.0, -0.5]]))[0]
+        # Jalón: después del toque, todo tira hacia la mano que se aparta.
+        yank, hand = 0.0, None
+        if event is not None and event.name == "face_touch" and frame_index > event.end_frame:
+            yank = float(np.clip((frame_index - event.end_frame) / max(YANK_S * runtime.fps, 1.0), 0.0, 1.0))
+            tips = fingertips(person, event.kind, width, height) if event.kind in ("left", "right") else []
+            hand = np.mean(tips, axis=0) if tips else None
+            if hand is None:
+                yank = 0.0
+        line = max(1.5, style.thickness * size)
+        if "tint" in shapes and style.fill > 0:
+            fill_polygon(layer, _ellipse(face, hand, yank), color, style.fill * envelope * (1.0 - 0.4 * yank), 0.9, feather=size * 0.08)
+        if "kiss" in shapes:
+            for eye in ("left_eye", "right_eye"):
+                if yank > 0:
+                    # Los ojos se vuelven rayas que apuntan a la mano.
+                    pull = (hand - pts[eye]) * 0.35 * yank
+                    strokes += neon_layers(np.stack([pts[eye], pts[eye] + pull]), color, line, envelope)
+                else:
+                    for piece in _closed_eye(face, pts[eye]):
+                        strokes += neon_layers(piece, color, line, envelope)
+            center, scale, angle = mouth, 1.0, 0.0
+            if yank > 0:
+                ease = yank**0.7
+                center = mouth + (hand - mouth) * ease
+                scale = 1.0 - 0.3 * ease
+                # De lado al llegar a los dedos (como un "3").
+                direction = hand - mouth
+                angle = float(np.arctan2(np.dot(direction, face.y), np.dot(direction, face.x))) * ease
+            for piece in _lips(face, center, scale, angle):
+                strokes += neon_layers(piece, color, line, envelope)
+        if "caricature" in shapes:
+            jaw = catmull_rom(face.place(_JAW), 6)
+            strokes += neon_layers(jaw, color, line, envelope)
+            for side in (1.0, -1.0):
+                strokes += neon_layers(catmull_rom(face.place(_EAR * [side, 1.0]), 5), color, line, envelope)
+            for eye in ("left_eye", "right_eye"):
+                theta = np.linspace(0.0, 2.0 * np.pi, 13)
+                dot = pts[eye] + np.stack([np.cos(theta), np.sin(theta)], axis=1) * size * 0.035
+                strokes += neon_layers(dot, color, line, envelope)
+            strokes += neon_layers(face.place(_NOSE), color, line, envelope)
+            strokes += neon_layers(catmull_rom(face.place(_MOUTH), 5), color, line, envelope)
+    if strokes:
+        stroke_batch(layer, strokes, style.hdr_gain)

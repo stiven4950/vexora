@@ -51,6 +51,8 @@ EffectType = Literal[
     "prop_outline",
     "prop_spring",
     "prop_rings",
+    "prop_doodle",
+    "face_toon",
 ]
 TargetKind = Literal["joint", "chain", "face_region", "mask", "object", "event_point", "contour"]
 BlendMode = Literal["add", "screen", "over", "multiply", "tint"]
@@ -89,6 +91,7 @@ EVENT_NAMES: tuple[str, ...] = (
     "prop_transfer",
     "prop_worn",
     "prop_spin",
+    "face_touch",
 )
 
 
@@ -208,6 +211,9 @@ class EffectTrigger(_Strict):
     hold: int = 8
     # Fotogramas que el efecto se adelanta al evento (el resorte aparece antes de soltar la gorra).
     lead: int = 0
+    # start: la ventana empieza con el evento; end: empieza cuando el evento termina y dura
+    # `hold` (lo que pasa "después": los cuernos al acabar de girar la gorra).
+    anchor: Literal["start", "end"] = "start"
     cooldown: int = 4
     fade_in: int = 2
     fade_out: int = 6
@@ -312,6 +318,8 @@ SUPPORTED_TYPES: tuple[str, ...] = (
     "prop_outline",
     "prop_spring",
     "prop_rings",
+    "prop_doodle",
+    "face_toon",
 )
 
 # Efectos que por defecto pertenecen a un grupo distinto de glow.
