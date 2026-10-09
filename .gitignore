@@ -24,3 +24,6 @@ training/review/**/sheet_*.jpg
 api_data/
 web/node_modules/
 web/dist/
+
+# Grafo de graphify (se regenera con `graphify update .`)
+graphify-out/
