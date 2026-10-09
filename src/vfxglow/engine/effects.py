@@ -49,6 +49,7 @@ class EffectRuntime:
         self.bits: list = []
         self.limb_frames: dict[str, int] = {}
         self.chapter_colors: list | None = None
+        self.chapter_frame = 0
 
 
 def render_effect(
@@ -118,10 +119,11 @@ def render_effect(
         else:
             draw = {"ground_burst": sword.draw_ground_burst, "ground_cloud": sword.draw_ground_cloud, "floor_streak": sword.draw_floor_streak}[kind]
             draw(runtime, points, frame_index, height, envelope, layer, event)
-    elif kind == "prop_outline":
-        from vfxglow.engine.prop import draw_prop_outline
+    elif kind in {"prop_outline", "prop_spring"}:
+        from vfxglow.engine.prop import draw_prop_outline, draw_prop_spring
 
-        draw_prop_outline(runtime, track, points, frame_index, height, envelope, layer, event if effect.triggers else None)
+        draw = draw_prop_outline if kind == "prop_outline" else draw_prop_spring
+        draw(runtime, track, points, frame_index, height, envelope, layer, event if effect.triggers else None)
     elif kind in {"body_glow", "adornment"}:
         from vfxglow.engine.bodyglow import draw_adornment, draw_body_glow
 

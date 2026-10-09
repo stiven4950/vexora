@@ -57,7 +57,7 @@ class ActivationTimeline:
                 end = event.end_frame + trigger.hold
                 self.windows.append(
                     ActivationWindow(
-                        start=event.start_frame,
+                        start=max(event.start_frame - trigger.lead, 0),
                         end=end,
                         fade_in=trigger.fade_in,
                         fade_out=trigger.fade_out,

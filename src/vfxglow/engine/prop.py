@@ -7,6 +7,12 @@
 Formas (`style.shapes`): `double` añade un segundo contorno algo más grande; `no_outline` deja
 solo el relleno (para el modo tint); `worn` lo pinta también en la cabeza (puesto o
 acomodándolo; por defecto no: la gorra puesta deja de ser protagonista).
+
+- prop_spring: durante un `prop_transfer`, un resorte (cordón en espiral visto de lado) une el
+  objeto con la mano que lo va a recibir. Se estira hasta quedar casi recto cuando la mano se
+  aleja y se comprime con bucles grandes cuando el objeto llega (video_33, fotogramas 18-38).
+  `rings` = bucles; `size` = radio de los bucles comprimidos, en torsos. Conviene adelantarlo
+  al evento con `trigger.lead`: en la referencia aparece antes de soltar la gorra.
 """
 
 from __future__ import annotations
@@ -15,7 +21,9 @@ import zlib
 
 import numpy as np
 
+from vfxglow.analysis.props import _hand_point, _people
 from vfxglow.analysis.schema import FrameRecord, MotionEvent
+from vfxglow.engine.anchors import torso_pixels
 from vfxglow.engine.raster import fill_polygon, stroke_batch
 from vfxglow.engine.swoosh import neon_layers
 
@@ -23,6 +31,9 @@ from vfxglow.engine.swoosh import neon_layers
 RESAMPLE = 120
 SMOOTH = 2.0
 SHAPES = ("outline", "double", "no_outline", "worn")
+# Resorte: distancia (en torsos) a la que queda recto y muestras por bucle.
+SPRING_STRAIGHT = 1.6
+SPRING_SAMPLES = 28
 
 
 def prop_polygon(track: FrameRecord | None, width: int, height: int) -> np.ndarray | None:
@@ -76,3 +87,51 @@ def draw_prop_outline(runtime, track, points, frame_index: int, height: int, env
         second = np.asarray(style.colors[1 % len(style.colors)], dtype=np.float32)
         strokes += neon_layers(np.vstack([outer, outer[:1]]), second, line * 0.8, envelope * 0.7)
     stroke_batch(layer, strokes, style.hdr_gain)
+
+
+def spring_curve(start: np.ndarray, end: np.ndarray, loops: int, radius: float) -> np.ndarray:
+    """Hélice vista de lado entre dos puntos: bucles sobre la recta (como una "e" repetida).
+
+    El radio se anula en los extremos para que el cordón nazca recto del objeto y de la mano.
+    """
+    delta = end - start
+    length = float(np.linalg.norm(delta))
+    if length < 1e-6:
+        return np.stack([start, end])
+    along = delta / length
+    side = np.array([along[1], -along[0]])
+    if side[1] > 0:  # los bucles, hacia arriba de la pantalla
+        side = -side
+    t = np.linspace(0.0, 1.0, max(loops, 1) * SPRING_SAMPLES + 1)
+    theta = 2.0 * np.pi * max(loops, 1) * t
+    r = radius * np.sin(np.pi * t) ** 0.35
+    offset_along = t * length - r * 0.9 * np.sin(theta)
+    offset_side = r * (1.0 - np.cos(theta))
+    return start + np.outer(offset_along, along) + np.outer(offset_side, side)
+
+
+def draw_prop_spring(runtime, track, points, frame_index: int, height: int, envelope: float, layer: np.ndarray, event: MotionEvent | None = None) -> None:
+    style = runtime.effect.style
+    if envelope <= 0 or event is None or track is None or track.prop is None or "_to_" not in event.kind:
+        return
+    width = layer.shape[1]
+    polygon = prop_polygon(track, width, height)
+    person = next((p for p in _people(track) if p.person_id == event.target.split(":")[0]), None)
+    if polygon is None or person is None:
+        return
+    hand, _ = _hand_point(person, event.kind.split("_to_")[1], width, height)
+    if hand is None:
+        return
+    anchor = polygon[int(np.argmin(np.linalg.norm(polygon - hand, axis=1)))]
+    torso = torso_pixels(points, height)
+    size = float(np.sqrt(max(np.ptp(polygon[:, 0]) * np.ptp(polygon[:, 1]), 1.0)))
+    distance = float(np.linalg.norm(hand - anchor))
+    # Llegó: el resorte se recoge.
+    arrive = float(np.clip(distance / (size * 0.8), 0.0, 1.0))
+    if arrive <= 0:
+        return
+    stretch = float(np.clip(1.0 - distance / (SPRING_STRAIGHT * torso), 0.0, 1.0))
+    curve = spring_curve(anchor, hand, style.rings, style.size * torso * stretch)
+    color = np.asarray(style.colors[0], dtype=np.float32)
+    line = max(1.5, style.thickness * torso)
+    stroke_batch(layer, neon_layers(curve, color, line, envelope * arrive), style.hdr_gain)

@@ -49,6 +49,7 @@ EffectType = Literal[
     "ground_cloud",
     "floor_streak",
     "prop_outline",
+    "prop_spring",
 ]
 TargetKind = Literal["joint", "chain", "face_region", "mask", "object", "event_point", "contour"]
 BlendMode = Literal["add", "screen", "over", "multiply", "tint"]
@@ -203,6 +204,8 @@ class EffectTrigger(_Strict):
     min_speed: float = 0.0
     min_duration: int = 1
     hold: int = 8
+    # Fotogramas que el efecto se adelanta al evento (el resorte aparece antes de soltar la gorra).
+    lead: int = 0
     cooldown: int = 4
     fade_in: int = 2
     fade_out: int = 6
@@ -305,6 +308,7 @@ SUPPORTED_TYPES: tuple[str, ...] = (
     "ground_cloud",
     "floor_streak",
     "prop_outline",
+    "prop_spring",
 )
 
 # Efectos que por defecto pertenecen a un grupo distinto de glow.

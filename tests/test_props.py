@@ -150,3 +150,31 @@ def test_engine_uses_chapter_color() -> None:
         engine.render_frame(track.model_copy(update={"frame": i}), i, W, H, 40)
         seen.append(tuple(engine.runtimes[0].effect.style.colors[0]))
     assert seen[0] == (0.0, 1.0, 0.0) and seen[7] == (1.0, 0.0, 1.0)
+
+
+def test_spring_curve_loops_when_close_and_is_straight_when_flat() -> None:
+    from vfxglow.engine.prop import spring_curve
+
+    start, end = np.array([100.0, 300.0]), np.array([300.0, 300.0])
+    coiled = spring_curve(start, end, loops=5, radius=20.0)
+    assert np.allclose(coiled[0], start) and np.allclose(coiled[-1], end)
+    # Los bucles van hacia arriba de la pantalla y retroceden (forman "e").
+    assert coiled[:, 1].min() < 300 - 30 and coiled[:, 1].max() <= 300 + 1e-6
+    assert np.any(np.diff(coiled[:, 0]) < 0)
+    flat = spring_curve(start, end, loops=5, radius=0.0)
+    assert np.allclose(flat[:, 1], 300.0)
+
+
+def test_prop_spring_joins_object_and_receiving_hand() -> None:
+    from vfxglow.analysis.schema import HandFrame
+
+    effect = Effect(id="spring", type="prop_spring", target=EffectTarget(kind="joint", id="body"), style=EffectStyle(rings=5, size=0.16), triggers=[{"event": "prop_transfer", "hold": 2, "fade_in": 0}])
+    event = _event("prop_transfer", 0, kind="left_to_right", target="person_0:prop")
+    engine = EffectEngine(EffectScript(title="t", theme="t", effects=[effect]), EngineConfig(), events=[event])
+    right_hand = HandFrame(landmarks=[_lm("wrist", 0.7, 0.5)], score=1.0)
+    track = FrameRecord(frame=0, time_s=0.0, pose=_pose(left_wrist=(0.2, 0.5)), right_hand=right_hand, prop=_cap(0.25, 0.45, 0.04))
+    layer = engine.render_frame(track, 0, W, H, 40)[0][2]
+    ys, xs = np.nonzero(layer[..., 3] > 0.5)
+    assert xs.size
+    # Va del objeto (x≈0,29) a la mano que lo recibe (x=0,7), no a la que lo suelta.
+    assert xs.min() < 0.32 * W and xs.max() > 0.66 * W

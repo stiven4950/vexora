@@ -271,6 +271,7 @@ Las partes del cuerpo encendidas usan **dos pasadas**, como haría un editor: un
 | --- | --- | --- | --- |
 | 0.0–2.4 | Brazo extendido con la gorra | Brazo y gorra teñidos de verde, con contorno blanco | ✅ `spotlight` → `body_glow` del brazo; la gorra con `prop_outline` (contorno exacto de SAM 2) |
 | 0.0–9.0 | La gorra pasa de mano en mano | Gorra teñida y contorneada mientras se mueve | ✅ `prop_outline` siempre activo + `prop_transfer → doble_contorno` |
+| 0.6–1.3 | Traspaso de mano a mano | Resorte de la gorra a la mano que la recibe | ✅ `prop_transfer → resorte` (`prop_spring`) |
 | 4.0–6.4 | Torso de frente | Torso magenta con **abdominales y pectorales dibujados** | ✅ `spotlight → torso_abdominales` (`shapes: [abs]`) |
 | 6.6–7.3 | Se pone la gorra | Gorra dibujada en neón sobre la cabeza | ✅ `prop_worn → gorra_puesta` (contorno real); además `adornment` en otros tramos de cabeza |
 | 9.3–10.3 | Brazo flexionado arriba | **Brazo musculoso** verde | ✅ `body_glow` del brazo con `shapes: [biceps]` |
@@ -329,6 +330,13 @@ contorno de neón. Formas: `double` (segundo contorno), `no_outline` (solo relle
 pinta también puesto; por defecto no, porque puesta deja de ser protagonista).
 
 El objeto se cambia con `prop:` en el catálogo o con `analysis.props.query` en la configuración.
+
+**Resorte** (`prop_spring`, seg. 0,6–1,3 de la referencia): durante un `prop_transfer`, un cordón
+en espiral visto de lado une la gorra con la **mano que la va a recibir**. Se estira hasta quedar
+recto cuando la mano está a 1,6 torsos o más y se comprime con bucles grandes al llegar la gorra.
+`rings` fija los bucles (5) y `size` su radio comprimido en torsos (0,16). Se adelanta al evento
+con `trigger.lead` (10 fotogramas), porque en la referencia aparece antes de soltar la gorra;
+por la misma razón, el foco del capítulo de un traspaso empieza 0,35 s antes.
 
 ### Color por capítulo (`chapters: true`)
 

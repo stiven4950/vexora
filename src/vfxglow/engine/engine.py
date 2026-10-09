@@ -119,8 +119,10 @@ class EffectEngine:
                     [event.position[0] * width, event.position[1] * height],
                     dtype=np.float64,
                 )
-            # Un efecto disparado conserva el color del capítulo en que empezó.
-            runtime.chapter_colors = self._chapter_colors(event.start_frame if event is not None else frame_index)
+            # Un efecto disparado conserva el color del capítulo en que se encendió.
+            if runtime.active_frames == 1:
+                runtime.chapter_frame = frame_index
+            runtime.chapter_colors = self._chapter_colors(runtime.chapter_frame if effect.triggers and gain > 0 else frame_index)
             runtime.contour_px = None
             runtime.tool_tip = None
             if self.appearance is not None:

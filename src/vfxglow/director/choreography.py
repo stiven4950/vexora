@@ -155,6 +155,8 @@ FOCUS_EVENTS = {
     "prop_transfer": lambda e: "prop",
     "prop_worn": lambda e: "prop_worn",
 }
+# El traspaso se ve antes del evento (el resorte aparece antes de soltar): su foco se adelanta.
+FOCUS_LEAD_S = {"prop_transfer": 0.35}
 
 
 def build_chapters(events: list[MotionEvent], palette, seed: int, fps: float, frame_count: int, min_s: float = 0.8) -> list[Chapter]:
@@ -169,7 +171,9 @@ def build_chapters(events: list[MotionEvent], palette, seed: int, fps: float, fr
     marks: list[tuple[int, str]] = []
     for event in sorted((e for e in events if e.name in FOCUS_EVENTS), key=lambda e: e.start_frame):
         focus = FOCUS_EVENTS[event.name](event)
-        start = event.start_frame if marks or event.start_frame >= shortest else 0
+        start = max(event.start_frame - int(round(FOCUS_LEAD_S.get(event.name, 0.0) * fps)), 0)
+        if not marks and start < shortest:
+            start = 0
         if marks and marks[-1][1] == focus:
             continue
         if marks and start - marks[-1][0] < shortest:

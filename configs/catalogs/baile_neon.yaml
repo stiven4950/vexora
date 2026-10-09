@@ -151,15 +151,20 @@ reactions:
     effects: []
 - action: prop_transfer
   options:
-  - name: doble_contorno
+  # Seg. 0.6-1.3 de la referencia: un resorte une la gorra con la mano que la recibe; se estira
+  # cuando la mano se aleja y se comprime cuando la gorra llega.
+  - name: resorte
     weight: 0.7
+    effects:
+    - type: prop_spring
+      style: {rings: 5, size: 0.16, palette_every: 30}
+      trigger: {lead: 10, hold: 2, fade_in: 3, fade_out: 4}
+  - name: doble_contorno
+    weight: 0.3
     effects:
     - type: prop_outline
       style: {shapes: [double], fill: 0.0, palette_every: 30}
       trigger: {hold: 6, fade_in: 1, fade_out: 5}
-  - name: nada
-    weight: 0.3
-    effects: []
 - action: prop_worn
   options:
   - name: gorra_puesta
