@@ -272,6 +272,7 @@ Las partes del cuerpo encendidas usan **dos pasadas**, como haría un editor: un
 | 0.0–2.4 | Brazo extendido con la gorra | Brazo y gorra teñidos de verde, con contorno blanco | ✅ `spotlight` → `body_glow` del brazo; la gorra con `prop_outline` (contorno exacto de SAM 2) |
 | 0.0–9.0 | La gorra pasa de mano en mano | Gorra teñida y contorneada mientras se mueve | ✅ `prop_outline` siempre activo + `prop_transfer → doble_contorno` |
 | 0.6–1.3 | Traspaso de mano a mano | Resorte de la gorra a la mano que la recibe | ✅ `prop_transfer → resorte` (`prop_spring`) |
+| 2.3–3.4 | La gorra gira en las manos | Anillo que sube y baja por la gorra, gorra teñida | ✅ `prop_spin → anillos` (`prop_rings` + tinte) |
 | 4.0–6.4 | Torso de frente | Torso magenta con **abdominales y pectorales dibujados** | ✅ `spotlight → torso_abdominales` (`shapes: [abs]`) |
 | 6.6–7.3 | Se pone la gorra | Gorra dibujada en neón sobre la cabeza | ✅ `prop_worn → gorra_puesta` (contorno real); además `adornment` en otros tramos de cabeza |
 | 9.3–10.3 | Brazo flexionado arriba | **Brazo musculoso** verde | ✅ `body_glow` del brazo con `shapes: [biceps]` |
@@ -337,6 +338,17 @@ recto cuando la mano está a 1,6 torsos o más y se comprime con bucles grandes 
 `rings` fija los bucles (5) y `size` su radio comprimido en torsos (0,16). Se adelanta al evento
 con `trigger.lead` (10 fotogramas), porque en la referencia aparece antes de soltar la gorra;
 por la misma razón, el foco del capítulo de un traspaso empieza 0,35 s antes.
+
+**Anillos** (`prop_rings`, seg. 2,3–3,4 de la referencia): mientras la gorra gira en las manos, un
+anillo elíptico la recorre subiendo (color principal del capítulo) y bajando (acento), con la
+mitad de atrás tenue como si la tapara la gorra. Viaja por el eje de la gorra más cercano a la
+vertical, así que con la gorra de frente sigue siendo horizontal. Mientras gira, el contorno
+permanente se aparta (`Prop.spinning`) y la gorra solo se tiñe.
+
+El giro lo detecta el análisis (`prop_spin`): el contorno cambia de orientación, excentricidad o
+área de forma sostenida (media de 9 fotogramas sobre 10, al menos 0,4 s) con la gorra en las
+manos, sin contar los fotogramas de un traspaso. En video_33 marca 40–104 (los anillos de la
+referencia están en 70–103) y 791–809.
 
 ### Color por capítulo (`chapters: true`)
 

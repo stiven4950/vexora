@@ -108,6 +108,7 @@ EVENT_CATALOG: dict[str, str] = {
     "tool_touch": "La mano se mueve junto al rostro, como un pincel que pinta.",
     "prop_transfer": "El objeto protagonista (p. ej. una gorra) pasa de una mano a la otra.",
     "prop_worn": "El objeto protagonista llega a la cabeza (se pone la gorra).",
+    "prop_spin": "El objeto protagonista gira en las manos.",
 }
 
 

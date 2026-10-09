@@ -79,6 +79,8 @@ class Prop(_Strict):
     confidence: float = 1.0
     person: str = "person_0"
     state: str = "air"
+    # Gira en las manos (dentro de un evento prop_spin).
+    spinning: bool = False
 
 
 class PersonPose(_Strict):

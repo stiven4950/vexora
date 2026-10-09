@@ -165,6 +165,24 @@ reactions:
     - type: prop_outline
       style: {shapes: [double], fill: 0.0, palette_every: 30}
       trigger: {hold: 6, fade_in: 1, fade_out: 5}
+- action: prop_spin
+  options:
+  # Seg. 2.3-3.4 de la referencia: mientras gira la gorra en las manos, un anillo la recorre
+  # subiendo (color principal) y bajando (acento).
+  - name: anillos
+    weight: 0.8
+    effects:
+    - type: prop_rings
+      style: {rings: 1, trail_frames: 12, palette_every: 30}
+      trigger: {hold: 4, fade_in: 3, fade_out: 5}
+    # El resplandor del color sobre la gorra mientras gira (sin contorno).
+    - type: prop_outline
+      style: {shapes: [no_outline, spin], fill: 0.5, palette_every: 30}
+      render: {blend: tint}
+      trigger: {hold: 4, fade_in: 3, fade_out: 5}
+  - name: nada
+    weight: 0.2
+    effects: []
 - action: prop_worn
   options:
   - name: gorra_puesta

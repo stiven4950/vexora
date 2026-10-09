@@ -119,10 +119,10 @@ def render_effect(
         else:
             draw = {"ground_burst": sword.draw_ground_burst, "ground_cloud": sword.draw_ground_cloud, "floor_streak": sword.draw_floor_streak}[kind]
             draw(runtime, points, frame_index, height, envelope, layer, event)
-    elif kind in {"prop_outline", "prop_spring"}:
-        from vfxglow.engine.prop import draw_prop_outline, draw_prop_spring
+    elif kind in {"prop_outline", "prop_spring", "prop_rings"}:
+        from vfxglow.engine.prop import draw_prop_outline, draw_prop_rings, draw_prop_spring
 
-        draw = draw_prop_outline if kind == "prop_outline" else draw_prop_spring
+        draw = {"prop_outline": draw_prop_outline, "prop_spring": draw_prop_spring, "prop_rings": draw_prop_rings}[kind]
         draw(runtime, track, points, frame_index, height, envelope, layer, event if effect.triggers else None)
     elif kind in {"body_glow", "adornment"}:
         from vfxglow.engine.bodyglow import draw_adornment, draw_body_glow

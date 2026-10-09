@@ -49,6 +49,10 @@ MIN_RUN = 10
 WORN_AWAY_S = 1.0
 # Un traspaso puede pasar por "both" o "air" hasta este tiempo entre una mano y la otra.
 TRANSFER_GAP_S = 1.0
+# Giro en las manos: ventana de la media, puntuación mínima y duración mínima.
+SPIN_WINDOW = 9
+SPIN_SCORE = 10.0
+SPIN_MIN_S = 0.4
 HANDS = ("left", "right")
 HEAD_STATES = ("worn", "fitting")
 
@@ -349,9 +353,10 @@ def _merge_head_runs(states: list[str]) -> list[str]:
 # ----- eventos -----
 
 
-def prop_events(frames: list[FrameRecord], fps: float) -> list[MotionEvent]:
+def prop_events(frames: list[FrameRecord], fps: float, width: int = 1, height: int = 1) -> list[MotionEvent]:
     """prop_transfer: pasa de una mano a la otra (kind left_to_right / right_to_left).
-    prop_worn: llega a la cabeza (kind fit si una mano lo acompaña, drop si cae solo)."""
+    prop_worn: llega a la cabeza (kind fit si una mano lo acompaña, drop si cae solo).
+    prop_spin: gira en las manos (ver `spin_events`)."""
     events: list[MotionEvent] = []
     gap = int(round(TRANSFER_GAP_S * fps))
     holder: tuple[str, int] | None = None  # (mano, último fotograma con ella)
@@ -394,6 +399,79 @@ def prop_events(frames: list[FrameRecord], fps: float) -> list[MotionEvent]:
             away = None
         elif away is None:
             away = record.frame
+    events.extend(spin_events(frames, fps, [e for e in events if e.name == "prop_transfer"], width, height))
+    events.sort(key=lambda e: e.start_frame)
+    return events
+
+
+def shape_signature(polygon: np.ndarray) -> tuple[float, float, float]:
+    """(orientación del eje largo en grados, excentricidad menor/mayor, área) por momentos."""
+    m = cv2.moments(polygon.astype(np.float32))
+    if m["m00"] <= 0:
+        return 0.0, 1.0, 0.0
+    mu20, mu02, mu11 = m["mu20"] / m["m00"], m["mu02"] / m["m00"], m["mu11"] / m["m00"]
+    spread = np.sqrt(((mu20 - mu02) / 2) ** 2 + mu11**2)
+    major, minor = (mu20 + mu02) / 2 + spread, (mu20 + mu02) / 2 - spread
+    return float(0.5 * np.degrees(np.arctan2(2 * mu11, mu20 - mu02))), float(np.sqrt(max(minor, 0.0) / max(major, 1e-6))), float(m["m00"])
+
+
+def spin_events(frames: list[FrameRecord], fps: float, transfers: list[MotionEvent], width: int = 1, height: int = 1) -> list[MotionEvent]:
+    """El objeto gira en las manos: su contorno cambia de orientación, de forma o de tamaño
+    aparente de un fotograma al siguiente, de forma sostenida.
+
+    Puntuación por fotograma: grados de giro del eje + 100 x cambio de excentricidad + 100 x
+    |log| del cambio de área, media en SPIN_WINDOW fotogramas. En video_33 los tramos con anillos
+    de la referencia (fotogramas 70-103) superan SPIN_SCORE; el vuelo de un traspaso también,
+    por eso sus fotogramas no cuentan.
+    """
+    score = np.zeros(len(frames))
+    held = np.zeros(len(frames), dtype=bool)
+    previous = None
+    for index, record in enumerate(frames):
+        prop = record.prop
+        if prop is None:
+            previous = None
+            continue
+        held[index] = prop.state in ("left", "right", "both")
+        current = shape_signature(np.array(prop.contour) * [width, height])
+        if previous is not None and previous[2] > 0 and current[2] > 0:
+            turn = abs((current[0] - previous[0] + 90.0) % 180.0 - 90.0)
+            score[index] = turn + 100.0 * abs(current[1] - previous[1]) + 100.0 * abs(np.log(current[2] / previous[2]))
+        previous = current
+    smooth = np.convolve(score, np.ones(SPIN_WINDOW) / SPIN_WINDOW, mode="same")
+    active = (smooth > SPIN_SCORE) & held
+    # Los fotogramas de un traspaso (con su anticipación) no cuentan como giro.
+    lead = int(round(0.35 * fps))
+    for event in transfers:
+        for index, record in enumerate(frames):
+            if event.start_frame - lead <= record.frame <= event.end_frame:
+                active[index] = False
+    events: list[MotionEvent] = []
+    index = 0
+    while index < len(frames):
+        if not active[index]:
+            index += 1
+            continue
+        end = index
+        while end < len(frames) and active[end]:
+            end += 1
+        first, last = frames[index].frame, frames[end - 1].frame
+        if end - index >= int(SPIN_MIN_S * fps):
+            for record in frames[index:end]:
+                record.prop.spinning = True
+            prop = frames[index].prop
+            events.append(
+                MotionEvent(
+                    name="prop_spin",
+                    target=f"{prop.person}:prop",
+                    start_frame=first,
+                    end_frame=last,
+                    confidence=float(min(smooth[index:end].mean() / (2 * SPIN_SCORE), 1.0)),
+                    detail=f"El objeto ({prop.label}) gira en las manos.",
+                    position=tuple(np.mean(np.array(prop.contour), axis=0).tolist()),
+                )
+            )
+        index = end
     return events
 
 

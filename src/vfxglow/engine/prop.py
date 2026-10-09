@@ -6,13 +6,18 @@
 
 Formas (`style.shapes`): `double` añade un segundo contorno algo más grande; `no_outline` deja
 solo el relleno (para el modo tint); `worn` lo pinta también en la cabeza (puesto o
-acomodándolo; por defecto no: la gorra puesta deja de ser protagonista).
+acomodándolo; por defecto no: la gorra puesta deja de ser protagonista); `spin` lo pinta
+también mientras gira (por defecto no, si no va disparado: ahí manda el anillo).
 
 - prop_spring: durante un `prop_transfer`, un resorte (cordón en espiral visto de lado) une el
   objeto con la mano que lo va a recibir. Se estira hasta quedar casi recto cuando la mano se
   aleja y se comprime con bucles grandes cuando el objeto llega (video_33, fotogramas 18-38).
   `rings` = bucles; `size` = radio de los bucles comprimidos, en torsos. Conviene adelantarlo
   al evento con `trigger.lead`: en la referencia aparece antes de soltar la gorra.
+- prop_rings: mientras el objeto gira en las manos (`prop_spin`), un anillo elíptico lo recorre
+  a lo largo de su eje: sube con el color principal y baja con el acento (video_33, fotogramas
+  70-94). La mitad de atrás va tenue, como tapada por el objeto. `rings` = anillos a la vez;
+  `trail_frames` = fotogramas de una subida.
 """
 
 from __future__ import annotations
@@ -30,7 +35,12 @@ from vfxglow.engine.swoosh import neon_layers
 # Puntos del contorno remuestreado y suavizado (en puntos) para que no se lea dentado.
 RESAMPLE = 120
 SMOOTH = 2.0
-SHAPES = ("outline", "double", "no_outline", "worn")
+SHAPES = ("outline", "double", "no_outline", "worn", "spin")
+# Anillos: ancho respecto al objeto en esa altura, inclinación (eje menor / mayor) y alfa de la
+# mitad de atrás.
+RING_WIDTH = 1.15
+RING_TILT = 0.32
+RING_BACK = 0.3
 # Resorte: distancia (en torsos) a la que queda recto y muestras por bucle.
 SPRING_STRAIGHT = 1.6
 SPRING_SAMPLES = 28
@@ -65,6 +75,9 @@ def draw_prop_outline(runtime, track, points, frame_index: int, height: int, env
     if style.people and track.prop.person not in style.people:
         return
     if track.prop.state in ("worn", "fitting") and "worn" not in style.shapes:
+        return
+    # Mientras gira, el protagonista es el anillo (prop_rings): el contorno se aparta.
+    if track.prop.spinning and "spin" not in style.shapes and event is None:
         return
     width = layer.shape[1]
     polygon = prop_polygon(track, width, height)
@@ -135,3 +148,73 @@ def draw_prop_spring(runtime, track, points, frame_index: int, height: int, enve
     color = np.asarray(style.colors[0], dtype=np.float32)
     line = max(1.5, style.thickness * torso)
     stroke_batch(layer, neon_layers(curve, color, line, envelope * arrive), style.hdr_gain)
+
+
+def object_axis(polygon: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
+    """Centro, eje de recorrido, eje transversal (unitarios) y media longitud del objeto.
+
+    El recorrido es el eje principal (por momentos) más cercano a la vertical: en la referencia
+    el anillo sube y baja en pantalla, también con la gorra de frente (eje largo horizontal).
+    """
+    center = polygon.mean(axis=0)
+    cov = np.cov((polygon - center).T)
+    _, vectors = np.linalg.eigh(cov)
+    travel = max((vectors[:, 0], vectors[:, 1]), key=lambda axis: abs(axis[1]))
+    if travel[1] > 0:  # el eje apunta hacia arriba de la pantalla
+        travel = -travel
+    across = np.array([-travel[1], travel[0]])
+    half = float(np.ptp((polygon - center) @ travel)) * 0.5
+    return center, travel, across, max(half, 1.0)
+
+
+def ring_at(polygon: np.ndarray, position: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, float] | None:
+    """Elipse del anillo a la altura `position` (-1 abajo, 1 arriba) del eje del objeto:
+    (centro, eje del ancho, eje de la profundidad, semiancho)."""
+    center, major, minor, half = object_axis(polygon)
+    along = (polygon - center) @ major
+    level = position * half * 0.85
+    near = np.abs(along - level) < half * 0.2
+    across = (polygon - center) @ minor
+    if near.sum() >= 2:
+        low, high = float(across[near].min()), float(across[near].max())
+    else:
+        low, high = float(across.min()), float(across.max())
+    radius = (high - low) * 0.5 * RING_WIDTH
+    if radius < 2.0:
+        return None
+    mid = center + major * level + minor * (low + high) * 0.5
+    return mid, minor, major, radius
+
+
+def draw_prop_rings(runtime, track, points, frame_index: int, height: int, envelope: float, layer: np.ndarray, event: MotionEvent | None = None) -> None:
+    style = runtime.effect.style
+    if envelope <= 0 or track is None or track.prop is None:
+        return
+    polygon = prop_polygon(track, layer.shape[1], height)
+    if polygon is None:
+        return
+    start = event.start_frame if event is not None else 0
+    rise = max(style.trail_frames, 2)
+    torso = torso_pixels(points, height)
+    line = max(1.5, style.thickness * torso)
+    strokes = []
+    for ring in range(max(style.rings, 1)):
+        # Va y vuelve: sube en `rise` fotogramas y baja en otros tantos.
+        phase = ((frame_index - start) / rise + ring * 2.0 / max(style.rings, 1)) % 2.0
+        going_up = phase < 1.0
+        t = phase if going_up else 2.0 - phase
+        shape = ring_at(polygon, 2.0 * t - 1.0)
+        if shape is None:
+            continue
+        mid, width_axis, depth_axis, radius = shape
+        color = np.asarray(style.colors[0 if going_up else 1 % len(style.colors)], dtype=np.float32)
+        theta = np.linspace(0.0, 2.0 * np.pi, 73)
+        ellipse = mid + np.outer(np.cos(theta) * radius, width_axis) + np.outer(np.sin(theta) * radius * RING_TILT, depth_axis)
+        # Mitad de delante (hacia abajo del eje) entera; la de atrás, tenue.
+        front = np.sin(theta) <= 0
+        for mask, alpha in ((front, 1.0), (~front, RING_BACK)):
+            pieces = np.split(np.arange(len(theta)), np.where(np.diff(mask.astype(int)) != 0)[0] + 1)
+            for piece in pieces:
+                if len(piece) >= 2 and mask[piece[0]]:
+                    strokes += neon_layers(ellipse[piece], color, line, envelope * alpha)
+    stroke_batch(layer, strokes, style.hdr_gain)

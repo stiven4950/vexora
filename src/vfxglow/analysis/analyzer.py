@@ -117,7 +117,7 @@ def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: st
         from vfxglow.analysis.props import assign_states, prop_events
 
         assign_states(frames, meta.width, meta.height)
-        events.extend(prop_events(frames, meta.fps))
+        events.extend(prop_events(frames, meta.fps, meta.width, meta.height))
     beats, onsets = segment_beats(frames, video_path, meta, config.analysis.beats)
     appearance = analyze_appearance(video_path, frames, meta)
     beats = retag_paint_beats(beats, appearance)

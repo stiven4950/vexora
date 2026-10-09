@@ -178,3 +178,42 @@ def test_prop_spring_joins_object_and_receiving_hand() -> None:
     assert xs.size
     # Va del objeto (x≈0,29) a la mano que lo recibe (x=0,7), no a la que lo suelta.
     assert xs.min() < 0.32 * W and xs.max() > 0.66 * W
+
+
+def _ellipse_cap(cx: float, cy: float, angle: float, rx: float = 0.06, ry: float = 0.025) -> Prop:
+    t = np.linspace(0, 2 * np.pi, 32, endpoint=False)
+    x, y = rx * np.cos(t), ry * np.sin(t)
+    ca, sa = np.cos(angle), np.sin(angle)
+    contour = [(cx + (xi * ca - yi * sa), cy + (xi * sa + yi * ca) * W / H) for xi, yi in zip(x, y)]
+    xs, ys = [c[0] for c in contour], [c[1] for c in contour]
+    return Prop(label="cap", contour=contour, box=(min(xs), min(ys), max(xs), max(ys)), state="both")
+
+
+def test_spin_detected_when_turning_in_hands_but_not_when_still() -> None:
+    from vfxglow.analysis.props import spin_events
+
+    turning = [FrameRecord(frame=i, time_s=i / 30, pose=_pose(), prop=_ellipse_cap(0.5, 0.5, 0.25 * i)) for i in range(30)]
+    still = [FrameRecord(frame=i, time_s=i / 30, pose=_pose(), prop=_ellipse_cap(0.5, 0.5, 0.0)) for i in range(30)]
+    events = spin_events(turning, 30.0, [], W, H)
+    assert len(events) == 1 and events[0].name == "prop_spin" and turning[15].prop.spinning
+    assert spin_events(still, 30.0, [], W, H) == []
+    # Los fotogramas de un traspaso no cuentan como giro.
+    transfer = _event("prop_transfer", 10, kind="left_to_right")
+    transfer.end_frame = 29
+    assert spin_events(turning, 30.0, [transfer], W, H) == []
+
+
+def test_ring_travels_along_the_more_vertical_axis() -> None:
+    from vfxglow.engine.prop import ring_at
+
+    polygon = np.array(_ellipse_cap(0.5, 0.5, 0.0).contour) * [W, H]  # gorra de frente: eje largo horizontal
+    low, high = ring_at(polygon, -1.0), ring_at(polygon, 1.0)
+    assert low is not None and high is not None
+    assert high[0][1] < low[0][1]  # sube en pantalla
+    assert abs(low[1][0]) > 0.9  # el ancho del anillo es horizontal
+
+
+def test_outline_steps_aside_while_spinning() -> None:
+    prop = _cap(0.3, 0.5, 0.08).model_copy(update={"spinning": True})
+    assert _render(prop, ["outline"])[..., 3].max() == 0
+    assert _render(prop, ["outline", "spin"])[..., 3].max() > 0.5
