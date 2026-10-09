@@ -201,6 +201,14 @@ class Accessory(_Strict):
     source: str = "vlm"
 
 
+class SkinTone(_Strict):
+    """Tono de piel medido (mediana en RGB lineal) y su luminancia: decide qué colores contrastan."""
+
+    rgb: tuple[float, float, float]
+    luma: float
+    samples: int = 0
+
+
 class MotionBrief(_Strict):
     version: str = "1.0"
     video: VideoMeta
@@ -215,3 +223,4 @@ class MotionBrief(_Strict):
     scene: list[SceneBeat] = Field(default_factory=list)
     audio_onsets: list[int] = Field(default_factory=list)
     accessories: list[Accessory] = Field(default_factory=list)
+    skin: dict[str, SkinTone] = Field(default_factory=dict)

@@ -22,6 +22,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
 from vfxglow.analysis.schema import MotionBrief, MotionEvent
+from vfxglow.director.palette import skin_luma, skin_scores
 from vfxglow.director.schema import Chapter, EffectScript, resolve_timing
 
 
@@ -32,6 +33,12 @@ class _Strict(BaseModel):
 class Option(_Strict):
     name: str
     weight: float = 1.0
+    # Cede el paso: si cerca (yield_window_s) hay una de estas acciones, con probabilidad
+    # yield_chance la opción no sale (un accesorio de cabeza no tapa la gorra recién puesta).
+    # Al azar, para que a veces sí coincidan.
+    yields_to: list[str] = Field(default_factory=list)
+    yield_chance: float = 0.75
+    yield_window_s: float = 1.5
     # La acción debe venir de una persona identificada (person_N:...). Un rayo de los ojos
     # necesita saber quién dispara y hacia quién.
     requires_person: bool = False
@@ -108,6 +115,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -
         for event in sorted((e for e in brief.events if e.name == reaction.action), key=lambda e: e.start_frame):
             resting = {name for name, frame in used.items() if event.start_frame - frame < _option(reaction, name).cooldown}
             option = _draw(reaction, event, seed, resting, brief)
+            if option.yields_to and _yields(option, event, brief, seed, fps):
+                option = Option(name=f"nada (cede a {', '.join(option.yields_to)})")
             if option.effects and event.start_frame - last < reaction.cooldown:
                 option = Option(name="nada (enfriamiento)")
             if option.effects:
@@ -142,9 +151,16 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -
     script = EffectScript.model_validate(
         {"title": catalog.title or catalog.name, "theme": catalog.name, "seed": seed, "effects": effects}
     )
+    luma = skin_luma(brief)
+    if luma is not None:
+        # Colores que contrastan con esta piel salen más seguido (ninguno queda fuera).
+        for effect in script.effects:
+            if effect.style.palette:
+                effect.style.palette_weights = [round(float(w), 4) for w in skin_scores(effect.style.palette, luma) ** 2]
     if catalog.chapters:
         palette = catalog.defaults.get("style", {}).get("palette") or catalog.colors
-        script.chapters = build_chapters(brief.events, palette, seed, fps, brief.video.frame_count, catalog.chapter_min_s)
+        weights = skin_scores(palette, luma) ** 2 if luma is not None else None
+        script.chapters = build_chapters(brief.events, palette, seed, fps, brief.video.frame_count, catalog.chapter_min_s, weights)
     decisions.sort(key=lambda d: (d.frame, d.action))
     return resolve_timing(script, brief.video.frame_count), Choreography(catalog=catalog.name, seed=seed, decisions=decisions)
 
@@ -159,13 +175,14 @@ FOCUS_EVENTS = {
 FOCUS_LEAD_S = {"prop_transfer": 0.35}
 
 
-def build_chapters(events: list[MotionEvent], palette, seed: int, fps: float, frame_count: int, min_s: float = 0.8) -> list[Chapter]:
+def build_chapters(events: list[MotionEvent], palette, seed: int, fps: float, frame_count: int, min_s: float = 0.8, weights=None) -> list[Chapter]:
     """Capítulos de foco estable con dos colores cada uno (principal y acento).
 
     Un capítulo nuevo empieza cuando un evento de foco nombra otro foco. Un capítulo dura al
     menos `min_s`: un foco que llega antes se ignora, salvo que sea del objeto protagonista,
     que se queda con el capítulo (llegar a la cabeza pesa más que un brazo que se mueve). Dos
-    capítulos seguidos nunca repiten color principal.
+    capítulos seguidos nunca repiten color principal. `weights` (uno por color) hace que unos
+    colores salgan más que otros (los que contrastan con la piel, ver director/palette.py).
     """
     shortest = min_s * fps
     marks: list[tuple[int, str]] = []
@@ -191,10 +208,15 @@ def build_chapters(events: list[MotionEvent], palette, seed: int, fps: float, fr
     colors = [tuple(float(v) for v in c) for c in palette]
     chapters: list[Chapter] = []
     previous = -1
+    weight = np.ones(len(colors)) if weights is None else np.asarray(weights, dtype=np.float64)
+
+    def pick(choices: list[int]) -> int:
+        w = weight[choices]
+        return int(rng.choice(choices, p=w / w.sum())) if w.sum() > 0 else int(rng.choice(choices))
+
     for start, stop, focus in spans:
-        choices = [i for i in range(len(colors)) if i != previous] or [0]
-        main = int(rng.choice(choices))
-        accent = int(rng.choice([i for i in range(len(colors)) if i != main] or [main]))
+        main = pick([i for i in range(len(colors)) if i != previous] or [0])
+        accent = pick([i for i in range(len(colors)) if i != main] or [main])
         chapters.append(Chapter(start_frame=int(start), end_frame=int(stop) - 1, focus=focus, colors=[colors[main], colors[accent]]))
         previous = main
     return chapters
@@ -213,6 +235,14 @@ def _wears(brief: MotionBrief | None, event: MotionEvent, kinds: list[str]) -> b
         a.kind in kinds and a.start_frame <= event.start_frame <= a.end_frame and (person is None or a.person == person)
         for a in brief.accessories
     )
+
+
+def _yields(option: Option, event: MotionEvent, brief: MotionBrief, seed: int, fps: float) -> bool:
+    window = option.yield_window_s * fps
+    if not any(e.name in option.yields_to and abs(e.start_frame - event.start_frame) <= window for e in brief.events):
+        return False
+    rng = np.random.default_rng(zlib.crc32(f"{seed}:yield:{option.name}:{event.start_frame}".encode()) & 0xFFFFFFFF)
+    return bool(rng.random() < option.yield_chance)
 
 
 def _draw(reaction: Reaction, event: MotionEvent, seed: int, resting: set[str] = frozenset(), brief: MotionBrief | None = None) -> Option:

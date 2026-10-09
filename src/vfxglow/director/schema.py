@@ -186,6 +186,9 @@ class EffectStyle(_Strict):
     # `colors`). Sin evento, se vuelve a sortear cada `palette_every` fotogramas.
     palette: list[tuple[float, float, float]] = Field(default_factory=list)
     palette_every: int = 45
+    # Peso de cada color de `palette` al sortear (mismo orden). Vacío = todos iguales. El
+    # coreógrafo lo llena según el tono de piel (director/palette.py).
+    palette_weights: list[float] = Field(default_factory=list)
     # Impactos: cantidad de chispas diminutas que salen disparadas del golpe (0 = ninguna).
     micro_sparks: int = 0
     # body_glow: opacidad del tinte de color que rellena la parte del cuerpo (0 = solo contorno).

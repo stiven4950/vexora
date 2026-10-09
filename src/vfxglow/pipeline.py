@@ -109,6 +109,22 @@ class Pipeline:
         if "props" in needs and not self.config.analysis.props.query:
             self.config.analysis.props.query = catalog.prop
 
+    def _ensure_skin(self, brief_path: Path) -> None:
+        """Análisis anteriores al tono de piel: se mide ahora (segundos) sin rehacer el análisis."""
+        from vfxglow.analysis.schema import MotionBrief
+        from vfxglow.analysis.skin import estimate_skin
+
+        tracks = self.run_dir / "analysis" / "tracks.jsonl"
+        if not brief_path.exists() or not tracks.exists():
+            return
+        brief = read_model(brief_path, MotionBrief)
+        if brief.skin:
+            return
+        skin = estimate_skin(self.video, load_tracks(tracks))
+        if skin:
+            write_model(brief_path, brief.model_copy(update={"skin": skin}))
+            log.info("Tono de piel medido: %s", ", ".join(f"{person} {tone.luma:.2f}" for person, tone in sorted(skin.items())))
+
     def _guard_optional_stages(self) -> None:
         if self.config.refiner.enabled:
             require_cuda("El refinador difusor", self.device)
@@ -136,6 +152,7 @@ class Pipeline:
 
     def direct(self) -> None:
         brief_path = self.run_dir / "analysis" / "motion_brief.json"
+        self._ensure_skin(brief_path)
         preset_path = preset_file(self.config_path, self.config.director.preset)
         preset_hash = sha256_file(preset_path) if self.config.director.provider == "preset" and preset_path.exists() else ""
         catalog_path = catalog_file(self.config_path, self.config.director.catalog)

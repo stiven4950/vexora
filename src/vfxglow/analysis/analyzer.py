@@ -132,7 +132,9 @@ def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: st
     from vfxglow.analysis.accessories import detect_accessories
 
     accessories = detect_accessories(video_path, frames, analysis / "scene_cache", config.analysis.accessories, config.analysis.scene)
-    brief = brief.model_copy(update={"accessories": accessories})
+    from vfxglow.analysis.skin import estimate_skin
+
+    brief = brief.model_copy(update={"accessories": accessories, "skin": estimate_skin(video_path, frames)})
     header = AnalysisHeader(
         video=meta,
         device=device,

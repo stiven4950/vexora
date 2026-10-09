@@ -99,6 +99,8 @@ reactions:
   - name: cabeza_accesorio
     weight: 0.5
     kinds: [head]
+    # Le cede la cabeza a la gorra recién puesta y a la cara de caricatura (casi siempre).
+    yields_to: [prop_worn, face_touch]
     effects:
     - type: adornment
       style:
@@ -108,6 +110,8 @@ reactions:
   - name: cabeza_gafas
     weight: 0.3
     kinds: [head]
+    # Le cede la cabeza a la gorra recién puesta y a la cara de caricatura (casi siempre).
+    yields_to: [prop_worn, face_touch]
     effects:
     - type: eyewear
       target: {kind: joint, id: nose}
@@ -118,6 +122,8 @@ reactions:
   - name: cabeza_brillo
     weight: 0.3
     kinds: [head]
+    # Le cede la cabeza a la gorra recién puesta y a la cara de caricatura (casi siempre).
+    yields_to: [prop_worn, face_touch]
     effects:
     - type: body_glow
       target: &id005 {kind: joint, id: head}

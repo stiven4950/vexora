@@ -210,7 +210,11 @@ def _pick_colors(runtime: EffectRuntime, frame_index: int, event: MotionEvent | 
     runtime.palette_key = key
     rng = np.random.default_rng(zlib.crc32(f"{style.seed_offset}:{runtime.effect.id}:{key}".encode()) & 0xFFFFFFFF)
     count = min(2, len(style.palette))
-    picks = rng.choice(len(style.palette), size=count, replace=False)
+    weights = None
+    if len(style.palette_weights) == len(style.palette) and sum(style.palette_weights) > 0:
+        weights = np.asarray(style.palette_weights, dtype=np.float64)
+        weights = weights / weights.sum()
+    picks = rng.choice(len(style.palette), size=count, replace=False, p=weights)
     style.colors = [style.palette[int(i)] for i in picks]
 
 

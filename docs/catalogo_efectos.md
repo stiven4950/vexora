@@ -388,6 +388,29 @@ evento conserva el del capítulo en que empezó.
   que se queda con el capítulo.
 - Dos capítulos seguidos nunca repiten el color principal.
 
+### Colores según el tono de piel
+
+El análisis mide el tono de piel de cada persona (`analysis/skin.py`: mejillas y, si la cara no
+alcanza, el pecho; solo píxeles en rango de piel, sin ropa negra ni rojos saturados) y lo guarda
+en el brief (`skin`). Para análisis anteriores, el pipeline lo mide al vuelo antes de dirigir.
+
+Una parte teñida queda en `(0,15 + 2 × luma de la piel) × tono`. `director/palette.py` puntúa
+cada color por el contraste de la línea blanca con esa piel teñida y porque el tinte no quede
+apagado, y el coreógrafo lo usa como peso (al cuadrado) al sortear colores: en capítulos y en
+`palette_weights` de cada efecto. Ningún color queda fuera, solo sale menos.
+
+| Piel (luma) | Salen más | Salen menos |
+| --- | --- | --- |
+| Clara (~0,3, video_33) | magenta, violeta, rosa (72%) | amarillo, turquesa, verde |
+| Morena (~0,07, video_34 persona 0) | verde, turquesa, amarillo (66%) | magenta, violeta |
+
+### Opciones que ceden el paso (`yields_to`)
+
+Una opción puede ceder ante otra acción cercana: si a menos de `yield_window_s` (1,5 s) hay una
+de las acciones de `yields_to`, con probabilidad `yield_chance` (0,75) no sale. En `baile_neon`
+los accesorios de cabeza ceden ante `prop_worn` y `face_touch`, para no tapar la caricatura de la
+gorra puesta ni el beso; al azar, a veces sí coinciden.
+
 ### Cómo se elige la parte (`spotlight`)
 
 Por tramos de 1,2 s y por persona se mide el recorrido de cada parte (brazo izquierdo, brazo
