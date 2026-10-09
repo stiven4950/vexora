@@ -106,3 +106,47 @@ def test_prop_outline_draws_around_the_object_and_skips_when_worn() -> None:
     worn = prop.model_copy(update={"state": "worn"})
     assert _render(worn, ["outline"])[..., 3].max() == 0
     assert _render(worn, ["outline", "worn"])[..., 3].max() > 0.5
+
+
+def _event(name: str, frame: int, kind: str = "", target: str = "person_0") -> "MotionEvent":
+    from vfxglow.analysis.schema import MotionEvent
+
+    return MotionEvent(name=name, target=target, start_frame=frame, end_frame=frame + 30, confidence=1.0, kind=kind)
+
+
+def test_chapters_change_color_only_when_focus_changes() -> None:
+    from vfxglow.director.choreography import build_chapters
+
+    palette = [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)]
+    events = [
+        _event("prop_transfer", 10),
+        _event("prop_transfer", 40),  # mismo foco: sigue el capítulo
+        _event("spotlight", 90, "left_arm"),
+        _event("spotlight", 126, "left_arm"),  # mismo foco
+        _event("spotlight", 160, "legs"),
+        _event("spotlight", 170, "torso"),  # menos de 0,8 s después: se ignora
+        _event("spotlight", 290, "right_arm"),
+        _event("prop_worn", 300),  # la gorra le gana el capítulo a las piernas
+    ]
+    chapters = build_chapters(events, palette, seed=3, fps=30.0, frame_count=400)
+    assert [c.start_frame for c in chapters] == [0, 90, 160, 290]
+    assert chapters[-1].focus == "prop_worn"
+    assert chapters[0].focus == "prop"
+    assert chapters[-1].end_frame == 399
+    for before, after in zip(chapters, chapters[1:]):
+        assert before.colors[0] != after.colors[0]
+        assert before.end_frame + 1 == after.start_frame
+
+
+def test_engine_uses_chapter_color() -> None:
+    from vfxglow.director.schema import Chapter
+
+    effect = Effect(id="cap", type="prop_outline", target=EffectTarget(kind="joint", id="body"), style=EffectStyle(fill=0.0, palette=[(1.0, 0.0, 0.0), (0.0, 0.0, 1.0)]))
+    chapters = [Chapter(start_frame=0, end_frame=3, focus="a", colors=[(0.0, 1.0, 0.0), (0.0, 0.0, 1.0)]), Chapter(start_frame=4, end_frame=99, focus="b", colors=[(1.0, 0.0, 1.0), (0.0, 0.0, 1.0)])]
+    engine = EffectEngine(EffectScript(title="t", theme="t", effects=[effect], chapters=chapters), EngineConfig(), events=[])
+    track = FrameRecord(frame=0, time_s=0.0, pose=_pose(), prop=_cap(0.3, 0.5, 0.08))
+    seen = []
+    for i in range(8):
+        engine.render_frame(track.model_copy(update={"frame": i}), i, W, H, 40)
+        seen.append(tuple(engine.runtimes[0].effect.style.colors[0]))
+    assert seen[0] == (0.0, 1.0, 0.0) and seen[7] == (1.0, 0.0, 1.0)

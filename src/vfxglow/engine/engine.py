@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import bisect
+
 from pathlib import Path
 
 import cv2
@@ -38,10 +40,17 @@ class EffectEngine:
         for runtime in self.runtimes:
             runtime.fps = fps
         self.timelines = [ActivationTimeline(effect, self.events) for effect in script.effects]
+        self.chapter_starts = [chapter.start_frame for chapter in script.chapters]
         self.appearance: Appearance | None = None
         self._appearance_dir: Path | None = None
         self._face_last: dict[str, np.ndarray] = {}
         self._face_age = 0
+
+    def _chapter_colors(self, frame_index: int) -> list | None:
+        if not self.chapter_starts:
+            return None
+        index = max(bisect.bisect_right(self.chapter_starts, frame_index) - 1, 0)
+        return self.script.chapters[index].colors
 
     def _hold_face(self, points: PointSet) -> float:
         """Si la malla se pierde unos fotogramas, reutiliza la última y la desvanece."""
@@ -110,6 +119,8 @@ class EffectEngine:
                     [event.position[0] * width, event.position[1] * height],
                     dtype=np.float64,
                 )
+            # Un efecto disparado conserva el color del capítulo en que empezó.
+            runtime.chapter_colors = self._chapter_colors(event.start_frame if event is not None else frame_index)
             runtime.contour_px = None
             runtime.tool_tip = None
             if self.appearance is not None:

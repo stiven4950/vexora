@@ -22,7 +22,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
 from vfxglow.analysis.schema import MotionBrief, MotionEvent
-from vfxglow.director.schema import EffectScript, resolve_timing
+from vfxglow.director.schema import Chapter, EffectScript, resolve_timing
 
 
 class _Strict(BaseModel):
@@ -72,6 +72,11 @@ class Catalog(_Strict):
     needs: list[str] = Field(default_factory=list)
     # Con needs: [props], el objeto protagonista que se sigue (en inglés, terminado en punto).
     prop: str = "a baseball cap. a hat."
+    # Color por capítulo: el color solo cambia cuando cambia el foco (otra parte del cuerpo
+    # encendida, el objeto protagonista entra o llega a la cabeza). Sin esto, cada efecto sortea
+    # su color por activación.
+    chapters: bool = False
+    chapter_min_s: float = 0.8
 
 
 class Decision(_Strict):
@@ -137,8 +142,58 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -
     script = EffectScript.model_validate(
         {"title": catalog.title or catalog.name, "theme": catalog.name, "seed": seed, "effects": effects}
     )
+    if catalog.chapters:
+        palette = catalog.defaults.get("style", {}).get("palette") or catalog.colors
+        script.chapters = build_chapters(brief.events, palette, seed, fps, brief.video.frame_count, catalog.chapter_min_s)
     decisions.sort(key=lambda d: (d.frame, d.action))
     return resolve_timing(script, brief.video.frame_count), Choreography(catalog=catalog.name, seed=seed, decisions=decisions)
+
+
+# Eventos que cambian el foco y cómo se nombra ese foco.
+FOCUS_EVENTS = {
+    "spotlight": lambda e: f"{e.target.split(':')[0]}:{e.kind}",
+    "prop_transfer": lambda e: "prop",
+    "prop_worn": lambda e: "prop_worn",
+}
+
+
+def build_chapters(events: list[MotionEvent], palette, seed: int, fps: float, frame_count: int, min_s: float = 0.8) -> list[Chapter]:
+    """Capítulos de foco estable con dos colores cada uno (principal y acento).
+
+    Un capítulo nuevo empieza cuando un evento de foco nombra otro foco. Un capítulo dura al
+    menos `min_s`: un foco que llega antes se ignora, salvo que sea del objeto protagonista,
+    que se queda con el capítulo (llegar a la cabeza pesa más que un brazo que se mueve). Dos
+    capítulos seguidos nunca repiten color principal.
+    """
+    shortest = min_s * fps
+    marks: list[tuple[int, str]] = []
+    for event in sorted((e for e in events if e.name in FOCUS_EVENTS), key=lambda e: e.start_frame):
+        focus = FOCUS_EVENTS[event.name](event)
+        start = event.start_frame if marks or event.start_frame >= shortest else 0
+        if marks and marks[-1][1] == focus:
+            continue
+        if marks and start - marks[-1][0] < shortest:
+            if event.name.startswith("prop_") and not marks[-1][1].startswith("prop"):
+                marks[-1] = (marks[-1][0], focus)
+                if len(marks) > 1 and marks[-2][1] == focus:
+                    marks.pop()  # sigue el mismo capítulo del objeto
+            continue
+        marks.append((start, focus))
+    if not marks or marks[0][0] > 0:
+        marks.insert(0, (0, "inicio"))
+    end = max(frame_count, marks[-1][0] + 1)
+    spans = [(start, nxt, focus) for (start, focus), nxt in zip(marks, [m[0] for m in marks[1:]] + [end])]
+    rng = np.random.default_rng(seed * 7919 + 17)
+    colors = [tuple(float(v) for v in c) for c in palette]
+    chapters: list[Chapter] = []
+    previous = -1
+    for start, stop, focus in spans:
+        choices = [i for i in range(len(colors)) if i != previous] or [0]
+        main = int(rng.choice(choices))
+        accent = int(rng.choice([i for i in range(len(colors)) if i != main] or [main]))
+        chapters.append(Chapter(start_frame=int(start), end_frame=int(stop) - 1, focus=focus, colors=[colors[main], colors[accent]]))
+        previous = main
+    return chapters
 
 
 def _option(reaction: Reaction, name: str) -> Option:

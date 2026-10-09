@@ -12,6 +12,9 @@ seed: 33
 # sigue con Grounding DINO + SAM 2 (lento: ~1,2 s por fotograma en MPS, queda en caché).
 needs: [props]
 prop: a baseball cap. a hat.
+# Color por capítulo (como la referencia): gorra y parte del cuerpo encendida comparten color, y
+# el color solo cambia cuando cambia el foco.
+chapters: true
 defaults:
   type: body_glow
   target: {kind: joint, id: body}

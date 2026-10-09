@@ -330,6 +330,20 @@ pinta también puesto; por defecto no, porque puesta deja de ser protagonista).
 
 El objeto se cambia con `prop:` en el catálogo o con `analysis.props.query` en la configuración.
 
+### Color por capítulo (`chapters: true`)
+
+En la referencia el color no salta en cada efecto: gorra y brazo van en verde mientras ese es el
+foco, y todo pasa a magenta cuando el foco cambia al torso. Con `chapters: true` el coreógrafo
+divide el video en **capítulos** y guarda en el guion (`chapters`) dos colores para cada uno
+(principal y acento). Todos los efectos con paleta toman esos colores; uno disparado por un
+evento conserva el del capítulo en que empezó.
+
+- Un capítulo empieza cuando cambia el foco: un `spotlight` de otra parte del cuerpo, o la gorra
+  (`prop_transfer` → foco `prop`, `prop_worn` → foco `prop_worn`).
+- Dura al menos `chapter_min_s` (0,8 s): un foco que llega antes se ignora, salvo el de la gorra,
+  que se queda con el capítulo.
+- Dos capítulos seguidos nunca repiten el color principal.
+
 ### Cómo se elige la parte (`spotlight`)
 
 Por tramos de 1,2 s y por persona se mide el recorrido de cada parte (brazo izquierdo, brazo

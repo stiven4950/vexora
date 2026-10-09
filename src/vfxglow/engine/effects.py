@@ -48,6 +48,7 @@ class EffectRuntime:
         self.burst_seed = 0
         self.bits: list = []
         self.limb_frames: dict[str, int] = {}
+        self.chapter_colors: list | None = None
 
 
 def render_effect(
@@ -189,8 +190,14 @@ def render_effect(
 
 
 def _pick_colors(runtime: EffectRuntime, frame_index: int, event: MotionEvent | None) -> None:
-    """Sortea dos colores distintos de la paleta por activación (o por tramo, sin evento)."""
+    """Sortea dos colores distintos de la paleta por activación (o por tramo, sin evento).
+
+    Con capítulos en el guion, toma los dos colores del capítulo: todo lo que se enciende en
+    ese tramo comparte color."""
     style = runtime.effect.style
+    if runtime.chapter_colors:
+        style.colors = [tuple(color) for color in runtime.chapter_colors]
+        return
     key = (event.start_frame, event.target) if event is not None else frame_index // max(style.palette_every, 1)
     if runtime.palette_key == key:
         return

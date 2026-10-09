@@ -242,6 +242,15 @@ class Grade(_Strict):
     soft_knee: float = 0.85
 
 
+class Chapter(_Strict):
+    """Tramo con un mismo foco (parte del cuerpo, objeto): todos sus efectos comparten color."""
+
+    start_frame: int
+    end_frame: int
+    focus: str
+    colors: list[tuple[float, float, float]]
+
+
 class EffectScript(_Strict):
     version: str = "1.0"
     title: str
@@ -249,6 +258,8 @@ class EffectScript(_Strict):
     seed: int = 1
     grade: Grade = Field(default_factory=Grade)
     effects: list[Effect]
+    # Color por capítulo: los efectos con paleta toman los colores del capítulo en curso.
+    chapters: list[Chapter] = Field(default_factory=list)
 
 
 SUPPORTED_TYPES: tuple[str, ...] = (
