@@ -9,6 +9,9 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from vfxglow.analysis.attention import focus_at
+from vfxglow.engine.focus import focus_gain
+
 from vfxglow.analysis.names import FACE_ANCHORS
 from vfxglow.analysis.schema import FrameRecord, MotionEvent
 from vfxglow.config import EngineConfig
@@ -34,7 +37,7 @@ class EffectEngine:
     ) -> None:
         self.script = script
         self.config = config
-        self.events = events or []
+        self.events = sorted([*(events or []), *script.extra_events], key=lambda e: e.start_frame)
         self.cuts = set(cuts or [])
         self.runtimes = [EffectRuntime(effect, script.seed, config.history) for effect in script.effects]
         for runtime in self.runtimes:
@@ -107,6 +110,8 @@ class EffectEngine:
             else:
                 gain = envelope(frame_index, effect.time, frame_count)
             gain *= effect.style.intensity
+            if self.script.attention and effect.style.focus and gain > 0:
+                gain *= focus_gain(runtime, effect, event, focus_at(self.script.attention, frame_index))
             gain *= gain_for(effect, state, points, self.config.min_point_confidence)
             if cut:
                 runtime.swoosh.clear()

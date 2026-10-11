@@ -201,6 +201,19 @@ class Accessory(_Strict):
     source: str = "vlm"
 
 
+class AttentionSpan(_Strict):
+    """Tramo con un mismo protagonista (y quizá un segundo foco) de una persona.
+
+    Regiones: left_arm, right_arm, legs, head, torso, prop.
+    """
+
+    person: str
+    start_frame: int
+    end_frame: int
+    primary: str
+    secondary: str | None = None
+
+
 class SkinTone(_Strict):
     """Tono de piel medido (mediana en RGB lineal) y su luminancia: decide qué colores contrastan."""
 
@@ -224,3 +237,4 @@ class MotionBrief(_Strict):
     audio_onsets: list[int] = Field(default_factory=list)
     accessories: list[Accessory] = Field(default_factory=list)
     skin: dict[str, SkinTone] = Field(default_factory=dict)
+    attention: list[AttentionSpan] = Field(default_factory=list)

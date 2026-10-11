@@ -388,6 +388,41 @@ evento conserva el del capítulo en que empezó.
   que se queda con el capítulo.
 - Dos capítulos seguidos nunca repiten el color principal.
 
+### Línea de atención (`attention: true`)
+
+Principio P1 de `docs/criterio_de_analisis.md`: nada compite con el protagonista.
+`analysis/attention.py` decide por fotograma quién manda: un brazo, las piernas, la cabeza, el
+torso o el objeto. Admite un segundo foco si otra región, alejada, también destaca.
+
+Reglas:
+
+- **Cuerpo:** cada parte se compara con lo que suele moverse ella misma.
+- **Objeto:** en las manos le gana al brazo que lo sostiene, y el movimiento de esa mano cuenta
+  como movimiento del objeto.
+- **Cabeza:** manda con la mano en la cara, con el objeto recién puesto y cuando todo el cuerpo
+  está quieto (la mirada).
+- **Transferencia:** al soltar la cara, el brazo de esa mano hereda el foco.
+- **Estabilidad:** histéresis para que el foco no parpadee; tramos de al menos 0,4 s.
+
+Con `attention: true` en el catálogo:
+
+1. Los `spotlight` salen de la línea de atención (trozos de ~1,2 s del primer y el segundo foco),
+   así que se enciende lo que manda.
+2. El motor apaga con un fundido corto todo efecto cuya región (`engine/focus.py`) no esté en foco
+   en ese momento. `style.focus: false` lo exime.
+
+Medido en video_33:
+
+| Tramo | Foco |
+| --- | --- |
+| 0-6,7 s | La gorra |
+| 6,8-8 s | La cabeza (gorra puesta) |
+| 8,7-9,5 s | La cabeza (beso) |
+| 9,5-12,4 s | El brazo derecho (la energía sale de la cara) |
+| 16,4-19,5 s | La gorra |
+| 21-26 s | Las piernas |
+| 26,5-28 s | La gorra y las piernas a la vez |
+
 ### Colores según el tono de piel
 
 El análisis mide el tono de piel de cada persona (`analysis/skin.py`: mejillas y, si la cara no

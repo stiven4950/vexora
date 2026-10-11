@@ -50,6 +50,7 @@ class EffectRuntime:
         self.limb_frames: dict[str, int] = {}
         self.chapter_colors: list | None = None
         self.chapter_frame = 0
+        self.focus_level = 1.0
 
 
 def render_effect(

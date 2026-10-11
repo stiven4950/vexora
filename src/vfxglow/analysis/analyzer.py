@@ -126,6 +126,9 @@ def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: st
     beats = retag_paint_beats(beats, appearance)
     events.extend(tip_touch_events(appearance))
     events.sort(key=lambda event: (event.start_frame, event.name))
+    from vfxglow.analysis.attention import attention_timeline
+
+    attention = attention_timeline(frames, events, meta.fps, meta.width, meta.height)
     analysis = run_dir / "analysis"
     scenes = read_scenes(video_path, beats, analysis / "scene_cache", config.analysis.scene)
     brief = build_brief(frames, meta, events=events, beats=beats, scene=scenes, audio_onsets=onsets)
@@ -134,7 +137,7 @@ def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: st
     accessories = detect_accessories(video_path, frames, analysis / "scene_cache", config.analysis.accessories, config.analysis.scene)
     from vfxglow.analysis.skin import estimate_skin
 
-    brief = brief.model_copy(update={"accessories": accessories, "skin": estimate_skin(video_path, frames)})
+    brief = brief.model_copy(update={"accessories": accessories, "skin": estimate_skin(video_path, frames), "attention": attention})
     header = AnalysisHeader(
         video=meta,
         device=device,

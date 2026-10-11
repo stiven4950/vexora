@@ -15,6 +15,8 @@ prop: a baseball cap. a hat.
 # Color por capítulo (como la referencia): gorra y parte del cuerpo encendida comparten color, y
 # el color solo cambia cuando cambia el foco.
 chapters: true
+# Nada compite con el protagonista: lo que no está en foco se apaga (línea de atención).
+attention: true
 defaults:
   type: body_glow
   target: {kind: joint, id: body}

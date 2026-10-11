@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+from vfxglow.analysis.schema import AttentionSpan, MotionEvent
 from pydantic import BaseModel, ConfigDict, Field
 
 EffectType = Literal[
@@ -189,6 +190,9 @@ class EffectStyle(_Strict):
     # Peso de cada color de `palette` al sortear (mismo orden). Vacío = todos iguales. El
     # coreógrafo lo llena según el tono de piel (director/palette.py).
     palette_weights: list[float] = Field(default_factory=list)
+    # Con línea de atención en el guion, el efecto se apaga si su región no es protagonista
+    # (engine/focus.py). False = siempre visible (cierres, efectos de toda la escena).
+    focus: bool = True
     # Impactos: cantidad de chispas diminutas que salen disparadas del golpe (0 = ninguna).
     micro_sparks: int = 0
     # body_glow: opacidad del tinte de color que rellena la parte del cuerpo (0 = solo contorno).
@@ -274,6 +278,11 @@ class EffectScript(_Strict):
     effects: list[Effect]
     # Color por capítulo: los efectos con paleta toman los colores del capítulo en curso.
     chapters: list[Chapter] = Field(default_factory=list)
+    # Línea de atención (análisis): un efecto cuya región no es protagonista se apaga.
+    attention: list[AttentionSpan] = Field(default_factory=list)
+    # Eventos que crea el coreógrafo (spotlight desde la atención); el motor los suma a los del
+    # análisis.
+    extra_events: list[MotionEvent] = Field(default_factory=list)
 
 
 SUPPORTED_TYPES: tuple[str, ...] = (

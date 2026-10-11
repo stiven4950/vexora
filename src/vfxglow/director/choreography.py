@@ -83,6 +83,9 @@ class Catalog(_Strict):
     # encendida, el objeto protagonista entra o llega a la cabeza). Sin esto, cada efecto sortea
     # su color por activación.
     chapters: bool = False
+    # Nada compite con el protagonista: los efectos se apagan fuera del foco de la línea de
+    # atención del análisis (engine/focus.py).
+    attention: bool = False
     chapter_min_s: float = 0.8
 
 
@@ -109,10 +112,17 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -
     fps = brief.video.fps or 30.0
     chosen: dict[tuple[str, str], list[tuple[int, str]]] = {}
     decisions: list[Decision] = []
+    events = list(brief.events)
+    extra: list[MotionEvent] = []
+    if catalog.attention and brief.attention:
+        # Lo que se enciende por "la parte que más se mueve" sale de la línea de atención, para
+        # que coincida con lo que el motor deja ver (engine/focus.py).
+        extra = attention_spotlights(brief.attention, fps)
+        events = [e for e in events if e.name != "spotlight"] + extra
     for reaction in catalog.reactions:
         last = -10_000
         used: dict[str, int] = {}
-        for event in sorted((e for e in brief.events if e.name == reaction.action), key=lambda e: e.start_frame):
+        for event in sorted((e for e in events if e.name == reaction.action), key=lambda e: e.start_frame):
             resting = {name for name, frame in used.items() if event.start_frame - frame < _option(reaction, name).cooldown}
             option = _draw(reaction, event, seed, resting, brief)
             if option.yields_to and _yields(option, event, brief, seed, fps):
@@ -151,6 +161,9 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -
     script = EffectScript.model_validate(
         {"title": catalog.title or catalog.name, "theme": catalog.name, "seed": seed, "effects": effects}
     )
+    if catalog.attention:
+        script.attention = list(brief.attention)
+        script.extra_events = extra
     luma = skin_luma(brief)
     if luma is not None:
         # Colores que contrastan con esta piel salen más seguido (ninguno queda fuera).
@@ -160,9 +173,40 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -
     if catalog.chapters:
         palette = catalog.defaults.get("style", {}).get("palette") or catalog.colors
         weights = skin_scores(palette, luma) ** 2 if luma is not None else None
-        script.chapters = build_chapters(brief.events, palette, seed, fps, brief.video.frame_count, catalog.chapter_min_s, weights)
+        script.chapters = build_chapters(events, palette, seed, fps, brief.video.frame_count, catalog.chapter_min_s, weights)
     decisions.sort(key=lambda d: (d.frame, d.action))
     return resolve_timing(script, brief.video.frame_count), Choreography(catalog=catalog.name, seed=seed, decisions=decisions)
+
+
+# Spotlight desde la atención: trozos de esta duración, y regiones que no son una parte del
+# cuerpo (el objeto tiene sus propias reacciones).
+SPOT_CHUNK_S = 1.2
+
+
+def attention_spotlights(spans, fps: float) -> list[MotionEvent]:
+    """Un `spotlight` por trozo de tramo de atención (primer foco y segundo), con kind = región."""
+    chunk = max(int(SPOT_CHUNK_S * fps), 1)
+    out: list[MotionEvent] = []
+    for span in spans:
+        for region in (span.primary, span.secondary):
+            if region is None or region == "prop":
+                continue
+            length = span.end_frame - span.start_frame + 1
+            pieces = max(1, round(length / chunk))
+            bounds = np.linspace(span.start_frame, span.end_frame + 1, pieces + 1).astype(int)
+            for start, stop in zip(bounds[:-1], bounds[1:]):
+                out.append(
+                    MotionEvent(
+                        name="spotlight",
+                        target=span.person,
+                        start_frame=int(start),
+                        end_frame=int(stop) - 1,
+                        confidence=1.0 if region == span.primary else 0.7,
+                        detail="Protagonista según la línea de atención.",
+                        kind=region,
+                    )
+                )
+    return out
 
 
 # Eventos que cambian el foco y cómo se nombra ese foco.

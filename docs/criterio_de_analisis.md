@@ -25,7 +25,8 @@ En cada momento hay una cosa que manda: una parte del cuerpo, un objeto, la cara
 - **A veces hay dos focos** (video_33, 26 s: un pie que pinta el piso y las manos que lanzan la
   gorra). Hay que atender los dos, y no más de dos.
 - **Nada compite con el protagonista.** Un segundo efecto encendido en otra zona, o encima del
-  mismo, arruina la escena. Si dos efectos chocan, uno cede.
+  mismo, arruina la escena. Si dos efectos chocan, uno cede. Implementado: línea de atención
+  (`analysis/attention.py`) y `engine/focus.py`.
 
 ### P2. Seguir la dirección del movimiento
 
