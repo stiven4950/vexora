@@ -73,11 +73,20 @@ Corte a la máscara terminada: fondo oscuro, humo, sin cara humana (Face Mesh no
 | Limpieza | Fuera el contorno de la cabeza y las luces de ojos, nariz y boca; paleta cálida en la pintura y fría y cambiante en la obra |
 
 La detección de pintura se detiene en el primer corte (en la calabaza la malla "ve" una cara).
-Líneas finas: `analysis/brush.py` encuentra el pincel (mango azul verdoso, largo y fino) y su
-punta (más allá del mango, por la virola dorada y las cerdas, hacia la cara). Con el pincel sobre
-la cara, la llama va en su punta y el recorrido de la punta en los últimos 14 fotogramas es la
-línea fina que se ilumina (`trail`). Los acentos de la obra son marcas cortas (22% del alto de la
-cabeza) centradas en cada línea.
+Pintura y herramienta, sin suponer colores:
 
-Pendiente: algún destello suelto cerca de los ojos en la fase de líneas negras; el mango se
-detecta por color, así que un pincel de otro color necesitaría otro rango (`brush.HUE`).
+- **Pintura:** un píxel es pintura si es distinto de la **piel limpia de ese mismo punto** (mediana
+  de los primeros fotogramas, en coordenadas de la cara, con la luz general compensada) y además
+  su color no es piel (o es negro donde antes no lo era).
+- **Herramienta** (`analysis/tool.py`): en los fotogramas alineados a la cara, lo que se mueve es
+  la mano con la herramienta; la punta es su extremo dentro de la cara, lejos de por donde entra.
+  Cuenta solo si hay pintura en ese punto (contacto) y si no salta lejos de la punta anterior.
+  Funciona con cualquier pincel, esponja o dedo.
+- **Efecto:** la llama va en la punta; el recorrido de la punta es la línea fina; con la
+  herramienta a la vista, lo recién pintado se ilumina solo cerca de su punta.
+
+Pendiente:
+
+- Algún destello cerca de los ojos en la fase de líneas negras.
+- La restricción "cerca de la punta" recorta un poco el contorno completo de las manchas anchas
+  (0,5–0,9 s), que la referencia muestra entero.

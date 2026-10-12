@@ -20,6 +20,7 @@ from vfxglow.engine.raster import splat, stroke_batch
 from vfxglow.engine.swoosh import neon_layers
 
 DRAW = 10
+NEAR_TIP = 0.22  # en anchos del cuadro
 RECENT = 24
 DASH = 6  # puntos por guion al deshacerse
 SLOT_S = 0.45
@@ -54,6 +55,11 @@ def draw_paint_trace(runtime, track, points, frame_index: int, height: int, enve
         xy = pts[:, :2] * [width, height]
         age = pts[:, 2]
         fresh = age < DRAW
+        # Con la herramienta a la vista, lo nuevo se ilumina solo junto a su punta (lo nuevo lejos
+        # de la punta es ruido de la detección, no un trazo).
+        if data["tip"] is not None:
+            reach = NEAR_TIP * width
+            fresh &= np.linalg.norm(xy - np.array(data["tip"]) * [width, height], axis=1) < reach
         for a, b in _runs(fresh):
             if b - a >= 2:
                 alpha = 1.0 - 0.4 * float(age[a:b].mean()) / DRAW

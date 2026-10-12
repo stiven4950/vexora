@@ -28,7 +28,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from vfxglow.analysis.brush import find_brush
+from vfxglow.analysis.tool import tool_tip
 from vfxglow.analysis.names import CHEEKS, FACE_FEATURES, FACE_OVAL
 from vfxglow.analysis.schema import FrameRecord
 
@@ -43,7 +43,11 @@ STAY = 0.7
 PREEXISTING = 2  # fotogramas iniciales cuyo "no piel" ya estaba
 RECENT = 24
 TIP_FRAMES = 6
-TRAIL = 14  # fotogramas de recorrido de la punta del pincel que forman la línea fina
+TRAIL = 14
+REFERENCE_FRAMES = 8
+CONTACT = 4  # px alrededor de la punta en que tiene que haber pintura
+MAX_JUMP = 0.08  # salto máximo de la punta entre fotogramas, en anchos del cuadro
+REFERENCE_DELTA = 14.0  # distancia Lab (L a la mitad) a la piel limpia de ese píxel  # fotogramas de recorrido de la punta del pincel que forman la línea fina
 MIN_BLOB = 25
 MIN_DARK_BLOB = 8  # píxeles (a la resolución de trabajo) fuera del borde viejo para ser trazo nuevo  # fotogramas en que un trazo nuevo sigue contando como reciente
 MIN_FRAMES = 15  # fotogramas con pintura nueva para considerar que el video es de pintura
@@ -155,6 +159,10 @@ def detect_paint(video_path: Path, frames: list[FrameRecord], fps: float, cuts: 
     births = 0
     first_face = 0
     brush: dict[int, tuple[float, float]] = {}
+    previous: np.ndarray | None = None
+    last_tip: tuple[int, np.ndarray] | None = None
+    references: list[np.ndarray] = []
+    reference: np.ndarray | None = None
     by_index = {record.frame: record for record in frames}
 
     def births_in(index: int, mask: np.ndarray, layer: int, ages: np.ndarray, min_blob: int) -> np.ndarray:
@@ -197,6 +205,8 @@ def detect_paint(video_path: Path, frames: list[FrameRecord], fps: float, cuts: 
                 break
             record = by_index.get(index)
             mask, matrix = None, None
+            if record is None or not record.face:
+                previous = None
             if record is not None and record.face:
                 small = cv2.resize(frame, size)
                 points = _face_points(record, size[0], size[1])
@@ -210,24 +220,40 @@ def detect_paint(video_path: Path, frames: list[FrameRecord], fps: float, cuts: 
                 if space is not None:
                     matrix = space.align(points)
             if matrix is not None:
-                found = find_brush(small, np.mean(list(points.values()), axis=0))
-                if found is not None:
-                    tip = cv2.transform(np.array([[found[0]]], np.float32), matrix)[0, 0]
-                    x, y = int(tip[0]), int(tip[1])
-                    # Pinta si la punta está sobre la cara (en coordenadas de la cara).
-                    if 0 <= x < size[0] and 0 <= y < size[1] and space.region[y, x]:
-                        brush[index] = (float(found[0][0] / size[0]), float(found[0][1] / size[1]))
-                lab = cv2.cvtColor(cv2.warpAffine(small, matrix, size), cv2.COLOR_BGR2LAB).astype(np.float32)
+                aligned = cv2.warpAffine(small, matrix, size)
+                # La herramienta: lo que se mueve sobre la cara alineada (sin suponer su color).
+                tip = tool_tip(previous, aligned, space.region) if previous is not None else None
+                previous = aligned
+                lab = cv2.cvtColor(aligned, cv2.COLOR_BGR2LAB).astype(np.float32)
+                # Piel limpia de referencia por píxel: mediana de los primeros fotogramas (la mano
+                # pasa y no queda en la mediana).
+                if len(references) < REFERENCE_FRAMES:
+                    references.append(lab)
+                    reference = np.median(np.stack(references), axis=0)
+                shift = np.median((lab - reference)[space.region & ~painted], axis=0) if (space.region & ~painted).sum() > 500 else np.zeros(3)
+                changed = np.sqrt((((lab - shift) - reference) * [0.5, 1.0, 1.0]) ** 2).sum(axis=2) > REFERENCE_DELTA
                 clean = space.region & ~painted
                 skin = np.median(lab[clean], axis=0) if clean.sum() > 500 else space.skin
                 chroma = np.sqrt(((lab[..., 1] - skin[1]) / space.spread[1]) ** 2 + ((lab[..., 2] - skin[2]) / space.spread[2]) ** 2)
                 hand = _hand_mask(record, matrix, chroma.shape, size[0], size[1])
-                color = (chroma > CHROMA) & (lab[..., 0] >= DARK_L) & space.region & ~hand
+                # Pintura = distinto de la piel limpia de ese mismo punto Y con color que no es piel.
+                color = changed & (chroma > CHROMA) & (lab[..., 0] >= DARK_L) & space.region & ~hand
                 color = cv2.morphologyEx(color.astype(np.uint8), cv2.MORPH_OPEN, np.ones((3, 3), np.uint8)) > 0
                 # El negro del borde de la cara es pelo o sombra, no pintura.
-                dark = (lab[..., 0] < DARK_L) & space.region & ~space.border & ~hand
+                dark = changed & (lab[..., 0] < DARK_L) & (reference[..., 0] > DARK_L + 20) & space.region & ~space.border & ~hand
                 dark = cv2.morphologyEx(dark.astype(np.uint8), cv2.MORPH_OPEN, np.ones((2, 2), np.uint8)) > 0
                 mask = (color, dark)
+                # Contacto: la punta solo cuenta sobre pintura (la mano que pasa no pinta) y sin
+                # saltar lejos de la punta anterior.
+                if tip is not None:
+                    x, y = int(tip[0]), int(tip[1])
+                    near = (color | dark)[max(y - CONTACT, 0) : y + CONTACT + 1, max(x - CONTACT, 0) : x + CONTACT + 1]
+                    last = last_tip if last_tip is not None and index - last_tip[0] <= 2 else None
+                    steady = last is None or np.linalg.norm(tip - last[1]) < MAX_JUMP * size[0]
+                    if near.any() and steady:
+                        back = cv2.transform(np.array([[tip]], np.float32), cv2.invertAffineTransform(matrix))[0, 0]
+                        brush[index] = (float(back[0] / size[0]), float(back[1] / size[1]))
+                        last_tip = (index, tip)
                 painted |= color | dark
                 if index - first_face < PREEXISTING:
                     born[color] = -1000
@@ -255,7 +281,7 @@ def _add_brush(out: dict[int, dict], brush: dict[int, tuple[float, float]]) -> N
         trail = []
         for back in range(TRAIL):
             point = brush.get(index - back)
-            if point is None:
+            if point is None or (trail and np.hypot(point[0] - trail[-1][0], point[1] - trail[-1][1]) > MAX_JUMP):
                 break
             trail.append((point[0], point[1], float(back)))
         entry["trail"] = trail[::-1] if len(trail) >= 3 else []

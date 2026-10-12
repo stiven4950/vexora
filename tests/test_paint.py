@@ -69,12 +69,15 @@ def test_paint_accents_light_one_zone_at_a_time() -> None:
     assert ys.size and ys.max() < 0.5 * H  # en el primer tramo solo los ojos
 
 
-def test_brush_tip_is_past_the_handle_toward_the_face() -> None:
-    from vfxglow.analysis.brush import find_brush
+def test_tool_tip_is_the_moving_end_inside_the_face_whatever_its_color() -> None:
+    from vfxglow.analysis.tool import tool_tip
 
-    image = np.full((H, W, 3), (150, 170, 210), np.uint8)  # piel
-    cv2.line(image, (300, 600), (200, 300), (200, 170, 20), 8)  # mango azul verdoso (BGR)
-    cv2.line(image, (200, 300), (190, 270), (40, 170, 210), 6)  # virola dorada
-    cv2.line(image, (190, 270), (185, 255), (15, 15, 15), 5)  # cerdas
-    tip, direction = find_brush(image, np.array([180.0, 200.0]))
-    assert tip[1] < 275 and direction[1] < 0  # más allá del mango, hacia la cara
+    region = np.zeros((H, W), bool)
+    region[150:450, 80:280] = True  # la cara
+    before = np.full((H, W, 3), 140, np.uint8)
+    after = before.copy()
+    cv2.line(after, (300, 620), (190, 260), (60, 200, 30), 8)  # una herramienta verde que entra desde abajo
+    tip = tool_tip(before, after, region)
+    assert tip is not None and abs(tip[0] - 190) < 8 and abs(tip[1] - 260) < 8
+    shaken = np.full((H, W, 3), 230, np.uint8)  # la alineación falló: toda la cara cambia
+    assert tool_tip(before, shaken, region) is None
