@@ -573,6 +573,19 @@ El beso (`face_touch`) cede ante `cover_eyes` y `hand_ear`.
 - En `baile_neon` es la opción `expresion` cuando la cabeza es protagonista. Cede ante la gorra
   puesta, el beso y el "ya valió".
 
+### Efectos propios ya renderizados (`sprite_fx`)
+
+Para diseñar efectos en otra herramienta (After Effects, Blender, EmberGen...) y que VEXORA los
+coloque donde y cuando la coreografía lo pide. Ver `configs/sprites/README.md`:
+
+- **Formatos:** carpeta de PNG con transparencia, un PNG suelto o un video; sin canal alfa, el
+  negro se vuelve transparente.
+- **Colocación:** se ancla al punto del evento (o a `target`) y se escala con el cuerpo (`size`,
+  en torsos).
+- **Reproducción:** a `sprite_fps`; `loop` la repite, `orient` gira el sprite hacia la dirección
+  del evento y `tint` lo tiñe con el color del capítulo.
+- **Ejemplo:** `demo_burst` es un estallido generado por código.
+
 ### Colores según el tono de piel
 
 El análisis mide el tono de piel de cada persona (`analysis/skin.py`: mejillas y, si la cara no

@@ -73,6 +73,7 @@ EffectType = Literal[
     "wings",
     "ghost_trail",
     "footprints",
+    "sprite_fx",
 ]
 TargetKind = Literal["joint", "chain", "face_region", "mask", "object", "event_point", "contour"]
 BlendMode = Literal["add", "screen", "over", "multiply", "tint"]
@@ -191,6 +192,10 @@ class EffectStyle(_Strict):
     lightning: LightningParams = Field(default_factory=LightningParams)
     boil_frames: int = 0
     glyph: str = ""
+    # sprite_fx: animación ya renderizada (carpeta de PNG, PNG o video) en configs/sprites/, y
+    # su velocidad (0 = la del video, o la del render).
+    sprite: str = ""
+    sprite_fps: float = 0.0
     dash: float = 0.0
     rings: int = 2
     spin: float = 0.6
@@ -383,6 +388,7 @@ SUPPORTED_TYPES: tuple[str, ...] = (
     "wings",
     "ghost_trail",
     "footprints",
+    "sprite_fx",
 )
 
 # Efectos que por defecto pertenecen a un grupo distinto de glow.

@@ -132,6 +132,10 @@ def render_effect(
 
         draw = {"disco_fx": draw_disco, "beat_pulse": draw_beat_pulse, "equalizer": draw_equalizer, "mirror_ball": draw_mirror_ball}[kind]
         draw(runtime, track, points, frame_index, height, envelope, layer, event if effect.triggers else None)
+    elif kind == "sprite_fx":
+        from vfxglow.engine.sprite import draw_sprite
+
+        draw_sprite(runtime, track, points, frame_index, height, envelope, layer, event if effect.triggers else None)
     elif kind in ("xray", "wings", "ghost_trail", "footprints"):
         from vfxglow.engine import body_fx as bx
 
