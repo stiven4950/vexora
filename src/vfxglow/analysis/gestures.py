@@ -218,3 +218,15 @@ def stomp_events(frames: list[FrameRecord], fps: float, width: int, height: int)
                 )
                 last = hit
     return sorted(events, key=lambda e: e.start_frame)
+
+
+def _frenzy(frames, fps, width, height):
+    from vfxglow.analysis.attention import frenzy_events
+
+    return frenzy_events(frames, fps, width, height)
+
+
+# Detectores de gestos y nombres de sus eventos (el pipeline los recalcula en análisis
+# anteriores; ver Pipeline._ensure_derived).
+GESTURE_DETECTORS = (throw_events, neck_slash_events, stomp_events, _frenzy)
+GESTURE_NAMES = {"throw", "neck_slash", "stomp", "frenzy"}

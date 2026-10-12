@@ -60,6 +60,9 @@ EffectType = Literal[
     "prop_swoosh",
     "pop_fx",
     "closing_stars",
+    "disco_fx",
+    "beat_pulse",
+    "equalizer",
 ]
 TargetKind = Literal["joint", "chain", "face_region", "mask", "object", "event_point", "contour"]
 BlendMode = Literal["add", "screen", "over", "multiply", "tint"]
@@ -102,6 +105,8 @@ EVENT_NAMES: tuple[str, ...] = (
     "throw",
     "neck_slash",
     "stomp",
+    "frenzy",
+    "beat",
 )
 
 
@@ -347,6 +352,9 @@ SUPPORTED_TYPES: tuple[str, ...] = (
     "prop_swoosh",
     "pop_fx",
     "closing_stars",
+    "disco_fx",
+    "beat_pulse",
+    "equalizer",
 )
 
 # Efectos que por defecto pertenecen a un grupo distinto de glow.

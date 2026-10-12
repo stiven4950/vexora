@@ -118,12 +118,18 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -
     chosen: dict[tuple[str, str], list[tuple[int, str]]] = {}
     decisions: list[Decision] = []
     events = list(brief.events)
-    extra: list[MotionEvent] = []
+    # Golpes de la música como eventos (beat_pulse, ecualizador).
+    extra: list[MotionEvent] = [
+        MotionEvent(name="beat", target="music", start_frame=int(f), end_frame=int(f), confidence=1.0, detail="Golpe de la música.")
+        for f in brief.audio_onsets
+    ]
+    events += extra
     if catalog.attention and brief.attention:
         # Lo que se enciende por "la parte que más se mueve" sale de la línea de atención, para
         # que coincida con lo que el motor deja ver (engine/focus.py).
-        extra = attention_spotlights(brief.attention, fps)
-        events = [e for e in events if e.name != "spotlight"] + extra
+        spots = attention_spotlights(brief.attention, fps)
+        events = [e for e in events if e.name != "spotlight"] + spots
+        extra += spots
     for reaction in catalog.reactions:
         last = -10_000
         used: dict[str, int] = {}
@@ -166,9 +172,9 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -
     script = EffectScript.model_validate(
         {"title": catalog.title or catalog.name, "theme": catalog.name, "seed": seed, "effects": effects}
     )
+    script.extra_events = extra
     if catalog.attention:
         script.attention = list(brief.attention)
-        script.extra_events = extra
     luma = skin_luma(brief)
     if luma is not None:
         # Colores que contrastan con esta piel salen más seguido (ninguno queda fuera).
@@ -277,6 +283,7 @@ def build_chapters(events: list[MotionEvent], palette, seed: int, fps: float, fr
 # objeto protagonista).
 KEY_ACTIONS = ("face_touch", "throw", "neck_slash", "prop_transfer", "prop_spin", "prop_worn")
 CANDIDATES = 8
+AMBIENT_ACTIONS = ("beat",)
 # Más efectos por segundo que esto satura la escena.
 MAX_DENSITY = 1.2
 WINDOW_S = 1.2
@@ -292,7 +299,8 @@ def score_choreography(choreography: Choreography, brief: MotionBrief) -> float:
     """
     fps = brief.video.fps or 30.0
     duration = max(brief.video.frame_count / fps, 1.0)
-    active = [d for d in choreography.decisions if not d.choice.startswith("nada")]
+    # Los pulsos de música son muchos y cortos: no cuentan como cubrir un momento.
+    active = [d for d in choreography.decisions if not d.choice.startswith("nada") and d.action not in AMBIENT_ACTIONS]
     keys = [d for d in choreography.decisions if d.action in KEY_ACTIONS]
     key_score = sum(not d.choice.startswith("nada") for d in keys) / len(keys) if keys else 1.0
     covered = 0.0

@@ -137,11 +137,12 @@ class Pipeline:
             from vfxglow.analysis.skin import estimate_skin
 
             update["skin"] = estimate_skin(self.video, tracks)
-        if "gestures" in missing or "gestures-2" in missing:
-            from vfxglow.analysis.gestures import neck_slash_events, stomp_events, throw_events
+        if any(name.startswith("gestures") for name in missing):
+            from vfxglow.analysis.gestures import GESTURE_DETECTORS, GESTURE_NAMES
 
-            found = throw_events(tracks, meta.fps, meta.width, meta.height) + neck_slash_events(tracks, meta.fps, meta.width, meta.height) + stomp_events(tracks, meta.fps, meta.width, meta.height)
-            events = sorted([e for e in events if e.name not in ("throw", "neck_slash", "stomp")] + found, key=lambda e: (e.start_frame, e.name))
+            found = [e for detect in GESTURE_DETECTORS for e in detect(tracks, meta.fps, meta.width, meta.height)]
+            names = {e.name for e in found} | GESTURE_NAMES
+            events = sorted([e for e in events if e.name not in names] + found, key=lambda e: (e.start_frame, e.name))
             update["events"] = events
             write_jsonl(events_path, events)
             missing.append("attention")  # la atención depende de los gestos

@@ -290,6 +290,38 @@ reactions:
     - type: face_toon
       style: {shapes: [kiss], palette_every: 30}
       trigger: *beso
+- action: frenzy
+  options:
+  # Mucho movimiento de todo el cuerpo: modo discoteca (destellos disparados y haces de luz) o
+  # un ecualizador en el piso que salta con la música.
+  - name: discoteca
+    weight: 0.6
+    effects:
+    - type: disco_fx
+      style: {focus: false, hdr_gain: 1.8, palette_every: 30}
+      trigger: {hold: 8, fade_in: 3, fade_out: 10}
+  - name: ecualizador
+    weight: 0.3
+    effects:
+    - type: equalizer
+      style: {focus: false, hdr_gain: 1.6, palette_every: 30}
+      trigger: {hold: 30, fade_in: 4, fade_out: 10}
+  - name: nada
+    weight: 0.1
+    effects: []
+- action: beat
+  cooldown: 12
+  options:
+  # De vez en cuando, la silueta late justo en el golpe de la música.
+  - name: pulso
+    weight: 0.2
+    effects:
+    - type: beat_pulse
+      style: {thickness: 0.012, focus: false, palette_every: 30}
+      trigger: {hold: 6, fade_in: 0, fade_out: 6}
+  - name: nada
+    weight: 0.8
+    effects: []
 - action: stomp
   cooldown: 90
   options:

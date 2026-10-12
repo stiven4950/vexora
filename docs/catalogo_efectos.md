@@ -508,6 +508,18 @@ valió".
   apagan y lo que estaba encendido se vuelve estrellas diminutas, con su color, que titilan,
   suben un poco y se apagan.
 
+### Fiesta: energía de la escena y música
+
+- **`frenzy`** (`analysis/attention.py`): brazos y piernas a la vez por encima de 2 veces lo
+  habitual durante al menos 0,6 s. En video_33 aparece en 18,0 y 19,3 s.
+- **`disco_fx`**: destellos de neón disparados desde el cuerpo en todas direcciones y dos haces de
+  luz que barren desde las esquinas de arriba.
+- **`beat`**: el coreógrafo convierte los golpes de audio del brief (`audio_onsets`) en eventos y
+  los deja en el guion (`extra_events`). No cuentan en la nota de las versiones.
+- **`beat_pulse`**: la silueta del cuerpo destella en el golpe y se apaga en 6 fotogramas.
+- **`equalizer`**: barras de neón sobre el piso que saltan con los golpes recientes (el motor le
+  pasa a cada efecto la lista de golpes).
+
 ### Colores según el tono de piel
 
 El análisis mide el tono de piel de cada persona (`analysis/skin.py`: mejillas y, si la cara no

@@ -43,6 +43,10 @@ class EffectEngine:
         for runtime in self.runtimes:
             runtime.fps = fps
         self.timelines = [ActivationTimeline(effect, self.events) for effect in script.effects]
+        # Golpes de la música (para el ecualizador): todos los efectos los ven.
+        beats = sorted(e.start_frame for e in self.events if e.name == "beat")
+        for runtime in self.runtimes:
+            runtime.beats = beats
         # El cierre va último: necesita ver lo que dibujaron los demás en el fotograma.
         order = sorted(range(len(self.runtimes)), key=lambda i: script.effects[i].type == "closing_stars")
         self.runtimes = [self.runtimes[i] for i in order]

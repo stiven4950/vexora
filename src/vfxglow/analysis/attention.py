@@ -217,3 +217,49 @@ def focus_at(spans: list[AttentionSpan], frame: int, person: str | None = None) 
         if span.start_frame <= frame <= span.end_frame and (person is None or span.person == person):
             return {span.primary} | ({span.secondary} if span.secondary else set())
     return set()
+
+
+# Frenesí: energía media de brazos y piernas (relativa a lo habitual de cada uno) por encima de
+# esto durante al menos FRENZY_MIN_S. video_33: 6-8 tramos; video_34: 3-4 por persona.
+FRENZY = 2.0
+FRENZY_MIN_S = 0.6
+FRENZY_WINDOW_S = 0.6
+
+
+def frenzy_events(frames: list[FrameRecord], fps: float, width: int, height: int) -> list[MotionEvent]:
+    """frenzy: todo el cuerpo se mueve mucho más de lo normal a la vez (modo discoteca)."""
+    if not frames:
+        return []
+    window = max(int(FRENZY_WINDOW_S * fps), 1)
+    kernel = np.ones(window) / window
+    events: list[MotionEvent] = []
+    for person in sorted({p.person_id for record in frames for p in _people(record)}):
+        travel = _travel(frames, person, width, height)
+        parts = []
+        for region in ("left_arm", "right_arm", "legs"):
+            smooth = np.convolve(travel[region], kernel, mode="same")
+            moving = smooth[smooth > 1e-4]
+            parts.append(smooth / max(float(np.median(moving)) if moving.size else 1.0, 1e-3))
+        energy = np.mean(np.stack(parts), axis=0)
+        hot = energy > FRENZY
+        index = 0
+        while index < len(frames):
+            if not hot[index]:
+                index += 1
+                continue
+            end = index
+            while end < len(frames) and hot[end]:
+                end += 1
+            if end - index >= FRENZY_MIN_S * fps:
+                events.append(
+                    MotionEvent(
+                        name="frenzy",
+                        target=person,
+                        start_frame=frames[index].frame,
+                        end_frame=frames[end - 1].frame,
+                        confidence=float(min(energy[index:end].mean() / (2 * FRENZY), 1.0)),
+                        detail="Todo el cuerpo se mueve mucho más de lo normal (modo discoteca).",
+                    )
+                )
+            index = end
+    return sorted(events, key=lambda e: e.start_frame)

@@ -51,6 +51,7 @@ class EffectRuntime:
         self.chapter_colors: list | None = None
         self.chapter_frame = 0
         self.focus_level = 1.0
+        self.beats: list[int] = []
 
 
 def render_effect(
@@ -124,6 +125,11 @@ def render_effect(
         from vfxglow.engine.prop import draw_prop_doodle, draw_prop_outline, draw_prop_rings, draw_prop_spring
 
         draw = {"prop_outline": draw_prop_outline, "prop_spring": draw_prop_spring, "prop_rings": draw_prop_rings, "prop_doodle": draw_prop_doodle}[kind]
+        draw(runtime, track, points, frame_index, height, envelope, layer, event if effect.triggers else None)
+    elif kind in ("disco_fx", "beat_pulse", "equalizer"):
+        from vfxglow.engine.party import draw_beat_pulse, draw_disco, draw_equalizer
+
+        draw = {"disco_fx": draw_disco, "beat_pulse": draw_beat_pulse, "equalizer": draw_equalizer}[kind]
         draw(runtime, track, points, frame_index, height, envelope, layer, event if effect.triggers else None)
     elif kind in ("foot_paint", "prop_swoosh"):
         from vfxglow.engine.trails import draw_foot_paint, draw_prop_swoosh

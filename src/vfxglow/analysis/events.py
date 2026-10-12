@@ -111,6 +111,8 @@ EVENT_CATALOG: dict[str, str] = {
     "prop_spin": "El objeto protagonista gira en las manos.",
     "face_touch": "La mano toca la cara.",
     "throw": "Amago de lanzamiento: carga con el brazo arriba y suelta de golpe extendiéndolo.",
+    "frenzy": "Todo el cuerpo se mueve mucho más de lo normal a la vez (modo discoteca).",
+    "beat": "Golpe de la música (onset de audio).",
     "stomp": "Pisotón: el pie levantado baja rápido y se frena en el piso.",
     "neck_slash": "Corte de cuello: la mano cruza el cuello de lado (\"ya valió\").",
 }
