@@ -1,0 +1,354 @@
+"""Pintura sobre la cara y la obra terminada (referencia video_2, ver docs/referencias/video_2.md).
+
+detect_paint: dónde aparece pintura nueva y cuándo.
+- Se trabaja en "coordenadas de la cara": cada fotograma se alinea al primero con la malla facial
+  (afín parcial), así que mover la cabeza no parece pintura.
+- Un píxel de la cara es "no piel" si su color (a, b de Lab) se aleja de la piel de la zona aún sin
+  pintar en ese fotograma, o si es muy oscuro (pintura negra). La mano detectada se excluye.
+- Nace pintura en un píxel cuando es "no piel" al menos HOLD fotogramas seguidos y además lo sigue
+  siendo en la mayor parte del segundo siguiente (LOOKAHEAD_S, STAY). Así la mano y el pincel, que
+  pasan, no cuentan, y el mango del pincel quieto mientras se pintan detalles tampoco (además se
+  descartan las manchas largas y rectas que salen del borde de la cara).
+- Lo que ya estaba en los primeros fotogramas (cejas, labios, pintura previa) no es nuevo.
+
+Por fotograma se guarda el contorno de la pintura reciente (nacida hace menos de RECENT
+fotogramas) con la edad de cada punto, y la punta: donde nace pintura ahora.
+
+detect_accents: en la escena de la obra terminada (sin cara humana: una máscara, la calabaza), las
+líneas oscuras pintadas sobre el objeto de color, solo en la cabeza, clasificadas por zona (ojos,
+estrías, nariz, boca) según su lugar en la caja de la cabeza.
+"""
+
+from __future__ import annotations
+
+import logging
+from collections import deque
+from pathlib import Path
+
+import cv2
+import numpy as np
+
+from vfxglow.analysis.names import CHEEKS, FACE_FEATURES, FACE_OVAL
+from vfxglow.analysis.schema import FrameRecord
+
+log = logging.getLogger("vfxglow.paint")
+
+WORK = (360, 640)  # resolución de trabajo (ancho, alto) para un cuadro vertical
+CHROMA = 6.0  # distancia de color a la piel, en desviaciones robustas
+DARK_L = 60  # L (0-255) por debajo de esto es pintura negra
+HOLD = 4
+LOOKAHEAD_S = 1.0
+STAY = 0.7
+PREEXISTING = 2  # fotogramas iniciales cuyo "no piel" ya estaba
+RECENT = 24
+TIP_FRAMES = 6
+MIN_BLOB = 25
+MIN_DARK_BLOB = 8  # píxeles (a la resolución de trabajo) fuera del borde viejo para ser trazo nuevo  # fotogramas en que un trazo nuevo sigue contando como reciente
+MIN_FRAMES = 15  # fotogramas con pintura nueva para considerar que el video es de pintura
+FOREHEAD = 1.35  # cuánto se estira el óvalo de la malla hacia la frente
+
+
+def _face_points(record: FrameRecord, width: int, height: int) -> dict[int, np.ndarray]:
+    return {int(lm.name[5:]): np.array([lm.x * width, lm.y * height]) for lm in record.face or [] if lm.name[5:].isdigit()}
+
+
+def _poly(points: dict[int, np.ndarray], indices) -> np.ndarray:
+    return np.array([points[i] for i in indices if i in points], np.float32)
+
+
+class _FaceSpace:
+    """Zona de la cara del primer fotograma con malla y el modelo de piel inicial."""
+
+    def __init__(self, frame: np.ndarray, points: dict[int, np.ndarray]) -> None:
+        h, w = frame.shape[:2]
+        self.ref = points
+        lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB).astype(np.float32)
+        cheeks = np.zeros((h, w), np.uint8)
+        for chain in CHEEKS:
+            pts = _poly(points, chain)
+            if len(pts) >= 3:
+                cv2.fillConvexPoly(cheeks, cv2.convexHull(pts).astype(np.int32), 1)
+        sample = lab[cheeks > 0] if cheeks.any() else lab.reshape(-1, 3)
+        self.skin = np.median(sample, axis=0)
+        self.spread = np.median(np.abs(sample - self.skin), axis=0) + 1.5
+        oval = _poly(points, FACE_OVAL)
+        center = oval.mean(axis=0)
+        tall = oval.copy()
+        upper = tall[:, 1] < center[1]
+        tall[upper, 1] = center[1] + (tall[upper, 1] - center[1]) * FOREHEAD
+        region = np.zeros((h, w), np.uint8)
+        cv2.fillPoly(region, [tall.astype(np.int32)], 1)
+        region = cv2.erode(region, np.ones((13, 13), np.uint8))
+        eyes = np.zeros((h, w), np.uint8)
+        for name in ("left_eye", "right_eye"):
+            pts = _poly(points, FACE_FEATURES[name])
+            if len(pts) >= 3:
+                cv2.fillPoly(eyes, [pts.astype(np.int32)], 1)
+        self.region = (region > 0) & (cv2.dilate(eyes, np.ones((7, 7), np.uint8)) == 0)
+        self.border = (cv2.dilate(region, np.ones((9, 9), np.uint8)) > 0) & ~(cv2.erode(region, np.ones((9, 9), np.uint8)) > 0)
+
+    def align(self, points: dict[int, np.ndarray]) -> np.ndarray | None:
+        common = [k for k in points if k in self.ref]
+        if len(common) < 10:
+            return None
+        matrix, _ = cv2.estimateAffinePartial2D(np.array([points[k] for k in common], np.float32), np.array([self.ref[k] for k in common], np.float32))
+        return matrix
+
+
+def _hand_mask(record: FrameRecord, matrix: np.ndarray, shape, width: int, height: int) -> np.ndarray:
+    mask = np.zeros(shape, np.uint8)
+    for hand in (record.left_hand, record.right_hand):
+        if hand is None or not hand.landmarks:
+            continue
+        pts = np.array([[lm.x * width, lm.y * height] for lm in hand.landmarks], np.float32)
+        pts = cv2.transform(pts[None], matrix)[0]
+        cv2.fillConvexPoly(mask, cv2.convexHull(pts).astype(np.int32), 1)
+    return cv2.dilate(mask, np.ones((25, 25), np.uint8)) > 0
+
+
+def _drop_tools(new: np.ndarray, border: np.ndarray) -> np.ndarray:
+    """Un trozo largo y recto que entra desde el borde de la cara es el mango del pincel."""
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(new.astype(np.uint8))
+    for k in range(1, count):
+        piece = labels == k
+        if not (piece & border).any() or stats[k, 4] < 30:
+            continue
+        ys, xs = np.nonzero(piece)
+        (_, _), (a, b), _ = cv2.minAreaRect(np.stack([xs, ys], axis=1).astype(np.float32))
+        if max(a, b) > 6 * max(min(a, b), 1.0):
+            new[piece] = False
+    return new
+
+
+def _real_strokes(new: np.ndarray, existing: np.ndarray, min_blob: int = 25) -> np.ndarray:
+    """Lo nuevo que vale como trazo: manchas de al menos MIN_BLOB píxeles que no sean solo el
+    borde de la pintura vieja corrido un píxel (la luz cambia y el borde "crece"). El resto se
+    marca como pintura vieja para que no vuelva a contar."""
+    ring = cv2.dilate(existing.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(new.astype(np.uint8))
+    keep = np.zeros_like(new)
+    for k in range(1, count):
+        piece = labels == k
+        beyond = int((piece & ~ring).sum())
+        if beyond >= min_blob:
+            keep |= piece
+    return keep
+
+
+def detect_paint(video_path: Path, frames: list[FrameRecord], fps: float, cuts: list[int] | None = None) -> dict[int, dict]:
+    """{fotograma: {"strokes": [[(x, y, edad), ...], ...], "tip": (x, y) | None}} normalizado.
+
+    Solo en la primera escena con cara: en un corte termina (la escena siguiente es otra cosa; en
+    video_2 la malla "ve" una cara en la calabaza y la tomaría por pintura nueva)."""
+    cuts = sorted(cuts or [])
+    capture = cv2.VideoCapture(str(video_path))
+    space: _FaceSpace | None = None
+    look = max(int(LOOKAHEAD_S * fps), HOLD)
+    buffer: deque = deque()  # (índice, máscara alineada, matriz)
+    total: np.ndarray | None = None
+    born: np.ndarray | None = None
+    born_dark: np.ndarray | None = None
+    painted: np.ndarray | None = None
+    out: dict[int, dict] = {}
+    births = 0
+    first_face = 0
+    by_index = {record.frame: record for record in frames}
+
+    def births_in(index: int, mask: np.ndarray, layer: int, ages: np.ndarray, min_blob: int) -> np.ndarray:
+        """Nacimientos de una capa (0 = color, 1 = negro) decididos con los fotogramas siguientes."""
+        future = [mask] + [m[layer] for _, m, _ in list(buffer)[:look] if m is not None]
+        hold = np.logical_and.reduce(future[:HOLD]) if len(future) >= HOLD else np.zeros_like(mask)
+        stay = np.mean(np.stack(future), axis=0)
+        new = mask & hold & (stay >= STAY) & (ages > 10**8)
+        new = _drop_tools(new, space.border)
+        candidates = new
+        new = _real_strokes(new, ages < 10**8, min_blob)
+        ages[candidates & ~new] = -1000
+        ages[new] = index
+        return new
+
+    def settle(entry) -> None:
+        nonlocal births
+        index, masks, matrix = entry
+        if masks is None:
+            return
+        # La pintura negra va en su propia capa: se pinta encima del naranja ya "nacido" y en
+        # líneas finas que el filtro del color descartaría.
+        new = births_in(index, masks[0], 0, born, MIN_BLOB) | births_in(index, masks[1], 1, born_dark, MIN_DARK_BLOB)
+        births += int(new.any())
+        youngest = np.maximum(np.where(born < 10**8, born, -(10**6)), np.where(born_dark < 10**8, born_dark, -(10**6)))
+        youngest[(born > 10**8) & (born_dark > 10**8)] = 10**9
+        out[index] = _strokes(index, youngest, matrix, masks[0].shape)
+
+    try:
+        width_px = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH)) or 720
+        height_px = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT)) or 1280
+        size = WORK if height_px >= width_px else (WORK[1], WORK[0])
+        index = -1
+        while True:
+            ok, frame = capture.read()
+            if not ok:
+                break
+            index += 1
+            if space is not None and any(first_face < cut <= index for cut in cuts):
+                break
+            record = by_index.get(index)
+            mask, matrix = None, None
+            if record is not None and record.face:
+                small = cv2.resize(frame, size)
+                points = _face_points(record, size[0], size[1])
+                if space is None and len(points) > 60:
+                    space = _FaceSpace(small, points)
+                    first_face = index
+                    shape = small.shape[:2]
+                    born = np.full(shape, 10**9, np.int32)
+                    born_dark = np.full(shape, 10**9, np.int32)
+                    painted = np.zeros(shape, bool)
+                if space is not None:
+                    matrix = space.align(points)
+            if matrix is not None:
+                lab = cv2.cvtColor(cv2.warpAffine(small, matrix, size), cv2.COLOR_BGR2LAB).astype(np.float32)
+                clean = space.region & ~painted
+                skin = np.median(lab[clean], axis=0) if clean.sum() > 500 else space.skin
+                chroma = np.sqrt(((lab[..., 1] - skin[1]) / space.spread[1]) ** 2 + ((lab[..., 2] - skin[2]) / space.spread[2]) ** 2)
+                hand = _hand_mask(record, matrix, chroma.shape, size[0], size[1])
+                color = (chroma > CHROMA) & (lab[..., 0] >= DARK_L) & space.region & ~hand
+                color = cv2.morphologyEx(color.astype(np.uint8), cv2.MORPH_OPEN, np.ones((3, 3), np.uint8)) > 0
+                # El negro del borde de la cara es pelo o sombra, no pintura.
+                dark = (lab[..., 0] < DARK_L) & space.region & ~space.border & ~hand
+                dark = cv2.morphologyEx(dark.astype(np.uint8), cv2.MORPH_OPEN, np.ones((2, 2), np.uint8)) > 0
+                mask = (color, dark)
+                painted |= color | dark
+                if index - first_face < PREEXISTING:
+                    born[color] = -1000
+                    born_dark[dark] = -1000
+            buffer.append((index, mask, matrix))
+            if len(buffer) > look:
+                settle(buffer.popleft())
+        while buffer:
+            settle(buffer.popleft())
+    finally:
+        capture.release()
+    if births < MIN_FRAMES:
+        return {}
+    log.info("Pintura nueva en %d fotogramas", births)
+    return {k: v for k, v in out.items() if v["strokes"] or v["tip"]}
+
+
+def _strokes(index: int, born: np.ndarray, matrix: np.ndarray, shape) -> dict:
+    """Contornos de la pintura reciente en el fotograma, con la edad de cada punto."""
+    h, w = shape
+    age = (index - born).astype(np.float32)
+    recent = (age >= 0) & (age < RECENT)
+    inverse = cv2.invertAffineTransform(matrix)
+    tip = None
+    # La punta: la mancha más reciente (la mayor de las nacidas en los últimos TIP_FRAMES).
+    newest = ((age >= 0) & (age < TIP_FRAMES)).astype(np.uint8)
+    count, labels, stats, centroids = cv2.connectedComponentsWithStats(newest)
+    if count > 1:
+        k = 1 + int(np.argmax(stats[1:, 4]))
+        point = cv2.transform(np.array([[centroids[k]]], np.float32), inverse)[0, 0]
+        tip = (float(point[0] / w), float(point[1] / h))
+    if not recent.any():
+        return {"strokes": [], "tip": tip}
+    # La edad de cada píxel del borde: la menor del vecindario (el borde nuevo manda).
+    young = np.where(recent, age, RECENT).astype(np.float32)
+    young = cv2.erode(young, np.ones((5, 5), np.uint8))
+    mask = cv2.warpAffine(recent.astype(np.uint8) * 255, inverse, (w, h)) > 127
+    young = cv2.warpAffine(young, inverse, (w, h), borderValue=RECENT)
+    contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    strokes = []
+    for contour in contours:
+        if cv2.contourArea(contour) < 20:
+            continue
+        pts = contour[:, 0, :][:: max(len(contour) // 120, 1)]
+        ages = young[np.clip(pts[:, 1], 0, h - 1), np.clip(pts[:, 0], 0, w - 1)]
+        strokes.append([(float(x / w), float(y / h), float(a)) for (x, y), a in zip(pts, ages)])
+    return {"strokes": strokes, "tip": tip}
+
+
+# ----- escena de la obra terminada -----
+
+ZONES = ("eyes", "ribs", "nose", "mouth")
+
+
+def detect_accents(video_path: Path, frames: list[FrameRecord], start: int) -> dict[int, dict]:
+    """{fotograma: {"head": (x0, y0, x1, y1), "lines": [{"zone", "points"}]}} desde `start`, en
+    los fotogramas sin malla facial (la obra terminada no es una cara humana)."""
+    capture = cv2.VideoCapture(str(video_path))
+    capture.set(cv2.CAP_PROP_POS_FRAMES, start)
+    by_index = {record.frame: record for record in frames}
+    out: dict[int, dict] = {}
+    index = start - 1
+    try:
+        while True:
+            ok, frame = capture.read()
+            if not ok:
+                break
+            index += 1
+            record = by_index.get(index)
+            if record is not None and record.face:
+                continue
+            found = _accent_lines(frame, record)
+            if found is not None:
+                out[index] = found
+    finally:
+        capture.release()
+    log.info("Acentos de la obra en %d fotogramas", len(out))
+    return out
+
+
+def _accent_lines(frame: np.ndarray, record: FrameRecord | None) -> dict | None:
+    h0, w0 = frame.shape[:2]
+    size = WORK if h0 >= w0 else (WORK[1], WORK[0])
+    small = cv2.resize(frame, size)
+    w, h = size
+    hsv = cv2.cvtColor(small, cv2.COLOR_BGR2HSV)
+    colored = ((hsv[..., 1] > 110) & (hsv[..., 2] > 70)).astype(np.uint8)
+    closed = cv2.morphologyEx(colored, cv2.MORPH_CLOSE, np.ones((15, 15), np.uint8))
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(closed)
+    if count < 2 or stats[1:, 4].max() < 0.05 * w * h:
+        return None
+    biggest = 1 + int(np.argmax(stats[1:, 4]))
+    outline, _ = cv2.findContours((labels == biggest).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    region = np.zeros((h, w), np.uint8)
+    cv2.drawContours(region, outline, -1, 1, -1)
+    region = cv2.erode(region, np.ones((9, 9), np.uint8))
+    ys, xs = np.nonzero(region)
+    if not len(ys):
+        return None
+    # La cabeza: por encima de los hombros de la pose, o el 45% de arriba del objeto.
+    top = int(ys.min())
+    shoulders = [lm.y * h for lm in (record.pose if record else []) if lm.name in ("left_shoulder", "right_shoulder") and lm.c > 0.4]
+    neck = int(top + 0.45 * (ys.max() - top))
+    if shoulders and 0.3 < (min(shoulders) - top) / max(ys.max() - top, 1) < 0.6:
+        neck = int(min(shoulders))
+    region[neck:] = 0
+    ys, xs = np.nonzero(region)
+    if len(ys) < 200:
+        return None
+    x0, x1, y0, y1 = int(xs.min()), int(xs.max()), int(ys.min()), int(ys.max())
+    dark = ((hsv[..., 2] < 70) & (region > 0)).astype(np.uint8)
+    dark = cv2.morphologyEx(dark, cv2.MORPH_OPEN, np.ones((2, 2), np.uint8))
+    contours, _ = cv2.findContours(dark, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    lines = []
+    for contour in contours:
+        if cv2.contourArea(contour) < 15:
+            continue
+        cx, cy = contour[:, 0, :].mean(axis=0)
+        u, v = (cx - x0) / max(x1 - x0, 1), (cy - y0) / max(y1 - y0, 1)
+        bx, by, bw, bh = cv2.boundingRect(contour)
+        tall = bh > 2.5 * bw
+        if v > 0.62:
+            zone = "mouth"
+        elif 0.3 < u < 0.7 and 0.45 < v <= 0.62:
+            zone = "nose"
+        elif tall and v < 0.5:
+            zone = "ribs"
+        elif v <= 0.62:
+            zone = "eyes"
+        else:
+            continue
+        pts = contour[:, 0, :]
+        lines.append({"zone": zone, "points": [(float(x / w), float(y / h)) for x, y in pts]})
+    return {"head": (x0 / w, y0 / h, x1 / w, y1 / h), "lines": lines}

@@ -53,6 +53,7 @@ class EffectRuntime:
         self.focus_level = 1.0
         self.beats: list[int] = []
         self.steps: list = []
+        self.appearance = None
 
 
 def render_effect(
@@ -132,6 +133,12 @@ def render_effect(
 
         draw = {"disco_fx": draw_disco, "beat_pulse": draw_beat_pulse, "equalizer": draw_equalizer, "mirror_ball": draw_mirror_ball}[kind]
         draw(runtime, track, points, frame_index, height, envelope, layer, event if effect.triggers else None)
+    elif kind in ("paint_trace", "paint_accents", "rising_sparks"):
+        from vfxglow.engine import paint_fx
+
+        {"paint_trace": paint_fx.draw_paint_trace, "paint_accents": paint_fx.draw_paint_accents, "rising_sparks": paint_fx.draw_rising_sparks}[kind](
+            runtime, track, points, frame_index, height, envelope, layer, event if effect.triggers else None
+        )
     elif kind == "sprite_fx":
         from vfxglow.engine.sprite import draw_sprite
 

@@ -129,7 +129,9 @@ def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: st
     for detect in GESTURE_DETECTORS:
         events.extend(detect(frames, meta.fps, meta.width, meta.height))
     beats, onsets = segment_beats(frames, video_path, meta, config.analysis.beats)
-    appearance = analyze_appearance(video_path, frames, meta)
+    from vfxglow.analysis.beats import cut_frames
+
+    appearance = analyze_appearance(video_path, frames, meta, cut_frames(beats))
     beats = retag_paint_beats(beats, appearance)
     events.extend(tip_touch_events(appearance))
     events.sort(key=lambda event: (event.start_frame, event.name))

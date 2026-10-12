@@ -151,6 +151,7 @@ class EffectEngine:
             runtime.chapter_colors = self._chapter_colors(runtime.chapter_frame if effect.triggers and gain > 0 else frame_index)
             runtime.contour_px = None
             runtime.tool_tip = None
+            runtime.appearance = self.appearance
             if self.appearance is not None:
                 poly = self.appearance.contours.get(frame_index)
                 if poly:

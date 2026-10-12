@@ -74,6 +74,9 @@ EffectType = Literal[
     "ghost_trail",
     "footprints",
     "sprite_fx",
+    "paint_trace",
+    "paint_accents",
+    "rising_sparks",
 ]
 TargetKind = Literal["joint", "chain", "face_region", "mask", "object", "event_point", "contour"]
 BlendMode = Literal["add", "screen", "over", "multiply", "tint"]
@@ -389,6 +392,9 @@ SUPPORTED_TYPES: tuple[str, ...] = (
     "ghost_trail",
     "footprints",
     "sprite_fx",
+    "paint_trace",
+    "paint_accents",
+    "rising_sparks",
 )
 
 # Efectos que por defecto pertenecen a un grupo distinto de glow.

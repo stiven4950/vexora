@@ -61,3 +61,17 @@ Corte a la máscara terminada: fondo oscuro, humo, sin cara humana (Face Mesh no
 | Faltan los acentos de la calabaza | No hay detección de las líneas pintadas ni un efecto de trazos cortos secuenciales | Escena 2 sin lo que la hace atractiva |
 | Una sola paleta amarilla | El preset no cambia de color en el corte | La escena 2 no contrasta con la 1 |
 | Luces en ojos, nariz y boca en la escena 1 | Las pide el preset; los ojos se vetan, pero nariz y boca no | Luces que la referencia no tiene |
+
+## Qué se implementó
+
+| Parte | Implementación |
+| --- | --- |
+| Detección de la pintura | `analysis/paint.py`: cada fotograma se alinea a la cara del primero; nace pintura donde aparece "no piel" (color o negro) y se queda; la mano, el pincel y el borde que se corre no cuentan. La pintura negra va en su propia capa (se pinta sobre el naranja, en líneas finas) |
+| La luz sigue al pincel | `paint_trace`: contorno de la pintura nueva que se dibuja con la edad de cada punto, punto caliente y llamita en la punta, y lo viejo en guiones que se apagan |
+| La obra terminada | `detect_accents` + `paint_accents`: líneas oscuras pintadas en la cabeza, por zona (ojos, estrías, nariz, boca); se encienden una zona y un color a la vez, cada 0,45 s |
+| Chispas con el humo | `rising_sparks` al empezar la escena de la obra |
+| Limpieza | Fuera el contorno de la cabeza y las luces de ojos, nariz y boca; paleta cálida en la pintura y fría y cambiante en la obra |
+
+La detección de pintura se detiene en el primer corte (en la calabaza la malla "ve" una cara).
+Pendiente: las líneas negras finas se detectan solo en parte (la punta del pincel en esos
+trazos es pequeña y cambia de lugar rápido).

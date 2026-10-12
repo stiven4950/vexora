@@ -31,6 +31,9 @@ class Appearance:
     tips: dict[int, tuple[float, float]] = field(default_factory=dict)
     bright: list[str] = field(default_factory=list)
     bright_spans: list[tuple[int, int, str]] = field(default_factory=list)
+    # Pintura nueva por fotograma (analysis/paint.py) y acentos de la obra terminada.
+    paint: dict[int, dict] = field(default_factory=dict)
+    accents: dict[int, dict] = field(default_factory=dict)
 
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -39,6 +42,8 @@ class Appearance:
             "tips": [{"frame": frame, "point": point} for frame, point in sorted(self.tips.items())],
             "bright": self.bright,
             "bright_spans": [{"start": a, "end": b, "region": region} for a, b, region in self.bright_spans],
+            "paint": [{"frame": frame, **data} for frame, data in sorted(self.paint.items())],
+            "accents": [{"frame": frame, **data} for frame, data in sorted(self.accents.items())],
         }
         path.write_text(json.dumps(payload), encoding="utf-8")
 
@@ -52,17 +57,20 @@ class Appearance:
             tips={int(item["frame"]): tuple(item["point"]) for item in raw.get("tips", [])},
             bright=list(raw.get("bright", [])),
             bright_spans=[(int(item["start"]), int(item["end"]), str(item["region"])) for item in raw.get("bright_spans", [])],
+            paint={int(item["frame"]): {"strokes": item["strokes"], "tip": item["tip"]} for item in raw.get("paint", [])},
+            accents={int(item["frame"]): {"head": item["head"], "lines": item["lines"]} for item in raw.get("accents", [])},
         )
 
 
-def analyze_appearance(video_path: Path, frames: list[FrameRecord], meta: VideoMeta) -> Appearance:
-    """Recorre el plano una vez. El fondo lento hace que solo sobreviva la mancha nueva."""
+def analyze_appearance(video_path: Path, frames: list[FrameRecord], meta: VideoMeta, cuts: list[int] | None = None) -> Appearance:
+    """Ojos que ya brillan, pintura nueva sobre la cara y, tras la pintura, los acentos de la obra.
+
+    La pintura sale de analysis/paint.py (en coordenadas de la cara, sin contar la mano ni el
+    pincel); `contours` y `tips` (los usan tool_touch y el retag de beats) salen de ahí."""
     cap = cv2.VideoCapture(str(video_path))
-    acc: np.ndarray | None = None
     out = Appearance()
     bright_eyes = 0
     eye_samples = 0
-    width_s, height_s = _SMALL
     for record in frames:
         ok, frame = cap.read()
         if not ok:
@@ -72,22 +80,18 @@ def analyze_appearance(video_path: Path, frames: list[FrameRecord], meta: VideoM
             out.bright_spans.append((record.frame, record.frame, "eyes"))
         if record.pose:
             eye_samples += 1
-        small = cv2.resize(frame, _SMALL)
-        if acc is None:
-            acc = small.astype(np.float32)
-            continue
-        delta = cv2.absdiff(small, np.clip(acc, 0, 255).astype(np.uint8))
-        mask = (delta.mean(axis=2) > 26).astype(np.uint8) * 255
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
-        wrist, direction = _wrist_and_direction(record)
-        if wrist is not None:
-            kept = _component_near(mask, (wrist[0] * width_s, wrist[1] * height_s), direction, width_s, height_s)
-            if kept is not None:
-                contour, tip = kept
-                out.contours[record.frame] = [(x / width_s, y / height_s) for x, y in contour]
-                out.tips[record.frame] = (tip[0] / width_s, tip[1] / height_s)
-        acc = acc * 0.9 + small.astype(np.float32) * 0.1
     cap.release()
+    from vfxglow.analysis.paint import detect_accents, detect_paint
+
+    out.paint = detect_paint(video_path, frames, meta.fps, cuts)
+    for frame, data in out.paint.items():
+        if data["strokes"]:
+            biggest = max(data["strokes"], key=len)
+            out.contours[frame] = [(x, y) for x, y, _ in biggest]
+        if data["tip"] is not None:
+            out.tips[frame] = tuple(data["tip"])
+    if out.paint:
+        out.accents = detect_accents(video_path, frames, max(out.paint) + 1)
     out.bright_spans = [
         span for span in _merge_spans(out.bright_spans, BRIGHT_GAP) if span[1] - span[0] + 1 >= BRIGHT_MIN
     ]
@@ -182,64 +186,3 @@ def tip_touch_events(appearance: Appearance):
         )
     return events
 
-
-def _wrist_and_direction(record: FrameRecord) -> tuple[tuple[float, float] | None, tuple[float, float]]:
-    pose = {lm.name: (lm.x, lm.y) for lm in record.pose if lm.c > 0.15}
-    best: tuple[float, tuple[float, float], tuple[float, float]] | None = None
-    for side in ("left", "right"):
-        wrist = pose.get(f"{side}_wrist")
-        elbow = pose.get(f"{side}_elbow")
-        if wrist is None:
-            continue
-        speed = next((item.speed for item in record.motion if item.name == f"{side}_wrist" and not item.glitch), 0.0)
-        direction = (0.0, -1.0)
-        if elbow is not None:
-            direction = (wrist[0] - elbow[0], wrist[1] - elbow[1])
-        if best is None or speed >= best[0]:
-            best = (speed, wrist, direction)
-    if best is None or best[0] < 0.01:
-        return None, (0.0, -1.0)
-    return best[1], best[2]
-
-
-def _component_near(
-    mask: np.ndarray,
-    wrist_px: tuple[float, float],
-    direction: tuple[float, float],
-    width: int,
-    height: int,
-) -> tuple[list[tuple[float, float]], tuple[float, float]] | None:
-    count, labels, stats, _centroids = cv2.connectedComponentsWithStats(mask, connectivity=8)
-    norm = float(np.hypot(*direction)) or 1.0
-    ux, uy = direction[0] / norm, direction[1] / norm
-    probe = (wrist_px[0] + ux * 18.0, wrist_px[1] + uy * 18.0)
-    chosen = -1
-    best = 1e9
-    for label in range(1, count):
-        if stats[label, cv2.CC_STAT_AREA] < 40:
-            continue
-        x = stats[label, cv2.CC_STAT_LEFT] + stats[label, cv2.CC_STAT_WIDTH] * 0.5
-        y = stats[label, cv2.CC_STAT_TOP] + stats[label, cv2.CC_STAT_HEIGHT] * 0.5
-        dist = float(np.hypot(x - probe[0], y - probe[1]))
-        if dist < best and dist < 70:
-            best = dist
-            chosen = label
-    if chosen < 0:
-        return None
-    component = np.uint8(labels == chosen) * 255
-    found, contours = cv2.findContours(component, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if not found:
-        return None
-    poly = cv2.approxPolyDP(max(found, key=cv2.contourArea), 2.5, closed=True)
-    points = [(float(p[0][0]), float(p[0][1])) for p in poly]
-    if len(points) < 4:
-        return None
-    ys, xs = np.where(labels == chosen)
-    if xs.size == 0:
-        return None
-    scores = (xs - wrist_px[0]) * ux + (ys - wrist_px[1]) * uy
-    pick = int(np.argmax(scores))
-    tip = (float(xs[pick]), float(ys[pick]))
-    if tip[0] < 0 or tip[1] < 0 or tip[0] >= width or tip[1] >= height:
-        return None
-    return points, tip
