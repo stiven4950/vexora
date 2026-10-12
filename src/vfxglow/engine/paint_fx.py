@@ -24,7 +24,8 @@ RECENT = 24
 DASH = 6  # puntos por guion al deshacerse
 SLOT_S = 0.45
 ZONE_ORDER = ("eyes", "ribs", "nose", "eyes", "mouth")
-MAX_LINES = 6
+MAX_LINES = 5
+ACCENT_LENGTH = 0.22
 WHITE = np.array([1.0, 1.0, 1.0], dtype=np.float32)
 
 
@@ -65,6 +66,16 @@ def draw_paint_trace(runtime, track, points, frame_index: int, height: int, enve
                 if len(piece) >= 2:
                     alpha = 1.0 - (float(age[start]) - DRAW) / (RECENT - DRAW)
                     strokes += neon_layers(piece, color, line * 0.8, envelope * alpha * 0.8)
+    # Línea fina: el recorrido de la punta del pincel, encendido y más fresco cerca de la punta.
+    trail = data.get("trail") or []
+    if len(trail) >= 3:
+        pts = np.array(trail, dtype=np.float64)
+        xy = pts[:, :2] * [width, height]
+        bounds = np.linspace(0, len(xy) - 1, min(len(xy) - 1, 6) + 1).astype(int)
+        for a, b in zip(bounds[:-1], bounds[1:]):
+            if b > a:
+                alpha = 1.0 - float(pts[a:b + 1, 2].mean()) / max(len(trail), 1)
+                strokes += neon_layers(xy[a:b + 1], color, line * 0.7, envelope * (0.35 + 0.65 * alpha))
     if data["tip"] is not None:
         tip = np.array(data["tip"]) * [width, height]
         flicker = 0.85 + 0.15 * np.sin(frame_index * 1.7)
@@ -100,8 +111,16 @@ def draw_paint_accents(runtime, track, points, frame_index: int, height: int, en
     strokes = []
     for line in lines:
         pts = np.array(line["points"], dtype=np.float64) * [width, height]
-        # Medio contorno: un trazo (arco, raya) y no un anillo cerrado.
+        # Medio contorno: un trazo (arco, raya) y no un anillo cerrado; y corto, como las marcas
+        # de la referencia: como mucho ACCENT_LENGTH del alto de la cabeza, del centro del trazo.
         half = pts[: max(len(pts) // 2, 2)]
+        seg = np.linalg.norm(np.diff(half, axis=0), axis=1)
+        limit = ACCENT_LENGTH * (data["head"][3] - data["head"][1]) * height
+        if seg.sum() > limit and len(half) > 3:
+            arc = np.concatenate([[0.0], np.cumsum(seg)])
+            middle = arc[-1] / 2
+            keep = (arc >= middle - limit / 2) & (arc <= middle + limit / 2)
+            half = half[keep] if keep.sum() >= 2 else half
         shown = half[: max(int(len(half) * grow), 2)]
         strokes += neon_layers(shown, color, width_px, envelope * fade)
     if strokes:

@@ -73,5 +73,11 @@ Corte a la máscara terminada: fondo oscuro, humo, sin cara humana (Face Mesh no
 | Limpieza | Fuera el contorno de la cabeza y las luces de ojos, nariz y boca; paleta cálida en la pintura y fría y cambiante en la obra |
 
 La detección de pintura se detiene en el primer corte (en la calabaza la malla "ve" una cara).
-Pendiente: las líneas negras finas se detectan solo en parte (la punta del pincel en esos
-trazos es pequeña y cambia de lugar rápido).
+Líneas finas: `analysis/brush.py` encuentra el pincel (mango azul verdoso, largo y fino) y su
+punta (más allá del mango, por la virola dorada y las cerdas, hacia la cara). Con el pincel sobre
+la cara, la llama va en su punta y el recorrido de la punta en los últimos 14 fotogramas es la
+línea fina que se ilumina (`trail`). Los acentos de la obra son marcas cortas (22% del alto de la
+cabeza) centradas en cada línea.
+
+Pendiente: algún destello suelto cerca de los ojos en la fase de líneas negras; el mango se
+detecta por color, así que un pincel de otro color necesitaría otro rango (`brush.HUE`).

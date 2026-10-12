@@ -67,3 +67,14 @@ def test_paint_accents_light_one_zone_at_a_time() -> None:
         layer = engine.render_frame(FrameRecord(frame=f, time_s=f / 30), f, W, H, 30)[0][2][..., 3]
     ys, _ = np.nonzero(layer > 0.3)
     assert ys.size and ys.max() < 0.5 * H  # en el primer tramo solo los ojos
+
+
+def test_brush_tip_is_past_the_handle_toward_the_face() -> None:
+    from vfxglow.analysis.brush import find_brush
+
+    image = np.full((H, W, 3), (150, 170, 210), np.uint8)  # piel
+    cv2.line(image, (300, 600), (200, 300), (200, 170, 20), 8)  # mango azul verdoso (BGR)
+    cv2.line(image, (200, 300), (190, 270), (40, 170, 210), 6)  # virola dorada
+    cv2.line(image, (190, 270), (185, 255), (15, 15, 15), 5)  # cerdas
+    tip, direction = find_brush(image, np.array([180.0, 200.0]))
+    assert tip[1] < 275 and direction[1] < 0  # más allá del mango, hacia la cara

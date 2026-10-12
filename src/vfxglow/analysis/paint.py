@@ -28,6 +28,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from vfxglow.analysis.brush import find_brush
 from vfxglow.analysis.names import CHEEKS, FACE_FEATURES, FACE_OVAL
 from vfxglow.analysis.schema import FrameRecord
 
@@ -42,6 +43,7 @@ STAY = 0.7
 PREEXISTING = 2  # fotogramas iniciales cuyo "no piel" ya estaba
 RECENT = 24
 TIP_FRAMES = 6
+TRAIL = 14  # fotogramas de recorrido de la punta del pincel que forman la línea fina
 MIN_BLOB = 25
 MIN_DARK_BLOB = 8  # píxeles (a la resolución de trabajo) fuera del borde viejo para ser trazo nuevo  # fotogramas en que un trazo nuevo sigue contando como reciente
 MIN_FRAMES = 15  # fotogramas con pintura nueva para considerar que el video es de pintura
@@ -152,6 +154,7 @@ def detect_paint(video_path: Path, frames: list[FrameRecord], fps: float, cuts: 
     out: dict[int, dict] = {}
     births = 0
     first_face = 0
+    brush: dict[int, tuple[float, float]] = {}
     by_index = {record.frame: record for record in frames}
 
     def births_in(index: int, mask: np.ndarray, layer: int, ages: np.ndarray, min_blob: int) -> np.ndarray:
@@ -207,6 +210,13 @@ def detect_paint(video_path: Path, frames: list[FrameRecord], fps: float, cuts: 
                 if space is not None:
                     matrix = space.align(points)
             if matrix is not None:
+                found = find_brush(small, np.mean(list(points.values()), axis=0))
+                if found is not None:
+                    tip = cv2.transform(np.array([[found[0]]], np.float32), matrix)[0, 0]
+                    x, y = int(tip[0]), int(tip[1])
+                    # Pinta si la punta está sobre la cara (en coordenadas de la cara).
+                    if 0 <= x < size[0] and 0 <= y < size[1] and space.region[y, x]:
+                        brush[index] = (float(found[0][0] / size[0]), float(found[0][1] / size[1]))
                 lab = cv2.cvtColor(cv2.warpAffine(small, matrix, size), cv2.COLOR_BGR2LAB).astype(np.float32)
                 clean = space.region & ~painted
                 skin = np.median(lab[clean], axis=0) if clean.sum() > 500 else space.skin
@@ -231,8 +241,24 @@ def detect_paint(video_path: Path, frames: list[FrameRecord], fps: float, cuts: 
         capture.release()
     if births < MIN_FRAMES:
         return {}
-    log.info("Pintura nueva en %d fotogramas", births)
-    return {k: v for k, v in out.items() if v["strokes"] or v["tip"]}
+    _add_brush(out, brush)
+    log.info("Pintura nueva en %d fotogramas; pincel sobre la cara en %d", births, len(brush))
+    return {k: v for k, v in out.items() if v["strokes"] or v["tip"] or v.get("trail")}
+
+
+def _add_brush(out: dict[int, dict], brush: dict[int, tuple[float, float]]) -> None:
+    """Con el pincel a la vista, la punta es la suya; y el recorrido de la punta en los últimos
+    TRAIL fotogramas seguidos es la línea fina que se está trazando (con su edad)."""
+    for index, tip in brush.items():
+        entry = out.setdefault(index, {"strokes": [], "tip": None})
+        entry["tip"] = tip
+        trail = []
+        for back in range(TRAIL):
+            point = brush.get(index - back)
+            if point is None:
+                break
+            trail.append((point[0], point[1], float(back)))
+        entry["trail"] = trail[::-1] if len(trail) >= 3 else []
 
 
 def _strokes(index: int, born: np.ndarray, matrix: np.ndarray, shape) -> dict:
