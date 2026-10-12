@@ -30,6 +30,7 @@ MAX_LINES = 5
 ACCENT_LENGTH = 0.22
 ORBIT_POINTS = 64
 ORBIT_SHARE = 0.32  # fracción del contorno de la cuenca que ocupa el arco que gira
+ORBIT_WIDTH = 1.6  # grosor del arco que gira respecto a los otros trazos
 WHITE = np.array([1.0, 1.0, 1.0], dtype=np.float32)
 
 
@@ -202,7 +203,14 @@ def _draw_eyes(layer, eyes: np.ndarray, sockets, color, slot: int, u: float, gro
             head = int(((u if side == 0 else -u) * ORBIT_POINTS)) % ORBIT_POINTS
             span = int(ORBIT_POINTS * ORBIT_SHARE)
             idx = [(head - k) % ORBIT_POINTS for k in range(span)][::-1]
-            strokes += neon_layers(ring[idx], color, line, envelope * fade)
+            # Arco principal más grueso y brillante, con una estela que se apaga detrás y un punto
+            # caliente en la cabeza del giro.
+            strokes += neon_layers(ring[idx], color, line * ORBIT_WIDTH, envelope * fade)
+            tail = [(head - span - k) % ORBIT_POINTS for k in range(span)][::-1]
+            strokes += neon_layers(ring[tail], color, line * ORBIT_WIDTH * 0.6, envelope * fade * 0.35)
+            tip = ring[idx[-1]]
+            splat(layer, float(tip[0]), float(tip[1]), line * 3.0, WHITE * 1.5, envelope * fade, runtime.kernels)
+            splat(layer, float(tip[0]), float(tip[1]), line * 7.0, color * 1.3, envelope * fade * 0.7, runtime.kernels)
         else:
             radius = gap * 0.26
             sweep = np.linspace(np.pi * 0.15, np.pi * (0.15 + 0.7 * grow), 16)

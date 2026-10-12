@@ -29,7 +29,7 @@ effects:
     - [0.35, 0.7, 1.0]
     - [1.0, 0.35, 0.2]
     thickness: 0.05
-    hdr_gain: 1.8
+    hdr_gain: 2.1
   render: {blend: add, motion_blur: 0.0, persistence: 0.0, group: glow}
 - id: rising_sparks
   type: rising_sparks
