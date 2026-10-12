@@ -65,8 +65,9 @@ reactions:
         shapes: [biceps]
         fill: 0.0
       trigger: *id001
+  # Pierna entera encendida: poco (criterio P7, mejor trazos parciales).
   - name: piernas
-    weight: 0.6
+    weight: 0.15
     kinds: [legs, feet]
     effects:
     - type: body_glow
@@ -117,16 +118,20 @@ reactions:
       trigger: {hold: 4, fade_in: 2, fade_out: 5}
   # Seg. 23.9-24.7: no la pierna entera, solo tramos del contorno que suben como una onda.
   - name: piernas_onda
-    weight: 0.5
+    weight: 0.7
     kinds: [legs, feet]
     effects:
     - type: body_glow
       target: {kind: joint, id: legs}
       style: {shapes: [wave], fill: 0.0, trail_frames: 18}
       trigger: {hold: 6, fade_in: 2, fade_out: 6}
+    # Si además el pie barre el piso, deja su mancha (solo pinta al arrastrarse).
+    - type: foot_paint
+      style: {size: 0.3, trail_frames: 14}
+      trigger: {hold: 6, fade_in: 2, fade_out: 6}
   # Seg. 25-26: el pie que barre el piso deja una mancha de pintura que lo sigue y gira.
   - name: pie_pintura
-    weight: 0.4
+    weight: 0.5
     kinds: [legs, feet]
     effects:
     - type: foot_paint
