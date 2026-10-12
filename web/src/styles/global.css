@@ -1,26 +1,35 @@
 :root {
-  --ink: #06060b;
-  --ink-2: #0c0c14;
-  --panel: rgba(18, 18, 30, 0.62);
-  --panel-solid: #12121d;
-  --line: rgba(255, 255, 255, 0.08);
-  --line-strong: rgba(255, 255, 255, 0.16);
-  --text: #eeeef6;
-  --muted: #8b8ba3;
-  --faint: #5a5a72;
+  /* VEXORA · Neural Energy. 70% superficies oscuras, 20% neutros, 10% acento. */
+  --ink: #080b14; /* Obsidian: fondo */
+  --ink-2: #0b1020;
+  --ink-rgb: 8, 11, 20;
+  --panel: rgba(17, 24, 39, 0.66);
+  --panel-solid: #111827; /* Graphite: paneles */
+  --line: rgba(226, 232, 240, 0.08);
+  --line-strong: rgba(226, 232, 240, 0.16);
+  --text: #e2e8f0; /* Ice White */
+  --muted: #94a3b8;
+  --faint: #64748b;
 
-  --cyan: #28f0d0;
-  --lime: #c6ff3a;
-  --magenta: #ff3ec8;
-  --orange: #ff8a1f;
-  --violet: #8a5cff;
-  --danger: #ff4d6d;
+  --cyan: #67e8f9; /* Electric Cyan: acciones principales */
+  --cyan-rgb: 103, 232, 249;
+  --blue: #3b82f6;
+  --violet: #8b5cf6; /* Neural Violet: IA */
+  --violet-soft: #a78bfa;
+  --violet-rgb: 139, 92, 246;
+  --plasma: #ec4899; /* Plasma Pink: acentos creativos */
+  --plasma-rgb: 236, 72, 153;
+  --magenta: var(--plasma);
+  --danger: #f43f5e;
 
-  --glow-cyan: 0 0 24px rgba(40, 240, 208, 0.45);
+  --brand-gradient: linear-gradient(100deg, var(--cyan), var(--blue) 45%, var(--violet) 72%, var(--plasma));
+  --action-gradient: linear-gradient(100deg, var(--cyan), var(--violet-soft));
+  --glow-cyan: 0 0 24px rgba(var(--cyan-rgb), 0.4);
   --radius: 18px;
   --radius-sm: 10px;
 
-  --display: "Unbounded", "Inter", system-ui, sans-serif;
+  --brand: "Michroma", "Sora", system-ui, sans-serif;
+  --display: "Sora", "Inter", system-ui, sans-serif;
   --sans: "Inter", system-ui, -apple-system, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, monospace;
 
@@ -67,9 +76,9 @@ body::after {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(40vmax 30vmax at 15% 20%, var(--aurora-a, rgba(40, 240, 208, 0.16)), transparent 70%),
-    radial-gradient(45vmax 35vmax at 85% 30%, var(--aurora-b, rgba(255, 62, 200, 0.12)), transparent 70%),
-    radial-gradient(50vmax 30vmax at 50% 110%, rgba(138, 92, 255, 0.12), transparent 70%);
+    radial-gradient(40vmax 30vmax at 15% 20%, var(--aurora-a, rgba(var(--cyan-rgb), 0.1)), transparent 70%),
+    radial-gradient(45vmax 35vmax at 85% 30%, var(--aurora-b, rgba(var(--violet-rgb), 0.1)), transparent 70%),
+    radial-gradient(50vmax 30vmax at 50% 110%, rgba(var(--plasma-rgb), 0.06), transparent 70%);
   filter: blur(20px);
   animation: drift 26s ease-in-out infinite alternate;
   transition: background 1.2s ease;
@@ -85,9 +94,9 @@ h1,
 h2,
 h3 {
   font-family: var(--display);
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.08;
   margin: 0;
 }
 
@@ -116,14 +125,14 @@ button {
 }
 
 .neon-text {
-  background: linear-gradient(100deg, var(--cyan), var(--lime) 40%, var(--magenta) 80%);
+  background: var(--brand-gradient);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
 ::selection {
-  background: rgba(40, 240, 208, 0.35);
+  background: rgba(var(--cyan-rgb), 0.3);
 }
 
 :focus-visible {
@@ -139,4 +148,39 @@ button {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Logotipo VEXORA (components/Logo.tsx). */
+.vx-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75em;
+}
+
+.vx-logo-text {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.vx-word {
+  font-family: var(--brand);
+  letter-spacing: 0.32em;
+  color: var(--text);
+}
+
+.vx-x {
+  background: var(--brand-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.vx-tagline {
+  font-family: var(--mono);
+  font-size: 0.5em;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 0.35em;
 }

@@ -91,7 +91,7 @@
   height: 22px;
   border-radius: 50%;
   border: 1.5px solid var(--line-strong);
-  background: rgba(6, 6, 11, 0.6);
+  background: rgba(var(--ink-rgb), 0.6);
   transition: all 0.25s;
 }
 

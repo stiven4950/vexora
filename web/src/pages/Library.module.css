@@ -71,7 +71,7 @@
 .progress i {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, var(--cyan), var(--lime));
+  background: linear-gradient(90deg, var(--cyan), var(--violet-soft));
   transition: width 0.5s;
 }
 
@@ -85,12 +85,12 @@
   font-size: 10px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  background: rgba(6, 6, 11, 0.7);
+  background: rgba(var(--ink-rgb), 0.7);
   backdrop-filter: blur(8px);
 }
 
 .done {
-  color: var(--lime);
+  color: var(--violet-soft);
 }
 .running,
 .queued {

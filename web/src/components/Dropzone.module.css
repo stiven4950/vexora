@@ -4,7 +4,7 @@
   border: 1px dashed var(--line-strong);
   background:
     linear-gradient(var(--panel), var(--panel)) padding-box,
-    radial-gradient(120% 120% at 50% 0%, rgba(40, 240, 208, 0.06), transparent 60%);
+    radial-gradient(120% 120% at 50% 0%, rgba(var(--cyan-rgb), 0.06), transparent 60%);
   min-height: 300px;
   overflow: hidden;
   transition: border-color 0.25s, box-shadow 0.3s, transform 0.25s;
@@ -14,7 +14,7 @@
 .over {
   border-color: var(--cyan);
   border-style: solid;
-  box-shadow: 0 0 0 4px rgba(40, 240, 208, 0.08), 0 0 60px -10px rgba(40, 240, 208, 0.5);
+  box-shadow: 0 0 0 4px rgba(var(--cyan-rgb), 0.08), 0 0 60px -10px rgba(var(--cyan-rgb), 0.5);
   transform: scale(1.01);
 }
 
@@ -68,14 +68,14 @@
   margin-bottom: 10px;
   border-radius: 50%;
   color: var(--cyan);
-  background: rgba(40, 240, 208, 0.08);
-  box-shadow: inset 0 0 0 1px rgba(40, 240, 208, 0.35), var(--glow-cyan);
+  background: rgba(var(--cyan-rgb), 0.08);
+  box-shadow: inset 0 0 0 1px rgba(var(--cyan-rgb), 0.35), var(--glow-cyan);
   animation: pulse 2.6s ease-in-out infinite;
 }
 
 @keyframes pulse {
   50% {
-    box-shadow: inset 0 0 0 1px rgba(40, 240, 208, 0.6), 0 0 44px rgba(40, 240, 208, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(var(--cyan-rgb), 0.6), 0 0 44px rgba(var(--cyan-rgb), 0.55);
   }
 }
 

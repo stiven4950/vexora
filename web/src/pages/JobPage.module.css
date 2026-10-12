@@ -44,12 +44,12 @@
 .running,
 .queued {
   color: var(--cyan);
-  border-color: rgba(40, 240, 208, 0.45);
+  border-color: rgba(var(--cyan-rgb), 0.45);
 }
 
 .done {
-  color: var(--lime);
-  border-color: rgba(198, 255, 58, 0.45);
+  color: var(--violet-soft);
+  border-color: rgba(var(--violet-rgb), 0.45);
 }
 
 .failed {
@@ -134,9 +134,9 @@ div.failed pre {
   padding: 14px;
   border-radius: 14px;
   font-weight: 600;
-  color: #06060b;
-  background: linear-gradient(110deg, var(--lime), var(--cyan));
-  box-shadow: 0 14px 40px -14px rgba(198, 255, 58, 0.7);
+  color: var(--ink);
+  background: var(--action-gradient);
+  box-shadow: 0 14px 40px -14px rgba(var(--violet-rgb), 0.7);
   transition: transform 0.2s;
 }
 
@@ -171,7 +171,7 @@ div.failed pre {
 
 .choices b {
   font-family: var(--mono);
-  color: var(--lime);
+  color: var(--violet-soft);
 }
 
 .error {

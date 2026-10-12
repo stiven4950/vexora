@@ -31,9 +31,9 @@ export function Darkroom({ job }: { job: Job }) {
         <svg className={styles.ring} viewBox="0 0 220 220" role="img" aria-label={`Progreso ${percent}%`}>
           <defs>
             <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stopColor="#28f0d0" />
-              <stop offset="0.6" stopColor="#c6ff3a" />
-              <stop offset="1" stopColor="#ff3ec8" />
+              <stop offset="0" stopColor="#67e8f9" />
+              <stop offset="0.6" stopColor="#8b5cf6" />
+              <stop offset="1" stopColor="#ec4899" />
             </linearGradient>
           </defs>
           <circle cx="110" cy="110" r={radius} className={styles.track} />

@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 
 import { Icon } from "./Icon";
+import { Logo } from "./Logo";
 import styles from "./Shell.module.css";
 
 interface Props {
@@ -17,12 +18,7 @@ export function Shell({ children, aurora }: Props) {
       <div className="aurora" style={tint} />
       <header className={styles.bar}>
         <NavLink to="/" className={styles.brand}>
-          <svg viewBox="0 0 64 32" width="44" height="22" aria-hidden="true">
-            <path d="M4 26 C18 2 40 2 60 18" className={styles.logoStroke} />
-          </svg>
-          <span>
-            VFX<b>Glow</b>
-          </span>
+          <Logo size={24} />
         </NavLink>
         <nav className={styles.nav}>
           <NavLink to="/" end className={({ isActive }) => (isActive ? styles.active : "")}>
@@ -35,7 +31,8 @@ export function Shell({ children, aurora }: Props) {
       </header>
       <main className={styles.main}>{children}</main>
       <footer className={styles.footer}>
-        <span className="mono">VFX GLOW · motor procedural · el plano original nunca se redibuja</span>
+        <Logo size={18} tagline className={styles.footerLogo} />
+        <span className="mono">Efectos visuales con IA · el plano original nunca se redibuja</span>
       </footer>
     </>
   );

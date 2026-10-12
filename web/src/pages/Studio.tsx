@@ -54,22 +54,22 @@ export function Studio() {
   return (
     <Shell aurora={aurora}>
       <section className={styles.hero}>
-        <span className="eyebrow">Estudio de efectos · v1</span>
+        <span className="eyebrow">VEXORA Studio · efectos visuales con IA</span>
         <h1>
           Tu movimiento,
           <br />
-          <span className="neon-text">dibujado en luz.</span>
+          <span className="neon-text">más allá de lo real.</span>
         </h1>
         <p>
-          Sube un plano. El estudio lee cada golpe, cada giro y cada mirada, y pinta encima neón, fuego y energía que siguen al
-          cuerpo. El video original no se toca.
+          Sube un plano. La IA lee cada gesto, cada giro y hacia dónde va la energía, y crea encima los efectos que esa escena pide.
+          El video original no se toca.
         </p>
         <svg className={styles.swoosh} viewBox="0 0 600 160" aria-hidden="true">
           <defs>
             <linearGradient id="sw" x1="0" x2="1">
-              <stop offset="0" stopColor="#28f0d0" />
-              <stop offset="0.5" stopColor="#c6ff3a" />
-              <stop offset="1" stopColor="#ff3ec8" />
+              <stop offset="0" stopColor="#67e8f9" />
+              <stop offset="0.5" stopColor="#8b5cf6" />
+              <stop offset="1" stopColor="#ec4899" />
             </linearGradient>
           </defs>
           <path d="M10 140 C 150 -20, 380 -10, 590 90" />

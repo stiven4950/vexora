@@ -116,7 +116,7 @@ export function CompareViewer({ original, edited, moments, originalPoster, edite
           </span>
         </div>
         <span className={`${styles.tag} ${styles.left}`}>Original</span>
-        <span className={`${styles.tag} ${styles.right}`}>VFX Glow</span>
+        <span className={`${styles.tag} ${styles.right}`}>VEXORA</span>
       </div>
 
       <div className={styles.controls}>

@@ -35,7 +35,7 @@
 .ring {
   width: min(320px, 70vw);
   transform: rotate(-90deg);
-  filter: drop-shadow(0 0 24px rgba(40, 240, 208, 0.35));
+  filter: drop-shadow(0 0 24px rgba(var(--cyan-rgb), 0.35));
 }
 
 .track {
@@ -97,7 +97,7 @@
   padding: 16px 18px;
   border-radius: 16px;
   border: 1px solid var(--line);
-  background: rgba(6, 6, 11, 0.4);
+  background: rgba(var(--ink-rgb), 0.4);
   transition: all 0.4s;
 }
 
@@ -129,7 +129,7 @@
 }
 
 .now {
-  border-color: rgba(40, 240, 208, 0.5) !important;
+  border-color: rgba(var(--cyan-rgb), 0.5) !important;
   box-shadow: 0 0 40px -14px var(--cyan);
 }
 
@@ -141,7 +141,7 @@
 
 .done .mark {
   background: var(--cyan);
-  color: #06060b;
+  color: var(--ink);
   border-color: var(--cyan);
 }
 
@@ -176,7 +176,7 @@
 
 .cursor {
   animation: blink 1s steps(2) infinite;
-  color: var(--lime);
+  color: var(--violet-soft);
 }
 
 @keyframes in {

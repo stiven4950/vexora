@@ -55,7 +55,7 @@ export function NeonPreview({ palette, seed = 1, active = false, className }: Pr
       const w = canvas.clientWidth;
       const h = canvas.clientHeight;
       context.globalCompositeOperation = "source-over";
-      context.fillStyle = "rgba(6, 6, 11, 0.22)";
+      context.fillStyle = "rgba(8, 11, 20, 0.22)";
       context.fillRect(0, 0, w, h);
       context.globalCompositeOperation = "lighter";
       const speedUp = activeRef.current ? 1.8 : 1;
