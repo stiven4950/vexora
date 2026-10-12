@@ -17,8 +17,10 @@ from vfxglow.director.strategies import StrategyPlan, applicable, cuts_of, descr
 from vfxglow.director.validator import ScriptError, validate_script
 
 
-# Un catálogo crea un efecto por opción elegida al menos una vez.
-CATALOG_MAX_EFFECTS = 40
+# Un catálogo crea un efecto por opción elegida al menos una vez (baile_neon ya pasa de 40). El
+# límite es una red de seguridad, no un criterio de estilo: la saturación la controlan la línea de
+# atención y la nota de las versiones.
+CATALOG_MAX_EFFECTS = 120
 
 
 class CreativeDirector:
