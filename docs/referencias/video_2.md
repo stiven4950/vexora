@@ -98,3 +98,11 @@ encuentra el pincel en todos los fotogramas probados (confianza 0,45–0,72) y s
 incluido el pincel ancho de la primera parte. Cuesta ~2 minutos más en video_2. Resultado visible
 casi igual al del movimiento: los destellos cerca de los ojos no venían de la punta sino del
 contorno de la pintura negra alrededor de los ojos. Por defecto queda `motion`.
+
+### Ojos de la calabaza
+
+Las cuencas se funden con las estrías en un solo contorno oscuro, así que los ojos se anclan a
+los **lentes**: dos manchas claras, pequeñas y redondas, rodeadas de oscuro, a la misma altura y a
+distancia de ojos; una pareja que salta lejos de la mediana de sus vecinos (dientes, humo) se
+corrige. `paint_accents`, en la zona de ojos: la primera vez un brillo en cada lente (8,5 s de la
+referencia) y después un arco bajo cada ojo con un trazo corto arriba (8,9–10,9 s).

@@ -111,6 +111,9 @@ def draw_paint_accents(runtime, track, points, frame_index: int, height: int, en
     u = inside / slot_frames
     grow = min(u / 0.4, 1.0)  # se dibuja en el primer 40%
     fade = min((1.0 - u) / 0.25, 1.0)  # se apaga en el último 25%
+    if zone == "eyes" and data.get("eyes"):
+        _draw_eyes(layer, np.array(data["eyes"]) * [width, height], color, slot, u, grow, fade, envelope, style, runtime)
+        return
     lines = [line for line in data["lines"] if line["zone"] == zone]
     lines = sorted(lines, key=lambda line: -len(line["points"]))[:MAX_LINES]
     width_px = max(1.5, style.thickness * height * 0.05)
@@ -162,3 +165,25 @@ def draw_rising_sparks(runtime, track, points, frame_index: int, height: int, en
         color = np.asarray(style.colors[k % len(style.colors)], dtype=np.float32)
         splat(layer, float(x), float(y), span * 0.012 * (1 + twinkle), WHITE * 1.3, fade * (1 - t), runtime.kernels)
         splat(layer, float(x), float(y), span * 0.03, color, fade * (1 - t) * 0.6, runtime.kernels)
+
+
+def _draw_eyes(layer, eyes: np.ndarray, color, slot: int, u: float, grow: float, fade: float, envelope: float, style, runtime) -> None:
+    """Los ojos de la obra, como en la referencia: la primera vez, un brillo en cada lente; las
+    siguientes, un arco que se dibuja bajo cada ojo (una sonrisa de luz) y un trazo corto arriba."""
+    gap = float(np.linalg.norm(eyes[1] - eyes[0]))
+    line = max(1.5, style.thickness * gap * 0.12)
+    strokes = []
+    if slot == 0:
+        for eye in eyes:
+            splat(layer, float(eye[0]), float(eye[1]), gap * 0.05, WHITE * 1.4, envelope * fade, runtime.kernels)
+            splat(layer, float(eye[0]), float(eye[1]), gap * 0.14, color * 1.3, envelope * fade * 0.8, runtime.kernels)
+    else:
+        radius = gap * 0.26
+        for side, eye in zip((-1.0, 1.0), eyes):
+            sweep = np.linspace(np.pi * 0.15, np.pi * (0.15 + 0.7 * grow), 16)
+            arc = eye + np.stack([np.cos(sweep) * radius, np.sin(sweep) * radius * 0.65], axis=1) + [0.0, gap * 0.04]
+            strokes += neon_layers(arc, color, line, envelope * fade)
+            mark = eye + np.array([[side * gap * 0.12, -gap * 0.38], [side * gap * 0.15, -gap * 0.38 - gap * 0.16 * grow]])
+            strokes += neon_layers(mark, color, line, envelope * fade * 0.8)
+    if strokes:
+        stroke_batch(layer, strokes, style.hdr_gain)

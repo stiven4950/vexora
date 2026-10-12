@@ -58,7 +58,7 @@ class Appearance:
             bright=list(raw.get("bright", [])),
             bright_spans=[(int(item["start"]), int(item["end"]), str(item["region"])) for item in raw.get("bright_spans", [])],
             paint={int(item["frame"]): {"strokes": item["strokes"], "tip": item["tip"], "trail": item.get("trail", [])} for item in raw.get("paint", [])},
-            accents={int(item["frame"]): {"head": item["head"], "lines": item["lines"]} for item in raw.get("accents", [])},
+            accents={int(item["frame"]): {"head": item["head"], "lines": item["lines"], "eyes": item.get("eyes")} for item in raw.get("accents", [])},
         )
 
 

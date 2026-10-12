@@ -81,3 +81,19 @@ def test_tool_tip_is_the_moving_end_inside_the_face_whatever_its_color() -> None
     assert tip is not None and abs(tip[0] - 190) < 8 and abs(tip[1] - 260) < 8
     shaken = np.full((H, W, 3), 230, np.uint8)  # la alineación falló: toda la cara cambia
     assert tool_tip(before, shaken, region) is None
+
+
+def test_pumpkin_eyes_are_the_lens_pair_inside_dark_sockets() -> None:
+    from vfxglow.analysis.paint import _lens_pair, _steady_eyes
+
+    frame = np.zeros((1280, 720, 3), np.uint8)
+    cv2.ellipse(frame, (360, 500), (260, 320), 0, 0, 360, (0, 110, 240), -1)  # cabeza naranja
+    for x in (250, 470):
+        cv2.ellipse(frame, (x, 450), (70, 50), 0, 0, 360, (10, 10, 10), -1)  # cuenca
+        cv2.circle(frame, (x, 450), 12, (230, 230, 230), -1)  # lente
+    eyes = _lens_pair(frame)
+    assert eyes is not None and abs(eyes[0][0] * 720 - 250) < 4 and abs(eyes[1][0] * 720 - 470) < 4
+    accents = {f: {"head": (0, 0, 1, 1), "lines": [], "eyes": [[0.35, 0.35], [0.65, 0.35]]} for f in range(9)}
+    accents[4]["eyes"] = [[0.4, 0.8], [0.6, 0.8]]  # un salto: los dientes
+    _steady_eyes(accents)
+    assert abs(accents[4]["eyes"][0][1] - 0.35) < 1e-6

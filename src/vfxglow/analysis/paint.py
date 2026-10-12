@@ -358,9 +358,11 @@ def detect_accents(video_path: Path, frames: list[FrameRecord], start: int) -> d
                 continue
             found = _accent_lines(frame, record)
             if found is not None:
+                found["eyes"] = _lens_pair(frame)
                 out[index] = found
     finally:
         capture.release()
+    _steady_eyes(out)
     log.info("Acentos de la obra en %d fotogramas", len(out))
     return out
 
@@ -419,3 +421,61 @@ def _accent_lines(frame: np.ndarray, record: FrameRecord | None) -> dict | None:
         pts = contour[:, 0, :]
         lines.append({"zone": zone, "points": [(float(x / w), float(y / h)) for x, y in pts]})
     return {"head": (x0 / w, y0 / h, x1 / w, y1 / h), "lines": lines}
+
+
+# ----- ojos de la obra: los lentes brillantes dentro de las cuencas oscuras -----
+
+EYE_WINDOW = 9
+EYE_JUMP = 0.06  # salto máximo frente a la mediana de los vecinos, en anchos del cuadro
+
+
+def _lens_pair(frame: np.ndarray) -> list[list[float]] | None:
+    """Los dos lentes: manchas claras (no del color del objeto) pequeñas y redondas, rodeadas de
+    oscuro (la cuenca), a la misma altura y a una distancia de ojos. Normalizados, izquierda a
+    derecha de la imagen."""
+    import itertools
+
+    h, w = frame.shape[:2]
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    body = (hsv[..., 0] >= 5) & (hsv[..., 0] <= 25) & (hsv[..., 1] > 120)
+    bright = ((hsv[..., 2] > 110) & ~body).astype(np.uint8)
+    dark = hsv[..., 2] < 60
+    count, labels, stats, centers = cv2.connectedComponentsWithStats(bright)
+    area = w * h
+    candidates = []
+    for k in range(1, count):
+        if not 60 / (720 * 1280) * area < stats[k, 4] < 4000 / (720 * 1280) * area:
+            continue
+        bw, bh = stats[k, 2], stats[k, 3]
+        if max(bw, bh) > 3 * min(bw, bh):
+            continue
+        piece = labels == k
+        ring = cv2.dilate(piece.astype(np.uint8), np.ones((31, 31), np.uint8)).astype(bool) & ~piece
+        darkness = float(dark[ring].mean())
+        if darkness >= 0.3:
+            candidates.append((centers[k], darkness))
+    best = None
+    for (c1, d1), (c2, d2) in itertools.combinations(candidates, 2):
+        dx, dy = abs(c1[0] - c2[0]), abs(c1[1] - c2[1])
+        if not 0.08 * w < dx < 0.45 * w or dy > 0.35 * dx:
+            continue
+        score = d1 + d2 - dy / dx
+        if best is None or score > best[0]:
+            best = (score, sorted([c1, c2], key=lambda c: c[0]))
+    if best is None:
+        return None
+    return [[float(c[0] / w), float(c[1] / h)] for c in best[1]]
+
+
+def _steady_eyes(accents: dict[int, dict]) -> None:
+    """Los ojos casi no se mueven: una pareja que salta lejos de la mediana de sus vecinos es un
+    error (dientes, humo) y se reemplaza por esa mediana."""
+    frames = sorted(accents)
+    for index, frame in enumerate(frames):
+        near = [accents[f]["eyes"] for f in frames[max(index - EYE_WINDOW // 2, 0) : index + EYE_WINDOW // 2 + 1] if accents[f].get("eyes")]
+        if len(near) < 3:
+            continue
+        median = np.median(np.array(near), axis=0)
+        current = accents[frame].get("eyes")
+        if current is None or np.abs(np.array(current) - median).max() > EYE_JUMP:
+            accents[frame]["eyes"] = median.tolist()
