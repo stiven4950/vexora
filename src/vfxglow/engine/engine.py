@@ -43,7 +43,13 @@ class EffectEngine:
         for runtime in self.runtimes:
             runtime.fps = fps
         self.timelines = [ActivationTimeline(effect, self.events) for effect in script.effects]
+        # El cierre va último: necesita ver lo que dibujaron los demás en el fotograma.
+        order = sorted(range(len(self.runtimes)), key=lambda i: script.effects[i].type == "closing_stars")
+        self.runtimes = [self.runtimes[i] for i in order]
+        self.timelines = [self.timelines[i] for i in order]
         self.chapter_starts = [chapter.start_frame for chapter in script.chapters]
+        self.fps = fps
+        self.closing = next((effect for effect in script.effects if effect.type == "closing_stars"), None)
         self.appearance: Appearance | None = None
         self._appearance_dir: Path | None = None
         self._face_last: dict[str, np.ndarray] = {}
@@ -110,6 +116,14 @@ class EffectEngine:
             else:
                 gain = envelope(frame_index, effect.time, frame_count)
             gain *= effect.style.intensity
+            if self.closing is not None:
+                from vfxglow.engine.closing import closing_window, draw_closing, other_gain
+
+                start, length = closing_window(self.closing, self.fps, frame_count)
+                if effect is self.closing:
+                    layers.append((effect.id, effect_group(effect), draw_closing(runtime, [l for _, _, l in layers], frame_index, start, length, width, height)))
+                    continue
+                gain *= other_gain(frame_index, start, length)
             if self.script.attention and effect.style.focus and gain > 0:
                 gain *= focus_gain(runtime, effect, event, focus_at(self.script.attention, frame_index))
             gain *= gain_for(effect, state, points, self.config.min_point_confidence)

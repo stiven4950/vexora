@@ -15,6 +15,7 @@ Figuras (unidad = distancia entre ojos, eje x = de ojo a ojo):
 - glint: monturas con destellos diagonales sobre los cristales.
 - band: banda gruesa de luz sobre los ojos, con un gancho en un extremo (video_39: la mirada
   encendida al empezar).
+- dots: un punto brillante en cada ojo (con el sombrero del seg. 28).
 - x_eyes: una X sobre cada ojo ("ya valió", video_33 seg. 11,9, tras el corte de cuello).
 """
 
@@ -28,7 +29,7 @@ from vfxglow.analysis.schema import FrameRecord, MotionEvent
 from vfxglow.engine.raster import stroke_batch
 from vfxglow.engine.swoosh import neon_layers
 
-SHAPES = ("frames", "stars", "hearts", "mask", "visor", "rings", "glint", "band", "x_eyes")
+SHAPES = ("frames", "stars", "hearts", "mask", "visor", "rings", "glint", "band", "x_eyes", "dots")
 # Grosor relativo por figura: la banda es un trazo grueso de lado a lado (mirada encendida).
 WIDTH = {"band": 9.0}
 TAU = 2.0 * np.pi
@@ -112,6 +113,8 @@ def figure(shape: str, left: np.ndarray, right: np.ndarray, frame_index: int = 0
 
     lenses = [np.array([-0.5, 0.0]), np.array([0.5, 0.0])]
     theta = np.linspace(0, TAU, 28)
+    if shape == "dots":
+        return [place(np.stack([c[0] + np.cos(theta) * 0.06, c[1] + np.sin(theta) * 0.06], axis=1)) for c in lenses]
     if shape == "x_eyes":
         size = 0.2
         return [place(np.array([c + [-size, -size], c + [size, size]])) for c in lenses] + [place(np.array([c + [size, -size], c + [-size, size]])) for c in lenses]

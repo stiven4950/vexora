@@ -26,7 +26,7 @@ log = logging.getLogger("vfxglow.analysis")
 MIN_FACE_POINTS = 60
 # Señales derivadas del análisis que un brief puede traer; el pipeline calcula las que falten
 # en análisis anteriores (Pipeline._ensure_derived) sin rehacer el análisis.
-DERIVED = ("skin", "gestures", "attention")
+DERIVED = ("skin", "gestures", "gestures-2", "attention")
 
 
 def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: str) -> VideoMeta:
@@ -124,9 +124,10 @@ def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: st
     from vfxglow.analysis.touch import face_touch_events
 
     events.extend(face_touch_events(frames, meta.fps, meta.width, meta.height))
-    from vfxglow.analysis.gestures import neck_slash_events, throw_events
+    from vfxglow.analysis.gestures import neck_slash_events, stomp_events, throw_events
 
     events.extend(throw_events(frames, meta.fps, meta.width, meta.height))
+    events.extend(stomp_events(frames, meta.fps, meta.width, meta.height))
     events.extend(neck_slash_events(frames, meta.fps, meta.width, meta.height))
     beats, onsets = segment_beats(frames, video_path, meta, config.analysis.beats)
     appearance = analyze_appearance(video_path, frames, meta)

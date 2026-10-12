@@ -9,7 +9,7 @@ INTERACTION_TYPES = {"cracks", "ripples", "sparks", "flame_burst", "spark_dashes
 # Siguen a cada persona presente y cortan su estela solos: pueden cruzar un corte.
 JOINT_LIST_TYPES = {"swoosh", "droplets", "arm_outline"}
 # Se redibujan con los datos de cada fotograma (hoja, silueta): un corte de plano no los rompe.
-FRAME_DATA_TYPES = {"blade_glow", "blade_echo", "body_outline", "eyewear", "body_glow", "adornment", "prop_outline", "prop_spring", "prop_rings", "prop_doodle", "face_toon", "throw_fx", "limb_rings", "foot_paint", "prop_swoosh"}
+FRAME_DATA_TYPES = {"blade_glow", "blade_echo", "body_outline", "eyewear", "body_glow", "adornment", "prop_outline", "prop_spring", "prop_rings", "prop_doodle", "face_toon", "throw_fx", "limb_rings", "foot_paint", "prop_swoosh", "pop_fx", "closing_stars"}
 # Siguen a la cara o al cuerpo y se vuelven a trazar en cada corte, así que pueden cruzarlo.
 REDRAW_TYPES = {"eye_rings", "face_linework", "drawing"}
 MAX_STROKES = 24
@@ -44,7 +44,7 @@ def validate_script(
             raise ScriptError(f"Tipo de efecto desconocido: {effect.type}")
         if effect.type in REDRAW_TYPES:
             _check_face_effect(effect)
-        elif effect.type in {"eyewear", "intent_mark", "blade_glow", "blade_echo", "body_outline", "body_glow", "adornment", "prop_outline", "prop_spring", "prop_rings", "prop_doodle", "face_toon", "throw_fx", "limb_rings", "foot_paint", "prop_swoosh"}:
+        elif effect.type in {"eyewear", "intent_mark", "blade_glow", "blade_echo", "body_outline", "body_glow", "adornment", "prop_outline", "prop_spring", "prop_rings", "prop_doodle", "face_toon", "throw_fx", "limb_rings", "foot_paint", "prop_swoosh", "pop_fx", "closing_stars"}:
             pass  # se ancla a los ojos de cada persona; no hay ancla que validar
         elif effect.type in JOINT_LIST_TYPES:
             # Lista de articulaciones; se aplica a cada persona presente.

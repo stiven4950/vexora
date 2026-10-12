@@ -142,7 +142,7 @@ Qué detectar y qué imágenes caben. La columna de efecto da opciones; se sorte
 | Arrancar algo de la cara | Mano cerca de la cara que se aleja rápido y cerrada | Bola de energía en la mano | ❌ |
 | Amago de lanzamiento | Brazo atrás (carga) y extensión rápida hacia afuera | Proyectil, rayo, explosión de partículas en la dirección | ✅ (`throw`, `throw_fx`) |
 | Corte de cuello ("ya valió") | Mano plana que cruza el cuello de lado a lado | Ojos en X, luego gafas | ✅ (`neck_slash`) |
-| Pisotón o pie que se levanta y baja | Tobillo que baja rápido y se detiene | Globo que revienta, chispas, aire | ❌ (hay `landing` y `ground_burst`) |
+| Pisotón o pie que se levanta y baja | Tobillo que baja rápido y se detiene | Globo que revienta, chispas, aire | ✅ (`stomp`, `pop_fx`) |
 | Pie que arrastra o barre el piso | Tobillo bajo que se desplaza | Mancha de agua o pintura que lo sigue y gira | ✅ (`foot_paint`) |
 | Flexionar el brazo | Codo alto, antebrazo vertical | Brazo musculoso | ✅ (`biceps`) |
 | Pasar un objeto de mano a mano | `prop_transfer` | Resorte, doble contorno | ✅ |
@@ -151,9 +151,9 @@ Qué detectar y qué imágenes caben. La columna de efecto da opciones; se sorte
 | Lanzar el objeto | Objeto que sale rápido de la mano | Estela o mancha grande que lo sigue | ✅ (`prop_swoosh`) |
 | Darse la vuelta | Hombros invertidos (izquierdo a la derecha) | Espalda: músculos o figura de relleno | ✅ (`facing`, `badge`) |
 | Cuerpo quieto, cara expresiva | Poco movimiento corporal, cambios en la boca o los ojos | Exagerar la expresión (ojos que brillan, cejas) | ❌ |
-| Manos al cinturón o a la cadera | Muñecas a la altura de la cadera | Cinturón de metal con brillo que se mueve | ❌ |
+| Manos al cinturón o a la cadera | Muñecas a la altura de la cadera | Cinturón de metal con brillo que se mueve | ✅ en parte (`belt`, sin detectar el gesto) |
 | Pausa | `still`, `lull` | Accesorios (collar, estrellas en el pecho, sombrero) | ✅ |
-| Fin del video | Último segundo | Todo se disipa en estrellas diminutas | ❌ |
+| Fin del video | Último segundo | Todo se disipa en estrellas diminutas | ✅ (`closing_stars`) |
 
 ## 4. Ejemplo trabajado: video_33, segundos 9-30
 

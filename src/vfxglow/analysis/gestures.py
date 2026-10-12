@@ -4,6 +4,8 @@
   rato), la muñeca acelera de golpe y el brazo se extiende al soltar. `start_frame` = inicio de
   la carga, `end_frame` = suelta; `position` y `direction_deg` = dónde y hacia dónde sale lo
   lanzado. video_33: carga 10,0-10,5 s, suelta ~11,1 s.
+- stomp (kind = pie): pisotón. El pie estaba levantado, baja rápido y se frena en seco cerca del
+  piso. `end_frame` = el golpe; `position` = dónde pisa. video_33: 28,2 s (el globo que revienta).
 - neck_slash (kind = mano): corte de cuello ("ya valió"). Las puntas de los dedos pasan junto al
   cuello y lo recorren de lado. video_33: 11,7 s.
 
@@ -151,4 +153,68 @@ def neck_slash_events(frames: list[FrameRecord], fps: float, width: int, height:
                 else:
                     close()
             close()
+    return sorted(events, key=lambda e: e.start_frame)
+
+
+# Pisotón: alto mínimo previo (torsos sobre el piso), velocidad de bajada y frenada.
+STOMP_LIFT = 0.12
+STOMP_SPEED = 0.03
+STOMP_STOP = 0.35
+STOMP_STOP_FRAMES = 8
+STOMP_LOOKBACK_S = 0.5
+STOMP_COOLDOWN_S = 0.6
+
+
+def stomp_events(frames: list[FrameRecord], fps: float, width: int, height: int) -> list[MotionEvent]:
+    events: list[MotionEvent] = []
+    people = sorted({p.person_id for record in frames for p in _people(record)})
+    lookback = max(int(STOMP_LOOKBACK_S * fps), 2)
+    for person in people:
+        for side in ("left", "right"):
+            ys: list[float | None] = []
+            xs: list[float | None] = []
+            torsos: list[float] = []
+            for record in frames:
+                _, pts = _pose(record, person, width, height)
+                foot = [pts.get(f"{side}_{n}") for n in ("heel", "foot_index", "ankle")] if pts else []
+                foot = [p for p in foot if p is not None]
+                if not foot or "left_shoulder" not in pts or "left_hip" not in pts:
+                    ys.append(None)
+                    xs.append(None)
+                    torsos.append(1.0)
+                    continue
+                ground = np.mean(foot, axis=0)
+                ys.append(float(ground[1]))
+                xs.append(float(ground[0]))
+                torsos.append(max(float(np.linalg.norm(pts["left_shoulder"] - pts["left_hip"])), 1.0))
+            vy = [None] + [(ys[k] - ys[k - 1]) / torsos[k] if ys[k] is not None and ys[k - 1] is not None else None for k in range(1, len(ys))]
+            last = -10_000
+            for index in range(1, len(frames) - 1):
+                v = vy[index]
+                if v is None or v < STOMP_SPEED or index - last < STOMP_COOLDOWN_S * fps:
+                    continue
+                if (vy[index - 1] or 0.0) > v or (vy[index + 1] or 0.0) > v:
+                    continue  # no es el pico de la bajada
+                # El golpe: la velocidad cae por debajo de un tercio del pico en pocos fotogramas
+                # (la pose suavizada redondea la frenada).
+                hit = next((k for k in range(index + 1, min(index + STOMP_STOP_FRAMES, len(frames))) if vy[k] is not None and vy[k] < v * STOMP_STOP), None)
+                if hit is None or ys[hit] is None:
+                    continue
+                # Alto que tenía el pie antes de bajar, medido en el golpe (ya en el piso).
+                window = [y for y in ys[max(index - lookback, 0) : index] if y is not None]
+                if not window or (ys[hit] - min(window)) / torsos[hit] < STOMP_LIFT:
+                    continue
+                events.append(
+                    MotionEvent(
+                        name="stomp",
+                        target=f"{person}:{side}_ankle",
+                        start_frame=frames[max(index - lookback // 2, 0)].frame,
+                        end_frame=frames[hit].frame,
+                        confidence=float(min(v / (2 * STOMP_SPEED), 1.0)),
+                        detail="Pisotón: el pie baja rápido y se frena en el piso.",
+                        position=(float(xs[hit] / width), float(ys[hit] / height)),
+                        kind=side,
+                    )
+                )
+                last = hit
     return sorted(events, key=lambda e: e.start_frame)

@@ -106,3 +106,53 @@ def draw_throw_fx(runtime, track, points, frame_index: int, height: int, envelop
             strokes += _sparks(start, torso * 0.8, elapsed / (BURST_S * 1.5), color, envelope, rng)
     if strokes:
         stroke_batch(layer, strokes, style.hdr_gain)
+
+
+POP_S = 0.4
+
+
+def draw_pop_fx(runtime, track, points, frame_index: int, height: int, envelope: float, layer: np.ndarray, event: MotionEvent | None = None) -> None:
+    """Pisotón (`stomp`): un globo se infla bajo el pie mientras baja y revienta al pisar, con
+    chispas y ráfagas de aire (video_33 seg. 28,2)."""
+    style = runtime.effect.style
+    if envelope <= 0 or event is None or event.name != "stomp" or event.position is None:
+        return
+    width = layer.shape[1]
+    torso = torso_pixels(points, height)
+    color = np.asarray(style.colors[0], dtype=np.float32)
+    line = max(1.5, style.thickness * torso)
+    ground = np.array(event.position) * [width, height]
+    radius = 0.16 * torso
+    strokes: list = []
+    if frame_index <= event.end_frame:
+        grow = np.clip((frame_index - event.start_frame) / max(event.end_frame - event.start_frame, 1), 0.0, 1.0)
+        r = radius * (0.4 + 0.6 * grow)
+        center = ground - np.array([0.0, r * 0.9])
+        balloon = _circle(center, r)
+        balloon[:, 0] = center[0] + (balloon[:, 0] - center[0]) * 0.9
+        strokes += neon_layers(balloon, color, line, envelope)
+        knot = np.array([center + [0, r], center + [-r * 0.12, r * 1.18], center + [r * 0.12, r * 1.18], center + [0, r]])
+        strokes += neon_layers(knot, color, line * 0.8, envelope)
+        shine = _circle(center + np.array([-r * 0.35, -r * 0.35]), r * 0.18, 10)[:6]
+        strokes += neon_layers(shine, WHITE, line * 0.7, envelope)
+    else:
+        u = (frame_index - event.end_frame) / max(POP_S * runtime.fps, 1.0)
+        if u > 1.0:
+            return
+        center = ground - np.array([0.0, radius * 0.9])
+        rng = np.random.default_rng(zlib.crc32(f"{style.seed_offset}:pop:{event.end_frame}".encode()) & 0xFFFFFFFF)
+        fade = envelope * (1.0 - u)
+        for angle in np.linspace(0, 2 * np.pi, 10, endpoint=False) + rng.uniform(0, 0.4):
+            direction = np.array([np.cos(angle), np.sin(angle)])
+            inner = center + direction * radius * (0.9 + 1.2 * u)
+            strokes += neon_layers(np.stack([inner, inner + direction * radius * 0.45]), color, line, fade)
+        # Ráfagas de aire: arcos cortos que se abren a los lados.
+        for side in (-1.0, 1.0):
+            arc = np.linspace(-0.6, 0.6, 8)
+            reach = radius * (1.4 + 1.6 * u)
+            strokes += neon_layers(np.stack([center + np.array([side * reach * np.cos(a), reach * np.sin(a) * 0.5]) for a in arc]), WHITE, line * 0.7, fade)
+        strokes += _sparks(center, radius * 2.5, u, color, envelope, rng)
+    stroke_batch(layer, strokes, style.hdr_gain)
+
+
+WHITE = np.array([1.0, 1.0, 1.0], dtype=np.float32)

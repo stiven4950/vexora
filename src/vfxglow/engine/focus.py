@@ -15,8 +15,8 @@ from vfxglow.director.schema import Effect
 # Fotogramas del fundido al perder o recuperar el foco.
 FADE = 4
 
-_HEAD_ADORN = {"cap", "cowboy_hat", "headphones", "halo", "crown"}
-_CHEST_ADORN = {"necklace", "chest_stars"}
+_HEAD_ADORN = {"cap", "cowboy_hat", "top_hat", "fedora", "party_hat", "headphones", "halo", "crown"}
+_CHEST_ADORN = {"necklace", "chain", "chest_stars", "belt"}
 _LEG_ADORN = {"knee_dots", "ankle_bands"}
 _BODY_PARTS = {
     "left_arm": {"left_arm"},
@@ -47,7 +47,7 @@ def _joint_region(joint: str) -> str | None:
 def effect_regions(effect: Effect, event: MotionEvent | None) -> set[str] | None:
     """Regiones sobre las que dibuja el efecto; None = sin región (no se regula)."""
     kind = effect.type
-    if kind == "foot_paint":
+    if kind in ("foot_paint", "pop_fx"):
         return {"legs"}
     if kind.startswith("prop_"):
         return {"prop"}

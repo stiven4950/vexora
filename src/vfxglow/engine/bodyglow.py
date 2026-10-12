@@ -26,7 +26,7 @@ from vfxglow.engine.swoosh import neon_layers
 
 TAU = 2.0 * np.pi
 PARTS = ("left_arm", "right_arm", "arms", "legs", "torso", "head", "feet", "hands", "body")
-ADORNMENTS = ("necklace", "chest_stars", "cap", "cowboy_hat", "headphones", "halo", "crown", "knee_dots", "ankle_bands")
+ADORNMENTS = ("necklace", "chain", "chest_stars", "belt", "cap", "cowboy_hat", "top_hat", "fedora", "party_hat", "headphones", "halo", "crown", "knee_dots", "ankle_bands")
 
 # Radio de cada cápsula en anchos de hombros.
 _LIMB = {"arm": 0.22, "leg": 0.26, "foot": 0.18, "hand": 0.2}
@@ -480,6 +480,36 @@ def adornment(shape, body: Body, frame, scale, frame_index, seed, runtime, layer
         bottom = chain[len(chain) // 2]
         pendant = _ellipse(bottom + down * 0.07 * scale, 0.035 * scale, 0.05 * scale, across, up)
         return [chain, np.array([bottom, bottom + down * 0.025 * scale]), pendant]
+    if shape == "chain":
+        # Cadena de eslabones alternados (de frente y de canto) con un dije (seg. 10,9 y 14,9).
+        base = center + up * 0.06 * scale
+        t = np.linspace(-1, 1, 15)
+        path = base + t[:, None] * across * 0.22 * scale + (1 - t**2)[:, None] * down * 0.34 * scale
+        links = []
+        for k, point in enumerate(path):
+            nxt = path[min(k + 1, len(path) - 1)] - path[max(k - 1, 0)]
+            along = nxt / max(float(np.linalg.norm(nxt)), 1e-6)
+            normal = np.array([-along[1], along[0]])
+            wide = 0.012 if k % 2 else 0.028
+            links.append(_ellipse(point, 0.03 * scale, wide * scale, along, normal, n=14))
+        bottom = path[len(path) // 2]
+        pendant = np.array([bottom, bottom + down * 0.06 * scale - across * 0.04 * scale, bottom + down * 0.12 * scale, bottom + down * 0.06 * scale + across * 0.04 * scale, bottom])
+        return [*links, pendant]
+    if shape == "belt":
+        # Cinturón de metal: banda en la cadera, hebilla y un destello que la recorre (seg. 28).
+        hips = body.mid("left_hip", "right_hip")
+        if hips is None:
+            return []
+        from vfxglow.engine.burst import sparkle
+
+        waist = hips + up * 0.08 * scale
+        top = _ellipse(waist, 0.62 * scale, 0.07 * scale, across, up, np.pi, TAU, 24)
+        bottom = _ellipse(waist - up * 0.1 * scale, 0.62 * scale, 0.07 * scale, across, up, np.pi, TAU, 24)
+        buckle = _ellipse(waist - up * 0.05 * scale + down * 0.07 * scale, 0.09 * scale, 0.06 * scale, across, up, n=5)
+        # El brillo recorre la banda de un lado al otro (como el metal al girar).
+        u = (frame_index % 30) / 30
+        glint = top[int(u * (len(top) - 1))]
+        return [top, bottom, np.vstack([buckle, buckle[:1]]), sparkle(glint, 0.09 * scale)]
     if shape == "chest_stars":
         from vfxglow.engine.burst import sparkle
 
@@ -529,6 +559,25 @@ def adornment(shape, body: Body, frame, scale, frame_index, seed, runtime, layer
         brim_start = head + up * 0.28 * scale + across * 0.36 * scale
         brim = np.array([dome[-1], dome[0], brim_start + across * 0.28 * scale - up * 0.04 * scale])
         return [np.vstack([dome, dome[:1]]), brim]
+    if shape == "top_hat":
+        band = head + up * 0.36 * scale
+        brim = _ellipse(band, 0.42 * scale, 0.07 * scale, across, up)
+        tube = np.array([band - across * 0.24 * scale, band - across * 0.24 * scale + up * 0.55 * scale, band + across * 0.24 * scale + up * 0.55 * scale, band + across * 0.24 * scale])
+        stripe = np.array([band - across * 0.24 * scale + up * 0.1 * scale, band + across * 0.24 * scale + up * 0.1 * scale])
+        return [brim, tube, stripe]
+    if shape == "fedora":
+        band = head + up * 0.36 * scale
+        brim = _ellipse(band, 0.5 * scale, 0.09 * scale, across, up)
+        crown = np.array([band - across * 0.3 * scale, band - across * 0.24 * scale + up * 0.3 * scale, band - across * 0.05 * scale + up * 0.24 * scale,
+                          band + across * 0.05 * scale + up * 0.3 * scale, band + across * 0.24 * scale + up * 0.28 * scale, band + across * 0.3 * scale])
+        return [brim, crown]
+    if shape == "party_hat":
+        from vfxglow.engine.burst import sparkle
+
+        band = head + up * 0.36 * scale
+        cone = np.array([band - across * 0.24 * scale, band + up * 0.62 * scale, band + across * 0.24 * scale, band - across * 0.24 * scale])
+        stripes = [np.array([band - across * (0.24 - 0.08 * k) * scale + up * 0.21 * k * scale, band + across * (0.24 - 0.08 * k) * scale + up * 0.21 * k * scale]) for k in (1, 2)]
+        return [cone, *stripes, sparkle(band + up * 0.66 * scale, 0.07 * scale)]
     if shape == "cowboy_hat":
         band = head + up * 0.38 * scale
         brim = _ellipse(band, 0.62 * scale, 0.1 * scale, across, up)

@@ -482,6 +482,26 @@ valió".
 - **`prop_swoosh`** (seg. 26,6–27,4): la gorra lanzada o sacudida (más de `min_speed` torsos por
   fotograma) deja una mancha grande en forma de coma que se apaga despacio.
 
+### Detalles y cierre
+
+- **Pisotón** (`stomp`, `analysis/gestures.py`): el pie se levanta al menos 0,12 torsos, baja a
+  más de 0,03 torsos por fotograma y frena (la velocidad cae a un tercio). En video_33 el globo
+  de la referencia es el de 28,4 s.
+  - `pop_fx`: un globo se infla bajo el pie mientras baja y revienta al pisar, con chispas y
+    ráfagas de aire.
+  - En videos de pelea o de pareja hay muchos pisotones, así que el catálogo lo sortea con poca
+    probabilidad y enfriamiento de 3 s.
+- **Adornos nuevos**:
+  - `chain`: cadena de eslabones con dije;
+  - `belt`: cinturón de metal con hebilla y un brillo que lo recorre;
+  - `top_hat`, `fedora`, `party_hat`: sombreros;
+  - `dots`: ojos de punto, una forma de `eyewear`.
+  - La opción `sombrero_cinturon` los junta como en el seg. 28 (`focus: false`: es un momento de
+    cuerpo entero).
+- **Cierre** (`closing_stars`, `style.size` = segundos): en el último tramo los demás efectos se
+  apagan y lo que estaba encendido se vuelve estrellas diminutas, con su color, que titilan,
+  suben un poco y se apagan.
+
 ### Colores según el tono de piel
 
 El análisis mide el tono de piel de cada persona (`analysis/skin.py`: mejillas y, si la cara no

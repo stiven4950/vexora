@@ -133,10 +133,10 @@ def render_effect(
         from vfxglow.engine.flow import draw_limb_rings
 
         draw_limb_rings(runtime, track, points, frame_index, height, envelope, layer, event if effect.triggers else None)
-    elif kind == "throw_fx":
-        from vfxglow.engine.gesture_fx import draw_throw_fx
+    elif kind in ("throw_fx", "pop_fx"):
+        from vfxglow.engine.gesture_fx import draw_pop_fx, draw_throw_fx
 
-        draw_throw_fx(runtime, track, points, frame_index, height, envelope, layer, event if effect.triggers else None)
+        (draw_throw_fx if kind == "throw_fx" else draw_pop_fx)(runtime, track, points, frame_index, height, envelope, layer, event if effect.triggers else None)
     elif kind == "face_toon":
         from vfxglow.engine.face_toon import draw_face_toon
 
