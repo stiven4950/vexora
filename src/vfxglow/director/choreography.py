@@ -141,6 +141,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -
     # protagonista y de ambiente cedan.
     state = {id(reaction): {"last": -10_000, "used": {}} for reaction in catalog.reactions}
     key_windows: list[tuple[int, int]] = []
+    face_windows: list[tuple[int, int]] = []
     # Ventanas encendidas que no son momentos clave ni ambiente. Un efecto nuevo cuenta estas
     # (al empezar) y los momentos clave que se crucen con su ventana: como mucho MAX_TOGETHER.
     lit: list[tuple[int, int]] = []
@@ -164,6 +165,13 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -
                     option = Option(name="nada (cede: ya hay un efecto de escena o un momento clave)")
             elif option.effects and reaction.action in YIELD_TO_EXCLUSIVE and start <= exclusive_until:
                 option = Option(name="nada (cede al efecto de escena)")
+            elif (
+                option.effects
+                and reaction.action == "spotlight"
+                and event.kind in BODY_KINDS
+                and any(fs <= end and start <= fe for fs, fe in face_windows)
+            ):
+                option = Option(name="nada (cede a la cara)")
             if (
                 option.effects
                 and reaction.action not in KEY_ACTIONS
@@ -179,6 +187,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -
                     exclusive_until = end
                 if reaction.action in KEY_ACTIONS:
                     key_windows.append((start, end))
+                if reaction.action in FACE_ACTIONS:
+                    face_windows.append((start, end))
                 if reaction.action not in AMBIENT_ACTIONS and reaction.action not in KEY_ACTIONS:
                     lit.append((start, end))
             decisions.append(
@@ -393,6 +403,10 @@ def _wears(brief: MotionBrief | None, event: MotionEvent, kinds: list[str]) -> b
         for a in brief.accessories
     )
 
+
+# Momentos de cara: mientras duran, piernas y torso no se encienden (nada compite con la cara).
+FACE_ACTIONS = ("face_touch", "neck_slash", "prop_worn")
+BODY_KINDS = ("legs", "feet", "torso")
 
 # Reacciones que callan mientras hay un efecto de escena encendido.
 YIELD_TO_EXCLUSIVE = ("spotlight", "still", "fast_swing", "beat", "stomp")
