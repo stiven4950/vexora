@@ -11,6 +11,11 @@ análisis ──> eventos (acciones) ──> coreógrafo + catálogo ──> Eff
 ```
 
 - **Determinista:** la misma semilla da la misma coreografía. Otra semilla, otra coreografía.
+- **Sin dados para el usuario:** sin `--seed`, el coreógrafo prueba 8 semillas, puntúa cada
+  coreografía sin renderizar (`score_choreography`) y usa la mejor. La puntuación premia los
+  momentos clave atendidos (gestos y objeto), los tramos de atención con algún efecto y la
+  variedad, y castiga la saturación y las repeticiones seguidas. `--take N` (y "Probar otra
+  versión" en la web) usa el puesto N del ranking: otra versión buena, distinta de las anteriores.
 - **"Puede aparecer o no":** cada acción incluye la opción `nada` con su peso.
 - **Trazable:** `runs/<video>/scripts/choreography.json` lista cada acción con su segundo, quién
   la hizo y la reacción elegida.
@@ -20,8 +25,9 @@ análisis ──> eventos (acciones) ──> coreógrafo + catálogo ──> Eff
 ## Uso
 
 ```bash
-vfxglow run --video ../glowing/data/original/video_1.mp4 --catalog pelea            # semilla del catálogo
-vfxglow run --video ../glowing/data/original/video_1.mp4 --catalog pelea --seed 7   # otra coreografía
+vfxglow run --video ../glowing/data/original/video_1.mp4 --catalog pelea            # la mejor de 8 coreografías
+vfxglow run --video ../glowing/data/original/video_1.mp4 --catalog pelea --take 1   # la siguiente mejor ("otra versión")
+vfxglow run --video ../glowing/data/original/video_1.mp4 --catalog pelea --seed 7   # una semilla exacta (pruebas)
 ```
 
 Salida: `runs/<video>/output/pelea.mp4`, guion en `scripts/pelea.json` y decisiones en

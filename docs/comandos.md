@@ -54,8 +54,9 @@ El resultado queda en `runs/<video>/output/<preset>.mp4`. Se escribe primero com
 Coreografía por catálogo (reacciones sorteadas por acción; ver [catalogo_efectos.md](catalogo_efectos.md)):
 
 ```bash
-vfxglow run --video ../glowing/data/original/video_1.mp4 --catalog pelea            # semilla del catálogo
-vfxglow run --video ../glowing/data/original/video_1.mp4 --catalog pelea --seed 7   # otra coreografía
+vfxglow run --video ../glowing/data/original/video_1.mp4 --catalog pelea            # la mejor de 8 coreografías
+vfxglow run --video ../glowing/data/original/video_1.mp4 --catalog pelea --take 1   # la siguiente mejor ("otra versión")
+vfxglow run --video ../glowing/data/original/video_1.mp4 --catalog pelea --seed 7   # una semilla exacta (pruebas)
 ```
 
 Las decisiones quedan en `runs/<video>/scripts/choreography.json` y el video en

@@ -81,3 +81,15 @@ def test_rejects_bad_input_and_reports_failures(client: TestClient) -> None:
     bad_style = client.post("/api/jobs", files={"video": ("a.mp4", io.BytesIO(b"x"), "video/mp4")}, data={"style": "no_existe"})
     assert bad_style.status_code == 422
     assert client.get("/api/jobs/nada").status_code == 404
+
+
+def test_versions_without_dice(client: TestClient) -> None:
+    """Sin semilla: el trabajo usa la mejor coreografía y cada "otra versión" pide la siguiente."""
+    job = _wait(client, client.post("/api/jobs", files={"video": ("clip.mp4", io.BytesIO(b"fake"), "video/mp4")}, data={"style": "pelea"}).json()["id"])
+    assert job["seed"] is None and job["take"] == 0
+    second = client.post(f"/api/jobs/{job['id']}/variations", json={"style": "pelea"}).json()
+    third = client.post(f"/api/jobs/{second['id']}/variations", json={"style": "pelea"}).json()
+    assert (second["take"], third["take"]) == (1, 2)
+    assert second["parent"] == third["parent"] == job["id"]
+    other_style = client.post(f"/api/jobs/{job['id']}/variations", json={"style": "baile_neon"}).json()
+    assert other_style["take"] == 0  # otro estilo: se empieza por la mejor

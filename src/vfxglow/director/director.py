@@ -40,12 +40,17 @@ class CreativeDirector:
 
     def create(self, brief: MotionBrief) -> EffectScript:
         if self.config.provider == "catalog":
-            from vfxglow.director.choreography import choreograph, load_catalog
+            from vfxglow.director.choreography import best_choreography, choreograph, load_catalog
 
             path = self.preset_dir.parent / "catalogs" / f"{self.config.catalog}.yaml"
             if not path.exists():
                 raise FileNotFoundError(f"No existe el catálogo {path}")
-            script, self.choreography = choreograph(load_catalog(path), brief, self.config.seed)
+            catalog = load_catalog(path)
+            if self.config.seed is not None:
+                script, self.choreography = choreograph(catalog, brief, self.config.seed)
+            else:
+                # Sin semilla: la mejor de varias coreografías (o la del puesto `take`).
+                script, self.choreography = best_choreography(catalog, brief, self.config.take)
             validate_script(
                 script,
                 set(brief.anchors) | set(CHAINS) | set(FACE_REGIONS) | set(LIMB_JOINTS),

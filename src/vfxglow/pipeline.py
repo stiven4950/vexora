@@ -59,6 +59,7 @@ class Pipeline:
         director: str | None = None,
         catalog: str | None = None,
         seed: int | None = None,
+        take: int = 0,
     ) -> None:
         self.config_path = config_path
         self.config = load_config(config_path)
@@ -72,6 +73,8 @@ class Pipeline:
             self.config.director.catalog = catalog
         if seed is not None:
             self.config.director.seed = seed
+        # Sin semilla, la coreografía es la del puesto `take` entre varias candidatas (0 = la mejor).
+        self.config.director.take = max(int(take), 0)
         if self.config.director.provider == "catalog":
             self._apply_catalog_needs()
         if level:
@@ -218,6 +221,7 @@ class Pipeline:
             provider=self.config.director.provider,
             preset={"preset": self.config.director.preset, "catalog": self.config.director.catalog}.get(self.config.director.provider, ""),
             seed=str(self.config.director.seed if self.config.director.seed is not None else ""),
+            take=str(self.config.director.take),
             theme=script.theme,
             script=sha256_file(dest)[:12],
             code=_code("direct")[:12],

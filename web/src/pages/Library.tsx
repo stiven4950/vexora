@@ -70,6 +70,7 @@ export function Library() {
                 <strong title={job.filename}>{job.filename}</strong>
                 <span className="mono">
                   {job.style}
+                  {job.style_kind === "catalog" && job.seed === null && job.take > 0 && ` · v${job.take + 1}`}
                   {job.seed !== null && ` · #${job.seed}`} · {ago(job.created)}
                 </span>
               </div>

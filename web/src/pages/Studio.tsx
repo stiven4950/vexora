@@ -11,15 +11,12 @@ import { Shell } from "../components/Shell";
 import { StyleCard } from "../components/StyleCard";
 import styles from "./Studio.module.css";
 
-const randomSeed = () => Math.floor(Math.random() * 9000) + 100;
-
 export function Studio() {
   const navigate = useNavigate();
   const [styleList, setStyleList] = useState<Style[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [chosen, setChosen] = useState<Style | null>(null);
-  const [seed, setSeed] = useState<number>(randomSeed);
   const [showPresets, setShowPresets] = useState(false);
   const [upload, setUpload] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +42,8 @@ export function Studio() {
     setError(null);
     setUpload(0);
     try {
-      const job = await api.create(file, chosen.kind, chosen.name, chosen.kind === "catalog" ? seed : null, setUpload);
+      // Sin semilla: el servidor prueba varias coreografías y se queda con la mejor.
+      const job = await api.create(file, chosen.kind, chosen.name, null, setUpload);
       navigate(`/jobs/${job.id}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -90,12 +88,12 @@ export function Studio() {
         <Dropzone file={file} onFile={setFile} />
       </section>
 
-      <section className={styles.step}>
+      <section className={`${styles.step} ${styles.last}`}>
         <header>
           <span className={styles.num}>02</span>
           <div>
             <h2>El estilo</h2>
-            <p>Una coreografía decide en cada acción qué efecto dispara, con algo de azar. Un preset aplica siempre lo mismo.</p>
+            <p>Una coreografía decide en cada momento qué efecto dispara y elige sola la mejor versión para tu video. Un preset aplica siempre lo mismo.</p>
           </div>
         </header>
         {loadError && (
@@ -124,35 +122,6 @@ export function Studio() {
         )}
       </section>
 
-      <section className={`${styles.step} ${styles.last}`}>
-        <header>
-          <span className={styles.num}>03</span>
-          <div>
-            <h2>El azar</h2>
-            <p>
-              La semilla fija la coreografía: la misma semilla da siempre el mismo resultado. Otra semilla, otra versión del mismo video.
-            </p>
-          </div>
-        </header>
-        <div className={`${styles.seedRow} ${chosen?.kind === "preset" ? styles.disabled : ""}`}>
-          <div className={styles.seed}>
-            <span className="eyebrow">Semilla</span>
-            <input
-              type="number"
-              min={0}
-              value={seed}
-              onChange={(event) => setSeed(Number(event.target.value) || 0)}
-              disabled={chosen?.kind === "preset"}
-              aria-label="Semilla"
-            />
-          </div>
-          <Button variant="ghost" icon="dice" type="button" onClick={() => setSeed(randomSeed())} disabled={chosen?.kind === "preset"}>
-            Tirar los dados
-          </Button>
-          {chosen?.kind === "preset" && <span className={styles.hint}>Los presets no usan semilla.</span>}
-        </div>
-      </section>
-
       <div className={styles.launch}>
         <div className={styles.summary}>
           <span className={`${styles.dot} ${file ? styles.ok : ""}`} />
@@ -160,7 +129,6 @@ export function Studio() {
           <span className={styles.sep}>/</span>
           <span className={`${styles.dot} ${chosen ? styles.ok : ""}`} />
           <span>{chosen ? chosen.title : "Sin estilo"}</span>
-          {chosen?.kind === "catalog" && <span className="mono">#{seed}</span>}
         </div>
         {upload !== null ? (
           <div className={styles.uploading}>

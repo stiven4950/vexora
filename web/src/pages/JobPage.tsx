@@ -12,6 +12,13 @@ import { Shell } from "../components/Shell";
 import { useJob } from "../hooks/useJob";
 import styles from "./JobPage.module.css";
 
+/** "Mejor versión" para la elegida sola; "Versión N" para las que pidió el usuario. Una semilla
+ * explícita (CLI o API) se muestra tal cual. */
+function versionLabel(job: { seed: number | null; take: number }): string {
+  if (job.seed !== null) return `semilla ${job.seed}`;
+  return job.take === 0 ? "mejor versión" : `versión ${job.take + 1}`;
+}
+
 export function JobPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -42,13 +49,14 @@ export function JobPage() {
     return [...counts.entries()].sort((a, b) => b[1] - a[1]);
   }, [moments]);
 
-  const vary = async (seed: number | null) => {
+  // Otra versión: el servidor elige la siguiente mejor coreografía; el usuario no ve semillas.
+  const vary = async () => {
     if (!job) return;
     const [kind, name] = nextStyle.split(":") as ["catalog" | "preset", string];
     setBusy(true);
     setActionError(null);
     try {
-      const next = await api.variation(job.id, kind, name, kind === "catalog" ? seed : null);
+      const next = await api.variation(job.id, kind, name, null);
       navigate(`/jobs/${next.id}`);
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : String(cause));
@@ -86,7 +94,7 @@ export function JobPage() {
         <div className={styles.title}>
           <span className="eyebrow">
             {current?.title ?? job.style}
-            {job.seed !== null && ` · semilla ${job.seed}`}
+            {job.style_kind === "catalog" && ` · ${versionLabel(job)}`}
           </span>
           <h1>{job.filename}</h1>
         </div>
@@ -128,8 +136,8 @@ export function JobPage() {
             </section>
 
             <section className={styles.card}>
-              <span className="eyebrow">Otra versión</span>
-              <p>El análisis queda guardado: una variación solo vuelve a coreografiar y revelar.</p>
+              <span className="eyebrow">¿Otra opción?</span>
+              <p>Probamos otra coreografía buena para el mismo video, o el mismo video con otro estilo. No se vuelve a analizar: tarda poco.</p>
               <select value={nextStyle} onChange={(event) => setNextStyle(event.target.value)} aria-label="Estilo de la variación">
                 {styleList.map((style) => (
                   <option key={`${style.kind}:${style.name}`} value={`${style.kind}:${style.name}`}>
@@ -138,8 +146,8 @@ export function JobPage() {
                   </option>
                 ))}
               </select>
-              <Button icon="dice" disabled={busy} onClick={() => vary(Math.floor(Math.random() * 9000) + 100)}>
-                Nueva tirada
+              <Button variant="ghost" icon="spark" disabled={busy} onClick={vary}>
+                Probar otra versión
               </Button>
               {actionError && <span className={styles.error}>{actionError}</span>}
             </section>

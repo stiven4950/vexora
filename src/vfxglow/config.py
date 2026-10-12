@@ -155,9 +155,12 @@ class AnalysisConfig(_Strict):
 class DirectorConfig(_Strict):
     provider: Literal["preset", "catalog", "openai", "anthropic"] = "preset"
     preset: str = "avatar_fire"
-    # catalog: configs/catalogs/<catalog>.yaml; seed sustituye la del catálogo (otra coreografía).
+    # catalog: configs/catalogs/<catalog>.yaml. Sin seed se prueban varias coreografías y se usa
+    # la del puesto `take` en el ranking (0 = la mejor; 1, 2... = "otra versión"). Con seed, esa
+    # coreografía exacta.
     catalog: str = "pelea"
     seed: int | None = None
+    take: int = 0
     model: str = "gpt-5"
     api_key_env: str = "OPENAI_API_KEY"
     temperature: float = 0.4

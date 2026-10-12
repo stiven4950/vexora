@@ -1,7 +1,7 @@
 # VFX Glow · Estudio web
 
 Interfaz React + TypeScript (Vite) para todo el flujo de edición: subir un plano, elegir estilo y
-semilla, seguir el revelado en vivo y comparar antes/después. Habla con la API de Python
+versión, seguir el revelado en vivo y comparar antes/después. Habla con la API de Python
 (`vfxglow-api`, FastAPI), que corre el pipeline.
 
 ## Arrancar (desarrollo)
@@ -33,8 +33,8 @@ vfxglow-api                    # sirve también el front compilado en http://127
 
 | Ruta | Qué hace |
 | --- | --- |
-| `/` Estudio | 01 subir el plano (arrastrar o elegir), 02 elegir coreografía o preset (cada tarjeta anima sus colores), 03 semilla o "tirar los dados", y "Revelar en neón" |
-| `/jobs/:id` | Mientras procesa: anillo de progreso, etapas (lectura del movimiento → coreografía → revelado) y consola en vivo. Al terminar: comparador antes/después con cortina arrastrable, línea de tiempo con cada reacción de la coreografía (clic para saltar), descarga MP4 y "Nueva tirada" (otra semilla u otro estilo sobre el mismo video; el análisis queda en caché) |
+| `/` Estudio | 01 subir el plano (arrastrar o elegir), 02 elegir coreografía o preset (cada tarjeta anima sus colores) y "Revelar en neón". No hay semilla: el servidor prueba varias coreografías y usa la mejor |
+| `/jobs/:id` | Mientras procesa: anillo de progreso, etapas (lectura del movimiento → coreografía → revelado) y consola en vivo. Al terminar: comparador antes/después con cortina arrastrable, línea de tiempo con cada reacción de la coreografía (clic para saltar), descarga MP4 y "Probar otra versión" (la siguiente mejor coreografía, u otro estilo, sobre el mismo video; el análisis queda en caché) |
 | `/library` | Todos los revelados con miniatura, estado y progreso |
 
 Atajos en el comparador: espacio (reproducir/pausar), flechas (fotograma a fotograma).

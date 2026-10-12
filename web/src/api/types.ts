@@ -24,6 +24,8 @@ export interface Job {
   style_kind: StyleKind;
   style: string;
   seed: number | null;
+  /** Sin semilla: 0 = la mejor coreografía elegida sola; 1, 2... = "otra versión". */
+  take: number;
   status: JobStatus;
   stage: JobStage;
   progress: number;

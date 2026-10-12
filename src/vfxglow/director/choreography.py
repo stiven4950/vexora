@@ -101,6 +101,11 @@ class Choreography(_Strict):
     catalog: str
     seed: int
     decisions: list[Decision]
+    # Elección automática (best_choreography): puesto en el ranking (0 = la mejor), puntuación y
+    # cuántas candidatas se probaron. Con semilla explícita, take = -1.
+    take: int = -1
+    score: float = 0.0
+    candidates: int = 1
 
 
 def load_catalog(path: Path) -> Catalog:
@@ -264,6 +269,60 @@ def build_chapters(events: list[MotionEvent], palette, seed: int, fps: float, fr
         chapters.append(Chapter(start_frame=int(start), end_frame=int(stop) - 1, focus=focus, colors=[colors[main], colors[accent]]))
         previous = main
     return chapters
+
+
+# ----- elegir la mejor coreografía sin que el usuario tire los dados -----
+
+# Acciones que una buena versión no debería dejar pasar sin efecto (gestos con significado y el
+# objeto protagonista).
+KEY_ACTIONS = ("face_touch", "throw", "neck_slash", "prop_transfer", "prop_spin", "prop_worn")
+CANDIDATES = 8
+# Más efectos por segundo que esto satura la escena.
+MAX_DENSITY = 1.2
+WINDOW_S = 1.2
+
+
+def score_choreography(choreography: Choreography, brief: MotionBrief) -> float:
+    """Qué tan buena es una coreografía, sin renderizar (docs/criterio_de_analisis.md):
+
+    - momentos clave atendidos (gestos y objeto, peso 3),
+    - tramos de atención con algún efecto encendido (peso 2): pocos huecos vacíos,
+    - variedad de opciones (peso 1),
+    - menos si satura (más de MAX_DENSITY efectos por segundo) o repite lo mismo seguido.
+    """
+    fps = brief.video.fps or 30.0
+    duration = max(brief.video.frame_count / fps, 1.0)
+    active = [d for d in choreography.decisions if not d.choice.startswith("nada")]
+    keys = [d for d in choreography.decisions if d.action in KEY_ACTIONS]
+    key_score = sum(not d.choice.startswith("nada") for d in keys) / len(keys) if keys else 1.0
+    covered = 0.0
+    spans = [s for s in brief.attention if s.primary != "prop"]
+    for span in spans:
+        start, end = span.start_frame / fps, span.end_frame / fps
+        if any(start - WINDOW_S <= d.second <= end for d in active):
+            covered += 1
+    coverage = covered / len(spans) if spans else 1.0
+    variety = len({d.choice for d in active}) / len(active) if active else 0.0
+    density = len(active) / duration
+    crowd = max(0.0, density - MAX_DENSITY)
+    repeats = sum(
+        1 for a, b in zip(active, active[1:]) if a.choice == b.choice and a.action == b.action and b.second - a.second < 3.0
+    ) / max(len(active), 1)
+    return 3.0 * key_score + 2.0 * coverage + variety - 2.0 * crowd - repeats
+
+
+def best_choreography(catalog: Catalog, brief: MotionBrief, take: int = 0, candidates: int = CANDIDATES) -> tuple[EffectScript, Choreography]:
+    """Prueba `candidates` semillas, las ordena por `score_choreography` y devuelve la del puesto
+    `take` (0 = la mejor). "Otra versión" es pedir el puesto siguiente: siempre una versión
+    buena y distinta, sin que el usuario elija semillas."""
+    results = []
+    for k in range(max(candidates, 1)):
+        seed = catalog.seed + 1009 * k
+        script, choreo = choreograph(catalog, brief, seed)
+        results.append((score_choreography(choreo, brief), k, script, choreo))
+    results.sort(key=lambda item: (-item[0], item[1]))
+    score, _, script, choreo = results[take % len(results)]
+    return script, choreo.model_copy(update={"take": take, "score": round(score, 3), "candidates": len(results)})
 
 
 def _option(reaction: Reaction, name: str) -> Option:
