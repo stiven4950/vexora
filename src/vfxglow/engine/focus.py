@@ -64,7 +64,7 @@ def effect_regions(effect: Effect, event: MotionEvent | None) -> set[str] | None
         if shapes & _LEG_ADORN:
             regions.add("legs")
         return regions or None
-    if kind == "body_glow":
+    if kind in ("body_glow", "limb_rings"):
         part = event.kind if event is not None and event.kind in _BODY_PARTS else effect.target.id
         return _BODY_PARTS.get(part)
     if kind in ("swoosh", "droplets", "arm_outline"):

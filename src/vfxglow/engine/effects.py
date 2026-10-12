@@ -125,6 +125,10 @@ def render_effect(
 
         draw = {"prop_outline": draw_prop_outline, "prop_spring": draw_prop_spring, "prop_rings": draw_prop_rings, "prop_doodle": draw_prop_doodle}[kind]
         draw(runtime, track, points, frame_index, height, envelope, layer, event if effect.triggers else None)
+    elif kind == "limb_rings":
+        from vfxglow.engine.flow import draw_limb_rings
+
+        draw_limb_rings(runtime, track, points, frame_index, height, envelope, layer, event if effect.triggers else None)
     elif kind == "throw_fx":
         from vfxglow.engine.gesture_fx import draw_throw_fx
 

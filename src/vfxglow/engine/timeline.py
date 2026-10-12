@@ -15,6 +15,7 @@ class ActivationWindow:
     fade_in: int
     fade_out: int
     event: MotionEvent
+    trigger: EffectTrigger | None = None
 
 
 def _matches(event: MotionEvent, trigger: EffectTrigger) -> bool:
@@ -50,6 +51,11 @@ class ActivationTimeline:
             for event in events:
                 if not _matches(event, trigger):
                     continue
+                if self.windows and last_end >= 0 and event.start_frame <= last_end and self.windows[-1].trigger is trigger:
+                    # Continúa la activación anterior (trozos seguidos de un mismo foco): se alarga.
+                    last_end = max(last_end, event.end_frame + trigger.hold)
+                    self.windows[-1].end = last_end
+                    continue
                 if event.start_frame < last_end + trigger.cooldown:
                     continue
                 if trigger.max_activations > 0 and count >= trigger.max_activations:
@@ -63,6 +69,7 @@ class ActivationTimeline:
                         fade_in=trigger.fade_in,
                         fade_out=trigger.fade_out,
                         event=event,
+                        trigger=trigger,
                     )
                 )
                 last_end = end

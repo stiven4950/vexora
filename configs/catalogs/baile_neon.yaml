@@ -101,6 +101,23 @@ reactions:
         shapes: [abs, partial, lines_only]
         fill: 0.0
       trigger: {hold: 4, fade_in: 3, fade_out: 6}
+  # Seg. 15: aros que suben por el brazo casi hasta el hombro y regresan; en las piernas igual.
+  - name: aros
+    weight: 0.3
+    kinds: [left_arm, right_arm, legs]
+    effects:
+    - type: limb_rings
+      style: {rings: 2, trail_frames: 14, thickness: 0.014}
+      trigger: {hold: 4, fade_in: 2, fade_out: 5}
+  # Seg. 23.9-24.7: no la pierna entera, solo tramos del contorno que suben como una onda.
+  - name: piernas_onda
+    weight: 0.5
+    kinds: [legs, feet]
+    effects:
+    - type: body_glow
+      target: {kind: joint, id: legs}
+      style: {shapes: [wave], fill: 0.0, trail_frames: 18}
+      trigger: {hold: 6, fade_in: 2, fade_out: 6}
   - name: collar_estrellas
     weight: 0.4
     kinds: [torso]

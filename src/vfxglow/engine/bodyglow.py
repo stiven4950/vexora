@@ -126,14 +126,20 @@ def draw_body_glow(runtime, track, points, frame_index: int, height: int, envelo
             # lines_only: sin el contorno de la parte, solo las líneas interiores (abdominales...).
             if "no_outline" not in style.shapes and "lines_only" not in style.shapes:
                 wobble = contour + boil.normal(0, scale * 0.004, contour.shape)
-                strokes += neon_layers(np.vstack([wobble, wobble[:1]]), color, line, envelope)
+                if "wave" in style.shapes or "wave_down" in style.shapes:
+                    # Solo tramos del contorno que recorren la parte como una onda (seg. 24).
+                    for piece in wave_pieces(wobble, runtime.active_frames, style.trail_frames, "wave_down" in style.shapes):
+                        strokes += neon_layers(piece, color, line, envelope)
+                else:
+                    strokes += neon_layers(np.vstack([wobble, wobble[:1]]), color, line, envelope)
         if "no_outline" in style.shapes:
             continue
         if "abs" in style.shapes and part in ("torso", "body"):
             # Por activación: qué dibujo de espalda y qué líneas sueltas (trazos parciales).
             key = event.start_frame if event is not None else frame_index // max(style.palette_every, 1)
             pick = np.random.default_rng(zlib.crc32(f"{style.seed_offset}:torso:{key}".encode()) & 0xFFFFFFFF)
-            strokes += [s for line_ in torso_drawing(body, style.shapes, pick) for s in neon_layers(line_, color, line * 0.8, envelope)]
+            drawing = reveal(torso_drawing(body, style.shapes, pick), body, event, runtime.active_frames)
+            strokes += [s for line_ in drawing for s in neon_layers(line_, color, line * 0.8, envelope)]
         if "biceps" in style.shapes and part in ("left_arm", "right_arm", "arms"):
             sides = ("left", "right") if part == "arms" else (part.split("_")[0],)
             for side in sides:
@@ -212,6 +218,57 @@ def _outline(mask: np.ndarray) -> list[np.ndarray]:
         pts = contour.reshape(-1, 2).astype(np.float64)
         out.append(pts[:: max(len(pts) // 160, 1)])
     return out
+
+
+# Onda de contornos: bandas a la vez, alto de cada banda (fracción del alto de la parte).
+WAVE_BANDS = 2
+WAVE_HEIGHT = 0.14
+
+
+def wave_pieces(contour: np.ndarray, frame: int, period: int, down: bool = False) -> list[np.ndarray]:
+    """Tramos del contorno dentro de bandas horizontales que suben (o bajan) por la parte.
+
+    Cada banda recorre la parte de punta a punta en `period` fotogramas; hay WAVE_BANDS a la
+    vez, desfasadas. Lo que queda dentro de una banda se dibuja; el resto no (trazos parciales).
+    """
+    top, bottom = float(contour[:, 1].min()), float(contour[:, 1].max())
+    extent = max(bottom - top, 1.0)
+    half = extent * WAVE_HEIGHT / 2
+    inside = np.zeros(len(contour), dtype=bool)
+    for band in range(WAVE_BANDS):
+        phase = ((frame / max(period, 1)) + band / WAVE_BANDS) % 1.0
+        center = top + extent * phase if down else bottom - extent * phase
+        inside |= np.abs(contour[:, 1] - center) <= half
+    pieces, start = [], None
+    for index, keep in enumerate(np.append(inside, False)):
+        if keep and start is None:
+            start = index
+        elif not keep and start is not None:
+            if index - start >= 3:
+                pieces.append(contour[start:index])
+            start = None
+    return pieces
+
+
+# Las líneas del torso aparecen de a poco en estos fotogramas (seg. 14: la energía pasa de la mano
+# al pecho poco a poco).
+REVEAL_FRAMES = 8
+
+
+def reveal(lines: list[np.ndarray], body: Body, event: MotionEvent | None, frames_on: int) -> list[np.ndarray]:
+    """Las primeras líneas en aparecer son las más cercanas a la mano que trae la energía (la del
+    evento, si es un brazo); sin mano, de arriba hacia abajo."""
+    if not lines or frames_on >= REVEAL_FRAMES:
+        return lines
+    source = None
+    if event is not None and event.kind in ("left_arm", "right_arm"):
+        source = body.get(f"{event.kind.split('_')[0]}_wrist")
+    if source is not None:
+        order = sorted(range(len(lines)), key=lambda i: float(np.min(np.linalg.norm(lines[i] - source, axis=1))))
+    else:
+        order = sorted(range(len(lines)), key=lambda i: float(lines[i][:, 1].min()))
+    count = max(1, int(np.ceil(len(lines) * frames_on / REVEAL_FRAMES)))
+    return [lines[i] for i in order[:count]]
 
 
 FACING_FRONT = 0.2

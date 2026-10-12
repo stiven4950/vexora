@@ -460,6 +460,19 @@ Efectos:
 En la línea de atención, el brazo que lanza manda durante el gesto y la cabeza durante el "ya
 valió".
 
+### La energía recorre el cuerpo (P2, P3)
+
+- **Onda de contornos** (`body_glow` con `wave` o `wave_down`, seg. 24): en vez de la parte
+  entera, dos bandas recorren su contorno de abajo hacia arriba (o al revés) en `trail_frames`;
+  solo se dibuja lo que queda dentro de una banda.
+- **Aros por la extremidad** (`limb_rings`, seg. 15): aros con perspectiva que suben de la
+  muñeca hacia el hombro (o del tobillo a la cadera) y regresan, con el color principal al subir
+  y el acento al bajar.
+- **Pecho poco a poco** (seg. 14): las líneas del torso aparecen en `REVEAL_FRAMES`, primero las
+  más cercanas a la mano que trae la energía.
+- **Activaciones seguidas:** si un evento empieza antes de que termine la ventana del anterior
+  (trozos seguidos de un mismo foco), la ventana se alarga en vez de descartarlo.
+
 ### Colores según el tono de piel
 
 El análisis mide el tono de piel de cada persona (`analysis/skin.py`: mejillas y, si la cara no
