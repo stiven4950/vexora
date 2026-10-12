@@ -111,3 +111,12 @@ Contorno de las cuencas: la zona oscura alrededor de cada lente, con una apertur
 corta las estrías finas que la tocan (si queda demasiado grande, se descarta). En la zona de ojos
 el lente se enciende del color del momento y un arco suave (un tercio del borde) gira alrededor
 de la cuenca, en sentidos opuestos en cada ojo; los ojos tienen más turnos que las otras zonas.
+
+### Nariz y figuras
+
+`analysis/shapes.py` ajusta a cada hueco (cuencas y nariz) la figura que más se le parece
+(triángulo, elipse, rectángulo o círculo; parecido por intersección sobre unión). En video_2 las
+cuencas y la nariz salen casi siempre como triángulos. La nariz se detecta como la mancha oscura
+entre los ojos y por debajo, sin las estrías finas. Efecto de la zona de nariz: el triángulo se
+traza, se llena de un brillo tenue y lanza dos copias que crecen y se apagan; los ojos giran
+sobre el triángulo de su cuenca.

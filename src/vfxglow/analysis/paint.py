@@ -31,6 +31,7 @@ import numpy as np
 from vfxglow.analysis.tool import tool_tip
 from vfxglow.analysis.names import CHEEKS, FACE_FEATURES, FACE_OVAL
 from vfxglow.analysis.schema import FrameRecord
+from vfxglow.analysis.shapes import fit_shape, shape_points
 
 log = logging.getLogger("vfxglow.paint")
 
@@ -482,7 +483,8 @@ def _steady_eyes(accents: dict[int, dict]) -> None:
             accents[frame]["eyes"] = median.tolist()
 
 
-SOCKET_REACH = 0.55  # radio de búsqueda de la cuenca, en distancias entre ojos
+SOCKET_REACH = 0.75
+MIN_FIT = 0.6  # parecido mínimo de la figura con el hueco para usarla  # radio de búsqueda de la cuenca, en distancias entre ojos
 
 
 def _add_sockets(video_path: Path, accents: dict[int, dict]) -> None:
@@ -497,9 +499,53 @@ def _add_sockets(video_path: Path, accents: dict[int, dict]) -> None:
             ok, frame = capture.read()
             if not ok:
                 continue
-            accents[frame_index]["sockets"] = _sockets(frame, eyes)
+            sockets = _sockets(frame, eyes)
+            accents[frame_index]["sockets"] = sockets
+            h, w = frame.shape[:2]
+            nose = _nose(frame, eyes)
+            accents[frame_index]["nose"] = nose
+            # La figura geométrica de cada hueco (sobre ella se anima).
+            figures = {}
+            for name, contour in (("left_socket", sockets[0]), ("right_socket", sockets[1]), ("nose", nose)):
+                if contour:
+                    figure = fit_shape(np.array(contour) * [w, h])
+                    if figure is not None and figure["fit"] >= MIN_FIT:
+                        figures[name] = {"kind": figure["kind"], "fit": figure["fit"], "points": (shape_points(figure, 64) / [w, h]).tolist()}
+            accents[frame_index]["figures"] = figures
     finally:
         capture.release()
+
+
+def _nose(frame: np.ndarray, eyes) -> list[list[float]]:
+    """El hueco de la nariz: la mancha oscura (sin estrías finas) entre los ojos y por debajo."""
+    h, w = frame.shape[:2]
+    pts = np.array(eyes) * [w, h]
+    gap = float(np.linalg.norm(pts[1] - pts[0]))
+    mid = pts.mean(axis=0)
+    x0, x1 = int(max(mid[0] - gap * 0.35, 0)), int(min(mid[0] + gap * 0.35, w))
+    y0, y1 = int(max(mid[1] + gap * 0.12, 0)), int(min(mid[1] + gap * 0.85, h))
+    if x1 - x0 < 10 or y1 - y0 < 10:
+        return []
+    value = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)[..., 2]
+    dark = (value[y0:y1, x0:x1] < 60).astype(np.uint8)
+    size = max(int(gap * 0.1) | 1, 5)
+    dark = cv2.morphologyEx(dark, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (size, size)))
+    count, labels, stats, centers = cv2.connectedComponentsWithStats(dark)
+    best, best_score = None, 0.0
+    for k in range(1, count):
+        area = stats[k, 4]
+        # Entre los ojos (centro cerca del medio) y de tamaño de nariz.
+        off = abs(centers[k][0] - (mid[0] - x0)) / gap
+        if off > 0.18 or not (gap * gap * 0.01 < area < gap * gap * 0.25):
+            continue
+        score = area * (1.0 - off)
+        if score > best_score:
+            best, best_score = k, score
+    if best is None:
+        return []
+    contours, _ = cv2.findContours((labels == best).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    contour = max(contours, key=cv2.contourArea)[:, 0, :] + [x0, y0]
+    return [[float(px / w), float(py / h)] for px, py in cv2.approxPolyDP(contour.astype(np.int32), 2.0, True)[:, 0, :]]
 
 
 def _sockets(frame: np.ndarray, eyes) -> list[list[list[float]]]:

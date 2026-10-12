@@ -107,6 +107,20 @@ Aproximadamente 1 s antes del final, todo lo dibujado se **disipa en partículas
 (estrellas, chispas) en el lugar donde estaba (sombrero y cinturón se vuelven estrellas, 29 s),
 hasta que queda la persona sola.
 
+### P12. Con la pintura y los huecos, la figura geométrica primero
+
+Cuando el dibujo juega con un contorno (una mancha de pintura, una cuenca, la nariz de una
+calavera), primero se busca **la figura geométrica que más se le parece** (triángulo, elipse,
+rectángulo, círculo) y se anima **sobre esa figura**, no sobre el borde irregular:
+
+- trazarla desde un vértice;
+- hacer girar un arco por su contorno;
+- llenarla de un brillo tenue;
+- iterarla: copias que crecen hacia afuera y se apagan, o que se encogen hacia el centro.
+
+Implementado en `analysis/shapes.py` (video_2: cuencas y nariz de la calabaza, casi siempre
+triángulos).
+
 ### P11. Estilo de línea
 
 Línea de neón con núcleo blanco fino (0,5% del ancho del cuadro, 90% de opacidad) y el color en

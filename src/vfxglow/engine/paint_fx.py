@@ -115,8 +115,18 @@ def draw_paint_accents(runtime, track, points, frame_index: int, height: int, en
     u = inside / slot_frames
     grow = min(u / 0.4, 1.0)  # se dibuja en el primer 40%
     fade = min((1.0 - u) / 0.25, 1.0)  # se apaga en el último 25%
+    figures = data.get("figures") or {}
+    if zone == "nose" and "nose" in figures:
+        _draw_figure(layer, np.array(figures["nose"]["points"]) * [width, height], color, u, grow, fade, envelope, style, runtime)
+        return
     if zone == "eyes" and data.get("eyes"):
-        sockets = [np.array(sock) * [width, height] if sock else None for sock in (data.get("sockets") or [None, None])]
+        # Sobre la figura de cada cuenca (más limpia que el borde); si no hay, el borde.
+        sockets = []
+        for name, raw in zip(("left_socket", "right_socket"), data.get("sockets") or [None, None]):
+            if name in figures:
+                sockets.append(np.array(figures[name]["points"]) * [width, height])
+            else:
+                sockets.append(np.array(raw) * [width, height] if raw else None)
         _draw_eyes(layer, np.array(data["eyes"]) * [width, height], sockets, color, slot, u, grow, fade, envelope, style, runtime)
         return
     lines = [line for line in data["lines"] if line["zone"] == zone]
@@ -218,3 +228,30 @@ def _draw_eyes(layer, eyes: np.ndarray, sockets, color, slot: int, u: float, gro
             strokes += neon_layers(arc, color, line, envelope * fade)
     if strokes:
         stroke_batch(layer, strokes, style.hdr_gain)
+
+
+ECHOES = (1.0, 1.3, 1.65)
+
+
+def _draw_figure(layer, figure: np.ndarray, color, u: float, grow: float, fade: float, envelope: float, style, runtime) -> None:
+    """Un hueco con su figura (la nariz de calavera): la figura se traza desde un vértice, se llena
+    de un brillo tenue y se itera hacia afuera en copias que se agrandan y se apagan (como ondas)."""
+    center = figure.mean(axis=0)
+    size = float(np.sqrt(max(np.ptp(figure[:, 0]) * np.ptp(figure[:, 1]), 1.0)))
+    line = max(1.5, style.thickness * size * 0.35)
+    count = len(figure)
+    shown = figure[: max(int(count * grow), 2)]
+    closed = np.vstack([figure, figure[:1]])
+    strokes = neon_layers(closed if grow >= 1 else shown, color, line * ORBIT_WIDTH, envelope * fade)
+    from vfxglow.engine.raster import fill_polygon
+
+    fill_polygon(layer, figure, color, 0.25 * envelope * fade, 1.0, feather=size * 0.08)
+    if grow >= 1:
+        for k, scale in enumerate(ECHOES[1:], start=1):
+            # Cada copia nace un poco después y se va hacia afuera.
+            t = min(max((u - 0.35 - 0.12 * k) / 0.4, 0.0), 1.0)
+            if t <= 0:
+                continue
+            echo = center + (figure - center) * (1.0 + (scale - 1.0) * t)
+            strokes += neon_layers(np.vstack([echo, echo[:1]]), color, line, envelope * fade * (1.0 - t) * 0.8)
+    stroke_batch(layer, strokes, style.hdr_gain)

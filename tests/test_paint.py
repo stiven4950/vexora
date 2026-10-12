@@ -110,3 +110,25 @@ def test_socket_contour_ignores_thin_stripes_touching_it() -> None:
     sockets = _sockets(frame, [[250 / 720, 450 / 1280], [470 / 720, 450 / 1280]])
     top = min(p[1] for p in sockets[0]) * 1280
     assert len(sockets[0]) >= 4 and top > 380  # la cuenca, sin la estría de arriba
+
+
+def test_fit_shape_picks_the_closest_figure() -> None:
+    from vfxglow.analysis.shapes import fit_shape
+
+    triangle = np.array([[100, 300], [200, 100], [300, 300]], np.float64)
+    noisy = np.vstack([np.linspace(triangle[i], triangle[(i + 1) % 3], 30) for i in range(3)]) + np.random.default_rng(0).normal(0, 2, (90, 2))
+    assert fit_shape(noisy)["kind"] == "triangle"
+    t = np.linspace(0, 2 * np.pi, 80, endpoint=False)
+    ellipse = np.stack([200 + 120 * np.cos(t), 200 + 60 * np.sin(t)], axis=1)
+    found = fit_shape(ellipse)
+    assert found["kind"] in ("ellipse", "circle") and found["fit"] > 0.9
+
+
+def test_nose_hole_between_and_below_the_eyes() -> None:
+    from vfxglow.analysis.paint import _nose
+
+    frame = np.full((1280, 720, 3), (0, 110, 240), np.uint8)
+    cv2.fillPoly(frame, [np.array([[330, 640], [360, 570], [390, 640]], np.int32)], (10, 10, 10))
+    cv2.circle(frame, (600, 620), 30, (10, 10, 10), -1)  # otra mancha, fuera del centro
+    nose = np.array(_nose(frame, [[250 / 720, 450 / 1280], [470 / 720, 450 / 1280]])) * [720, 1280]
+    assert len(nose) >= 3 and abs(nose[:, 0].mean() - 360) < 15
