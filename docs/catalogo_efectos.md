@@ -423,6 +423,22 @@ Medido en video_33:
 | 21-26 s | Las piernas |
 | 26,5-28 s | La gorra y las piernas a la vez |
 
+### Frente o espalda (P6)
+
+`body_glow` con `abs` mira hacia dónde está la persona (`facing`, por el orden de los hombros en
+largos de torso: de frente el izquierdo queda a la derecha de la imagen):
+
+| Orientación | Dibujo |
+| --- | --- |
+| De frente | Pectorales y abdominales |
+| De perfil | Nada |
+| De espaldas | Músculos de la espalda (`back_lines`) o una figura de relleno al centro (`badge`: radiactivo, sol, estrella, corazón, espiral), sorteada por activación |
+
+En video_33 la espalda se detecta en 18,8–20,2 s, como en la referencia.
+
+- `partial` dibuja solo el 40–70% de las líneas (seg. 14,6 de la referencia).
+- `lines_only` omite el contorno de la parte y deja solo las líneas interiores.
+
 ### Colores según el tono de piel
 
 El análisis mide el tono de piel de cada persona (`analysis/skin.py`: mejillas y, si la cara no

@@ -123,13 +123,17 @@ def draw_body_glow(runtime, track, points, frame_index: int, height: int, envelo
             if "no_fill" not in style.shapes and style.fill > 0:
                 # Ganancia < 1: en modo tint el color del relleno no debe leerse como "caliente".
                 fill_polygon(layer, contour, color, style.fill * envelope, 0.9, feather=4.0)
-            if "no_outline" not in style.shapes:
+            # lines_only: sin el contorno de la parte, solo las líneas interiores (abdominales...).
+            if "no_outline" not in style.shapes and "lines_only" not in style.shapes:
                 wobble = contour + boil.normal(0, scale * 0.004, contour.shape)
                 strokes += neon_layers(np.vstack([wobble, wobble[:1]]), color, line, envelope)
         if "no_outline" in style.shapes:
             continue
         if "abs" in style.shapes and part in ("torso", "body"):
-            strokes += [s for line_ in abs_lines(body) for s in neon_layers(line_, color, line * 0.8, envelope)]
+            # Por activación: qué dibujo de espalda y qué líneas sueltas (trazos parciales).
+            key = event.start_frame if event is not None else frame_index // max(style.palette_every, 1)
+            pick = np.random.default_rng(zlib.crc32(f"{style.seed_offset}:torso:{key}".encode()) & 0xFFFFFFFF)
+            strokes += [s for line_ in torso_drawing(body, style.shapes, pick) for s in neon_layers(line_, color, line * 0.8, envelope)]
         if "biceps" in style.shapes and part in ("left_arm", "right_arm", "arms"):
             sides = ("left", "right") if part == "arms" else (part.split("_")[0],)
             for side in sides:
@@ -208,6 +212,127 @@ def _outline(mask: np.ndarray) -> list[np.ndarray]:
         pts = contour.reshape(-1, 2).astype(np.float64)
         out.append(pts[:: max(len(pts) // 160, 1)])
     return out
+
+
+FACING_FRONT = 0.2
+FACING_BACK = -0.15
+BADGES = ("radiation", "sun", "star", "heart", "spiral")
+
+
+def facing(body: Body) -> str:
+    """front, back o side. De frente, el hombro izquierdo de la persona queda a la derecha de la
+    imagen; de espaldas, a la izquierda (video_33, seg. 18,8-20,2). Se mide en largos de torso."""
+    left, right, hips = body.get("left_shoulder"), body.get("right_shoulder"), body.mid("left_hip", "right_hip")
+    if left is None or right is None:
+        return "front"
+    center = (left + right) / 2
+    torso = float(np.linalg.norm(hips - center)) if hips is not None else float(np.linalg.norm(left - right)) * 1.4
+    dx = float(left[0] - right[0]) / max(torso, 1.0)
+    if dx > FACING_FRONT:
+        return "front"
+    return "back" if dx < FACING_BACK else "side"
+
+
+def torso_drawing(body: Body, shapes, rng: np.random.Generator) -> list[np.ndarray]:
+    """El dibujo del torso según hacia dónde mira la persona (criterio P6).
+
+    - De frente: pectorales y abdominales (`abs`).
+    - De perfil: nada (los abdominales de lado no se leen).
+    - De espaldas: músculos de la espalda (`back_lines`) o una figura de relleno en el centro
+      de la espalda (`badge`: radiactivo, sol, estrella, corazón, espiral); se sortea entre los
+      permitidos.
+    Con `partial`, solo algunas líneas (40-70%), como hace la referencia en el seg. 14.
+    """
+    side = facing(body)
+    if side == "side":
+        return []
+    if side == "back":
+        allowed = [name for name in ("back_lines", "badge") if name in shapes] or ["back_lines", "badge"]
+        choice = allowed[int(rng.integers(len(allowed)))]
+        if choice == "badge":
+            names = [name for name in BADGES if name in shapes] or list(BADGES)
+            return badge_lines(body, names[int(rng.integers(len(names)))])
+        lines = back_lines(body)
+    else:
+        lines = abs_lines(body)
+    if "partial" in shapes and len(lines) > 3:
+        keep = max(2, int(round(len(lines) * rng.uniform(0.4, 0.7))))
+        lines = [lines[i] for i in sorted(rng.choice(len(lines), size=keep, replace=False))]
+    return lines
+
+
+def _torso_frame(body: Body):
+    frame = body.frame()
+    hips = body.mid("left_hip", "right_hip")
+    if frame is None or hips is None:
+        return None
+    center, across, down = frame
+    length = float(np.linalg.norm(hips - center))
+    half = float(np.linalg.norm(body.get("left_shoulder") - body.get("right_shoulder"))) / 2
+
+    def at(x: float, y: float) -> np.ndarray:
+        return center + across * x * half + down * y * length
+
+    return at, across, down, half, length
+
+
+def back_lines(body: Body) -> list[np.ndarray]:
+    """Columna, omóplatos y dorsales vistos desde atrás."""
+    frame = _torso_frame(body)
+    if frame is None:
+        return []
+    at = frame[0]
+    t = np.linspace(0, 1, 10)
+    lines = [np.array([at(0.02 * np.sin(6 * u), 0.08 + 0.8 * u) for u in t])]
+    for side in (-1.0, 1.0):
+        lines.append(np.array([at(side * (0.18 + 0.32 * np.sin(np.pi * u * 0.9)), 0.12 + 0.3 * u) for u in t]))
+        lines.append(np.array([at(side * (0.62 - 0.3 * u), 0.42 + 0.45 * u) for u in t]))
+    return lines
+
+
+def badge_lines(body: Body, name: str) -> list[np.ndarray]:
+    """Figura de relleno centrada en la espalda, en el plano del torso."""
+    frame = _torso_frame(body)
+    if frame is None:
+        return []
+    at, _, _, half, length = frame
+    radius = 0.45  # en medios anchos de hombros
+    cy = 0.42
+    # x se mide en medios anchos de hombros e y en largos de torso: esto deja las figuras redondas.
+    squash = half / max(length, 1.0)
+    ring = np.linspace(0, 2 * np.pi, 49)
+
+    def circle(r: float) -> np.ndarray:
+        return np.array([at(r * np.cos(a), cy + r * np.sin(a) * squash) for a in ring])
+
+    if name == "radiation":
+        lines = [circle(radius), circle(radius * 0.18)]
+        for k in range(3):
+            a0 = -np.pi / 2 + k * 2 * np.pi / 3 - np.pi / 6
+            arc = np.linspace(a0, a0 + np.pi / 3, 10)
+            outer = [at(radius * 0.85 * np.cos(a), cy + radius * 0.85 * np.sin(a) * squash) for a in arc]
+            inner = [at(radius * 0.28 * np.cos(a), cy + radius * 0.28 * np.sin(a) * squash) for a in arc[::-1]]
+            lines.append(np.array(outer + inner + outer[:1]))
+        return lines
+    if name == "sun":
+        lines = [circle(radius * 0.5)]
+        for k in range(10):
+            a = k * 2 * np.pi / 10
+            lines.append(np.array([at(radius * 0.65 * np.cos(a), cy + radius * 0.65 * np.sin(a) * squash), at(radius * np.cos(a), cy + radius * np.sin(a) * squash)]))
+        return lines
+    if name == "star":
+        angles = -np.pi / 2 + np.arange(11) * np.pi / 5
+        radii = np.where(np.arange(11) % 2 == 0, radius, radius * 0.42)
+        return [np.array([at(r * np.cos(a), cy + r * np.sin(a) * squash) for r, a in zip(radii, angles)])]
+    if name == "heart":
+        t = np.linspace(0, 2 * np.pi, 48)
+        x = 16 * np.sin(t) ** 3 / 17
+        y = -(13 * np.cos(t) - 5 * np.cos(2 * t) - 2 * np.cos(3 * t) - np.cos(4 * t)) / 17
+        return [np.array([at(radius * xi, cy + radius * yi * squash) for xi, yi in zip(x, y)])]
+    # espiral
+    t = np.linspace(0, 3 * 2 * np.pi, 90)
+    r = radius * t / t[-1]
+    return [np.array([at(ri * np.cos(a), cy + ri * np.sin(a) * squash) for ri, a in zip(r, t)])]
 
 
 def abs_lines(body: Body) -> list[np.ndarray]:

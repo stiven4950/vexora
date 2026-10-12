@@ -89,6 +89,18 @@ reactions:
         shapes: [abs]
         fill: 0.0
       trigger: *id004
+  # Seg. 14.6: no siempre la caja completa; a veces unas pocas líneas sueltas del pecho. De
+  # espaldas, músculos de la espalda o una figura de relleno (seg. 18.6: símbolo radiactivo).
+  - name: torso_lineas
+    weight: 0.3
+    kinds: [torso, left_arm, right_arm]
+    effects:
+    - type: body_glow
+      target: {kind: joint, id: torso}
+      style:
+        shapes: [abs, partial, lines_only]
+        fill: 0.0
+      trigger: {hold: 4, fade_in: 3, fade_out: 6}
   - name: collar_estrellas
     weight: 0.4
     kinds: [torso]

@@ -149,7 +149,7 @@ Qué detectar y qué imágenes caben. La columna de efecto da opciones; se sorte
 | Girar el objeto en las manos | `prop_spin` | Anillos que lo recorren; al acabar, orejas o corazón | ✅ |
 | Ponerse el objeto | `prop_worn` | Caricatura de la cara con el objeto | ✅ |
 | Lanzar el objeto | Objeto que sale rápido de la mano | Estela o mancha grande que lo sigue | ❌ |
-| Darse la vuelta | Hombros invertidos (izquierdo a la derecha) | Espalda: músculos o figura de relleno | ❌ |
+| Darse la vuelta | Hombros invertidos (izquierdo a la derecha) | Espalda: músculos o figura de relleno | ✅ (`facing`, `badge`) |
 | Cuerpo quieto, cara expresiva | Poco movimiento corporal, cambios en la boca o los ojos | Exagerar la expresión (ojos que brillan, cejas) | ❌ |
 | Manos al cinturón o a la cadera | Muñecas a la altura de la cadera | Cinturón de metal con brillo que se mueve | ❌ |
 | Pausa | `still`, `lull` | Accesorios (collar, estrellas en el pecho, sombrero) | ✅ |
