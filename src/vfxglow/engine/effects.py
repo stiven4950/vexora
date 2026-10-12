@@ -139,6 +139,10 @@ def render_effect(
         {"paint_trace": paint_fx.draw_paint_trace, "paint_accents": paint_fx.draw_paint_accents, "rising_sparks": paint_fx.draw_rising_sparks}[kind](
             runtime, track, points, frame_index, height, envelope, layer, event if effect.triggers else None
         )
+    elif kind == "season_fx":
+        from vfxglow.engine.season import draw_season
+
+        draw_season(runtime, track, points, frame_index, height, envelope, layer, event if effect.triggers else None)
     elif kind == "sprite_fx":
         from vfxglow.engine.sprite import draw_sprite
 

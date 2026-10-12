@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 import { api } from "../api/client";
 import { rgb } from "../api/format";
-import type { Style } from "../api/types";
+import type { Season, Style } from "../api/types";
 import { Button } from "../components/Button";
 import { Dropzone } from "../components/Dropzone";
 import { Icon } from "../components/Icon";
@@ -17,6 +17,8 @@ export function Studio() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [chosen, setChosen] = useState<Style | null>(null);
+  const [seasonList, setSeasonList] = useState<Season[]>([]);
+  const [season, setSeason] = useState<string | null>(null);
   const [showPresets, setShowPresets] = useState(false);
   const [upload, setUpload] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +31,10 @@ export function Studio() {
         setChosen((current) => current ?? list.find((s) => s.kind === "catalog") ?? null);
       })
       .catch((cause: unknown) => setLoadError(cause instanceof Error ? cause.message : String(cause)));
+    // Las temporadas son opcionales: si la API no las tiene, simplemente no se muestran.
+    api.seasons().then(setSeasonList).catch(() => setSeasonList([]));
   }, []);
+  const suggested = seasonList.find((s) => s.suggested) ?? null;
 
   const catalogs = useMemo(() => styleList.filter((s) => s.kind === "catalog"), [styleList]);
   const presets = useMemo(() => styleList.filter((s) => s.kind === "preset"), [styleList]);
@@ -43,7 +48,7 @@ export function Studio() {
     setUpload(0);
     try {
       // Sin semilla: el servidor prueba varias coreografías y se queda con la mejor.
-      const job = await api.create(file, chosen.kind, chosen.name, null, setUpload);
+      const job = await api.create(file, chosen.kind, chosen.name, null, setUpload, season);
       navigate(`/jobs/${job.id}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -88,7 +93,7 @@ export function Studio() {
         <Dropzone file={file} onFile={setFile} />
       </section>
 
-      <section className={`${styles.step} ${styles.last}`}>
+      <section className={styles.step}>
         <header>
           <span className={styles.num}>02</span>
           <div>
@@ -121,6 +126,46 @@ export function Studio() {
           </div>
         )}
       </section>
+
+      {seasonList.length > 0 && (
+        <section className={`${styles.step} ${styles.last}`}>
+          <header>
+            <span className={styles.num}>03</span>
+            <div>
+              <h2>Toque de temporada</h2>
+              <p>
+                {suggested
+                  ? `Estamos en temporada de ${suggested.title} ${suggested.emoji}. Puedes darle esa decoración y paleta a tu video.`
+                  : "Opcional: una decoración y una paleta de época encima del estilo elegido."}
+              </p>
+            </div>
+          </header>
+          <div className={styles.seasons}>
+            <button type="button" className={`${styles.season} ${season === null ? styles.on : ""}`} onClick={() => setSeason(null)}>
+              Sin temporada
+            </button>
+            {[...seasonList]
+              .sort((a, b) => Number(b.suggested) - Number(a.suggested))
+              .map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  title={s.description}
+                  className={`${styles.season} ${season === s.id ? styles.on : ""}`}
+                  onClick={() => setSeason(s.id)}
+                >
+                  <span aria-hidden="true">{s.emoji}</span> {s.title}
+                  {s.suggested && <span className={styles.badge}>de temporada</span>}
+                  <span className={styles.swatches}>
+                    {s.palette.slice(0, 4).map((c, i) => (
+                      <i key={i} style={{ background: rgb(c) }} />
+                    ))}
+                  </span>
+                </button>
+              ))}
+          </div>
+        </section>
+      )}
 
       <div className={styles.launch}>
         <div className={styles.summary}>

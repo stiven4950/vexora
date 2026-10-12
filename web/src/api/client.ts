@@ -1,4 +1,4 @@
-import type { Job, Moment, Style, StyleKind } from "./types";
+import type { Season, Job, Moment, Style, StyleKind } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -26,18 +26,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   styles: () => request<Style[]>("/api/styles"),
+  seasons: () => request<Season[]>("/api/seasons"),
   jobs: () => request<Job[]>("/api/jobs"),
   job: (id: string) => request<Job>(`/api/jobs/${id}`),
   choreography: (id: string) => request<Moment[]>(`/api/jobs/${id}/choreography`),
   remove: (id: string) => request<void>(`/api/jobs/${id}`, { method: "DELETE" }),
 
   /** Sube el video con progreso real (fetch no informa del envío; XHR sí). */
-  create(video: File, kind: StyleKind, style: string, seed: number | null, onUpload?: (fraction: number) => void): Promise<Job> {
+  create(video: File, kind: StyleKind, style: string, seed: number | null, onUpload?: (fraction: number) => void, season: string | null = null): Promise<Job> {
     const form = new FormData();
     form.append("video", video);
     form.append("style_kind", kind);
     form.append("style", style);
     if (seed !== null) form.append("seed", String(seed));
+    if (season) form.append("season", season);
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open("POST", "/api/jobs");
@@ -52,10 +54,10 @@ export const api = {
     });
   },
 
-  variation: (id: string, kind: StyleKind, style: string, seed: number | null) =>
+  variation: (id: string, kind: StyleKind, style: string, seed: number | null, season: string | null = null) =>
     request<Job>(`/api/jobs/${id}/variations`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ style_kind: kind, style, seed }),
+      body: JSON.stringify({ style_kind: kind, style, seed, season }),
     }),
 };

@@ -86,6 +86,8 @@ class Catalog(_Strict):
     # encendida, el objeto protagonista entra o llega a la cabeza). Sin esto, cada efecto sortea
     # su color por activación.
     chapters: bool = False
+    # Etiquetas para buscar el estilo (las temporadas añaden las suyas).
+    tags: list[str] = Field(default_factory=list)
     # Nada compite con el protagonista: los efectos se apagan fuera del foco de la línea de
     # atención del análisis (engine/focus.py).
     attention: bool = False

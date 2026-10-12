@@ -40,6 +40,16 @@ class CreativeDirector:
         # Registro de decisiones del coreógrafo de la última llamada (solo provider catalog).
         self.choreography = None
 
+    def _season(self):
+        from vfxglow.director.seasons import find, load_seasons
+
+        if not self.config.season:
+            return None
+        season = find(load_seasons(self.preset_dir.parent / "seasons.yaml"), self.config.season)
+        if season is None:
+            raise ValueError(f"Temporada desconocida: {self.config.season}")
+        return season
+
     def create(self, brief: MotionBrief) -> EffectScript:
         if self.config.provider == "catalog":
             from vfxglow.director.choreography import best_choreography, choreograph, load_catalog
@@ -48,6 +58,11 @@ class CreativeDirector:
             if not path.exists():
                 raise FileNotFoundError(f"No existe el catálogo {path}")
             catalog = load_catalog(path)
+            season = self._season()
+            if season is not None:
+                from vfxglow.director.seasons import apply_to_catalog
+
+                catalog = apply_to_catalog(catalog, season)
             if self.config.seed is not None:
                 script, self.choreography = choreograph(catalog, brief, self.config.seed)
             else:
@@ -64,7 +79,15 @@ class CreativeDirector:
             path = self.preset_dir / f"{self.config.preset}.yaml"
             if not path.exists():
                 raise FileNotFoundError(f"No existe el preset {path}")
-            return load_preset(path, brief.video.frame_count)
+            script = load_preset(path, brief.video.frame_count)
+            season = self._season()
+            if season is not None:
+                from vfxglow.director.schema import Effect
+                from vfxglow.director.seasons import decor_effect
+
+                decor = Effect.model_validate({"id": f"season_{season.id}", **decor_effect(season)})
+                script = script.model_copy(update={"effects": [*script.effects, decor]})
+            return script
         artist = self.config.style == "artist" and bool(brief.beats)
         prompt = render_art_prompt(brief) if artist else render_prompt(brief)
         images = keyframes(self.video, brief, self.config.images) if artist and self.video else []

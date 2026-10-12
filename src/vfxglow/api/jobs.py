@@ -42,6 +42,8 @@ class Job(BaseModel):
     seed: int | None = None
     # Sin semilla: versión automática (0 = la mejor; cada "otra versión" pide la siguiente).
     take: int = 0
+    # Temporada encima del estilo (configs/seasons.yaml), o ninguna.
+    season: str | None = None
     status: Status = "queued"
     stage: Stage = "queued"
     progress: float = 0.0
@@ -122,7 +124,7 @@ class JobStore:
 
     # ----- altas -----
 
-    def create(self, filename: str, data, style_kind: str, style: str, seed: int | None) -> Job:
+    def create(self, filename: str, data, style_kind: str, style: str, seed: int | None, season: str | None = None) -> Job:
         job_id = uuid.uuid4().hex[:10]
         folder = self.uploads / job_id
         folder.mkdir(parents=True)
@@ -130,9 +132,9 @@ class JobStore:
         target = folder / safe
         with target.open("wb") as out:
             shutil.copyfileobj(data, out)
-        return self._enqueue(Job(id=job_id, created=time.time(), filename=filename, video_path=str(target), style_kind=style_kind, style=style, seed=seed))
+        return self._enqueue(Job(id=job_id, created=time.time(), filename=filename, video_path=str(target), style_kind=style_kind, style=style, seed=seed, season=season))
 
-    def variation(self, parent: Job, style_kind: str, style: str, seed: int | None) -> Job:
+    def variation(self, parent: Job, style_kind: str, style: str, seed: int | None, season: str | None = None) -> Job:
         """Mismo video, otro estilo u otra versión: el análisis queda en caché y es rápido.
 
         Sin semilla, "otra versión" del mismo estilo es la siguiente del ranking (la mejor que no
@@ -141,7 +143,7 @@ class JobStore:
         take = 0
         if seed is None:
             with self._lock:
-                done = [j.take for j in self._jobs.values() if (j.parent or j.id) == root and j.style == style and j.style_kind == style_kind and j.seed is None]
+                done = [j.take for j in self._jobs.values() if (j.parent or j.id) == root and j.style == style and j.style_kind == style_kind and j.seed is None and j.season == season]
             take = max(done) + 1 if done else 0
         return self._enqueue(
             Job(
@@ -153,6 +155,7 @@ class JobStore:
                 style=style,
                 seed=seed,
                 take=take,
+                season=season,
                 parent=root,
             )
         )
@@ -219,6 +222,7 @@ class JobStore:
         self._update(job.id, status="running", stage="analyze", message="Preparando", started=time.time())
         try:
             kwargs = {"catalog": job.style, "seed": job.seed, "take": job.take} if job.style_kind == "catalog" else {"preset": job.style}
+            kwargs["season"] = job.season
             pipeline = Pipeline(self.config, Path(job.video_path), **kwargs)
             self._update(job.id, run_dir=str(pipeline.run_dir))
             output = pipeline.run()

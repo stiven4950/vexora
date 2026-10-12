@@ -58,6 +58,7 @@ class Style(BaseModel):
     palette: list[tuple[float, float, float]]
     actions: list[str]
     needs: list[str]
+    tags: list[str] = []
 
 
 @app.get("/api/styles", response_model=list[Style])
@@ -77,6 +78,7 @@ def styles() -> list[Style]:
                 palette=[tuple(c) for c in palette],
                 actions=[r.action for r in catalog.reactions],
                 needs=catalog.needs,
+                tags=catalog.tags,
             )
         )
     for path in sorted((ROOT / "configs" / "presets").glob("*.yaml")):
@@ -84,6 +86,40 @@ def styles() -> list[Style]:
         colors = [tuple(c) for e in raw.get("effects", []) for c in e.get("style", {}).get("colors", [])][:4]
         out.append(Style(kind="preset", name=path.stem, title=raw.get("title", path.stem), description="Preset fijo: siempre los mismos efectos.", palette=colors, actions=[], needs=[]))
     return out
+
+
+# ----- temporadas -----
+
+
+class SeasonView(BaseModel):
+    id: str
+    title: str
+    emoji: str
+    description: str
+    tags: list[str]
+    palette: list[tuple[float, float, float]]
+    decor: list[str]
+    suggested: bool
+
+
+@app.get("/api/seasons", response_model=list[SeasonView])
+def seasons() -> list[SeasonView]:
+    """Temporadas disponibles; `suggested` marca la que toca hoy (la web la propone)."""
+    from vfxglow.director.seasons import load_seasons, suggest
+
+    all_seasons = load_seasons(ROOT / "configs" / "seasons.yaml")
+    today = suggest(all_seasons)
+    return [
+        SeasonView(id=s.id, title=s.title, emoji=s.emoji, description=s.description, tags=s.tags, palette=s.palette, decor=s.decor, suggested=today is not None and s.id == today.id)
+        for s in all_seasons
+    ]
+
+
+def _check_season(season: str | None) -> None:
+    from vfxglow.director.seasons import find, load_seasons
+
+    if season and find(load_seasons(ROOT / "configs" / "seasons.yaml"), season) is None:
+        raise HTTPException(422, f"Temporada desconocida: {season}")
 
 
 # ----- trabajos -----
@@ -133,25 +169,29 @@ def create_job(
     style_kind: str = Form("catalog"),
     style: str = Form(...),
     seed: int | None = Form(None),
+    season: str | None = Form(None),
 ) -> JobView:
     if Path(video.filename or "").suffix.lower() not in VIDEO_TYPES:
         raise HTTPException(415, f"Formato no soportado. Usa {', '.join(sorted(VIDEO_TYPES))}")
     if video.size is not None and video.size > MAX_UPLOAD_MB * 1024 * 1024:
         raise HTTPException(413, f"El video supera {MAX_UPLOAD_MB} MB")
     _check_style(style_kind, style)
-    return view(jobs().create(video.filename or "video.mp4", video.file, style_kind, style, seed))
+    _check_season(season or None)
+    return view(jobs().create(video.filename or "video.mp4", video.file, style_kind, style, seed, season or None))
 
 
 class VariationRequest(BaseModel):
     style_kind: str = "catalog"
     style: str
     seed: int | None = None
+    season: str | None = None
 
 
 @app.post("/api/jobs/{job_id}/variations", response_model=JobView, status_code=201)
 def create_variation(job_id: str, body: VariationRequest) -> JobView:
     _check_style(body.style_kind, body.style)
-    return view(jobs().variation(_job(job_id), body.style_kind, body.style, body.seed))
+    _check_season(body.season)
+    return view(jobs().variation(_job(job_id), body.style_kind, body.style, body.seed, body.season))
 
 
 @app.get("/api/jobs/{job_id}", response_model=JobView)

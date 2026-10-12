@@ -60,6 +60,7 @@ class Pipeline:
         catalog: str | None = None,
         seed: int | None = None,
         take: int = 0,
+        season: str | None = None,
     ) -> None:
         self.config_path = config_path
         self.config = load_config(config_path)
@@ -75,6 +76,8 @@ class Pipeline:
             self.config.director.seed = seed
         # Sin semilla, la coreografía es la del puesto `take` entre varias candidatas (0 = la mejor).
         self.config.director.take = max(int(take), 0)
+        if season:
+            self.config.director.season = season
         if self.config.director.provider == "catalog":
             self._apply_catalog_needs()
         if level:

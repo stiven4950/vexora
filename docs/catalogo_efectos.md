@@ -586,6 +586,30 @@ coloque donde y cuando la coreografía lo pide. Ver `configs/sprites/README.md`:
   del evento y `tint` lo tiñe con el color del capítulo.
 - **Ejemplo:** `demo_burst` es un estallido generado por código.
 
+### Temporadas (`configs/seasons.yaml`, `--season`)
+
+Un estilo de época encima de cualquier catálogo o preset:
+
+- **Paleta:** sustituye la del catálogo (los capítulos de color toman de ella).
+- **Decoración:** `season_fx` sobre todo el video, sin tapar a la persona.
+- **Opciones potenciadas:** las que mejor encajan con la época salen 2,5 veces más.
+
+| Temporada | Cuándo se sugiere | Decoración | Paleta |
+| --- | --- | --- | --- |
+| Halloween 🎃 | Octubre | Telarañas, araña colgando, murciélagos, calabazas, fantasmas | Naranja, morado, verde ácido |
+| Día de Muertos 💀 | 28 oct – 3 nov | Calaveras con ojos de flor, cempasúchil | Naranja, magenta, turquesa |
+| Navidad 🎄 | Diciembre | Nieve, esferas colgando, estrella que corona | Rojo, verde, dorado |
+| Año Nuevo 🎆 | 28 dic – 3 ene | Fuegos artificiales | Dorado, plata, magenta |
+| San Valentín 💘 | 1–15 feb | Corazones que suben | Rosa, rojo, lila |
+
+La API la expone en `/api/seasons` con `suggested` (la que toca hoy) y los trabajos aceptan
+`season`. La web la propone en el paso "Toque de temporada". Para agregar una temporada basta una
+entrada en el YAML; las formas disponibles están en `engine/season.py`.
+
+```bash
+vfxglow run --video ../glowing/data/original/video_33.mp4 --catalog baile_neon --season halloween
+```
+
 ### Colores según el tono de piel
 
 El análisis mide el tono de piel de cada persona (`analysis/skin.py`: mejillas y, si la cara no

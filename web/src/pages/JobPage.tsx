@@ -56,7 +56,7 @@ export function JobPage() {
     setBusy(true);
     setActionError(null);
     try {
-      const next = await api.variation(job.id, kind, name, null);
+      const next = await api.variation(job.id, kind, name, null, job.season);
       navigate(`/jobs/${next.id}`);
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : String(cause));
@@ -95,6 +95,7 @@ export function JobPage() {
           <span className="eyebrow">
             {current?.title ?? job.style}
             {job.style_kind === "catalog" && ` · ${versionLabel(job)}`}
+            {job.season && ` · ${job.season.replace(/_/g, " ")}`}
           </span>
           <h1>{job.filename}</h1>
         </div>

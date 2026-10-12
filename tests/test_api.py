@@ -93,3 +93,13 @@ def test_versions_without_dice(client: TestClient) -> None:
     assert second["parent"] == third["parent"] == job["id"]
     other_style = client.post(f"/api/jobs/{job['id']}/variations", json={"style": "baile_neon"}).json()
     assert other_style["take"] == 0  # otro estilo: se empieza por la mejor
+
+
+def test_seasons_listed_and_used_by_jobs(client: TestClient) -> None:
+    listed = client.get("/api/seasons").json()
+    assert {"halloween", "navidad"} <= {s["id"] for s in listed}
+    assert sum(s["suggested"] for s in listed) <= 1
+    job = client.post("/api/jobs", files={"video": ("c.mp4", io.BytesIO(b"x"), "video/mp4")}, data={"style": "pelea", "season": "halloween"}).json()
+    assert job["season"] == "halloween"
+    bad = client.post("/api/jobs", files={"video": ("c.mp4", io.BytesIO(b"x"), "video/mp4")}, data={"style": "pelea", "season": "marte"})
+    assert bad.status_code == 422

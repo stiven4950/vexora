@@ -45,6 +45,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         command.add_argument("--catalog", type=str, default=None, help="Coreografía por catálogo (configs/catalogs/<nombre>.yaml)")
         command.add_argument("--seed", type=int, default=None, help="Semilla exacta del catálogo (sin ella se elige sola la mejor coreografía)")
+        command.add_argument("--season", type=str, default=None, help="Temporada encima del estilo (configs/seasons.yaml): halloween, navidad...")
         command.add_argument("--take", type=int, default=0, help="Sin --seed: 0 = la mejor coreografía; 1, 2... = otras versiones buenas")
         command.add_argument("--level", choices=["fast", "hq", "masks"], default=None)
         command.add_argument("--force", action="store_true", help="Ignora la caché de etapas")
@@ -76,6 +77,7 @@ def main(argv: list[str] | None = None) -> int:
         catalog=args.catalog,
         seed=args.seed,
         take=args.take,
+        season=args.season,
     )
     getattr(pipeline, args.command if args.command != "run" else "run")()
     return 0

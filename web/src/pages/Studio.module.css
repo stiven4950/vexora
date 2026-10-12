@@ -219,3 +219,54 @@
     max-width: 120px;
   }
 }
+
+.seasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.season {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--panel);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+
+.season:hover {
+  color: var(--text);
+}
+
+.season.on {
+  color: var(--text);
+  border-color: var(--cyan);
+  background: rgba(var(--cyan-rgb), 0.08);
+}
+
+.badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--action-gradient);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.swatches {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.swatches i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}

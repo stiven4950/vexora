@@ -12,6 +12,20 @@ export interface Style {
   palette: Rgb[];
   actions: string[];
   needs: string[];
+  tags: string[];
+}
+
+/** Estilo de época (configs/seasons.yaml) que se aplica encima del estilo elegido. */
+export interface Season {
+  id: string;
+  title: string;
+  emoji: string;
+  description: string;
+  tags: string[];
+  palette: Rgb[];
+  decor: string[];
+  /** La temporada que toca hoy: la web la propone. */
+  suggested: boolean;
 }
 
 export type JobStatus = "queued" | "running" | "done" | "failed";
@@ -26,6 +40,7 @@ export interface Job {
   seed: number | null;
   /** Sin semilla: 0 = la mejor coreografía elegida sola; 1, 2... = "otra versión". */
   take: number;
+  season: string | null;
   status: JobStatus;
   stage: JobStage;
   progress: number;

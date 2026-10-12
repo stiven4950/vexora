@@ -165,6 +165,8 @@ class DirectorConfig(_Strict):
     catalog: str = "pelea"
     seed: int | None = None
     take: int = 0
+    # Temporada (configs/seasons.yaml) que se aplica encima del estilo: paleta y decoración.
+    season: str | None = None
     model: str = "gpt-5"
     api_key_env: str = "OPENAI_API_KEY"
     temperature: float = 0.4
