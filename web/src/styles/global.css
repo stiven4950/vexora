@@ -169,18 +169,14 @@ button {
   color: var(--text);
 }
 
-.vx-x {
-  background: var(--brand-gradient);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
 .vx-tagline {
   font-family: var(--mono);
   font-size: 0.5em;
   letter-spacing: 0.3em;
   text-transform: uppercase;
-  color: var(--muted);
   margin-top: 0.35em;
+  background: var(--brand-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
