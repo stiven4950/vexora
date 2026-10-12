@@ -220,6 +220,234 @@ def stomp_events(frames: list[FrameRecord], fps: float, width: int, height: int)
     return sorted(events, key=lambda e: e.start_frame)
 
 
+# ----- poses sostenidas: el gesto dura al menos POSE_MIN_S -----
+
+POSE_MIN_S = 0.3
+HEART_NEAR = 0.32  # muñecas juntas, en torsos
+HEART_MIN_S = 0.5
+ARMS_UP = 0.25  # muñecas por encima de la nariz, en torsos
+OPEN_WIDE = 2.3  # muñecas separadas, en anchos de hombros
+OPEN_LEVEL = 0.35  # muñecas a la altura de los hombros (torsos)
+POINT_REACH = 0.85  # brazo extendido (hombro-muñeca, torsos)
+POINT_INDEX = 1.6  # índice más largo que el resto de los dedos (desde la muñeca)
+EAR_NEAR = 0.45  # dedos junto a la oreja (tamaños de cara)
+EAR_FACE_MIN = 0.45  # y no junto a la boca o la mejilla (eso es tocarse la cara)
+EYES_NEAR = 0.32  # dedos sobre los ojos (tamaños de cara)
+SPIN_MAX_S = 1.0  # de espaldas como mucho esto entre dos tramos de frente
+SPIN_MIN_S = 0.3
+SPIN_BACK_S = 0.15  # de espaldas de verdad, no un cruce de hombros de un fotograma
+
+
+def _spans(flags: list[str | None], frames: list[FrameRecord], fps: float, min_s: float = POSE_MIN_S):
+    """Tramos seguidos con la misma etiqueta (no None) de al menos `min_s`: (inicio, fin, etiqueta)."""
+    out, start = [], None
+    for index in range(len(flags) + 1):
+        current = flags[index] if index < len(flags) else None
+        if start is not None and (current != flags[start]):
+            if index - start >= min_s * fps:
+                out.append((frames[start].frame, frames[index - 1].frame, flags[start]))
+            start = None
+        if start is None and current is not None:
+            start = index
+    return out
+
+
+def _pose_events(frames, fps, width, height, name, detail, flag_of, min_s=POSE_MIN_S) -> list[MotionEvent]:
+    events: list[MotionEvent] = []
+    for person in sorted({p.person_id for record in frames for p in _people(record)}):
+        flags, where = [], {}
+        for record in frames:
+            owner, pts = _pose(record, person, width, height)
+            result = flag_of(record, owner, pts) if pts is not None and "left_shoulder" in pts and "left_hip" in pts and "right_shoulder" in pts else None
+            if result is None:
+                flags.append(None)
+                continue
+            flags.append(result[0])
+            where[record.frame] = result[1]
+        for start, end, kind in _spans(flags, frames, fps, min_s):
+            position = where.get(start)
+            events.append(
+                MotionEvent(
+                    name=name,
+                    target=f"{person}:{kind}" if kind not in ("", "both") else person,
+                    start_frame=start,
+                    end_frame=end,
+                    confidence=0.8,
+                    detail=detail,
+                    position=(float(position[0] / width), float(position[1] / height)) if position is not None else None,
+                    kind=kind,
+                )
+            )
+    return sorted(events, key=lambda e: e.start_frame)
+
+
+def _torso(pts) -> float:
+    return max(float(np.linalg.norm(pts["left_shoulder"] - pts["left_hip"])), 1.0)
+
+
+def heart_hands_events(frames, fps, width, height):
+    """Corazón con las manos: las dos muñecas juntas frente al pecho."""
+
+    def flag(record, owner, pts):
+        if "left_wrist" not in pts or "right_wrist" not in pts:
+            return None
+        if record.prop is not None and record.prop.state in ("left", "right", "both"):
+            return None  # las manos juntas sostienen el objeto
+        torso, mid = _torso(pts), (pts["left_wrist"] + pts["right_wrist"]) / 2
+        top, bottom = min(pts["left_shoulder"][1], pts["right_shoulder"][1]), pts["left_hip"][1]
+        if np.linalg.norm(pts["left_wrist"] - pts["right_wrist"]) / torso < HEART_NEAR and top - 0.1 * torso <= mid[1] <= bottom:
+            return "both", mid
+        return None
+
+    # Al menos HEART_MIN_S: un aplauso también junta las manos, pero no se sostiene.
+    return _pose_events(frames, fps, width, height, "heart_hands", "Las dos manos juntas frente al pecho (corazón).", flag, min_s=HEART_MIN_S)
+
+
+def arms_up_events(frames, fps, width, height):
+    """Brazos arriba / victoria: las dos muñecas por encima de la cabeza."""
+
+    def flag(record, owner, pts):
+        if "left_wrist" not in pts or "right_wrist" not in pts or "nose" not in pts:
+            return None
+        torso, nose = _torso(pts), pts["nose"]
+        if max(pts["left_wrist"][1], pts["right_wrist"][1]) < nose[1] - ARMS_UP * torso:
+            return "both", nose - np.array([0.0, 0.6 * torso])
+        return None
+
+    return _pose_events(frames, fps, width, height, "arms_up", "Los dos brazos arriba (victoria).", flag)
+
+
+def arms_open_events(frames, fps, width, height):
+    """Brazos abiertos en cruz: muñecas muy separadas a la altura de los hombros."""
+
+    def flag(record, owner, pts):
+        if "left_wrist" not in pts or "right_wrist" not in pts:
+            return None
+        torso = _torso(pts)
+        shoulders = float(np.linalg.norm(pts["left_shoulder"] - pts["right_shoulder"]))
+        level = (pts["left_shoulder"][1] + pts["right_shoulder"][1]) / 2
+        wide = abs(pts["left_wrist"][0] - pts["right_wrist"][0]) / max(shoulders, 1.0)
+        if wide > OPEN_WIDE and all(abs(pts[f"{s}_wrist"][1] - level) / torso < OPEN_LEVEL for s in ("left", "right")):
+            return "both", (pts["left_shoulder"] + pts["right_shoulder"]) / 2
+        return None
+
+    return _pose_events(frames, fps, width, height, "arms_open", "Los brazos abiertos en cruz.", flag)
+
+
+def point_events(frames, fps, width, height):
+    """Señalar: brazo extendido con el índice estirado y los demás dedos recogidos."""
+
+    def flag(record, owner, pts):
+        torso = _torso(pts)
+        for side in ("left", "right"):
+            hand = owner.left_hand if side == "left" else owner.right_hand
+            if hand is None or f"{side}_wrist" not in pts or f"{side}_shoulder" not in pts:
+                continue
+            lm = {l.name.replace(f"{side}_", ""): np.array([l.x * width, l.y * height]) for l in hand.landmarks}
+            if not all(k in lm for k in ("wrist", "index_finger_tip", "middle_finger_tip", "ring_finger_tip")) and not all(k in lm for k in ("wrist", "index_tip", "middle_tip", "ring_tip")):
+                continue
+            tip = lm.get("index_finger_tip", lm.get("index_tip"))
+            others = [lm.get(f"{f}_finger_tip", lm.get(f"{f}_tip")) for f in ("middle", "ring", "pinky")]
+            others = [o for o in others if o is not None]
+            index_len = float(np.linalg.norm(tip - lm["wrist"]))
+            rest = float(np.mean([np.linalg.norm(o - lm["wrist"]) for o in others]))
+            reach = float(np.linalg.norm(pts[f"{side}_wrist"] - pts[f"{side}_shoulder"])) / torso
+            if reach >= POINT_REACH and index_len > POINT_INDEX * rest:
+                return side, tip
+        return None
+
+    events = _pose_events(frames, fps, width, height, "point", "Señala con el índice y el brazo extendido.", flag)
+    for event in events:
+        record = next((r for r in frames if r.frame == event.start_frame), None)
+        owner, pts = _pose(record, event.target.split(":")[0], width, height) if record else (None, None)
+        if pts and f"{event.kind}_elbow" in pts and event.position is not None:
+            direction = np.array(event.position) * [width, height] - pts[f"{event.kind}_elbow"]
+            event.direction_deg = float(np.degrees(np.arctan2(direction[1], direction[0])))
+    return events
+
+
+def _face_hand(owner, pts, width, height):
+    frame = face_frame(owner, width, height)
+    if frame is None:
+        return None
+    return frame[1]
+
+
+def hand_ear_events(frames, fps, width, height):
+    """Mano en el oído ("no te oigo"): dedos junto a una oreja y lejos de los ojos."""
+
+    def flag(record, owner, pts):
+        size = _face_hand(owner, pts, width, height)
+        if size is None or "left_eye" not in pts or "right_eye" not in pts:
+            return None
+        eyes = (pts["left_eye"] + pts["right_eye"]) / 2
+        for side in ("left", "right"):
+            tips = fingertips(owner, side, width, height)
+            for ear_name in ("left_ear", "right_ear"):
+                ear = pts.get(ear_name)
+                if ear is None or not tips:
+                    continue
+                near_ear = min(float(np.linalg.norm(t - ear)) for t in tips) / size
+                near_eyes = min(float(np.linalg.norm(t - eyes)) for t in tips) / size
+                # Junto a la boca o la mejilla es tocarse la cara (face_touch), no el oído.
+                center = face_frame(owner, width, height)[0]
+                near_face = min(float(np.linalg.norm(t - center)) for t in tips) / size
+                if near_ear < EAR_NEAR and near_eyes > EYES_NEAR and near_face > EAR_FACE_MIN:
+                    return side, ear
+        return None
+
+    return _pose_events(frames, fps, width, height, "hand_ear", "La mano en el oído (no te oigo).", flag)
+
+
+def cover_eyes_events(frames, fps, width, height):
+    """Mano en los ojos: los dedos tapan los ojos."""
+
+    def flag(record, owner, pts):
+        size = _face_hand(owner, pts, width, height)
+        if size is None or "left_eye" not in pts or "right_eye" not in pts:
+            return None
+        eyes = (pts["left_eye"] + pts["right_eye"]) / 2
+        for side in ("left", "right"):
+            tips = fingertips(owner, side, width, height)
+            if tips and min(float(np.linalg.norm(t - eyes)) for t in tips) / size < EYES_NEAR:
+                return side, eyes
+        return None
+
+    return _pose_events(frames, fps, width, height, "cover_eyes", "La mano tapa los ojos.", flag, min_s=0.25)
+
+
+def spin_body_events(frames, fps, width, height):
+    """Giro sobre sí mismo: pasa de frente a espaldas y vuelve en menos de SPIN_MAX_S."""
+    events: list[MotionEvent] = []
+    for person in sorted({p.person_id for record in frames for p in _people(record)}):
+        side = []
+        for record in frames:
+            _, pts = _pose(record, person, width, height)
+            if pts is None or "left_shoulder" not in pts or "right_shoulder" not in pts or "left_hip" not in pts:
+                side.append(None)
+                continue
+            dx = float(pts["left_shoulder"][0] - pts["right_shoulder"][0]) / _torso(pts)
+            side.append("front" if dx > 0.2 else "back" if dx < -0.15 else "side")
+        index = 0
+        while index < len(frames):
+            if side[index] != "back":
+                index += 1
+                continue
+            end = index
+            while end < len(frames) and side[end] != "front":
+                end += 1
+            start = index
+            while start > 0 and side[start - 1] not in ("front", None):
+                start -= 1
+            before = start > 0 and side[start - 1] == "front"
+            after = end < len(frames) and side[end] == "front"
+            backs = sum(1 for k in range(start, end) if side[k] == "back")
+            if before and after and SPIN_MIN_S * fps <= (end - start) <= SPIN_MAX_S * fps and backs >= SPIN_BACK_S * fps:
+                events.append(MotionEvent(name="spin_body", target=person, start_frame=frames[start].frame, end_frame=frames[end - 1].frame, confidence=0.8, detail="Giro sobre sí mismo (frente → espaldas → frente)."))
+            index = end + 1
+    return sorted(events, key=lambda e: e.start_frame)
+
+
 def _frenzy(frames, fps, width, height):
     from vfxglow.analysis.attention import frenzy_events
 
@@ -228,5 +456,17 @@ def _frenzy(frames, fps, width, height):
 
 # Detectores de gestos y nombres de sus eventos (el pipeline los recalcula en análisis
 # anteriores; ver Pipeline._ensure_derived).
-GESTURE_DETECTORS = (throw_events, neck_slash_events, stomp_events, _frenzy)
-GESTURE_NAMES = {"throw", "neck_slash", "stomp", "frenzy"}
+GESTURE_DETECTORS = (
+    throw_events,
+    neck_slash_events,
+    stomp_events,
+    _frenzy,
+    heart_hands_events,
+    arms_up_events,
+    arms_open_events,
+    point_events,
+    hand_ear_events,
+    cover_eyes_events,
+    spin_body_events,
+)
+GESTURE_NAMES = {"throw", "neck_slash", "stomp", "frenzy", "heart_hands", "arms_up", "arms_open", "point", "hand_ear", "cover_eyes", "spin_body"}

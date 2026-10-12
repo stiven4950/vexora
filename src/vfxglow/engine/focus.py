@@ -47,6 +47,12 @@ def _joint_region(joint: str) -> str | None:
 def effect_regions(effect: Effect, event: MotionEvent | None) -> set[str] | None:
     """Regiones sobre las que dibuja el efecto; None = sin región (no se regula)."""
     kind = effect.type
+    if kind == "heart_fx":
+        return {"left_arm", "right_arm"}
+    if kind == "point_fx":
+        return {f"{event.kind}_arm"} if event is not None and event.kind in ("left", "right") else None
+    if kind in ("confetti_fx", "sound_waves"):
+        return {"head"}
     if kind in ("foot_paint", "pop_fx"):
         return {"legs"}
     if kind.startswith("prop_"):

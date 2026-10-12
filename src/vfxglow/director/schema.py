@@ -63,6 +63,11 @@ EffectType = Literal[
     "disco_fx",
     "beat_pulse",
     "equalizer",
+    "heart_fx",
+    "point_fx",
+    "confetti_fx",
+    "sound_waves",
+    "whirl_fx",
 ]
 TargetKind = Literal["joint", "chain", "face_region", "mask", "object", "event_point", "contour"]
 BlendMode = Literal["add", "screen", "over", "multiply", "tint"]
@@ -107,6 +112,13 @@ EVENT_NAMES: tuple[str, ...] = (
     "stomp",
     "frenzy",
     "beat",
+    "heart_hands",
+    "arms_up",
+    "arms_open",
+    "point",
+    "hand_ear",
+    "cover_eyes",
+    "spin_body",
 )
 
 
@@ -355,6 +367,11 @@ SUPPORTED_TYPES: tuple[str, ...] = (
     "disco_fx",
     "beat_pulse",
     "equalizer",
+    "heart_fx",
+    "point_fx",
+    "confetti_fx",
+    "sound_waves",
+    "whirl_fx",
 )
 
 # Efectos que por defecto pertenecen a un grupo distinto de glow.

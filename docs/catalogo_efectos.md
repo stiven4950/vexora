@@ -520,6 +520,23 @@ valió".
 - **`equalizer`**: barras de neón sobre el piso que saltan con los golpes recientes (el motor le
   pasa a cada efecto la lista de golpes).
 
+### Gestos sostenidos
+
+Poses que duran al menos 0,3 s (`analysis/gestures.py`). Cada una le da el foco a su región en la
+línea de atención:
+
+| Gesto | Cómo se detecta | Efecto |
+| --- | --- | --- |
+| `heart_hands` | Muñecas juntas frente al pecho ≥ 0,5 s, sin el objeto en las manos | `heart_fx`: corazón que late en las manos y al soltar sube |
+| `point` | Brazo extendido y el índice 1,6 veces más largo que los otros dedos | `point_fx`: rayo con flecha desde el índice e impacto |
+| `arms_up` | Las dos muñecas por encima de la cabeza | `confetti_fx`: confeti que cae y fuegos sobre la cabeza |
+| `arms_open` | Muñecas separadas más de 2,3 anchos de hombros a su altura | Alas (ver más abajo) |
+| `hand_ear` | Dedos junto a una oreja, lejos de los ojos y de la boca | `sound_waves`: ondas ")))" que salen de la oreja |
+| `cover_eyes` | Dedos sobre los ojos | `eyewear` antifaz o banda |
+| `spin_body` | De frente a espaldas y de vuelta en 0,3–1 s | `whirl_fx`: anillos de torbellino que suben girando |
+
+El beso (`face_touch`) cede ante `cover_eyes` y `hand_ear`.
+
 ### Colores según el tono de piel
 
 El análisis mide el tono de piel de cada persona (`analysis/skin.py`: mejillas y, si la cara no

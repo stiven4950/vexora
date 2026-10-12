@@ -53,6 +53,15 @@ TRANSFER_SCORE = 2.5
 # (la cabeza, mientras duran los ojos en X y las gafas).
 GESTURE_SCORE = 2.6
 GESTURE_AFTER_S = 0.6
+# Gestos sostenidos y la región que se llevan ("hand" = el brazo de la mano del evento).
+GESTURE_FOCUS = {
+    "heart_hands": ("left_arm", "right_arm"),
+    "arms_open": ("left_arm", "right_arm"),
+    "point": ("hand",),
+    "arms_up": ("head",),
+    "hand_ear": ("head",),
+    "cover_eyes": ("head",),
+}
 SLASH_AFTER_S = 1.2
 
 
@@ -142,6 +151,13 @@ def attention_timeline(frames: list[FrameRecord], events: list[MotionEvent], fps
             first, last = frame_of.get(event.start_frame), frame_of.get(event.end_frame)
             if first is None or last is None:
                 continue
+            regions = GESTURE_FOCUS.get(event.name)
+            if regions is not None:
+                if regions == ("hand",):
+                    regions = (f"{event.kind}_arm",) if event.kind in ("left", "right") else ()
+                stop = min(last + int(GESTURE_AFTER_S * fps), n)
+                for region in regions:
+                    scores[region][first:stop] = np.maximum(scores[region][first:stop], GESTURE_SCORE)
             if event.name == "throw" and event.kind in ("left", "right"):
                 arm = f"{event.kind}_arm"
                 stop = min(last + int(GESTURE_AFTER_S * fps), n)

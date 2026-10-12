@@ -282,6 +282,9 @@ reactions:
   # al apartarse, los labios viajan hasta los dedos y los ojos se estiran ("jalón").
   - name: beso
     weight: 1.0
+    # Si en realidad se tapa los ojos o se lleva la mano al oído, manda ese gesto.
+    yields_to: [cover_eyes, hand_ear]
+    yield_chance: 0.9
     effects:
     - type: face_toon
       style: {shapes: [tint], fill: 0.8, palette_every: 30}
@@ -290,6 +293,72 @@ reactions:
     - type: face_toon
       style: {shapes: [kiss], palette_every: 30}
       trigger: *beso
+- action: heart_hands
+  options:
+  - name: corazon
+    weight: 0.85
+    effects:
+    - type: heart_fx
+      style: {thickness: 0.014, palette_every: 30}
+      trigger: {hold: 18, fade_in: 2, fade_out: 6}
+  - name: nada
+    weight: 0.15
+    effects: []
+- action: point
+  options:
+  - name: senal
+    weight: 0.9
+    effects:
+    - type: point_fx
+      style: {thickness: 0.012, palette_every: 30}
+      trigger: {hold: 4, fade_in: 1, fade_out: 6}
+  - name: nada
+    weight: 0.1
+    effects: []
+- action: arms_up
+  options:
+  - name: fiesta
+    weight: 0.85
+    effects:
+    - type: confetti_fx
+      style: {palette_every: 30}
+      trigger: {hold: 24, fade_in: 1, fade_out: 10}
+  - name: nada
+    weight: 0.15
+    effects: []
+- action: hand_ear
+  options:
+  - name: ondas
+    weight: 0.85
+    effects:
+    - type: sound_waves
+      style: {thickness: 0.012, palette_every: 30}
+      trigger: {hold: 6, fade_in: 2, fade_out: 6}
+  - name: nada
+    weight: 0.15
+    effects: []
+- action: cover_eyes
+  options:
+  - name: antifaz
+    weight: 0.8
+    effects:
+    - type: eyewear
+      style: {shapes: [mask, band], thickness: 0.08, palette_every: 30}
+      trigger: {hold: 10, fade_in: 2, fade_out: 8}
+  - name: nada
+    weight: 0.2
+    effects: []
+- action: spin_body
+  options:
+  - name: torbellino
+    weight: 0.8
+    effects:
+    - type: whirl_fx
+      style: {focus: false, palette_every: 30}
+      trigger: {hold: 10, fade_in: 2, fade_out: 8}
+  - name: nada
+    weight: 0.2
+    effects: []
 - action: frenzy
   options:
   # Mucho movimiento de todo el cuerpo: modo discoteca (destellos disparados y haces de luz) o

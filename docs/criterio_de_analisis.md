@@ -152,6 +152,14 @@ Qué detectar y qué imágenes caben. La columna de efecto da opciones; se sorte
 | Darse la vuelta | Hombros invertidos (izquierdo a la derecha) | Espalda: músculos o figura de relleno | ✅ (`facing`, `badge`) |
 | Cuerpo quieto, cara expresiva | Poco movimiento corporal, cambios en la boca o los ojos | Exagerar la expresión (ojos que brillan, cejas) | ❌ |
 | Manos al cinturón o a la cadera | Muñecas a la altura de la cadera | Cinturón de metal con brillo que se mueve | ✅ en parte (`belt`, sin detectar el gesto) |
+| Corazón con las manos | Muñecas juntas frente al pecho | Corazón que late y sube | ✅ (`heart_hands`) |
+| Señalar | Brazo extendido con el índice estirado | Rayo o flecha con impacto | ✅ (`point`) |
+| Brazos arriba | Muñecas sobre la cabeza | Confeti, fuegos artificiales | ✅ (`arms_up`) |
+| Brazos en cruz | Muñecas separadas a la altura de los hombros | Alas | ✅ (`arms_open`) |
+| Mano en el oído | Dedos junto a la oreja | Ondas de sonido | ✅ (`hand_ear`) |
+| Mano en los ojos | Dedos sobre los ojos | Antifaz o venda | ✅ (`cover_eyes`) |
+| Giro sobre sí mismo | Frente → espaldas → frente en menos de 1 s | Torbellino alrededor del cuerpo | ✅ (`spin_body`) |
+| Baile intenso | Todo el cuerpo muy por encima de lo habitual | Discoteca, ecualizador | ✅ (`frenzy`) |
 | Pausa | `still`, `lull` | Accesorios (collar, estrellas en el pecho, sombrero) | ✅ |
 | Fin del video | Último segundo | Todo se disipa en estrellas diminutas | ✅ (`closing_stars`) |
 
