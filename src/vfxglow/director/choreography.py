@@ -37,6 +37,9 @@ class Option(_Strict):
     # yield_chance la opción no sale (un accesorio de cabeza no tapa la gorra recién puesta).
     # Al azar, para que a veces sí coincidan.
     yields_to: list[str] = Field(default_factory=list)
+    # Efecto de escena o disfraz (discoteca, bola de espejos, sombrero y cinturón, rayos X...): no
+    # se enciende sobre otro exclusivo ni sobre un momento clave, y mientras dura cede el resto.
+    exclusive: bool = False
     yield_chance: float = 0.75
     yield_window_s: float = 1.5
     # La acción debe venir de una persona identificada (person_N:...). Un rayo de los ojos
@@ -95,6 +98,8 @@ class Decision(_Strict):
     action: str
     target: str
     choice: str
+    # Último fotograma en que su efecto sigue encendido (para contar efectos simultáneos).
+    until: int = -1
 
 
 class Choreography(_Strict):
@@ -130,20 +135,52 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -
         spots = attention_spotlights(brief.attention, fps)
         events = [e for e in events if e.name != "spotlight"] + spots
         extra += spots
-    for reaction in catalog.reactions:
-        last = -10_000
-        used: dict[str, int] = {}
-        for event in sorted((e for e in events if e.name == reaction.action), key=lambda e: e.start_frame):
-            resting = {name for name, frame in used.items() if event.start_frame - frame < _option(reaction, name).cooldown}
+    # Dos pasadas: primero los momentos clave (gestos, objeto, beso), que siempre mandan; después
+    # el resto en orden de tiempo, para que una opción exclusiva (un efecto de escena) no se
+    # encienda encima de otra ni encima de un momento clave, y mientras dure los efectos de
+    # protagonista y de ambiente cedan.
+    state = {id(reaction): {"last": -10_000, "used": {}} for reaction in catalog.reactions}
+    key_windows: list[tuple[int, int]] = []
+    # Ventanas encendidas que no son momentos clave ni ambiente. Un efecto nuevo cuenta estas
+    # (al empezar) y los momentos clave que se crucen con su ventana: como mucho MAX_TOGETHER.
+    lit: list[tuple[int, int]] = []
+    exclusive_until = -1
+    passes = [
+        [(e, r) for r in catalog.reactions if r.action in KEY_ACTIONS for e in events if e.name == r.action],
+        [(e, r) for r in catalog.reactions if r.action not in KEY_ACTIONS for e in events if e.name == r.action],
+    ]
+    for pairs in passes:
+        for event, reaction in sorted(pairs, key=lambda pair: (pair[0].start_frame, catalog.reactions.index(pair[1]))):
+            memo = state[id(reaction)]
+            resting = {name for name, frame in memo["used"].items() if event.start_frame - frame < _option(reaction, name).cooldown}
             option = _draw(reaction, event, seed, resting, brief)
             if option.yields_to and _yields(option, event, brief, seed, fps):
                 option = Option(name=f"nada (cede a {', '.join(option.yields_to)})")
-            if option.effects and event.start_frame - last < reaction.cooldown:
+            if option.effects and event.start_frame - memo["last"] < reaction.cooldown:
                 option = Option(name="nada (enfriamiento)")
+            start, end = _window(option, event)
+            if option.effects and option.exclusive:
+                if start <= exclusive_until or any(ks <= end and start <= ke for ks, ke in key_windows):
+                    option = Option(name="nada (cede: ya hay un efecto de escena o un momento clave)")
+            elif option.effects and reaction.action in YIELD_TO_EXCLUSIVE and start <= exclusive_until:
+                option = Option(name="nada (cede al efecto de escena)")
+            if (
+                option.effects
+                and reaction.action not in KEY_ACTIONS
+                and reaction.action not in AMBIENT_ACTIONS
+                and sum(1 for ls, le in lit if ls <= start <= le) + sum(1 for ks, ke in key_windows if ks <= end and start <= ke) >= MAX_TOGETHER
+            ):
+                option = Option(name="nada (ya hay dos focos encendidos)")
             if option.effects:
-                last = event.start_frame
-                used[option.name] = event.start_frame
+                memo["last"] = event.start_frame
+                memo["used"][option.name] = event.start_frame
                 chosen.setdefault((reaction.action, option.name), []).append((event.start_frame, event.target))
+                if option.exclusive:
+                    exclusive_until = end
+                if reaction.action in KEY_ACTIONS:
+                    key_windows.append((start, end))
+                if reaction.action not in AMBIENT_ACTIONS and reaction.action not in KEY_ACTIONS:
+                    lit.append((start, end))
             decisions.append(
                 Decision(
                     frame=event.start_frame,
@@ -151,6 +188,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -
                     action=reaction.action,
                     target=event.target,
                     choice=option.name,
+                    until=end if option.effects else event.start_frame,
                 )
             )
     effects: list[dict] = [_effect(catalog, raw, f"always_{index}") for index, raw in enumerate(catalog.always)]
@@ -286,6 +324,7 @@ CANDIDATES = 8
 AMBIENT_ACTIONS = ("beat",)
 # Más efectos por segundo que esto satura la escena.
 MAX_DENSITY = 1.2
+MAX_TOGETHER = 2
 WINDOW_S = 1.2
 
 
@@ -295,7 +334,8 @@ def score_choreography(choreography: Choreography, brief: MotionBrief) -> float:
     - momentos clave atendidos (gestos y objeto, peso 3),
     - tramos de atención con algún efecto encendido (peso 2): pocos huecos vacíos,
     - variedad de opciones (peso 1),
-    - menos si satura (más de MAX_DENSITY efectos por segundo) o repite lo mismo seguido.
+    - menos si satura (más de MAX_DENSITY efectos por segundo), si apila más de MAX_TOGETHER
+      efectos a la vez o si repite lo mismo seguido.
     """
     fps = brief.video.fps or 30.0
     duration = max(brief.video.frame_count / fps, 1.0)
@@ -316,7 +356,13 @@ def score_choreography(choreography: Choreography, brief: MotionBrief) -> float:
     repeats = sum(
         1 for a, b in zip(active, active[1:]) if a.choice == b.choice and a.action == b.action and b.second - a.second < 3.0
     ) / max(len(active), 1)
-    return 3.0 * key_score + 2.0 * coverage + variety - 2.0 * crowd - repeats
+    # Efectos simultáneos: cuadros con más de MAX_TOGETHER efectos encendidos a la vez.
+    together = np.zeros(int(brief.video.frame_count) + 1)
+    for d in active:
+        if d.until >= d.frame:
+            together[max(d.frame, 0) : min(d.until, len(together) - 1) + 1] += 1
+    stacked = float(np.mean(together > MAX_TOGETHER)) if len(together) else 0.0
+    return 3.0 * key_score + 2.0 * coverage + variety - 2.0 * crowd - repeats - 6.0 * stacked
 
 
 def best_choreography(catalog: Catalog, brief: MotionBrief, take: int = 0, candidates: int = CANDIDATES) -> tuple[EffectScript, Choreography]:
@@ -346,6 +392,19 @@ def _wears(brief: MotionBrief | None, event: MotionEvent, kinds: list[str]) -> b
         a.kind in kinds and a.start_frame <= event.start_frame <= a.end_frame and (person is None or a.person == person)
         for a in brief.accessories
     )
+
+
+# Reacciones que callan mientras hay un efecto de escena encendido.
+YIELD_TO_EXCLUSIVE = ("spotlight", "still", "fast_swing", "beat", "stomp")
+
+
+def _window(option: Option, event: MotionEvent) -> tuple[int, int]:
+    """Fotogramas en que la opción tendrá algo encendido (con anticipación y `hold`)."""
+    lead = max((effect.get("trigger", {}).get("lead", 0) for effect in option.effects), default=0)
+    hold = max((effect.get("trigger", {}).get("hold", 8) for effect in option.effects), default=0)
+    anchored = any(effect.get("trigger", {}).get("anchor") == "end" for effect in option.effects)
+    start = (event.end_frame if anchored else event.start_frame) - lead
+    return start, event.end_frame + hold
 
 
 def _yields(option: Option, event: MotionEvent, brief: MotionBrief, seed: int, fps: float) -> bool:

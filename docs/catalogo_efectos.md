@@ -16,6 +16,16 @@ análisis ──> eventos (acciones) ──> coreógrafo + catálogo ──> Eff
   momentos clave atendidos (gestos y objeto), los tramos de atención con algún efecto y la
   variedad, y castiga la saturación y las repeticiones seguidas. `--take N` (y "Probar otra
   versión" en la web) usa el puesto N del ranking: otra versión buena, distinta de las anteriores.
+- **Nada se apila** (criterio P1), en dos pasadas:
+  1. Primero los momentos clave (gestos, objeto, beso), que siempre mandan.
+  2. Después el resto en orden de tiempo:
+     - Una opción `exclusive` (discoteca, bola de espejos, ecualizador, sombrero y cinturón,
+       chaqueta, rayos X) no se enciende sobre otra exclusiva ni cerca de un momento clave.
+     - Mientras dura una exclusiva, callan `spotlight`, `still`, `fast_swing`, `beat` y `stomp`.
+     - Un efecto nuevo no se enciende si ya hay dos focos (los encendidos más los momentos clave
+       que se cruzan con su ventana).
+  - Cada decisión guarda `until` y la nota castiga los cuadros con más de dos efectos a la vez.
+  - En video_33, los cuadros con más de dos efectos bajaron del 13,8% al 0,4%.
 - **"Puede aparecer o no":** cada acción incluye la opción `nada` con su peso.
 - **Trazable:** `runs/<video>/scripts/choreography.json` lista cada acción con su segundo, quién
   la hizo y la reacción elegida.

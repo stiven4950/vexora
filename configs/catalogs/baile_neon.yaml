@@ -139,6 +139,7 @@ reactions:
       trigger: {hold: 8, fade_in: 2, fade_out: 6}
   # De vez en cuando, disfraces de cuerpo entero: chaqueta metalera o rayos X.
   - name: chaqueta
+    exclusive: true
     weight: 0.15
     kinds: [torso, left_arm, right_arm]
     yields_to: [prop_worn, face_touch]
@@ -147,6 +148,7 @@ reactions:
       style: {thickness: 0.012, shapes: [metal_jacket], focus: false}
       trigger: {hold: 20, fade_in: 4, fade_out: 8}
   - name: rayos_x
+    exclusive: true
     weight: 0.12
     kinds: [torso, left_arm, right_arm, legs]
     effects:
@@ -182,6 +184,7 @@ reactions:
       trigger: {hold: 6, fade_in: 4, fade_out: 8}
   # Seg. 28.2: un sombrero lindo con ojos de punto y un cinturón de metal con brillo.
   - name: sombrero_cinturon
+    exclusive: true
     weight: 0.25
     kinds: [head, torso, legs]
     yields_to: [prop_worn, face_touch]
@@ -409,6 +412,7 @@ reactions:
   # Mucho movimiento de todo el cuerpo: modo discoteca (destellos disparados y haces de luz) o
   # un ecualizador en el piso que salta con la música.
   - name: discoteca
+    exclusive: true
     weight: 0.6
     effects:
     - type: disco_fx
@@ -416,12 +420,14 @@ reactions:
       trigger: {hold: 8, fade_in: 3, fade_out: 10}
   # Bola de espejos arriba: haces rectos de colores y destellos que caen como lluvia.
   - name: bola_espejos
+    exclusive: true
     weight: 0.45
     effects:
     - type: mirror_ball
       style: {focus: false, hdr_gain: 1.7, palette_every: 30}
       trigger: {hold: 20, fade_in: 4, fade_out: 10}
   - name: ecualizador
+    exclusive: true
     weight: 0.3
     effects:
     - type: equalizer

@@ -82,7 +82,8 @@ El dibujo tiene que tener sentido sobre el cuerpo tal como se ve:
 
 - **Trazos parciales, no cajas completas**: unas líneas de pectoral, un tramo de contorno de
   pierna, no la figura entera (14 s, 24 s).
-- **Un efecto por zona y por momento.**
+- **Un efecto por zona y por momento.** Implementado: opciones `exclusive` y tope de dos focos en el
+  coreógrafo.
 - **El efecto se apaga cuando el foco se va**: la gorra puesta deja de dibujarse; la cara deja
   de brillar cuando la mano se aparta.
 
