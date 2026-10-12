@@ -324,7 +324,7 @@ CANDIDATES = 8
 AMBIENT_ACTIONS = ("beat",)
 # Más efectos por segundo que esto satura la escena.
 MAX_DENSITY = 1.2
-MAX_TOGETHER = 2
+MAX_TOGETHER = 3
 WINDOW_S = 1.2
 
 

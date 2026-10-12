@@ -22,10 +22,10 @@ análisis ──> eventos (acciones) ──> coreógrafo + catálogo ──> Eff
      - Una opción `exclusive` (discoteca, bola de espejos, ecualizador, sombrero y cinturón,
        chaqueta, rayos X) no se enciende sobre otra exclusiva ni cerca de un momento clave.
      - Mientras dura una exclusiva, callan `spotlight`, `still`, `fast_swing`, `beat` y `stomp`.
-     - Un efecto nuevo no se enciende si ya hay dos focos (los encendidos más los momentos clave
+     - Un efecto nuevo no se enciende si ya hay tres focos (los encendidos más los momentos clave
        que se cruzan con su ventana).
-  - Cada decisión guarda `until` y la nota castiga los cuadros con más de dos efectos a la vez.
-  - En video_33, los cuadros con más de dos efectos bajaron del 13,8% al 0,4%.
+  - Cada decisión guarda `until` y la nota castiga los cuadros con más de tres efectos a la vez.
+  - En video_33: ningún cuadro con más de tres efectos y el video sin efecto bajó del 27% al 16%.
 - **"Puede aparecer o no":** cada acción incluye la opción `nada` con su peso.
 - **Trazable:** `runs/<video>/scripts/choreography.json` lista cada acción con su segundo, quién
   la hizo y la reacción elegida.

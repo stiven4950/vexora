@@ -98,13 +98,13 @@ def test_exclusive_scene_effects_never_stack_and_silence_the_rest() -> None:
     assert choices[("fast_swing", 20)].startswith("nada")  # el resto calla durante la escena
 
 
-def test_at_most_two_foci_besides_key_moments() -> None:
+def test_at_most_three_foci_counting_key_moments() -> None:
     from vfxglow.director.choreography import choreograph
 
     glow = {"name": "glow", "weight": 1.0, "effects": [{"type": "body_glow", "trigger": {"hold": 30}}]}
     kiss = {"action": "face_touch", "options": [{"name": "beso", "weight": 1.0, "effects": [{"type": "face_toon", "trigger": {"hold": 30}}]}]}
-    events = [MotionEvent(name="spotlight", target="person_0", start_frame=0, end_frame=40, confidence=1.0, kind=k) for k in ("legs", "left_arm")]
+    events = [MotionEvent(name="spotlight", target="person_0", start_frame=0, end_frame=40, confidence=1.0, kind=k) for k in ("legs", "left_arm", "torso")]
     events += [MotionEvent(name="face_touch", target="person_0:face", start_frame=5, end_frame=40, confidence=1.0, kind="right")]
     _, choreo = choreograph(_catalog([glow], [kiss]), _brief(events))
     lit = [d for d in choreo.decisions if not d.choice.startswith("nada")]
-    assert len(lit) == 2 and any(d.action == "face_touch" for d in lit)
+    assert len(lit) == 3 and any(d.action == "face_touch" for d in lit)
