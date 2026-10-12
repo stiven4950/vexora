@@ -118,6 +118,7 @@ EVENT_CATALOG: dict[str, str] = {
     "hand_ear": "La mano en el oído (no te oigo).",
     "cover_eyes": "La mano tapa los ojos.",
     "spin_body": "Giro sobre sí mismo (frente → espaldas → frente).",
+    "step": "Paso: el pie vuelve a apoyarse en el piso.",
     "frenzy": "Todo el cuerpo se mueve mucho más de lo normal a la vez (modo discoteca).",
     "beat": "Golpe de la música (onset de audio).",
     "stomp": "Pisotón: el pie levantado baja rápido y se frena en el piso.",

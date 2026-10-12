@@ -137,6 +137,29 @@ reactions:
     - type: foot_paint
       style: {size: 0.3, trail_frames: 14}
       trigger: {hold: 8, fade_in: 2, fade_out: 6}
+  # De vez en cuando, disfraces de cuerpo entero: chaqueta metalera o rayos X.
+  - name: chaqueta
+    weight: 0.15
+    kinds: [torso, left_arm, right_arm]
+    yields_to: [prop_worn, face_touch]
+    effects:
+    - type: adornment
+      style: {thickness: 0.012, shapes: [metal_jacket], focus: false}
+      trigger: {hold: 20, fade_in: 4, fade_out: 8}
+  - name: rayos_x
+    weight: 0.12
+    kinds: [torso, left_arm, right_arm, legs]
+    effects:
+    - type: xray
+      style: {thickness: 0.01, focus: false}
+      trigger: {hold: 8, fade_in: 2, fade_out: 6}
+  # Piernas protagonistas: huellas de neón donde cae cada paso.
+  - name: huellas
+    weight: 0.25
+    kinds: [legs, feet]
+    effects:
+    - type: footprints
+      trigger: {hold: 20, fade_in: 2, fade_out: 10}
   - name: collar_estrellas
     weight: 0.4
     kinds: [torso]
@@ -348,6 +371,18 @@ reactions:
   - name: nada
     weight: 0.2
     effects: []
+- action: arms_open
+  options:
+  # Brazos abiertos en cruz: le salen alas.
+  - name: alas
+    weight: 0.85
+    effects:
+    - type: wings
+      style: {thickness: 0.012, palette_every: 30}
+      trigger: {hold: 10, fade_in: 3, fade_out: 8}
+  - name: nada
+    weight: 0.15
+    effects: []
 - action: spin_body
   options:
   - name: torbellino
@@ -458,6 +493,13 @@ reactions:
     effects: []
 - action: fast_swing
   options:
+  # Movimiento rápido: copias fantasma de la silueta que quedan atrás.
+  - name: fantasma
+    weight: 0.2
+    effects:
+    - type: ghost_trail
+      style: {focus: false}
+      trigger: {hold: 10, fade_in: 1, fade_out: 6}
   - name: estela
     weight: 0.3
     limbs: [left_wrist, right_wrist]

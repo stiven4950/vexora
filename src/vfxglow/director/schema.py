@@ -69,6 +69,10 @@ EffectType = Literal[
     "sound_waves",
     "whirl_fx",
     "mirror_ball",
+    "xray",
+    "wings",
+    "ghost_trail",
+    "footprints",
 ]
 TargetKind = Literal["joint", "chain", "face_region", "mask", "object", "event_point", "contour"]
 BlendMode = Literal["add", "screen", "over", "multiply", "tint"]
@@ -120,6 +124,7 @@ EVENT_NAMES: tuple[str, ...] = (
     "hand_ear",
     "cover_eyes",
     "spin_body",
+    "step",
 )
 
 
@@ -374,6 +379,10 @@ SUPPORTED_TYPES: tuple[str, ...] = (
     "sound_waves",
     "whirl_fx",
     "mirror_ball",
+    "xray",
+    "wings",
+    "ghost_trail",
+    "footprints",
 )
 
 # Efectos que por defecto pertenecen a un grupo distinto de glow.

@@ -52,6 +52,7 @@ class EffectRuntime:
         self.chapter_frame = 0
         self.focus_level = 1.0
         self.beats: list[int] = []
+        self.steps: list = []
 
 
 def render_effect(
@@ -131,6 +132,12 @@ def render_effect(
 
         draw = {"disco_fx": draw_disco, "beat_pulse": draw_beat_pulse, "equalizer": draw_equalizer, "mirror_ball": draw_mirror_ball}[kind]
         draw(runtime, track, points, frame_index, height, envelope, layer, event if effect.triggers else None)
+    elif kind in ("xray", "wings", "ghost_trail", "footprints"):
+        from vfxglow.engine import body_fx as bx
+
+        {"xray": bx.draw_xray, "wings": bx.draw_wings, "ghost_trail": bx.draw_ghost_trail, "footprints": bx.draw_footprints}[kind](
+            runtime, track, points, frame_index, height, envelope, layer, event if effect.triggers else None
+        )
     elif kind in ("foot_paint", "prop_swoosh"):
         from vfxglow.engine.trails import draw_foot_paint, draw_prop_swoosh
 

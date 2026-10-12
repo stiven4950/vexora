@@ -165,7 +165,7 @@ STOMP_LOOKBACK_S = 0.5
 STOMP_COOLDOWN_S = 0.6
 
 
-def stomp_events(frames: list[FrameRecord], fps: float, width: int, height: int) -> list[MotionEvent]:
+def stomp_events(frames: list[FrameRecord], fps: float, width: int, height: int, lift: float = STOMP_LIFT, speed: float = STOMP_SPEED, name: str = "stomp") -> list[MotionEvent]:
     events: list[MotionEvent] = []
     people = sorted({p.person_id for record in frames for p in _people(record)})
     lookback = max(int(STOMP_LOOKBACK_S * fps), 2)
@@ -191,7 +191,7 @@ def stomp_events(frames: list[FrameRecord], fps: float, width: int, height: int)
             last = -10_000
             for index in range(1, len(frames) - 1):
                 v = vy[index]
-                if v is None or v < STOMP_SPEED or index - last < STOMP_COOLDOWN_S * fps:
+                if v is None or v < speed or index - last < STOMP_COOLDOWN_S * fps:
                     continue
                 if (vy[index - 1] or 0.0) > v or (vy[index + 1] or 0.0) > v:
                     continue  # no es el pico de la bajada
@@ -202,16 +202,16 @@ def stomp_events(frames: list[FrameRecord], fps: float, width: int, height: int)
                     continue
                 # Alto que tenía el pie antes de bajar, medido en el golpe (ya en el piso).
                 window = [y for y in ys[max(index - lookback, 0) : index] if y is not None]
-                if not window or (ys[hit] - min(window)) / torsos[hit] < STOMP_LIFT:
+                if not window or (ys[hit] - min(window)) / torsos[hit] < lift:
                     continue
                 events.append(
                     MotionEvent(
-                        name="stomp",
+                        name=name,
                         target=f"{person}:{side}_ankle",
                         start_frame=frames[max(index - lookback // 2, 0)].frame,
                         end_frame=frames[hit].frame,
                         confidence=float(min(v / (2 * STOMP_SPEED), 1.0)),
-                        detail="Pisotón: el pie baja rápido y se frena en el piso.",
+                        detail="Pisotón: el pie baja rápido y se frena en el piso." if name == "stomp" else "Paso: el pie vuelve a apoyarse en el piso.",
                         position=(float(xs[hit] / width), float(ys[hit] / height)),
                         kind=side,
                     )
@@ -448,6 +448,15 @@ def spin_body_events(frames, fps, width, height):
     return sorted(events, key=lambda e: e.start_frame)
 
 
+# Paso: como el pisotón, pero cualquier pie que vuelve a apoyarse (huellas).
+STEP_LIFT = 0.05
+STEP_SPEED = 0.012
+
+
+def step_events(frames, fps, width, height):
+    return stomp_events(frames, fps, width, height, lift=STEP_LIFT, speed=STEP_SPEED, name="step")
+
+
 def _frenzy(frames, fps, width, height):
     from vfxglow.analysis.attention import frenzy_events
 
@@ -468,5 +477,6 @@ GESTURE_DETECTORS = (
     hand_ear_events,
     cover_eyes_events,
     spin_body_events,
+    step_events,
 )
-GESTURE_NAMES = {"throw", "neck_slash", "stomp", "frenzy", "heart_hands", "arms_up", "arms_open", "point", "hand_ear", "cover_eyes", "spin_body"}
+GESTURE_NAMES = {"throw", "neck_slash", "stomp", "frenzy", "heart_hands", "arms_up", "arms_open", "point", "hand_ear", "cover_eyes", "spin_body", "step"}

@@ -539,6 +539,18 @@ línea de atención:
 
 El beso (`face_touch`) cede ante `cover_eyes` y `hand_ear`.
 
+### Cuerpo entero
+
+- **`metal_jacket`** (adorno): chaqueta metalera con solapas, bordes abiertos, mangas hasta el
+  codo, tachas y púas en los hombros. De vez en cuando (`chaqueta`, `focus: false`).
+- **`xray`**: esqueleto en rayos X sobre la pose (cráneo, costillas, columna, pelvis, huesos y
+  articulaciones). De vez en cuando (`rayos_x`).
+- **`wings`**: alas con plumas sobre los brazos abiertos en cruz (`arms_open → alas`).
+- **`ghost_trail`**: copias de la silueta de hace 3, 6 y 9 fotogramas (`fast_swing → fantasma`).
+- **`footprints`**: huellas de neón donde se apoyó cada pie, que duran 2 s (`spotlight` de
+  piernas → `huellas`). Usa los eventos `step`: como el pisotón, pero con 0,05 torsos de alto y
+  bajada suave. No disparan reacciones; el motor se los pasa a las huellas.
+
 ### Colores según el tono de piel
 
 El análisis mide el tono de piel de cada persona (`analysis/skin.py`: mejillas y, si la cara no

@@ -26,7 +26,7 @@ from vfxglow.engine.swoosh import neon_layers
 
 TAU = 2.0 * np.pi
 PARTS = ("left_arm", "right_arm", "arms", "legs", "torso", "head", "feet", "hands", "body")
-ADORNMENTS = ("necklace", "chain", "chest_stars", "belt", "cap", "cowboy_hat", "top_hat", "fedora", "party_hat", "headphones", "halo", "crown", "knee_dots", "ankle_bands")
+ADORNMENTS = ("necklace", "chain", "chest_stars", "belt", "metal_jacket", "cap", "cowboy_hat", "top_hat", "fedora", "party_hat", "headphones", "halo", "crown", "knee_dots", "ankle_bands")
 
 # Radio de cada cápsula en anchos de hombros.
 _LIMB = {"arm": 0.22, "leg": 0.26, "foot": 0.18, "hand": 0.2}
@@ -510,6 +510,35 @@ def adornment(shape, body: Body, frame, scale, frame_index, seed, runtime, layer
         u = (frame_index % 30) / 30
         glint = top[int(u * (len(top) - 1))]
         return [top, bottom, np.vstack([buckle, buckle[:1]]), sparkle(glint, 0.09 * scale)]
+    if shape == "metal_jacket":
+        # Chaqueta metalera: cuello y solapas, bordes abiertos hasta la cadera, mangas hasta el
+        # codo, tachas en hombros y solapas y púas sobre los hombros.
+        hips = body.mid("left_hip", "right_hip")
+        if hips is None:
+            return []
+        length = float(np.linalg.norm(hips - center))
+        lines = []
+        sternum = center + down * length * 0.45
+        for side in (-1.0, 1.0):
+            shoulder = center + across * side * 0.5 * scale
+            collar = center + across * side * 0.12 * scale + up * 0.04 * scale
+            lapel = center + across * side * 0.08 * scale + down * length * 0.48
+            hem = hips + across * side * 0.42 * scale + down * 0.05 * scale
+            lines.append(np.array([collar, center + across * side * 0.22 * scale + down * length * 0.18, lapel]))
+            lines.append(np.array([shoulder, shoulder + down * length * 0.5 + across * side * 0.02 * scale, hem, lapel]))
+            elbow = body.get("left_elbow" if (across * side)[0] < 0 else "right_elbow")
+            if elbow is not None:
+                arm = (elbow - shoulder) / max(float(np.linalg.norm(elbow - shoulder)), 1e-6)
+                normal = np.array([-arm[1], arm[0]]) * 0.11 * scale
+                lines += [np.array([shoulder + normal, elbow + normal]), np.array([shoulder - normal, elbow - normal]), np.array([elbow + normal, elbow - normal])]
+            for k in range(3):  # púas
+                base = shoulder - across * side * (0.08 + 0.12 * k) * scale + up * 0.02 * scale
+                lines.append(np.array([base - across * side * 0.04 * scale, base + up * 0.13 * scale + across * side * 0.02 * scale, base + across * side * 0.04 * scale]))
+            for k in range(4):  # tachas en la solapa
+                stud = collar + (lapel - collar) * (0.15 + 0.25 * k)
+                lines.append(_ellipse(stud, 0.018 * scale, 0.018 * scale, across, up, n=10))
+        lines.append(np.array([sternum, sternum + down * length * 0.5]))  # cierre
+        return lines
     if shape == "chest_stars":
         from vfxglow.engine.burst import sparkle
 

@@ -16,7 +16,7 @@ from vfxglow.director.schema import Effect
 FADE = 4
 
 _HEAD_ADORN = {"cap", "cowboy_hat", "top_hat", "fedora", "party_hat", "headphones", "halo", "crown"}
-_CHEST_ADORN = {"necklace", "chain", "chest_stars", "belt"}
+_CHEST_ADORN = {"necklace", "chain", "chest_stars", "belt", "metal_jacket"}
 _LEG_ADORN = {"knee_dots", "ankle_bands"}
 _BODY_PARTS = {
     "left_arm": {"left_arm"},
@@ -47,6 +47,10 @@ def _joint_region(joint: str) -> str | None:
 def effect_regions(effect: Effect, event: MotionEvent | None) -> set[str] | None:
     """Regiones sobre las que dibuja el efecto; None = sin región (no se regula)."""
     kind = effect.type
+    if kind == "wings":
+        return {"left_arm", "right_arm"}
+    if kind == "footprints":
+        return {"legs"}
     if kind == "heart_fx":
         return {"left_arm", "right_arm"}
     if kind == "point_fx":
