@@ -551,6 +551,18 @@ El beso (`face_touch`) cede ante `cover_eyes` y `hand_ear`.
   piernas → `huellas`). Usa los eventos `step`: como el pisotón, pero con 0,05 torsos de alto y
   bajada suave. No disparan reacciones; el motor se los pasa a las huellas.
 
+### Expresiones en la cara
+
+`face_toon` con `sweat` (gotas de sudor en la sien), `exclaim` ("!!"), `question` ("?"), `anger`
+(marca de enojo y nubecita) y `heart_eyes` (corazones en los ojos).
+
+- Se elige una por activación; con la boca abierta según la malla facial (labios internos
+  separados más de 0,12 caras) gana la sorpresa.
+- Los signos crecen 2,5 veces alrededor de un punto sobre la cabeza: con la cara lejos, a tamaño
+  real quedan del tamaño del halo del neón y no se leen.
+- En `baile_neon` es la opción `expresion` cuando la cabeza es protagonista. Cede ante la gorra
+  puesta, el beso y el "ya valió".
+
 ### Colores según el tono de piel
 
 El análisis mide el tono de piel de cada persona (`analysis/skin.py`: mejillas y, si la cara no

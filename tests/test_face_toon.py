@@ -89,3 +89,16 @@ def test_trigger_anchored_at_the_end_of_the_event() -> None:
     effect = Effect(id="e", type="prop_doodle", target=EffectTarget(kind="joint", id="body"), triggers=[EffectTrigger(event="prop_spin", anchor="end", hold=10, fade_in=0, fade_out=0)])
     timeline = ActivationTimeline(effect, [MotionEvent(name="prop_spin", target="p:prop", start_frame=10, end_frame=40, confidence=1.0)])
     assert timeline.at(30)[0] == 0.0 and timeline.at(45)[0] == 1.0 and timeline.at(52)[0] == 0.0
+
+
+def test_expressions_draw_and_surprise_wins_with_open_mouth() -> None:
+    from vfxglow.engine.face_toon import EMOTES, _pick_emote
+    from vfxglow.director.schema import EffectStyle
+
+    for shape in EMOTES:
+        effect = Effect(id=shape, type="face_toon", target=EffectTarget(kind="joint", id="face"), style=EffectStyle(shapes=[shape]))
+        layer = _render(effect, [_frame(i, (0.8, 0.6)) for i in range(8)], [])[-1]
+        assert layer[..., 3].max() > 0.3, shape
+    style = EffectStyle(shapes=list(EMOTES))
+    open_mouth = {"face_13": np.array([200.0, 170.0]), "face_14": np.array([200.0, 190.0])}
+    assert _pick_emote(list(EMOTES), open_mouth, 50.0, None, style, 0) == "exclaim"

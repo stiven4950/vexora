@@ -150,7 +150,7 @@ Qué detectar y qué imágenes caben. La columna de efecto da opciones; se sorte
 | Ponerse el objeto | `prop_worn` | Caricatura de la cara con el objeto | ✅ |
 | Lanzar el objeto | Objeto que sale rápido de la mano | Estela o mancha grande que lo sigue | ✅ (`prop_swoosh`) |
 | Darse la vuelta | Hombros invertidos (izquierdo a la derecha) | Espalda: músculos o figura de relleno | ✅ (`facing`, `badge`) |
-| Cuerpo quieto, cara expresiva | Poco movimiento corporal, cambios en la boca o los ojos | Exagerar la expresión (ojos que brillan, cejas) | ❌ |
+| Cuerpo quieto, cara expresiva | Poco movimiento corporal, cambios en la boca o los ojos | Exagerar la expresión (sudor, "!!", "?", enojo, ojos de corazón) | ✅ (`face_toon` expresiones) |
 | Manos al cinturón o a la cadera | Muñecas a la altura de la cadera | Cinturón de metal con brillo que se mueve | ✅ en parte (`belt`, sin detectar el gesto) |
 | Corazón con las manos | Muñecas juntas frente al pecho | Corazón que late y sube | ✅ (`heart_hands`) |
 | Señalar | Brazo extendido con el índice estirado | Rayo o flecha con impacto | ✅ (`point`) |

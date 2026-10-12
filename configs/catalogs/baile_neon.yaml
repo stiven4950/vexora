@@ -195,6 +195,16 @@ reactions:
     - type: adornment
       style: {thickness: 0.016, shapes: [belt], focus: false}
       trigger: *sombrero
+  # Seg. 19: cuando la atención es la cara, exagerar la expresión (sudor, "!!", "?", enojo,
+  # ojos de corazón; con la boca abierta, sorpresa).
+  - name: expresion
+    weight: 0.35
+    kinds: [head]
+    yields_to: [prop_worn, face_touch, neck_slash]
+    effects:
+    - type: face_toon
+      style: {shapes: [sweat, exclaim, question, anger, heart_eyes], thickness: 0.012, palette_every: 30}
+      trigger: {hold: 10, fade_in: 2, fade_out: 6}
   - name: cabeza_gafas
     weight: 0.3
     kinds: [head]
