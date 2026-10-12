@@ -24,9 +24,12 @@ NEAR_TIP = 0.22  # en anchos del cuadro
 RECENT = 24
 DASH = 6  # puntos por guion al deshacerse
 SLOT_S = 0.45
-ZONE_ORDER = ("eyes", "ribs", "nose", "eyes", "mouth")
+# Los ojos son los protagonistas de la obra (en la referencia vuelven una y otra vez).
+ZONE_ORDER = ("eyes", "ribs", "eyes", "nose", "eyes", "mouth")
 MAX_LINES = 5
 ACCENT_LENGTH = 0.22
+ORBIT_POINTS = 64
+ORBIT_SHARE = 0.32  # fracción del contorno de la cuenca que ocupa el arco que gira
 WHITE = np.array([1.0, 1.0, 1.0], dtype=np.float32)
 
 
@@ -112,7 +115,8 @@ def draw_paint_accents(runtime, track, points, frame_index: int, height: int, en
     grow = min(u / 0.4, 1.0)  # se dibuja en el primer 40%
     fade = min((1.0 - u) / 0.25, 1.0)  # se apaga en el último 25%
     if zone == "eyes" and data.get("eyes"):
-        _draw_eyes(layer, np.array(data["eyes"]) * [width, height], color, slot, u, grow, fade, envelope, style, runtime)
+        sockets = [np.array(sock) * [width, height] if sock else None for sock in (data.get("sockets") or [None, None])]
+        _draw_eyes(layer, np.array(data["eyes"]) * [width, height], sockets, color, slot, u, grow, fade, envelope, style, runtime)
         return
     lines = [line for line in data["lines"] if line["zone"] == zone]
     lines = sorted(lines, key=lambda line: -len(line["points"]))[:MAX_LINES]
@@ -167,23 +171,42 @@ def draw_rising_sparks(runtime, track, points, frame_index: int, height: int, en
         splat(layer, float(x), float(y), span * 0.03, color, fade * (1 - t) * 0.6, runtime.kernels)
 
 
-def _draw_eyes(layer, eyes: np.ndarray, color, slot: int, u: float, grow: float, fade: float, envelope: float, style, runtime) -> None:
-    """Los ojos de la obra, como en la referencia: la primera vez, un brillo en cada lente; las
-    siguientes, un arco que se dibuja bajo cada ojo (una sonrisa de luz) y un trazo corto arriba."""
+def _resample(polygon: np.ndarray, count: int) -> np.ndarray:
+    closed = np.vstack([polygon, polygon[:1]])
+    arc = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(closed, axis=0), axis=1))])
+    t = np.linspace(0.0, arc[-1], count, endpoint=False)
+    return np.stack([np.interp(t, arc, closed[:, 0]), np.interp(t, arc, closed[:, 1])], axis=1)
+
+
+def _draw_eyes(layer, eyes: np.ndarray, sockets, color, slot: int, u: float, grow: float, fade: float, envelope: float, style, runtime) -> None:
+    """Los ojos de la obra, como en la referencia (video_2, 8,4-11 s):
+    - el lente se enciende del color del momento (brilla y late);
+    - un arco de luz gira alrededor del contorno de la cuenca (un tercio del borde, una vuelta
+      por tramo); sin cuenca detectada, un arco bajo el ojo."""
     gap = float(np.linalg.norm(eyes[1] - eyes[0]))
     line = max(1.5, style.thickness * gap * 0.12)
+    pulse = 0.8 + 0.2 * np.sin(u * np.pi * 4)
     strokes = []
-    if slot == 0:
-        for eye in eyes:
-            splat(layer, float(eye[0]), float(eye[1]), gap * 0.05, WHITE * 1.4, envelope * fade, runtime.kernels)
-            splat(layer, float(eye[0]), float(eye[1]), gap * 0.14, color * 1.3, envelope * fade * 0.8, runtime.kernels)
-    else:
-        radius = gap * 0.26
-        for side, eye in zip((-1.0, 1.0), eyes):
+    for side, (eye, socket) in enumerate(zip(eyes, sockets)):
+        splat(layer, float(eye[0]), float(eye[1]), gap * 0.05 * pulse, WHITE * 1.3, envelope * fade, runtime.kernels)
+        splat(layer, float(eye[0]), float(eye[1]), gap * 0.13 * pulse, color * 1.4, envelope * fade * 0.8, runtime.kernels)
+        if slot == 0:
+            continue  # la primera vez, solo los lentes
+        if socket is not None and len(socket) >= 4:
+            ring = _resample(socket, ORBIT_POINTS)
+            # Suavizado circular: el arco es una curva, no los vértices del contorno.
+            pad = np.vstack([ring[-4:], ring, ring[:4]])
+            kernel = np.array([1, 2, 3, 4, 3, 2, 1], dtype=np.float64) / 16.0
+            ring = np.stack([np.convolve(pad[:, k], kernel, mode="same")[4:-4] for k in (0, 1)], axis=1)
+            # Los dos ojos giran en sentidos opuestos (simétricos).
+            head = int(((u if side == 0 else -u) * ORBIT_POINTS)) % ORBIT_POINTS
+            span = int(ORBIT_POINTS * ORBIT_SHARE)
+            idx = [(head - k) % ORBIT_POINTS for k in range(span)][::-1]
+            strokes += neon_layers(ring[idx], color, line, envelope * fade)
+        else:
+            radius = gap * 0.26
             sweep = np.linspace(np.pi * 0.15, np.pi * (0.15 + 0.7 * grow), 16)
             arc = eye + np.stack([np.cos(sweep) * radius, np.sin(sweep) * radius * 0.65], axis=1) + [0.0, gap * 0.04]
             strokes += neon_layers(arc, color, line, envelope * fade)
-            mark = eye + np.array([[side * gap * 0.12, -gap * 0.38], [side * gap * 0.15, -gap * 0.38 - gap * 0.16 * grow]])
-            strokes += neon_layers(mark, color, line, envelope * fade * 0.8)
     if strokes:
         stroke_batch(layer, strokes, style.hdr_gain)

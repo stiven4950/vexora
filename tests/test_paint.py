@@ -97,3 +97,16 @@ def test_pumpkin_eyes_are_the_lens_pair_inside_dark_sockets() -> None:
     accents[4]["eyes"] = [[0.4, 0.8], [0.6, 0.8]]  # un salto: los dientes
     _steady_eyes(accents)
     assert abs(accents[4]["eyes"][0][1] - 0.35) < 1e-6
+
+
+def test_socket_contour_ignores_thin_stripes_touching_it() -> None:
+    from vfxglow.analysis.paint import _sockets
+
+    frame = np.full((1280, 720, 3), (0, 110, 240), np.uint8)
+    for x in (250, 470):
+        cv2.ellipse(frame, (x, 450), (70, 55), 0, 0, 360, (10, 10, 10), -1)
+        cv2.line(frame, (x, 300), (x, 400), (10, 10, 10), 6)  # estría que toca la cuenca
+        cv2.circle(frame, (x, 450), 12, (230, 230, 230), -1)
+    sockets = _sockets(frame, [[250 / 720, 450 / 1280], [470 / 720, 450 / 1280]])
+    top = min(p[1] for p in sockets[0]) * 1280
+    assert len(sockets[0]) >= 4 and top > 380  # la cuenca, sin la estría de arriba

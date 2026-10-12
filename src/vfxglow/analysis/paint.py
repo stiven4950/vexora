@@ -363,6 +363,7 @@ def detect_accents(video_path: Path, frames: list[FrameRecord], start: int) -> d
     finally:
         capture.release()
     _steady_eyes(out)
+    _add_sockets(video_path, out)
     log.info("Acentos de la obra en %d fotogramas", len(out))
     return out
 
@@ -479,3 +480,60 @@ def _steady_eyes(accents: dict[int, dict]) -> None:
         current = accents[frame].get("eyes")
         if current is None or np.abs(np.array(current) - median).max() > EYE_JUMP:
             accents[frame]["eyes"] = median.tolist()
+
+
+SOCKET_REACH = 0.55  # radio de búsqueda de la cuenca, en distancias entre ojos
+
+
+def _add_sockets(video_path: Path, accents: dict[int, dict]) -> None:
+    """Contorno de cada cuenca: la zona oscura que rodea el lente (tras corregir los ojos)."""
+    capture = cv2.VideoCapture(str(video_path))
+    try:
+        for frame_index in sorted(accents):
+            eyes = accents[frame_index].get("eyes")
+            if not eyes:
+                continue
+            capture.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+            ok, frame = capture.read()
+            if not ok:
+                continue
+            accents[frame_index]["sockets"] = _sockets(frame, eyes)
+    finally:
+        capture.release()
+
+
+def _sockets(frame: np.ndarray, eyes) -> list[list[list[float]]]:
+    h, w = frame.shape[:2]
+    pts = np.array(eyes) * [w, h]
+    gap = float(np.linalg.norm(pts[1] - pts[0]))
+    value = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)[..., 2]
+    out = []
+    for eye in pts:
+        reach = int(gap * SOCKET_REACH)
+        x, y = int(eye[0]), int(eye[1])
+        x0, y0, x1, y1 = max(x - reach, 0), max(y - reach, 0), min(x + reach, w), min(y + reach, h)
+        window = value[y0:y1, x0:x1]
+        dark = (window < 60).astype(np.uint8)
+        # El lente (claro) cae dentro de la cuenca: se rellena para que la cuenca sea una pieza.
+        cv2.circle(dark, (x - x0, y - y0), max(int(gap * 0.08), 3), 1, -1)
+        dark = cv2.morphologyEx(dark, cv2.MORPH_CLOSE, np.ones((9, 9), np.uint8))
+        # Las estrías oscuras tocan la cuenca pero son finas: una apertura las corta.
+        size = max(int(gap * 0.14) | 1, 5)
+        dark = cv2.morphologyEx(dark, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (size, size)))
+        cv2.circle(dark, (x - x0, y - y0), max(int(gap * 0.08), 3), 1, -1)
+        count, labels = cv2.connectedComponents(dark)
+        label = labels[y - y0, x - x0]
+        if label == 0:
+            out.append([])
+            continue
+        piece = (labels == label).astype(np.uint8)
+        contours, _ = cv2.findContours(piece, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        biggest = max(contours, key=cv2.contourArea)
+        # Una cuenca que se escapa al fondo (cara girada, humo) es demasiado grande: se descarta.
+        if cv2.contourArea(biggest) > (gap * 0.75) ** 2:
+            out.append([])
+            continue
+        contour = biggest[:, 0, :] + [x0, y0]
+        hull = cv2.approxPolyDP(contour.astype(np.int32), 2.0, True)[:, 0, :]
+        out.append([[float(px / w), float(py / h)] for px, py in hull])
+    return out

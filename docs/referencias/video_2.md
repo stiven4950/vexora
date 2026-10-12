@@ -106,3 +106,8 @@ los **lentes**: dos manchas claras, pequeñas y redondas, rodeadas de oscuro, a 
 distancia de ojos; una pareja que salta lejos de la mediana de sus vecinos (dientes, humo) se
 corrige. `paint_accents`, en la zona de ojos: la primera vez un brillo en cada lente (8,5 s de la
 referencia) y después un arco bajo cada ojo con un trazo corto arriba (8,9–10,9 s).
+
+Contorno de las cuencas: la zona oscura alrededor de cada lente, con una apertura morfológica que
+corta las estrías finas que la tocan (si queda demasiado grande, se descarta). En la zona de ojos
+el lente se enciende del color del momento y un arco suave (un tercio del borde) gira alrededor
+de la cuenca, en sentidos opuestos en cada ojo; los ojos tienen más turnos que las otras zonas.
