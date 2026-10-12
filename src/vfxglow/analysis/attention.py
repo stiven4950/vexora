@@ -146,9 +146,6 @@ def attention_timeline(frames: list[FrameRecord], events: list[MotionEvent], fps
                 arm = f"{event.kind}_arm"
                 stop = min(last + int(GESTURE_AFTER_S * fps), n)
                 scores[arm][first:stop] = np.maximum(scores[arm][first:stop], GESTURE_SCORE)
-            if event.name == "stomp":
-                stop = min(last + int(GESTURE_AFTER_S * fps), n)
-                scores["legs"][first:stop] = np.maximum(scores["legs"][first:stop], GESTURE_SCORE)
         slash = _windows(events, ("neck_slash",), person, n, frame_of, after=int(SLASH_AFTER_S * fps))
         touch = _windows(events, ("face_touch",), person, n, frame_of, after=int(TOUCH_AFTER_S * fps))
         worn = _windows(events, ("prop_worn",), person, n, frame_of)

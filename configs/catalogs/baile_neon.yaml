@@ -293,7 +293,8 @@ reactions:
     weight: 0.35
     effects:
     - type: pop_fx
-      style: {thickness: 0.012, palette_every: 30}
+      # El pisotón no mueve la atención (se detecta en muchos pasos); el globo, cuando sale, se ve.
+      style: {thickness: 0.012, palette_every: 30, focus: false}
       trigger: {hold: 14, fade_in: 2, fade_out: 4}
   - name: nada
     weight: 0.65
