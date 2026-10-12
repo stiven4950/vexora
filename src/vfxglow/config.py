@@ -148,6 +148,10 @@ class AnalysisConfig(_Strict):
     accessories: AccessoriesConfig = Field(default_factory=AccessoriesConfig)
     blades: BladesConfig = Field(default_factory=BladesConfig)
     props: PropsConfig = Field(default_factory=PropsConfig)
+    # Herramienta que pinta (paint_reveal): "model" = Grounding DINO + SAM 2 (preciso, ~0,5 s por
+    # fotograma con cara); "motion" = lo que se mueve sobre la cara (rápido, sin modelos). En
+    # video_2 los dos dan un resultado visible casi igual: por defecto, motion.
+    paint_tool: Literal["model", "motion"] = "motion"
     # Contorno del cuerpo por fotograma con el Selfie Segmenter (siluetas de neón).
     body_contour: bool = True
 

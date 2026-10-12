@@ -90,3 +90,11 @@ Pendiente:
 - Algún destello cerca de los ojos en la fase de líneas negras.
 - La restricción "cerca de la punta" recorta un poco el contorno completo de las manchas anchas
   (0,5–0,9 s), que la referencia muestra entero.
+
+### Detector de herramienta con modelo (`analysis.paint_tool: model`)
+
+Grounding DINO ("a paintbrush. a makeup brush. a pencil.") cada 6 fotogramas y SAM 2 en cada uno:
+encuentra el pincel en todos los fotogramas probados (confianza 0,45–0,72) y su máscara exacta,
+incluido el pincel ancho de la primera parte. Cuesta ~2 minutos más en video_2. Resultado visible
+casi igual al del movimiento: los destellos cerca de los ojos no venían de la punta sino del
+contorno de la pintura negra alrededor de los ojos. Por defecto queda `motion`.

@@ -62,7 +62,7 @@ class Appearance:
         )
 
 
-def analyze_appearance(video_path: Path, frames: list[FrameRecord], meta: VideoMeta, cuts: list[int] | None = None) -> Appearance:
+def analyze_appearance(video_path: Path, frames: list[FrameRecord], meta: VideoMeta, cuts: list[int] | None = None, tool: str = "model") -> Appearance:
     """Ojos que ya brillan, pintura nueva sobre la cara y, tras la pintura, los acentos de la obra.
 
     La pintura sale de analysis/paint.py (en coordenadas de la cara, sin contar la mano ni el
@@ -83,7 +83,10 @@ def analyze_appearance(video_path: Path, frames: list[FrameRecord], meta: VideoM
     cap.release()
     from vfxglow.analysis.paint import detect_accents, detect_paint
 
-    out.paint = detect_paint(video_path, frames, meta.fps, cuts)
+    # Primero sin modelos (segundos): solo si el video tiene pintura vale cargar el detector.
+    out.paint = detect_paint(video_path, frames, meta.fps, cuts, "motion")
+    if out.paint and tool == "model":
+        out.paint = detect_paint(video_path, frames, meta.fps, cuts, "model") or out.paint
     for frame, data in out.paint.items():
         if data["strokes"]:
             biggest = max(data["strokes"], key=len)

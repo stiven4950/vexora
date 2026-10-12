@@ -141,12 +141,20 @@ def _real_strokes(new: np.ndarray, existing: np.ndarray, min_blob: int = 25) -> 
     return keep
 
 
-def detect_paint(video_path: Path, frames: list[FrameRecord], fps: float, cuts: list[int] | None = None) -> dict[int, dict]:
+def detect_paint(video_path: Path, frames: list[FrameRecord], fps: float, cuts: list[int] | None = None, tool: str = "model") -> dict[int, dict]:
     """{fotograma: {"strokes": [[(x, y, edad), ...], ...], "tip": (x, y) | None}} normalizado.
 
     Solo en la primera escena con cara: en un corte termina (la escena siguiente es otra cosa; en
     video_2 la malla "ve" una cara en la calabaza y la tomaría por pintura nueva)."""
     cuts = sorted(cuts or [])
+    detector = None
+    if tool == "model":
+        try:
+            from vfxglow.analysis.tool import ToolDetector
+
+            detector = ToolDetector()
+        except Exception as exc:  # sin transformers o sin red: se sigue con el movimiento
+            log.warning("Detector de herramienta no disponible (%s); se usa el movimiento", exc)
     capture = cv2.VideoCapture(str(video_path))
     space: _FaceSpace | None = None
     look = max(int(LOOKAHEAD_S * fps), HOLD)
@@ -222,7 +230,14 @@ def detect_paint(video_path: Path, frames: list[FrameRecord], fps: float, cuts: 
             if matrix is not None:
                 aligned = cv2.warpAffine(small, matrix, size)
                 # La herramienta: lo que se mueve sobre la cara alineada (sin suponer su color).
-                tip = tool_tip(previous, aligned, space.region) if previous is not None else None
+                tip = None
+                if detector is not None:
+                    scale = np.array([frame.shape[1] / size[0], frame.shape[0] / size[1]])
+                    found = detector.tip(frame, np.mean(list(points.values()), axis=0) * scale)
+                    if found is not None:
+                        tip = cv2.transform(np.array([[found / scale]], np.float32), matrix)[0, 0]
+                elif previous is not None:
+                    tip = tool_tip(previous, aligned, space.region)
                 previous = aligned
                 lab = cv2.cvtColor(aligned, cv2.COLOR_BGR2LAB).astype(np.float32)
                 # Piel limpia de referencia por píxel: mediana de los primeros fotogramas (la mano

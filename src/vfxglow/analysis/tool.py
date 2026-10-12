@@ -43,3 +43,56 @@ def tool_tip(previous: np.ndarray, current: np.ndarray, region: np.ndarray) -> n
     ys, xs = np.nonzero(inside)
     far = int(np.argmax((xs - entry[0]) ** 2 + (ys - entry[1]) ** 2))
     return np.array([xs[far], ys[far]], dtype=np.float64)
+
+
+class ToolDetector:
+    """La herramienta con modelos (más preciso, ~0,5 s por fotograma en MPS): Grounding DINO la
+    busca por texto cada `every` fotogramas (o cuando se pierde) y SAM 2 recorta su máscara exacta
+    en cada fotograma con la caja anterior agrandada. La punta es el extremo del eje largo de la
+    máscara más cercano a la cara."""
+
+    def __init__(self, query: str = "a paintbrush. a makeup brush. a pencil.", every: int = 6, threshold: float = 0.3) -> None:
+        import torch
+        from transformers import Sam2Model, Sam2Processor
+
+        from vfxglow.analysis.gdino import GroundingDino, torch_device, trust_certifi
+
+        trust_certifi()
+        self.torch = torch
+        self.device = torch_device()
+        self.dino = GroundingDino("IDEA-Research/grounding-dino-base", query, threshold)
+        self.processor = Sam2Processor.from_pretrained("facebook/sam2.1-hiera-tiny")
+        self.model = Sam2Model.from_pretrained("facebook/sam2.1-hiera-tiny").to(self.device)
+        self.every = every
+        self.box: tuple[float, float, float, float] | None = None
+        self.count = 0
+
+    def tip(self, frame_bgr: np.ndarray, face_center: np.ndarray) -> np.ndarray | None:
+        """Punta en píxeles del fotograma, o None."""
+        from PIL import Image
+
+        h, w = frame_bgr.shape[:2]
+        if self.box is None or self.count % self.every == 0:
+            found = self.dino.detect(frame_bgr)
+            self.box = found[0][0] if found else None
+        self.count += 1
+        if self.box is None:
+            return None
+        image = Image.fromarray(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB))
+        inputs = self.processor(images=image, input_boxes=[[list(self.box)]], return_tensors="pt").to(self.device)
+        with self.torch.no_grad():
+            out = self.model(**inputs, multimask_output=False)
+        mask = self.processor.post_process_masks(out.pred_masks.cpu(), inputs["original_sizes"])[0][0, 0].numpy() > 0
+        ys, xs = np.nonzero(mask)
+        if len(xs) < 30:
+            self.box = None
+            return None
+        # La caja del fotograma siguiente: la de la máscara, agrandada (la herramienta se mueve).
+        pad_x, pad_y = (xs.max() - xs.min()) * 0.25 + 10, (ys.max() - ys.min()) * 0.25 + 10
+        self.box = (max(xs.min() - pad_x, 0), max(ys.min() - pad_y, 0), min(xs.max() + pad_x, w - 1), min(ys.max() + pad_y, h - 1))
+        pts = np.stack([xs, ys], axis=1).astype(np.float64)
+        mean = pts.mean(axis=0)
+        _, _, vt = np.linalg.svd(pts - mean, full_matrices=False)
+        proj = (pts - mean) @ vt[0]
+        ends = (pts[int(np.argmin(proj))], pts[int(np.argmax(proj))])
+        return min(ends, key=lambda e: float(np.linalg.norm(e - face_center)))

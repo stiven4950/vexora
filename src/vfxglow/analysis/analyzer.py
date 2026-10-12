@@ -131,7 +131,7 @@ def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: st
     beats, onsets = segment_beats(frames, video_path, meta, config.analysis.beats)
     from vfxglow.analysis.beats import cut_frames
 
-    appearance = analyze_appearance(video_path, frames, meta, cut_frames(beats))
+    appearance = analyze_appearance(video_path, frames, meta, cut_frames(beats), config.analysis.paint_tool)
     beats = retag_paint_beats(beats, appearance)
     events.extend(tip_touch_events(appearance))
     events.sort(key=lambda event: (event.start_frame, event.name))
