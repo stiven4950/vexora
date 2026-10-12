@@ -120,3 +120,11 @@ cuencas y la nariz salen casi siempre como triángulos. La nariz se detecta como
 entre los ojos y por debajo, sin las estrías finas. Efecto de la zona de nariz: el triángulo se
 traza, se llena de un brillo tenue y lanza dos copias que crecen y se apagan; los ojos giran
 sobre el triángulo de su cuenca.
+
+### Boca
+
+La boca es la mancha oscura más ancha bajo la nariz, con dientes: su contorno tiene que ser un
+zigzag (área menor al 70% de su envolvente convexa) y su posición respecto a los ojos estable
+(si el humo o un giro la confunden, se descarta). Efecto "boca de fuego": brillo de brasa que
+titila dentro, el zigzag de los dientes encendido de izquierda a derecha y brasas que suben. Si la
+zona de un turno no se ve en ese tramo, le toca a la siguiente que sí.

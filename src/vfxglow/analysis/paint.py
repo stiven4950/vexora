@@ -365,6 +365,7 @@ def detect_accents(video_path: Path, frames: list[FrameRecord], start: int) -> d
         capture.release()
     _steady_eyes(out)
     _add_sockets(video_path, out)
+    _steady_mouth(out)
     log.info("Acentos de la obra en %d fotogramas", len(out))
     return out
 
@@ -484,7 +485,9 @@ def _steady_eyes(accents: dict[int, dict]) -> None:
 
 
 SOCKET_REACH = 0.75
-MIN_FIT = 0.6  # parecido mínimo de la figura con el hueco para usarla  # radio de búsqueda de la cuenca, en distancias entre ojos
+MIN_FIT = 0.6
+TEETH_SOLIDITY = 0.7  # área / envolvente convexa por encima de esto = mancha lisa, no boca
+MOUTH_JUMP = 0.25  # desvío máximo del centro de la boca frente a sus vecinos, en distancias entre ojos  # parecido mínimo de la figura con el hueco para usarla  # radio de búsqueda de la cuenca, en distancias entre ojos
 
 
 def _add_sockets(video_path: Path, accents: dict[int, dict]) -> None:
@@ -504,6 +507,7 @@ def _add_sockets(video_path: Path, accents: dict[int, dict]) -> None:
             h, w = frame.shape[:2]
             nose = _nose(frame, eyes)
             accents[frame_index]["nose"] = nose
+            accents[frame_index]["mouth"] = _mouth(frame, eyes)
             # La figura geométrica de cada hueco (sobre ella se anima).
             figures = {}
             for name, contour in (("left_socket", sockets[0]), ("right_socket", sockets[1]), ("nose", nose)):
@@ -514,6 +518,39 @@ def _add_sockets(video_path: Path, accents: dict[int, dict]) -> None:
             accents[frame_index]["figures"] = figures
     finally:
         capture.release()
+
+
+def _mouth(frame: np.ndarray, eyes) -> list[list[float]]:
+    """La boca: la mancha oscura más ancha bajo la nariz (con los dientes, un zigzag). Si toca
+    mucho el borde de la zona de búsqueda (humo, cámara muy cerca) no es la boca."""
+    h, w = frame.shape[:2]
+    pts = np.array(eyes) * [w, h]
+    gap = float(np.linalg.norm(pts[1] - pts[0]))
+    mid = pts.mean(axis=0)
+    x0, x1 = int(max(mid[0] - gap * 0.95, 0)), int(min(mid[0] + gap * 0.95, w))
+    y0, y1 = int(min(mid[1] + gap * 0.55, h)), int(min(mid[1] + gap * 1.5, h))
+    if x1 - x0 < 20 or y1 - y0 < 20:
+        return []
+    value = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)[..., 2]
+    dark = (value[y0:y1, x0:x1] < 60).astype(np.uint8)
+    dark = cv2.morphologyEx(dark, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(dark)
+    candidates = [k for k in range(1, count) if stats[k, 4] > gap * gap * 0.03]
+    if not candidates:
+        return []
+    k = max(candidates, key=lambda i: stats[i, 2])
+    bx, by, bw, bh = stats[k, :4]
+    edges = (bx <= 1) + (by <= 1) + (bx + bw >= x1 - x0 - 1) + (by + bh >= y1 - y0 - 1)
+    if bw < gap * 0.6 or edges >= 2:
+        return []
+    contours, _ = cv2.findContours((labels == k).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    contour = max(contours, key=cv2.contourArea)
+    # Una boca con dientes es un zigzag: mucho menos llena que su envolvente convexa.
+    hull = cv2.contourArea(cv2.convexHull(contour))
+    if hull <= 0 or cv2.contourArea(contour) / hull > TEETH_SOLIDITY:
+        return []
+    contour = contour[:, 0, :] + [x0, y0]
+    return [[float(px / w), float(py / h)] for px, py in cv2.approxPolyDP(contour.astype(np.int32), 1.5, True)[:, 0, :]]
 
 
 def _nose(frame: np.ndarray, eyes) -> list[list[float]]:
@@ -583,3 +620,25 @@ def _sockets(frame: np.ndarray, eyes) -> list[list[list[float]]]:
         hull = cv2.approxPolyDP(contour.astype(np.int32), 2.0, True)[:, 0, :]
         out.append([[float(px / w), float(py / h)] for px, py in hull])
     return out
+
+
+def _steady_mouth(accents: dict[int, dict]) -> None:
+    """La boca se mueve con los ojos: si su centro (relativo a los ojos) se aparta de la mediana de
+    sus vecinos, en ese fotograma no es la boca (humo, cabeza girada)."""
+    frames = sorted(accents)
+
+    def offset(frame: int):
+        data = accents[frame]
+        if not data.get("mouth") or not data.get("eyes"):
+            return None
+        eyes = np.array(data["eyes"])
+        gap = float(np.linalg.norm(eyes[1] - eyes[0])) or 1.0
+        return (np.array(data["mouth"]).mean(axis=0) - eyes.mean(axis=0)) / gap
+
+    offsets = {frame: offset(frame) for frame in frames}
+    for index, frame in enumerate(frames):
+        if offsets[frame] is None:
+            continue
+        near = [offsets[f] for f in frames[max(index - 7, 0) : index + 8] if offsets[f] is not None]
+        if len(near) < 4 or np.abs(offsets[frame] - np.median(np.array(near), axis=0)).max() > MOUTH_JUMP:
+            accents[frame]["mouth"] = []

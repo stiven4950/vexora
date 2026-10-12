@@ -25,7 +25,7 @@ RECENT = 24
 DASH = 6  # puntos por guion al deshacerse
 SLOT_S = 0.45
 # Los ojos son los protagonistas de la obra (en la referencia vuelven una y otra vez).
-ZONE_ORDER = ("eyes", "ribs", "eyes", "nose", "eyes", "mouth")
+ZONE_ORDER = ("eyes", "ribs", "eyes", "mouth", "eyes", "nose", "eyes", "mouth")
 MAX_LINES = 5
 ACCENT_LENGTH = 0.22
 ORBIT_POINTS = 64
@@ -110,12 +110,29 @@ def draw_paint_accents(runtime, track, points, frame_index: int, height: int, en
     slot_frames = max(int(SLOT_S * runtime.fps), 4)
     slot, inside = divmod(frame_index - start, slot_frames)
     zone = ZONE_ORDER[slot % len(ZONE_ORDER)]
+    # Si la zona del turno no se ve en este tramo (humo, cabeza girada), le toca a la siguiente
+    # que sí: así ningún tramo queda vacío y la boca o la nariz aparecen cuando se ven.
+    present = {
+        "eyes": bool(data.get("eyes")),
+        "nose": "nose" in (data.get("figures") or {}),
+        "mouth": bool(data.get("mouth")),
+        "ribs": any(line["zone"] == "ribs" for line in data["lines"]),
+    }
+    if not present.get(zone, False):
+        for step in range(1, len(ZONE_ORDER)):
+            other = ZONE_ORDER[(slot + step) % len(ZONE_ORDER)]
+            if present.get(other, False):
+                zone = other
+                break
     palette = style.palette or style.colors
     color = np.asarray(palette[slot % len(palette)], dtype=np.float32)
     u = inside / slot_frames
     grow = min(u / 0.4, 1.0)  # se dibuja en el primer 40%
     fade = min((1.0 - u) / 0.25, 1.0)  # se apaga en el último 25%
     figures = data.get("figures") or {}
+    if zone == "mouth" and data.get("mouth"):
+        _draw_mouth(layer, np.array(data["mouth"]) * [width, height], color, u, grow, fade, envelope, style, runtime, frame_index)
+        return
     if zone == "nose" and "nose" in figures:
         _draw_figure(layer, np.array(figures["nose"]["points"]) * [width, height], color, u, grow, fade, envelope, style, runtime)
         return
@@ -255,3 +272,39 @@ def _draw_figure(layer, figure: np.ndarray, color, u: float, grow: float, fade: 
             echo = center + (figure - center) * (1.0 + (scale - 1.0) * t)
             strokes += neon_layers(np.vstack([echo, echo[:1]]), color, line, envelope * fade * (1.0 - t) * 0.8)
     stroke_batch(layer, strokes, style.hdr_gain)
+
+
+FIRE = (np.array([1.0, 0.85, 0.35], np.float32), np.array([1.0, 0.45, 0.1], np.float32), np.array([0.9, 0.15, 0.05], np.float32))
+
+
+def _draw_mouth(layer, mouth: np.ndarray, color, u: float, grow: float, fade: float, envelope: float, style, runtime, frame_index: int) -> None:
+    """Boca de fuego: el interior brilla como brasa que titila, el zigzag de los dientes se enciende
+    de izquierda a derecha con el color del momento y suben brasas desde la boca."""
+    from vfxglow.engine.raster import fill_polygon
+
+    width = float(np.ptp(mouth[:, 0]))
+    flicker = 0.75 + 0.25 * np.sin(frame_index * 1.9) * np.sin(frame_index * 0.7 + 1.0)
+    fill_polygon(layer, mouth, FIRE[1], 0.55 * envelope * fade * flicker, 1.3, feather=width * 0.04)
+    line = max(1.2, style.thickness * width * 0.03)
+    # Los dientes: el contorno, encendido hasta donde llega el barrido (de izquierda a derecha).
+    left = mouth[:, 0].min()
+    lit = mouth[:, 0] <= left + width * grow
+    closed = np.vstack([mouth, mouth[:1]])
+    lit_closed = np.append(lit, lit[0])
+    strokes = []
+    for a, b in _runs(lit_closed[:-1] & lit_closed[1:]):
+        if b - a >= 1:
+            strokes += neon_layers(closed[a : b + 2], color, line, envelope * fade)
+    rng = np.random.default_rng(zlib.crc32(f"{style.seed_offset}:mouth".encode()) & 0xFFFFFFFF)
+    top = mouth[:, 1].min()
+    for k in range(14):
+        life = rng.uniform(0.35, 0.8)
+        t = ((u + rng.uniform(0, 1)) % 1.0) / life
+        if t > 1:
+            continue
+        x = left + rng.uniform(0.1, 0.9) * width + np.sin(t * 5 + k) * width * 0.02
+        y = top + width * 0.05 - t * width * 0.45
+        tint = FIRE[k % 3]
+        splat(layer, float(x), float(y), width * 0.012 * (1.4 - t), tint * 1.6, envelope * fade * (1 - t), runtime.kernels)
+    if strokes:
+        stroke_batch(layer, strokes, style.hdr_gain)

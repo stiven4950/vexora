@@ -132,3 +132,17 @@ def test_nose_hole_between_and_below_the_eyes() -> None:
     cv2.circle(frame, (600, 620), 30, (10, 10, 10), -1)  # otra mancha, fuera del centro
     nose = np.array(_nose(frame, [[250 / 720, 450 / 1280], [470 / 720, 450 / 1280]])) * [720, 1280]
     assert len(nose) >= 3 and abs(nose[:, 0].mean() - 360) < 15
+
+
+def test_mouth_needs_teeth_not_a_smooth_blob() -> None:
+    from vfxglow.analysis.paint import _mouth
+
+    eyes = [[250 / 720, 450 / 1280], [470 / 720, 450 / 1280]]
+    frame = np.full((1280, 720, 3), (0, 110, 240), np.uint8)
+    cv2.rectangle(frame, (250, 640), (470, 730), (10, 10, 10), -1)  # la boca, dentro de la zona
+    for k in range(7):  # dientes que bajan desde arriba
+        cv2.fillPoly(frame, [np.array([[255 + 31 * k, 640], [270 + 31 * k, 715], [285 + 31 * k, 640]], np.int32)], (0, 110, 240))
+    assert _mouth(frame, eyes)
+    blob = np.full((1280, 720, 3), (0, 110, 240), np.uint8)
+    cv2.ellipse(blob, (360, 685), (110, 45), 0, 0, 360, (10, 10, 10), -1)
+    assert _mouth(blob, eyes) == []
