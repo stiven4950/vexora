@@ -24,6 +24,9 @@ log = logging.getLogger("vfxglow.analysis")
 
 # Una malla con menos puntos que esto es una detección parcial (p. ej. sobre una máscara) y no cuenta.
 MIN_FACE_POINTS = 60
+# Señales derivadas del análisis que un brief puede traer; el pipeline calcula las que falten
+# en análisis anteriores (Pipeline._ensure_derived) sin rehacer el análisis.
+DERIVED = ("skin", "gestures", "attention")
 
 
 def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: str) -> VideoMeta:
@@ -121,6 +124,10 @@ def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: st
     from vfxglow.analysis.touch import face_touch_events
 
     events.extend(face_touch_events(frames, meta.fps, meta.width, meta.height))
+    from vfxglow.analysis.gestures import neck_slash_events, throw_events
+
+    events.extend(throw_events(frames, meta.fps, meta.width, meta.height))
+    events.extend(neck_slash_events(frames, meta.fps, meta.width, meta.height))
     beats, onsets = segment_beats(frames, video_path, meta, config.analysis.beats)
     appearance = analyze_appearance(video_path, frames, meta)
     beats = retag_paint_beats(beats, appearance)
@@ -137,7 +144,7 @@ def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: st
     accessories = detect_accessories(video_path, frames, analysis / "scene_cache", config.analysis.accessories, config.analysis.scene)
     from vfxglow.analysis.skin import estimate_skin
 
-    brief = brief.model_copy(update={"accessories": accessories, "skin": estimate_skin(video_path, frames), "attention": attention})
+    brief = brief.model_copy(update={"accessories": accessories, "skin": estimate_skin(video_path, frames), "attention": attention, "derived": list(DERIVED)})
     header = AnalysisHeader(
         video=meta,
         device=device,

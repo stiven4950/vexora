@@ -110,6 +110,8 @@ EVENT_CATALOG: dict[str, str] = {
     "prop_worn": "El objeto protagonista llega a la cabeza (se pone la gorra).",
     "prop_spin": "El objeto protagonista gira en las manos.",
     "face_touch": "La mano toca la cara.",
+    "throw": "Amago de lanzamiento: carga con el brazo arriba y suelta de golpe extendiéndolo.",
+    "neck_slash": "Corte de cuello: la mano cruza el cuello de lado (\"ya valió\").",
 }
 
 

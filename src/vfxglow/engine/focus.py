@@ -49,6 +49,9 @@ def effect_regions(effect: Effect, event: MotionEvent | None) -> set[str] | None
     kind = effect.type
     if kind.startswith("prop_"):
         return {"prop"}
+    if kind == "throw_fx":
+        # La mano que lanza puede llevar el objeto (lanzar la gorra): vale cualquiera de los dos.
+        return {f"{event.kind}_arm", "prop"} if event is not None and event.kind in ("left", "right") else None
     if kind in ("face_toon", "eyewear"):
         return {"head"}
     if kind == "adornment":

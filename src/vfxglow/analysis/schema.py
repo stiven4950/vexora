@@ -238,3 +238,5 @@ class MotionBrief(_Strict):
     accessories: list[Accessory] = Field(default_factory=list)
     skin: dict[str, SkinTone] = Field(default_factory=dict)
     attention: list[AttentionSpan] = Field(default_factory=list)
+    # Señales derivadas ya calculadas (analysis/analyzer.py: DERIVED).
+    derived: list[str] = Field(default_factory=list)

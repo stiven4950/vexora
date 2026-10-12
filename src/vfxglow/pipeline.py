@@ -15,6 +15,7 @@ from vfxglow.engine.engine import EffectEngine, load_events, load_layer, load_tr
 from pydantic import BaseModel
 
 from vfxglow.io.store import (
+    write_jsonl,
     Manifest,
     code_fingerprint,
     load_manifest,
@@ -109,38 +110,45 @@ class Pipeline:
         if "props" in needs and not self.config.analysis.props.query:
             self.config.analysis.props.query = catalog.prop
 
-    def _ensure_attention(self, brief_path: Path) -> None:
-        """Análisis anteriores a la línea de atención: se calcula ahora con tracks y eventos."""
-        from vfxglow.analysis.attention import attention_timeline
+    def _ensure_derived(self, brief_path: Path) -> None:
+        """Análisis anteriores a una señal derivada (piel, gestos, atención): se calcula ahora con
+        los tracks guardados, en segundos, sin rehacer el análisis. Los eventos nuevos se suman
+        también a events.jsonl, que es lo que lee el motor."""
+        from vfxglow.analysis.analyzer import DERIVED
         from vfxglow.analysis.schema import MotionBrief
 
-        tracks = self.run_dir / "analysis" / "tracks.jsonl"
-        if not brief_path.exists() or not tracks.exists():
+        analysis = self.run_dir / "analysis"
+        tracks_path, events_path = analysis / "tracks.jsonl", analysis / "events.jsonl"
+        if not brief_path.exists() or not tracks_path.exists():
             return
         brief = read_model(brief_path, MotionBrief)
-        if brief.attention:
+        done = set(brief.derived) | ({"skin"} if brief.skin else set())
+        missing = [name for name in DERIVED if name not in done]
+        if not missing:
             return
+        tracks = load_tracks(tracks_path)
         meta = brief.video
-        attention = attention_timeline(load_tracks(tracks), brief.events, meta.fps, meta.width, meta.height)
-        if attention:
-            write_model(brief_path, brief.model_copy(update={"attention": attention}))
-            log.info("Línea de atención: %d tramos", len(attention))
+        update: dict = {}
+        events = list(brief.events)
+        if "skin" in missing:
+            from vfxglow.analysis.skin import estimate_skin
 
-    def _ensure_skin(self, brief_path: Path) -> None:
-        """Análisis anteriores al tono de piel: se mide ahora (segundos) sin rehacer el análisis."""
-        from vfxglow.analysis.schema import MotionBrief
-        from vfxglow.analysis.skin import estimate_skin
+            update["skin"] = estimate_skin(self.video, tracks)
+        if "gestures" in missing:
+            from vfxglow.analysis.gestures import neck_slash_events, throw_events
 
-        tracks = self.run_dir / "analysis" / "tracks.jsonl"
-        if not brief_path.exists() or not tracks.exists():
-            return
-        brief = read_model(brief_path, MotionBrief)
-        if brief.skin:
-            return
-        skin = estimate_skin(self.video, load_tracks(tracks))
-        if skin:
-            write_model(brief_path, brief.model_copy(update={"skin": skin}))
-            log.info("Tono de piel medido: %s", ", ".join(f"{person} {tone.luma:.2f}" for person, tone in sorted(skin.items())))
+            found = throw_events(tracks, meta.fps, meta.width, meta.height) + neck_slash_events(tracks, meta.fps, meta.width, meta.height)
+            events = sorted([e for e in events if e.name not in ("throw", "neck_slash")] + found, key=lambda e: (e.start_frame, e.name))
+            update["events"] = events
+            write_jsonl(events_path, events)
+            missing.append("attention")  # la atención depende de los gestos
+        if "attention" in missing:
+            from vfxglow.analysis.attention import attention_timeline
+
+            update["attention"] = attention_timeline(tracks, events, meta.fps, meta.width, meta.height)
+        update["derived"] = list(DERIVED)
+        write_model(brief_path, brief.model_copy(update=update))
+        log.info("Señales derivadas calculadas: %s", ", ".join(dict.fromkeys(missing)))
 
     def _guard_optional_stages(self) -> None:
         if self.config.refiner.enabled:
@@ -169,8 +177,7 @@ class Pipeline:
 
     def direct(self) -> None:
         brief_path = self.run_dir / "analysis" / "motion_brief.json"
-        self._ensure_skin(brief_path)
-        self._ensure_attention(brief_path)
+        self._ensure_derived(brief_path)
         preset_path = preset_file(self.config_path, self.config.director.preset)
         preset_hash = sha256_file(preset_path) if self.config.director.provider == "preset" and preset_path.exists() else ""
         catalog_path = catalog_file(self.config_path, self.config.director.catalog)

@@ -239,6 +239,36 @@ reactions:
     - type: face_toon
       style: {shapes: [kiss], palette_every: 30}
       trigger: *beso
+- action: throw
+  options:
+  # Seg. 10.0-11.2: carga una bola de energía en la mano en alto y la suelta de golpe. Al soltar:
+  # sale volando y revienta, un rayo en la dirección del lanzamiento o una explosión.
+  - name: energia
+    weight: 0.85
+    effects:
+    - type: throw_fx
+      style: {shapes: [orb, ray, burst], thickness: 0.014, palette_every: 30}
+      trigger: {hold: 22, fade_in: 3, fade_out: 4}
+  - name: nada
+    weight: 0.15
+    effects: []
+- action: neck_slash
+  options:
+  # Seg. 11.7-13.0: la mano cruza el cuello ("ya valió"): ojos en X y después unas gafas, con la
+  # cara teñida.
+  - name: ya_valio
+    weight: 1.0
+    effects:
+    - type: eyewear
+      style: {shapes: [x_eyes], thickness: 0.08, palette_every: 30}
+      trigger: {hold: 8, fade_in: 1, fade_out: 4}
+    - type: eyewear
+      style: {shapes: [frames, visor, glint], thickness: 0.08, palette_every: 30}
+      trigger: {anchor: end, hold: 36, fade_in: 6, fade_out: 8}
+    - type: face_toon
+      style: {shapes: [tint], fill: 0.6, palette_every: 30}
+      render: {blend: tint}
+      trigger: {hold: 40, fade_in: 3, fade_out: 8}
 - action: still
   cooldown: 60
   options:

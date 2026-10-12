@@ -439,6 +439,27 @@ En video_33 la espalda se detecta en 18,8–20,2 s, como en la referencia.
 - `partial` dibuja solo el 40–70% de las líneas (seg. 14,6 de la referencia).
 - `lines_only` omite el contorno de la parte y deja solo las líneas interiores.
 
+### Gestos con significado (P4)
+
+`analysis/gestures.py` detecta dos gestos. En análisis anteriores, el pipeline los calcula al
+vuelo (`Pipeline._ensure_derived`: piel, gestos y atención, según `MotionBrief.derived`).
+
+| Gesto | Cómo se detecta | video_33 |
+| --- | --- | --- |
+| `throw` (amago de lanzamiento) | Carga con la muñeca por encima del hombro ≥ 0,25 s; pico de velocidad ≥ 0,12 torsos por fotograma; el brazo se extiende ≥ 0,45 torsos al soltar | 9,9–11,2 s; 26,6 s (lanza la gorra) |
+| `neck_slash` (corte de cuello) | Puntas de los dedos a menos de 0,55 caras del cuello, recorrido lateral ≥ 0,45 caras, en menos de 0,6 s. No cuenta la mano que sostiene o acomoda la gorra | 11,7 s |
+
+Efectos:
+
+- **`throw_fx`**: durante la carga, una bola de energía crece y late en la mano. Al soltar, se
+  sortea `orb` (sale volando con estela y revienta en chispas), `ray` (rayo en la dirección del
+  lanzamiento) o `burst` (explosión en el punto de suelta).
+- **`neck_slash → ya_valio`**: ojos en X (`eyewear` `x_eyes`), luego gafas
+  (`trigger.anchor: end`), con la cara teñida.
+
+En la línea de atención, el brazo que lanza manda durante el gesto y la cabeza durante el "ya
+valió".
+
 ### Colores según el tono de piel
 
 El análisis mide el tono de piel de cada persona (`analysis/skin.py`: mejillas y, si la cara no

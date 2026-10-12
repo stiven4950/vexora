@@ -140,8 +140,8 @@ Qué detectar y qué imágenes caben. La columna de efecto da opciones; se sorte
 | --- | --- | --- | --- |
 | Mano a la cara (beso, tocar) | Puntas de dedos junto a la cara (`face_touch`) | Labios, pestañas, cara teñida; al soltar, el beso viaja a los dedos | ✅ |
 | Arrancar algo de la cara | Mano cerca de la cara que se aleja rápido y cerrada | Bola de energía en la mano | ❌ |
-| Amago de lanzamiento | Brazo atrás (carga) y extensión rápida hacia afuera | Proyectil, rayo, explosión de partículas en la dirección | ❌ |
-| Corte de cuello ("ya valió") | Mano plana que cruza el cuello de lado a lado | Ojos en X, luego gafas | ❌ |
+| Amago de lanzamiento | Brazo atrás (carga) y extensión rápida hacia afuera | Proyectil, rayo, explosión de partículas en la dirección | ✅ (`throw`, `throw_fx`) |
+| Corte de cuello ("ya valió") | Mano plana que cruza el cuello de lado a lado | Ojos en X, luego gafas | ✅ (`neck_slash`) |
 | Pisotón o pie que se levanta y baja | Tobillo que baja rápido y se detiene | Globo que revienta, chispas, aire | ❌ (hay `landing` y `ground_burst`) |
 | Pie que arrastra o barre el piso | Tobillo bajo que se desplaza | Mancha de agua o pintura que lo sigue y gira | ❌ |
 | Flexionar el brazo | Codo alto, antebrazo vertical | Brazo musculoso | ✅ (`biceps`) |

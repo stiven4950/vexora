@@ -49,6 +49,11 @@ MIN_SPAN_S = 0.4
 TOUCH_AFTER_S = 0.4
 TRANSFER_S = 1.4
 TRANSFER_SCORE = 2.5
+# Gestos: lanzamiento (el brazo, durante la carga y un poco tras la suelta) y corte de cuello
+# (la cabeza, mientras duran los ojos en X y las gafas).
+GESTURE_SCORE = 2.6
+GESTURE_AFTER_S = 0.6
+SLASH_AFTER_S = 1.2
 
 
 def _people(record: FrameRecord) -> list[PersonPose]:
@@ -130,12 +135,25 @@ def attention_timeline(frames: list[FrameRecord], events: list[MotionEvent], fps
                     arm = f"{event.kind}_arm"
                     stop = min(first + int((TOUCH_AFTER_S + TRANSFER_S) * fps), n)
                     scores[arm][first:stop] = np.maximum(scores[arm][first:stop], TRANSFER_SCORE)
+        # Un gesto con significado se lleva la atención mientras dura (P4).
+        for event in events:
+            if event.target.split(":")[0] != person:
+                continue
+            first, last = frame_of.get(event.start_frame), frame_of.get(event.end_frame)
+            if first is None or last is None:
+                continue
+            if event.name == "throw" and event.kind in ("left", "right"):
+                arm = f"{event.kind}_arm"
+                stop = min(last + int(GESTURE_AFTER_S * fps), n)
+                scores[arm][first:stop] = np.maximum(scores[arm][first:stop], GESTURE_SCORE)
+        slash = _windows(events, ("neck_slash",), person, n, frame_of, after=int(SLASH_AFTER_S * fps))
         touch = _windows(events, ("face_touch",), person, n, frame_of, after=int(TOUCH_AFTER_S * fps))
         worn = _windows(events, ("prop_worn",), person, n, frame_of)
         head = scores["head"].copy()
         head = np.where(body < STILL_BODY, np.maximum(head, STILL_HEAD), head)
         head = np.where(worn, np.maximum(head, WORN_SCORE), head)
         head = np.where(touch, np.maximum(head, TOUCH_SCORE), head)
+        head = np.where(slash, np.maximum(head, GESTURE_SCORE), head)
         scores["head"] = head
         spans += _spans(scores, frames, person, fps)
     return spans
