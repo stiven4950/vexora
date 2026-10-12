@@ -473,6 +473,15 @@ valió".
 - **Activaciones seguidas:** si un evento empieza antes de que termine la ventana del anterior
   (trozos seguidos de un mismo foco), la ventana se alarga en vez de descartarlo.
 
+### Manchas que siguen al movimiento
+
+- **`foot_paint`** (seg. 25–26): el pie que barre el piso deja una mancha de pintura que lo sigue
+  y gira con él. Pinta solo con el pie a menos de 0,18 torsos del punto más bajo reciente y
+  desplazándose más de 0,025 torsos por fotograma. `size` es el ancho en torsos y
+  `trail_frames` el largo de la cola.
+- **`prop_swoosh`** (seg. 26,6–27,4): la gorra lanzada o sacudida (más de `min_speed` torsos por
+  fotograma) deja una mancha grande en forma de coma que se apaga despacio.
+
 ### Colores según el tono de piel
 
 El análisis mide el tono de piel de cada persona (`analysis/skin.py`: mejillas y, si la cara no

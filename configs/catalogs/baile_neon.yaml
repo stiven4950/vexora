@@ -35,6 +35,9 @@ defaults:
     - [1.0, 0.45, 0.65]
   render: {blend: add, motion_blur: 0.0, persistence: 0.0, group: glow}
 always:
+# Seg. 26.6-27.4: la gorra lanzada o sacudida deja una mancha grande en forma de coma.
+- type: prop_swoosh
+  style: {min_speed: 0.09, size: 0.9, trail_frames: 10, palette_every: 30}
 # Mientras está en las manos o en el aire, la gorra va teñida y con contorno de neón.
 - type: prop_outline
   style: {shapes: [no_outline], fill: 0.85, palette_every: 30}
@@ -118,6 +121,14 @@ reactions:
       target: {kind: joint, id: legs}
       style: {shapes: [wave], fill: 0.0, trail_frames: 18}
       trigger: {hold: 6, fade_in: 2, fade_out: 6}
+  # Seg. 25-26: el pie que barre el piso deja una mancha de pintura que lo sigue y gira.
+  - name: pie_pintura
+    weight: 0.4
+    kinds: [legs, feet]
+    effects:
+    - type: foot_paint
+      style: {size: 0.3, trail_frames: 14}
+      trigger: {hold: 8, fade_in: 2, fade_out: 6}
   - name: collar_estrellas
     weight: 0.4
     kinds: [torso]

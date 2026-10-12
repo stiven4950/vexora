@@ -143,12 +143,12 @@ Qué detectar y qué imágenes caben. La columna de efecto da opciones; se sorte
 | Amago de lanzamiento | Brazo atrás (carga) y extensión rápida hacia afuera | Proyectil, rayo, explosión de partículas en la dirección | ✅ (`throw`, `throw_fx`) |
 | Corte de cuello ("ya valió") | Mano plana que cruza el cuello de lado a lado | Ojos en X, luego gafas | ✅ (`neck_slash`) |
 | Pisotón o pie que se levanta y baja | Tobillo que baja rápido y se detiene | Globo que revienta, chispas, aire | ❌ (hay `landing` y `ground_burst`) |
-| Pie que arrastra o barre el piso | Tobillo bajo que se desplaza | Mancha de agua o pintura que lo sigue y gira | ❌ |
+| Pie que arrastra o barre el piso | Tobillo bajo que se desplaza | Mancha de agua o pintura que lo sigue y gira | ✅ (`foot_paint`) |
 | Flexionar el brazo | Codo alto, antebrazo vertical | Brazo musculoso | ✅ (`biceps`) |
 | Pasar un objeto de mano a mano | `prop_transfer` | Resorte, doble contorno | ✅ |
 | Girar el objeto en las manos | `prop_spin` | Anillos que lo recorren; al acabar, orejas o corazón | ✅ |
 | Ponerse el objeto | `prop_worn` | Caricatura de la cara con el objeto | ✅ |
-| Lanzar el objeto | Objeto que sale rápido de la mano | Estela o mancha grande que lo sigue | ❌ |
+| Lanzar el objeto | Objeto que sale rápido de la mano | Estela o mancha grande que lo sigue | ✅ (`prop_swoosh`) |
 | Darse la vuelta | Hombros invertidos (izquierdo a la derecha) | Espalda: músculos o figura de relleno | ✅ (`facing`, `badge`) |
 | Cuerpo quieto, cara expresiva | Poco movimiento corporal, cambios en la boca o los ojos | Exagerar la expresión (ojos que brillan, cejas) | ❌ |
 | Manos al cinturón o a la cadera | Muñecas a la altura de la cadera | Cinturón de metal con brillo que se mueve | ❌ |

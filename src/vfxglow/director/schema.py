@@ -56,6 +56,8 @@ EffectType = Literal[
     "face_toon",
     "throw_fx",
     "limb_rings",
+    "foot_paint",
+    "prop_swoosh",
 ]
 TargetKind = Literal["joint", "chain", "face_region", "mask", "object", "event_point", "contour"]
 BlendMode = Literal["add", "screen", "over", "multiply", "tint"]
@@ -338,6 +340,8 @@ SUPPORTED_TYPES: tuple[str, ...] = (
     "face_toon",
     "throw_fx",
     "limb_rings",
+    "foot_paint",
+    "prop_swoosh",
 )
 
 # Efectos que por defecto pertenecen a un grupo distinto de glow.
