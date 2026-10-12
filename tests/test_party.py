@@ -56,3 +56,11 @@ def test_beat_pulse_and_equalizer_follow_the_music() -> None:
     layer = _render(eq, beats, frames=11)
     ys, _ = np.nonzero(layer[..., 3] > 0.3)
     assert ys.size and ys.mean() > 0.75 * H  # en el piso
+
+
+def test_mirror_ball_hangs_on_top_and_rains_light() -> None:
+    effect = Effect(id="b", type="mirror_ball", target=EffectTarget(kind="joint", id="body"), triggers=[{"event": "frenzy", "hold": 20, "fade_in": 0}])
+    layer = _render(effect, [MotionEvent(name="frenzy", target="person_0", start_frame=0, end_frame=30, confidence=1.0)])
+    top = layer[: int(0.18 * H), ..., 3].max()
+    ys, _ = np.nonzero(layer[..., 3] > 0.3)
+    assert top > 0.5 and ys.max() > 0.5 * H  # la bola arriba y la lluvia baja

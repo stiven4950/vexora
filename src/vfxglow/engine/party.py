@@ -3,6 +3,8 @@
 - disco_fx (`frenzy`): con mucho movimiento, destellos de neón disparados desde el cuerpo en
   todas direcciones y dos haces de luz que barren desde arriba, como en una discoteca.
 - beat_pulse (`beat`): la silueta del cuerpo late en cada golpe de la música.
+- mirror_ball: bola de espejos colgada arriba que lanza haces rectos de colores y destellos que
+  caen por ellos como lluvia.
 - equalizer: barras de neón sobre el piso que saltan con los golpes de la música (siempre o en
   una ventana). Lee los golpes de `runtime.beats` (el motor los pone).
 """
@@ -106,4 +108,56 @@ def draw_equalizer(runtime, track, points, frame_index: int, height: int, envelo
             continue
         color = np.asarray(style.colors[bar % len(style.colors)], dtype=np.float32)
         strokes += neon_layers(np.array([[x, floor], [x, floor - tall]]), color, max(2.0, width * 0.012), envelope * 0.8)
+    stroke_batch(layer, strokes, style.hdr_gain)
+
+
+# Bola de espejos: radio (fracción del ancho), haces y destellos por haz.
+BALL_RADIUS = 0.07
+BEAMS = 9
+DROPS = 5
+
+
+def draw_mirror_ball(runtime, track, points, frame_index: int, height: int, envelope: float, layer: np.ndarray, event=None) -> None:
+    """Bola de espejos colgada arriba: facetas que giran, haces rectos de colores en abanico que
+    barren despacio y destellos que caen en línea recta por esos haces, como lluvia de luz."""
+    style = runtime.effect.style
+    if envelope <= 0:
+        return
+    width = layer.shape[1]
+    center = np.array([width * 0.5, height * 0.1])
+    radius = width * BALL_RADIUS
+    white = np.array([1.0, 1.0, 1.0], dtype=np.float32)
+    strokes = [(np.array([[center[0], 0.0], [center[0], center[1] - radius]]), white, 1.5, 0.6 * envelope)]
+    theta = np.linspace(0, 2 * np.pi, 40)
+    strokes += neon_layers(center + np.stack([np.cos(theta), np.sin(theta)], axis=1) * radius, white, 2.0, envelope)
+    # Facetas: meridianos que avanzan (giro) y paralelos fijos.
+    turn = frame_index * 0.08
+    for k in range(6):
+        phase = (turn + k * np.pi / 6) % np.pi
+        squeeze = np.cos(phase)
+        if abs(squeeze) > 0.98:
+            continue
+        lat = np.linspace(-np.pi / 2, np.pi / 2, 16)
+        meridian = center + np.stack([np.cos(lat) * squeeze * radius, np.sin(lat) * radius], axis=1)
+        strokes += [(meridian, white, 1.2, 0.5 * envelope)]
+    for level in (-0.5, 0.0, 0.5):
+        half = np.sqrt(1 - level**2) * radius
+        strokes += [(np.array([center + [-half, level * radius], center + [half, level * radius]]), white, 1.2, 0.5 * envelope)]
+    # Haces rectos de colores en abanico hacia abajo, que barren despacio.
+    rng = np.random.default_rng(zlib.crc32(f"{style.seed_offset}:ball".encode()) & 0xFFFFFFFF)
+    reach = height * 1.1
+    for beam in range(BEAMS):
+        angle = np.pi / 2 + (beam - (BEAMS - 1) / 2) * 0.22 + 0.25 * np.sin(frame_index * 0.05 + beam)
+        direction = np.array([np.cos(angle), np.sin(angle)])
+        color = np.asarray(style.colors[beam % len(style.colors)], dtype=np.float32)
+        start = center + direction * radius
+        side = np.array([-direction[1], direction[0]]) * width * 0.025
+        end = start + direction * reach
+        fill_polygon(layer, np.array([start, end - side, end + side]), color, 0.07 * envelope, 1.0, feather=width * 0.01)
+        # Lluvia: destellos cortos que viajan en línea recta por el haz.
+        for drop in range(DROPS):
+            u = (frame_index * 0.035 + drop / DROPS + rng.uniform(0, 1)) % 1.0
+            head = start + direction * reach * u
+            tail = head - direction * height * 0.04
+            strokes += neon_layers(np.stack([tail, head]), color, 1.6, envelope * (1.0 - 0.5 * u))
     stroke_batch(layer, strokes, style.hdr_gain)

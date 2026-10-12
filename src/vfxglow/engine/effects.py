@@ -126,10 +126,10 @@ def render_effect(
 
         draw = {"prop_outline": draw_prop_outline, "prop_spring": draw_prop_spring, "prop_rings": draw_prop_rings, "prop_doodle": draw_prop_doodle}[kind]
         draw(runtime, track, points, frame_index, height, envelope, layer, event if effect.triggers else None)
-    elif kind in ("disco_fx", "beat_pulse", "equalizer"):
-        from vfxglow.engine.party import draw_beat_pulse, draw_disco, draw_equalizer
+    elif kind in ("disco_fx", "beat_pulse", "equalizer", "mirror_ball"):
+        from vfxglow.engine.party import draw_beat_pulse, draw_disco, draw_equalizer, draw_mirror_ball
 
-        draw = {"disco_fx": draw_disco, "beat_pulse": draw_beat_pulse, "equalizer": draw_equalizer}[kind]
+        draw = {"disco_fx": draw_disco, "beat_pulse": draw_beat_pulse, "equalizer": draw_equalizer, "mirror_ball": draw_mirror_ball}[kind]
         draw(runtime, track, points, frame_index, height, envelope, layer, event if effect.triggers else None)
     elif kind in ("foot_paint", "prop_swoosh"):
         from vfxglow.engine.trails import draw_foot_paint, draw_prop_swoosh

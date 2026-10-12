@@ -68,6 +68,7 @@ EffectType = Literal[
     "confetti_fx",
     "sound_waves",
     "whirl_fx",
+    "mirror_ball",
 ]
 TargetKind = Literal["joint", "chain", "face_region", "mask", "object", "event_point", "contour"]
 BlendMode = Literal["add", "screen", "over", "multiply", "tint"]
@@ -372,6 +373,7 @@ SUPPORTED_TYPES: tuple[str, ...] = (
     "confetti_fx",
     "sound_waves",
     "whirl_fx",
+    "mirror_ball",
 )
 
 # Efectos que por defecto pertenecen a un grupo distinto de glow.

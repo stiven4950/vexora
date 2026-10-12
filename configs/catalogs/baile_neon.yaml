@@ -369,6 +369,13 @@ reactions:
     - type: disco_fx
       style: {focus: false, hdr_gain: 1.8, palette_every: 30}
       trigger: {hold: 8, fade_in: 3, fade_out: 10}
+  # Bola de espejos arriba: haces rectos de colores y destellos que caen como lluvia.
+  - name: bola_espejos
+    weight: 0.45
+    effects:
+    - type: mirror_ball
+      style: {focus: false, hdr_gain: 1.7, palette_every: 30}
+      trigger: {hold: 20, fade_in: 4, fade_out: 10}
   - name: ecualizador
     weight: 0.3
     effects:

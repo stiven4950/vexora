@@ -517,6 +517,8 @@ valió".
 - **`beat`**: el coreógrafo convierte los golpes de audio del brief (`audio_onsets`) en eventos y
   los deja en el guion (`extra_events`). No cuentan en la nota de las versiones.
 - **`beat_pulse`**: la silueta del cuerpo destella en el golpe y se apaga en 6 fotogramas.
+- **`mirror_ball`**: bola de espejos colgada arriba, con facetas que giran. Lanza haces rectos de
+  colores en abanico y destellos que caen por ellos en línea recta, como lluvia de luz.
 - **`equalizer`**: barras de neón sobre el piso que saltan con los golpes recientes (el motor le
   pasa a cada efecto la lista de golpes).
 
