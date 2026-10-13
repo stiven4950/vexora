@@ -163,7 +163,9 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -
                 option = Option(name="nada (enfriamiento)")
             start, end = _window(option, event)
             if option.effects and option.exclusive:
-                if start <= exclusive_until or any(ks <= end and start <= ke for ks, ke in key_windows):
+                # Un efecto de escena cede ante otro y ante los momentos de cara (no ante el objeto,
+                # que puede estar en juego mucho tiempo).
+                if start <= exclusive_until or any(fs <= end and start <= fe for fs, fe in face_windows):
                     option = Option(name="nada (cede: ya hay un efecto de escena o un momento clave)")
             elif option.effects and reaction.action in YIELD_TO_EXCLUSIVE and start <= exclusive_until:
                 option = Option(name="nada (cede al efecto de escena)")

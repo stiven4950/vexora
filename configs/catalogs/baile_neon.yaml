@@ -140,7 +140,7 @@ reactions:
   # De vez en cuando, disfraces de cuerpo entero: chaqueta metalera o rayos X.
   - name: chaqueta
     exclusive: true
-    weight: 0.15
+    weight: 0.3
     kinds: [torso, left_arm, right_arm]
     yields_to: [prop_worn, face_touch]
     effects:
@@ -149,7 +149,7 @@ reactions:
       trigger: {hold: 20, fade_in: 4, fade_out: 8}
   - name: rayos_x
     exclusive: true
-    weight: 0.12
+    weight: 0.25
     kinds: [torso, left_arm, right_arm, legs]
     effects:
     - type: xray
@@ -162,6 +162,26 @@ reactions:
     effects:
     - type: footprints
       trigger: {hold: 20, fade_in: 2, fade_out: 10}
+  # La fiesta también puede llegar con el protagonista en movimiento (no solo con el baile
+  # intenso): poco probable y como mucho cada 10 s.
+  - name: bola_espejos_spot
+    weight: 0.14
+    exclusive: true
+    cooldown: 300
+    kinds: [legs, feet, left_arm, right_arm]
+    effects:
+    - type: mirror_ball
+      style: {focus: false, hdr_gain: 1.7, palette_every: 30}
+      trigger: {hold: 30, fade_in: 4, fade_out: 10}
+  - name: discoteca_spot
+    weight: 0.12
+    exclusive: true
+    cooldown: 300
+    kinds: [legs, feet, left_arm, right_arm]
+    effects:
+    - type: disco_fx
+      style: {focus: false, hdr_gain: 1.8, palette_every: 30}
+      trigger: {hold: 24, fade_in: 3, fade_out: 10}
   - name: collar_estrellas
     weight: 0.4
     kinds: [torso]
@@ -421,7 +441,7 @@ reactions:
   # Bola de espejos arriba: haces rectos de colores y destellos que caen como lluvia.
   - name: bola_espejos
     exclusive: true
-    weight: 0.45
+    weight: 0.6
     effects:
     - type: mirror_ball
       style: {focus: false, hdr_gain: 1.7, palette_every: 30}

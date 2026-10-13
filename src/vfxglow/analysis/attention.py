@@ -237,7 +237,7 @@ def focus_at(spans: list[AttentionSpan], frame: int, person: str | None = None) 
 
 # Frenesí: energía media de brazos y piernas (relativa a lo habitual de cada uno) por encima de
 # esto durante al menos FRENZY_MIN_S. video_33: 6-8 tramos; video_34: 3-4 por persona.
-FRENZY = 2.0
+FRENZY = 1.75
 FRENZY_MIN_S = 0.6
 FRENZY_WINDOW_S = 0.6
 
