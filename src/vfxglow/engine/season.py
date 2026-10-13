@@ -1,6 +1,10 @@
-"""Decoración de temporada (configs/seasons.yaml): dibujos de neón que dan la época al video.
+"""Objetos y momentos de temporada (configs/seasons.yaml).
 
-season_fx dibuja las formas de `style.shapes` alrededor de la persona, sin taparla:
+No es un marco fijo: los objetos de la época salen DENTRO de los efectos que ya se disparan (las
+partículas de un golpe son murciélagos, el sombrero de una pausa es de bruja) y los momentos de
+temporada (season_fx) son efectos disparados por una acción, que empiezan y terminan.
+
+Objetos (object_outline, también como formas de partícula de droplets):
 
 - cobweb: telarañas en las esquinas de arriba.
 - spider: una araña que baja de su hilo desde arriba y se balancea.
@@ -15,7 +19,14 @@ season_fx dibuja las formas de `style.shapes` alrededor de la persona, sin tapar
 - hearts: corazones que suben.
 - fireworks: fuegos artificiales que estallan arriba.
 
-Todo se escala con el cuadro (no con el cuerpo) y se anima con `runtime.active_frames`.
+Momentos (season_fx, `style.shapes`, uno por activación; anclados a la persona del evento):
+- spider_drop: una araña baja de su hilo hasta la cabeza, se balancea y vuelve a subir.
+- web_corner: una telaraña se teje en la esquina de arriba más cercana y se desvanece.
+- bat_swarm: un enjambre de murciélagos sale del cuerpo y se va volando.
+- ghost_rise: fantasmas que salen del piso junto a los pies y suben.
+- snow_burst / hearts_rise / marigold_rain: copos, corazones o pétalos alrededor de la persona.
+- fireworks: fuegos artificiales sobre la cabeza.
+- star_crown: una estrella que aparece sobre la cabeza.
 """
 
 from __future__ import annotations
@@ -27,7 +38,9 @@ import numpy as np
 from vfxglow.engine.raster import splat, stroke_batch
 from vfxglow.engine.swoosh import neon_layers
 
-SHAPES = ("cobweb", "spider", "bats", "pumpkins", "ghosts", "skull", "marigolds", "snow", "ornaments", "star", "hearts", "fireworks")
+OBJECTS = ("bat", "pumpkin", "ghost", "skull", "marigold", "flake", "ornament", "star", "heart", "spider")
+MOMENTS = ("spider_drop", "web_corner", "bat_swarm", "ghost_rise", "snow_burst", "hearts_rise", "marigold_rain", "fireworks", "star_crown")
+SHAPES = MOMENTS
 TAU = 2.0 * np.pi
 
 
@@ -53,11 +66,9 @@ def _cobweb(corner: np.ndarray, size: float, inward: np.ndarray) -> list[np.ndar
     return lines
 
 
-def _spider(anchor: np.ndarray, size: float, frame: int) -> list[np.ndarray]:
-    drop = (0.5 + 0.5 * np.sin(frame * 0.05)) * size * 6
-    swing = np.sin(frame * 0.09) * size * 0.6
-    body = anchor + np.array([swing, drop])
-    lines = [np.stack([anchor, body]), _circle(body, size * 0.35), _circle(body + [0, size * 0.55], size * 0.25)]
+def _spider_at(body: np.ndarray, size: float) -> list[np.ndarray]:
+    """Araña con el cuerpo en `body`: abdomen, cabeza y cuatro patas por lado."""
+    lines = [_circle(body, size * 0.35), _circle(body + [0, size * 0.55], size * 0.25)]
     for side in (-1, 1):
         for k in range(4):
             a = np.radians(-40 + 25 * k)
@@ -148,97 +159,115 @@ def _heart(center: np.ndarray, size: float) -> np.ndarray:
     return center + np.stack([16 * np.sin(t) ** 3, -(13 * np.cos(t) - 5 * np.cos(2 * t) - 2 * np.cos(3 * t) - np.cos(4 * t))], axis=1) / 17 * size
 
 
+
+
+def object_outline(name: str, center: np.ndarray, size: float, age: float = 0.0, spin: float = 0.0) -> list[np.ndarray]:
+    """Curvas de un objeto de temporada de tamaño `size` (radio aproximado)."""
+    center = np.asarray(center, dtype=np.float64)
+    if name == "bat":
+        return _bat(center, size * 1.2, np.sin(age * 25 + spin * 3))
+    if name == "pumpkin":
+        return _pumpkin(center, size * 1.8)
+    if name == "ghost":
+        return _ghost(center, size * 2.0, age * 8 + spin)
+    if name == "skull":
+        return _skull(center, size * 1.8)
+    if name == "marigold":
+        return _flower(center, size * 1.3, spin + age * 4)
+    if name == "flake":
+        return _flake(center, size, spin + age * 3)
+    if name == "ornament":
+        return [_circle(center, size * 0.8), np.stack([center - [0, size * 0.8], center - [0, size * 1.2]])]
+    if name == "star":
+        return [_star(center, size)]
+    if name == "heart":
+        return [_heart(center, size)]
+    if name == "spider":
+        return _spider_at(center, size * 0.8)
+    return [_circle(center, size)]
+
+
+def _nearest_corner(point: np.ndarray, width: int) -> tuple[np.ndarray, np.ndarray]:
+    if point[0] < width / 2:
+        return np.array([0.0, 0.0]), np.array([1.0, 1.0]) / np.sqrt(2)
+    return np.array([float(width), 0.0]), np.array([-1.0, 1.0]) / np.sqrt(2)
+
+
 def draw_season(runtime, track, points, frame_index: int, height: int, envelope: float, layer: np.ndarray, event=None) -> None:
+    """Un momento de temporada: dura lo que su activación y se anima con su avance (0-1)."""
     style = runtime.effect.style
     if envelope <= 0:
         return
     width = layer.shape[1]
-    unit = min(width, height) * 1.35
-    frame = runtime.active_frames
-    rng = np.random.default_rng(zlib.crc32(f"{style.seed_offset}:season".encode()) & 0xFFFFFFFF)
+    unit = min(width, height)
+    names = [s for s in style.shapes if s in MOMENTS] or ["bat_swarm"]
+    key = event.start_frame if event is not None else frame_index // 90
+    rng = np.random.default_rng(zlib.crc32(f"{style.seed_offset}:moment:{key}".encode()) & 0xFFFFFFFF)
+    moment = names[int(rng.integers(len(names)))]
+    span = max(runtime.fps * max(style.size, 0.5), 1.0)  # duración del momento (s)
+    u = min(runtime.active_frames / span, 1.0)
     colors = [np.asarray(c, dtype=np.float32) for c in style.colors] or [np.ones(3, np.float32)]
+    color = colors[0]
     line = max(1.5, style.thickness * unit * 0.05)
-    # La persona: no se dibuja encima de su centro.
-    body_x = float(np.mean([p[0] for name, p in points.items() if name.endswith(("shoulder", "hip"))] or [width / 2]))
     head = points.get("nose")
+    feet = [p for n, p in points.items() if n.endswith(("ankle", "heel"))]
+    hips = [p for n, p in points.items() if n.endswith("hip")]
+    center = np.mean(hips, axis=0) if hips else (head if head is not None else np.array([width / 2, height / 2]))
+    if event is not None and event.position is not None:
+        center = np.array(event.position) * [width, height]
     strokes: list = []
 
-    def add(curves, color, alpha=1.0, w=line):
-        for curve in curves if isinstance(curves, list) else [curves]:
-            strokes.extend(neon_layers(curve, color, w, envelope * alpha))
+    def add(curves, tint=color, alpha=1.0, w=line):
+        for curve in curves:
+            strokes.extend(neon_layers(curve, tint, w, envelope * alpha))
 
-    shapes = [s for s in style.shapes if s in SHAPES]
-    for shape in shapes:
-        color = colors[SHAPES.index(shape) % len(colors)]
-        if shape == "cobweb":
-            for corner, inward in ((np.array([0.0, 0.0]), np.array([1.0, 1.0])), (np.array([float(width), 0.0]), np.array([-1.0, 1.0]))):
-                add(_cobweb(corner, unit * 0.32, inward / np.linalg.norm(inward)), np.ones(3, np.float32) * 0.9, 0.7, line * 0.6)
-        elif shape == "spider":
-            side = width * (0.18 if body_x > width / 2 else 0.82)
-            add(_spider(np.array([side, 0.0]), unit * 0.035, frame), colors[0])
-        elif shape == "bats":
-            for k in range(4):
-                speed = rng.uniform(0.004, 0.008)
-                x = ((frame * speed + k / 4) % 1.2 - 0.1) * width
-                y = height * (0.08 + 0.18 * rng.uniform()) + np.sin(frame * 0.1 + k) * unit * 0.02
-                add(_bat(np.array([x, y]), unit * rng.uniform(0.04, 0.06), np.sin(frame * 0.6 + k * 1.3)), color)
-        elif shape == "pumpkins":
-            for k, side in enumerate((0.13, 0.87)):
-                y = height * (0.72 + 0.03 * np.sin(frame * 0.07 + k * 2))
-                center = np.array([side * width, y])
-                add(_pumpkin(center, unit * 0.12), color)
-                flicker = 0.7 + 0.3 * np.sin(frame * 1.3 + k)
-                splat(layer, float(center[0]), float(center[1]), unit * 0.04, color * 1.5, envelope * 0.5 * flicker, runtime.kernels)
-        elif shape == "ghosts":
-            for k in range(3):
-                life = ((frame * 0.006 + k / 3) % 1.0)
-                x = width * (0.12 if k % 2 == 0 else 0.88) + np.sin(frame * 0.05 + k) * unit * 0.04
-                y = height * (0.9 - 0.8 * life)
-                add(_ghost(np.array([x, y]), unit * 0.09, frame * 0.2 + k), np.array([0.85, 0.95, 1.0], np.float32), 1.0 - life)
-        elif shape == "skull":
-            for k, side in enumerate((0.14, 0.86)):
-                center = np.array([side * width, height * (0.25 + 0.02 * np.sin(frame * 0.06 + k))])
-                add(_skull(center, unit * 0.1), color)
-        elif shape in ("marigolds", "snow", "hearts"):
-            count = {"marigolds": 10, "snow": 26, "hearts": 9}[shape]
-            for k in range(count):
-                x0 = rng.uniform(0, 1)
-                speed = rng.uniform(0.003, 0.007)
-                t = (frame * speed + rng.uniform(0, 1)) % 1.0
-                if shape == "hearts":
-                    pos = np.array([x0 * width + np.sin(t * 8 + k) * unit * 0.02, height * (1.05 - 1.1 * t)])
-                else:
-                    pos = np.array([x0 * width + np.sin(t * 6 + k) * unit * 0.03, height * (-0.05 + 1.1 * t)])
-                if abs(pos[0] - body_x) < width * 0.18:
-                    continue  # no encima de la persona
-                size = unit * rng.uniform(0.015, 0.03)
-                if shape == "snow":
-                    add(_flake(pos, size, t * 6), np.array([0.85, 0.95, 1.0], np.float32), 0.8, line * 0.6)
-                elif shape == "marigolds":
-                    add(_flower(pos, size * 1.6, t * 4), color, 0.9, line * 0.7)
-                else:
-                    add(_heart(pos, size * 1.3), color, 1.0 - t * 0.5, line * 0.8)
-        elif shape == "ornaments":
-            for k, x in enumerate((0.1, 0.24, 0.76, 0.9)):
-                drop = height * (0.12 + 0.06 * (k % 2))
-                swing = np.sin(frame * 0.05 + k) * unit * 0.01
-                ball = np.array([x * width + swing, drop])
-                add([np.stack([np.array([x * width, 0.0]), ball - [0, unit * 0.03]]), _circle(ball, unit * 0.03)], colors[k % len(colors)])
-                splat(layer, float(ball[0] - unit * 0.01), float(ball[1] - unit * 0.01), unit * 0.008, np.ones(3, np.float32) * 1.5, envelope, runtime.kernels)
-        elif shape == "star" and head is not None:
-            center = head - np.array([0.0, unit * 0.22])
-            pulse = 1.0 + 0.1 * np.sin(frame * 0.3)
-            add(_star(center, unit * 0.05 * pulse), np.array([1.0, 0.85, 0.3], np.float32))
-        elif shape == "fireworks":
-            for k in range(3):
-                period = 50 + 13 * k
-                t = ((frame + k * 17) % period) / period
-                center = np.array([width * (0.2 + 0.3 * k), height * (0.12 + 0.05 * k)])
-                fw = colors[k % len(colors)]
-                for a in np.linspace(0, TAU, 12, endpoint=False):
-                    d = np.array([np.cos(a), np.sin(a)])
-                    head_pt = center + d * unit * 0.12 * t**0.6 + np.array([0, unit * 0.04 * t**2])
-                    tail = head_pt - d * unit * 0.03 * (1 - t)
-                    strokes.extend(neon_layers(np.stack([tail, head_pt]), fw, line * 0.7, envelope * (1 - t)))
+    if moment == "spider_drop" and head is not None:
+        anchor = np.array([head[0] + unit * 0.08, 0.0])
+        down = np.sin(np.pi * u)  # baja y vuelve a subir
+        target = head[1] - unit * 0.1
+        body_y = target * down
+        swing = np.sin(frame_index * 0.12) * unit * 0.015 * down
+        size = unit * 0.05
+        body = np.array([anchor[0] + swing, body_y])
+        add([np.stack([anchor, body])], np.ones(3, np.float32) * 0.8, 0.7, line * 0.5)
+        add(_spider_at(body, size))
+    elif moment == "web_corner":
+        corner, inward = _nearest_corner(head if head is not None else center, width)
+        grow = min(u / 0.4, 1.0)
+        fade = 1.0 - max(u - 0.75, 0.0) / 0.25
+        web = _cobweb(corner, unit * 0.32 * grow, inward)
+        add(web[: max(2, int(len(web) * grow))], np.ones(3, np.float32) * 0.9, 0.8 * fade, line * 0.6)
+    elif moment == "bat_swarm":
+        for k in range(9):
+            angle = rng.uniform(-np.pi * 0.95, -np.pi * 0.05)
+            speed = rng.uniform(0.5, 1.0)
+            pos = center + np.array([np.cos(angle), np.sin(angle)]) * unit * 0.7 * speed * u + [np.sin(u * 20 + k) * unit * 0.01, 0]
+            add(object_outline("bat", pos, unit * rng.uniform(0.025, 0.04), u * 2 + k, k), colors[k % len(colors)], 1.0 - u * 0.6)
+    elif moment == "ghost_rise":
+        base = np.mean(feet, axis=0) if feet else center + [0, unit * 0.3]
+        for k, side in enumerate((-1, 1)):
+            pos = base + np.array([side * unit * 0.18, -unit * 0.55 * u]) + [np.sin(u * 8 + k) * unit * 0.02, 0]
+            add(object_outline("ghost", pos, unit * 0.04, u * 3, k), np.array([0.85, 0.95, 1.0], np.float32), np.sin(np.pi * u))
+    elif moment in ("snow_burst", "hearts_rise", "marigold_rain"):
+        obj = {"snow_burst": "flake", "hearts_rise": "heart", "marigold_rain": "marigold"}[moment]
+        rising = moment == "hearts_rise"
+        for k in range(12):
+            x = center[0] + rng.uniform(-0.45, 0.45) * unit
+            y0 = center[1] + rng.uniform(-0.5, 0.2) * unit
+            pos = np.array([x + np.sin(u * 6 + k) * unit * 0.02, y0 + (-1 if rising else 1) * unit * 0.4 * u])
+            add(object_outline(obj, pos, unit * rng.uniform(0.012, 0.022), u, k), colors[k % len(colors)], np.sin(np.pi * u), line * 0.7)
+    elif moment == "fireworks" and head is not None:
+        for k in range(3):
+            t = min(max(u * 1.5 - k * 0.25, 0.0), 1.0)
+            if t <= 0:
+                continue
+            burst = head + np.array([(k - 1) * unit * 0.25, -unit * (0.3 + 0.08 * k)])
+            for a in np.linspace(0, TAU, 12, endpoint=False):
+                d = np.array([np.cos(a), np.sin(a)])
+                tip = burst + d * unit * 0.12 * t**0.6 + [0, unit * 0.04 * t**2]
+                add([np.stack([tip - d * unit * 0.03 * (1 - t), tip])], colors[k % len(colors)], 1.0 - t, line * 0.7)
+    elif moment == "star_crown" and head is not None:
+        pulse = 1.0 + 0.1 * np.sin(frame_index * 0.3)
+        add([_star(head - [0, unit * 0.2], unit * 0.045 * pulse * min(u / 0.2, 1.0))], np.array([1.0, 0.85, 0.3], np.float32))
     if strokes:
         stroke_batch(layer, strokes, style.hdr_gain)

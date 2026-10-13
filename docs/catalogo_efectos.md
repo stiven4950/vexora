@@ -588,23 +588,30 @@ coloque donde y cuando la coreografía lo pide. Ver `configs/sprites/README.md`:
 
 ### Temporadas (`configs/seasons.yaml`, `--season`)
 
-Un estilo de época encima de cualquier catálogo o preset:
+La época entra **dentro de los efectos que ya se disparan**, no como un marco fijo: nada de la
+temporada está encendido todo el tiempo. Sobre cualquier catálogo:
 
-- **Paleta:** sustituye la del catálogo (los capítulos de color toman de ella).
-- **Decoración:** `season_fx` sobre todo el video, sin tapar a la persona.
-- **Opciones potenciadas:** las que mejor encajan con la época salen 2,5 veces más.
+- **Paleta:** la de la temporada (los capítulos de color toman de ella).
+- **Partículas:** las de los efectos (y las que suelta la parte protagonista al moverse rápido)
+  pasan a ser objetos de la época.
+- **Explosiones:** las chispas del lanzamiento, del globo y de la discoteca pasan a ser objetos
+  (`style.objects`).
+- **Sombreros:** los de los accesorios de cabeza pasan a ser de la época.
+- **Cierre:** se disipa en objetos de la época.
+- **Momentos de temporada** (`season_fx`): una opción más de ciertas acciones. Compiten con las
+  demás opciones, respetan al protagonista y el tope de efectos, y empiezan y terminan.
 
-| Temporada | Cuándo se sugiere | Decoración | Paleta |
+| Temporada | Se sugiere | Objetos | Momentos |
 | --- | --- | --- | --- |
-| Halloween 🎃 | Octubre | Telarañas, araña colgando, murciélagos, calabazas, fantasmas | Naranja, morado, verde ácido |
-| Día de Muertos 💀 | 28 oct – 3 nov | Calaveras con ojos de flor, cempasúchil | Naranja, magenta, turquesa |
-| Navidad 🎄 | Diciembre | Nieve, esferas colgando, estrella que corona | Rojo, verde, dorado |
-| Año Nuevo 🎆 | 28 dic – 3 ene | Fuegos artificiales | Dorado, plata, magenta |
-| San Valentín 💘 | 1–15 feb | Corazones que suben | Rosa, rojo, lila |
+| Halloween 🎃 | Octubre | Murciélagos, calabazas, fantasmas, arañas; sombrero de bruja | Pausa: araña que baja hasta la cabeza. Pausa larga: telaraña que se teje en la esquina. Baile intenso: enjambre de murciélagos. Pisotón: fantasmas que suben |
+| Día de Muertos 💀 | 28 oct – 3 nov | Cempasúchil, calaveras; corona de flores | Pausa y baile intenso: lluvia de pétalos |
+| Navidad 🎄 | Diciembre | Copos, esferas, estrellas; gorro de Santa | Pausa: estrella sobre la cabeza. Baile intenso: nevada |
+| Año Nuevo 🎆 | 28 dic – 3 ene | Estrellas; gorro de fiesta | Baile intenso y brazos arriba: fuegos artificiales |
+| San Valentín 💘 | 1–15 feb | Corazones | Pausa y corazón con las manos: corazones que suben |
 
-La API la expone en `/api/seasons` con `suggested` (la que toca hoy) y los trabajos aceptan
-`season`. La web la propone en el paso "Toque de temporada". Para agregar una temporada basta una
-entrada en el YAML; las formas disponibles están en `engine/season.py`.
+En un preset (sin coreógrafo), los momentos se agregan como efectos disparados por su acción,
+como mucho 3 veces y con enfriamiento. La API expone `/api/seasons` (con la sugerida hoy) y la
+web la propone en el paso "Toque de temporada".
 
 ```bash
 vfxglow run --video ../glowing/data/original/video_33.mp4 --catalog baile_neon --season halloween

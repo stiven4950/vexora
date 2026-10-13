@@ -23,7 +23,7 @@ export interface Season {
   description: string;
   tags: string[];
   palette: Rgb[];
-  decor: string[];
+  particles: string[];
   /** La temporada que toca hoy: la web la propone. */
   suggested: boolean;
 }

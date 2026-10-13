@@ -63,6 +63,16 @@ SHAPES: dict[str, tuple[float, float]] = {
     "dash": (0.5, 0.9),
     "heart": (-0.15, 0.3),
     "note": (-0.18, 0.35),
+    # Objetos de temporada (engine/season.py): murciélagos y fantasmas suben, calabazas caen.
+    "bat": (-0.35, 0.45),
+    "pumpkin": (0.6, 0.5),
+    "ghost": (-0.4, 0.25),
+    "skull": (0.4, 0.45),
+    "marigold": (-0.05, 0.3),
+    "flake": (0.12, 0.2),
+    "ornament": (0.7, 0.4),
+    "star": (-0.2, 0.3),
+    "spider": (0.8, 0.3),
 }
 
 
@@ -269,6 +279,10 @@ def bit_outline(bit: Bit) -> list[np.ndarray]:
         head = center + np.stack([np.cos(np.linspace(0, TAU, 14)), np.sin(np.linspace(0, TAU, 14)) * 0.7], axis=1) * r
         stem_top = center + np.array([r, -3.2 * r])
         return [head, np.array([center + np.array([r, 0.0]), stem_top]), np.array([stem_top, stem_top + np.array([1.2 * r, 0.9 * r])])]
+    from vfxglow.engine.season import OBJECTS, object_outline
+
+    if bit.shape in OBJECTS:
+        return object_outline(bit.shape, center, bit.size * 1.3, age, bit.spin)
     return [np.array([center - velocity * 1.6, center])]
 
 

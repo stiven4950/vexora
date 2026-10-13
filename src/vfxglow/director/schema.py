@@ -199,6 +199,9 @@ class EffectStyle(_Strict):
     # sprite_fx: animación ya renderizada (carpeta de PNG, PNG o video) en configs/sprites/, y
     # su velocidad (0 = la del video, o la del render).
     sprite: str = ""
+    # Objetos de temporada (engine/season.py: bat, pumpkin, flake...) que reemplazan a las chispas
+    # de las explosiones (lanzamiento, globo, discoteca). Vacío = chispas normales.
+    objects: list[str] = Field(default_factory=list)
     sprite_fps: float = 0.0
     dash: float = 0.0
     rings: int = 2

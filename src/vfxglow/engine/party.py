@@ -54,7 +54,14 @@ def draw_disco(runtime, track, points, frame_index: int, height: int, envelope: 
         direction = np.array([np.cos(angle), np.sin(angle)])
         head = origin + direction * DISCO_REACH * torso * age**0.7
         tail = head - direction * torso * 0.25 * (1.0 - age)
-        strokes += neon_layers(np.stack([tail, head]), color, 1.6, (1.0 - age) * max(envelope, 0.3))
+        if style.objects:
+            from vfxglow.engine.season import object_outline
+
+            name = style.objects[int(angle * 10) % len(style.objects)]
+            for curve in object_outline(name, head, torso * 0.05, age, angle):
+                strokes += neon_layers(curve, color, 1.6, (1.0 - age) * max(envelope, 0.3))
+        else:
+            strokes += neon_layers(np.stack([tail, head]), color, 1.6, (1.0 - age) * max(envelope, 0.3))
     if envelope > 0:
         # Dos haces de luz que barren desde las esquinas de arriba.
         width = layer.shape[1]

@@ -44,10 +44,20 @@ def _orb(center: np.ndarray, radius: float, color: np.ndarray, envelope: float, 
     return neon_layers(_circle(center, radius), color, line, envelope)
 
 
-def _sparks(center: np.ndarray, radius: float, progress: float, color: np.ndarray, envelope: float, rng: np.random.Generator) -> list:
-    """Chispas diminutas que salen en todas direcciones y se apagan."""
+def _sparks(center: np.ndarray, radius: float, progress: float, color: np.ndarray, envelope: float, rng: np.random.Generator, objects: list[str] | None = None) -> list:
+    """Chispas diminutas que salen en todas direcciones y se apagan; con `objects` (temporada),
+    objetos de la época en su lugar (menos y más grandes)."""
     strokes = []
     fade = envelope * (1.0 - progress)
+    if objects:
+        from vfxglow.engine.season import object_outline
+
+        for k, angle in enumerate(rng.uniform(0, 2 * np.pi, 7)):
+            direction = np.array([np.cos(angle), np.sin(angle)])
+            pos = center + direction * radius * (0.25 + 0.75 * progress)
+            for curve in object_outline(objects[k % len(objects)], pos, radius * 0.09, progress, k):
+                strokes += neon_layers(curve, color, 1.5, fade)
+        return strokes
     for angle, speed in zip(rng.uniform(0, 2 * np.pi, SPARKS), rng.uniform(0.6, 1.0, SPARKS)):
         direction = np.array([np.cos(angle), np.sin(angle)])
         head = center + direction * radius * speed * (0.3 + 0.7 * progress)
@@ -95,7 +105,7 @@ def draw_throw_fx(runtime, track, points, frame_index: int, height: int, envelop
                 strokes += _orb(head, ORB_RADIUS * torso, color, envelope, line, layer)
             elif elapsed <= FLIGHT_S + BURST_S:
                 end = start + direction * FLIGHT * torso
-                strokes += _sparks(end, torso * 0.6, (elapsed - FLIGHT_S) / BURST_S, color, envelope, rng)
+                strokes += _sparks(end, torso * 0.6, (elapsed - FLIGHT_S) / BURST_S, color, envelope, rng, style.objects)
         elif shape == "ray":
             if elapsed <= RAY_S:
                 u = elapsed / RAY_S
@@ -103,7 +113,7 @@ def draw_throw_fx(runtime, track, points, frame_index: int, height: int, envelop
                 fade = envelope * (1.0 - max(u - 0.3, 0.0) / 0.7)
                 strokes += neon_layers(np.stack([start, start + direction * reach]), color, line * 2.0, fade)
         elif elapsed <= BURST_S * 1.5:
-            strokes += _sparks(start, torso * 0.8, elapsed / (BURST_S * 1.5), color, envelope, rng)
+            strokes += _sparks(start, torso * 0.8, elapsed / (BURST_S * 1.5), color, envelope, rng, style.objects)
     if strokes:
         stroke_batch(layer, strokes, style.hdr_gain)
 
@@ -151,7 +161,7 @@ def draw_pop_fx(runtime, track, points, frame_index: int, height: int, envelope:
             arc = np.linspace(-0.6, 0.6, 8)
             reach = radius * (1.4 + 1.6 * u)
             strokes += neon_layers(np.stack([center + np.array([side * reach * np.cos(a), reach * np.sin(a) * 0.5]) for a in arc]), WHITE, line * 0.7, fade)
-        strokes += _sparks(center, radius * 2.5, u, color, envelope, rng)
+        strokes += _sparks(center, radius * 2.5, u, color, envelope, rng, style.objects)
     stroke_batch(layer, strokes, style.hdr_gain)
 
 

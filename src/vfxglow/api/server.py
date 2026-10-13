@@ -98,7 +98,7 @@ class SeasonView(BaseModel):
     description: str
     tags: list[str]
     palette: list[tuple[float, float, float]]
-    decor: list[str]
+    particles: list[str]
     suggested: bool
 
 
@@ -110,7 +110,7 @@ def seasons() -> list[SeasonView]:
     all_seasons = load_seasons(ROOT / "configs" / "seasons.yaml")
     today = suggest(all_seasons)
     return [
-        SeasonView(id=s.id, title=s.title, emoji=s.emoji, description=s.description, tags=s.tags, palette=s.palette, decor=s.decor, suggested=today is not None and s.id == today.id)
+        SeasonView(id=s.id, title=s.title, emoji=s.emoji, description=s.description, tags=s.tags, palette=s.palette, particles=s.particles, suggested=today is not None and s.id == today.id)
         for s in all_seasons
     ]
 

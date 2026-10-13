@@ -1,76 +1,108 @@
-# Temporadas: estilos de época que se aplican encima de cualquier catálogo (`--season <id>` o el
-# selector de la web). Cada temporada:
+# Temporadas: la época entra DENTRO de los efectos que ya se disparan, no como un marco fijo.
+# Se aplican encima de cualquier catálogo (`--season <id>` o el paso "Toque de temporada" de la
+# web). Cada temporada:
 # - months / days: cuándo se sugiere (mes 1-12; días opcionales "MM-DD" de inicio y fin).
 # - palette: sustituye la paleta del catálogo (los capítulos de color toman de aquí).
-# - decor: formas de season_fx (engine/season.py) que decoran todo el video.
-# - boost: opciones del catálogo que salen más (peso x boost_factor), por su nombre.
-# - tags: etiquetas para buscar y mostrar.
+# - particles: objetos que reemplazan a las partículas (gotas, chispas) de los efectos.
+# - hats: sombreros que reemplazan a los de los accesorios de cabeza.
+# - closing: objeto en que se disipa todo al final (en vez de estrellas).
+# - moments: momentos de temporada como opción más de una acción del catálogo (`action`), con su
+#   peso; compiten con las demás y respetan al protagonista y el tope de efectos.
+# - boost: opciones del catálogo que salen más, por su nombre.
 seasons:
 - id: halloween
   title: Halloween
   emoji: "🎃"
   months: [10]
   tags: [halloween, terror, calabazas, arañas, telarañas, murciélagos, fantasmas]
-  description: Calabazas, arañas y telarañas, murciélagos y fantasmas en naranja, morado y verde ácido.
+  description: Murciélagos que salen de los golpes, una araña que baja en las pausas, fantasmas al pisar y sombrero de bruja.
   palette:
   - [1.0, 0.5, 0.05]
   - [0.6, 0.2, 1.0]
   - [0.45, 1.0, 0.15]
   - [1.0, 0.35, 0.1]
-  decor: [cobweb, spider, bats, pumpkins, ghosts]
-  boost: [rayos_x, expresion, cabeza_accesorio, discoteca]
+  particles: [bat, pumpkin, ghost, spider]
+  hats: [witch_hat]
+  closing: [bat, pumpkin]
+  moments:
+  - {action: still, moment: spider_drop, weight: 0.6, size: 2.5}
+  - {action: lull, moment: web_corner, weight: 0.5, size: 2.0}
+  - {action: frenzy, moment: bat_swarm, weight: 0.8, size: 1.4}
+  - {action: stomp, moment: ghost_rise, weight: 0.6, size: 1.6}
+  - {action: fast_swing, moment: bat_swarm, weight: 0.25, size: 1.0}
+  boost: [rayos_x, expresion]
 - id: dia_de_muertos
   title: Día de Muertos
   emoji: "💀"
   months: [11]
   days: ["10-28", "11-03"]
   tags: [día de muertos, calaveras, cempasúchil, catrina, ofrenda]
-  description: Calaveras con ojos de flor y pétalos de cempasúchil en naranja, magenta y turquesa.
+  description: Pétalos de cempasúchil en los movimientos, corona de flores y calaveras al final.
   palette:
   - [1.0, 0.6, 0.0]
   - [1.0, 0.15, 0.6]
   - [0.1, 0.85, 0.85]
   - [0.65, 0.25, 1.0]
-  decor: [skull, marigolds]
-  boost: [rayos_x, cabeza_accesorio]
+  particles: [marigold, skull]
+  hats: [flower_crown]
+  closing: [marigold, skull]
+  moments:
+  - {action: still, moment: marigold_rain, weight: 0.6, size: 2.0}
+  - {action: frenzy, moment: marigold_rain, weight: 0.6, size: 1.5}
+  boost: [rayos_x]
 - id: navidad
   title: Navidad
   emoji: "🎄"
   months: [12]
   tags: [navidad, nieve, esferas, estrella, invierno]
-  description: Nieve, esferas que cuelgan y una estrella que corona, en rojo, verde y dorado.
+  description: Copos y esferas en los movimientos, gorro de Santa, una estrella en las pausas y nieve al bailar.
   palette:
   - [1.0, 0.15, 0.15]
   - [0.15, 0.9, 0.35]
   - [1.0, 0.8, 0.25]
   - [0.85, 0.95, 1.0]
-  decor: [snow, ornaments, star]
-  boost: [cabeza_accesorio, collar_estrellas]
+  particles: [flake, ornament, star]
+  hats: [santa_hat]
+  closing: [flake, star]
+  moments:
+  - {action: still, moment: star_crown, weight: 0.5, size: 2.0}
+  - {action: frenzy, moment: snow_burst, weight: 0.7, size: 1.8}
+  boost: [collar_estrellas]
 - id: ano_nuevo
   title: Año Nuevo
   emoji: "🎆"
   months: [12, 1]
   days: ["12-28", "01-03"]
   tags: [año nuevo, fuegos artificiales, fiesta, brindis]
-  description: Fuegos artificiales y fiesta en dorado, plata y magenta.
+  description: Estrellas en los movimientos y fuegos artificiales en los momentos de más energía.
   palette:
   - [1.0, 0.82, 0.3]
   - [0.85, 0.9, 1.0]
   - [1.0, 0.3, 0.75]
   - [0.4, 0.7, 1.0]
-  decor: [fireworks]
-  boost: [discoteca, bola_espejos, ecualizador, fiesta]
+  particles: [star]
+  hats: [party_hat]
+  closing: [star]
+  moments:
+  - {action: frenzy, moment: fireworks, weight: 0.8, size: 1.8}
+  - {action: arms_up, moment: fireworks, weight: 0.8, size: 1.5}
+  boost: [discoteca, bola_espejos, fiesta]
 - id: san_valentin
   title: San Valentín
   emoji: "💘"
   months: [2]
   days: ["02-01", "02-15"]
   tags: [san valentín, amor, corazones, romántico]
-  description: Corazones que suben en rosa, rojo y lila.
+  description: Corazones en los movimientos y corazones que suben en las pausas.
   palette:
   - [1.0, 0.3, 0.55]
   - [1.0, 0.1, 0.25]
   - [0.85, 0.5, 1.0]
   - [1.0, 0.7, 0.8]
-  decor: [hearts]
+  particles: [heart]
+  hats: []
+  closing: [heart]
+  moments:
+  - {action: still, moment: hearts_rise, weight: 0.6, size: 2.0}
+  - {action: heart_hands, moment: hearts_rise, weight: 0.5, size: 1.5}
   boost: [beso, corazon]

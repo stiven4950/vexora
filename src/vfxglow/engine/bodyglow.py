@@ -26,7 +26,7 @@ from vfxglow.engine.swoosh import neon_layers
 
 TAU = 2.0 * np.pi
 PARTS = ("left_arm", "right_arm", "arms", "legs", "torso", "head", "feet", "hands", "body")
-ADORNMENTS = ("necklace", "chain", "chest_stars", "belt", "metal_jacket", "cap", "cowboy_hat", "top_hat", "fedora", "party_hat", "headphones", "halo", "crown", "knee_dots", "ankle_bands")
+ADORNMENTS = ("necklace", "chain", "chest_stars", "belt", "metal_jacket", "cap", "cowboy_hat", "top_hat", "fedora", "party_hat", "witch_hat", "santa_hat", "flower_crown", "headphones", "halo", "crown", "knee_dots", "ankle_bands")
 
 # Radio de cada cápsula en anchos de hombros.
 _LIMB = {"arm": 0.22, "leg": 0.26, "foot": 0.18, "hand": 0.2}
@@ -588,6 +588,31 @@ def adornment(shape, body: Body, frame, scale, frame_index, seed, runtime, layer
         brim_start = head + up * 0.28 * scale + across * 0.36 * scale
         brim = np.array([dome[-1], dome[0], brim_start + across * 0.28 * scale - up * 0.04 * scale])
         return [np.vstack([dome, dome[:1]]), brim]
+    if shape == "witch_hat":
+        band = head + up * 0.36 * scale
+        brim = _ellipse(band, 0.6 * scale, 0.1 * scale, across, up)
+        tip = band + up * 0.85 * scale + across * 0.25 * scale
+        cone = np.array([band - across * 0.28 * scale, band - across * 0.1 * scale + up * 0.45 * scale, tip, band + across * 0.08 * scale + up * 0.4 * scale, band + across * 0.28 * scale])
+        stripe = np.array([band - across * 0.26 * scale + up * 0.08 * scale, band + across * 0.26 * scale + up * 0.08 * scale])
+        return [brim, cone, stripe]
+    if shape == "santa_hat":
+        band = head + up * 0.36 * scale
+        trim = _ellipse(band, 0.36 * scale, 0.08 * scale, across, up)
+        tip = band + up * 0.5 * scale + across * 0.45 * scale
+        body = np.array([band - across * 0.32 * scale, band - across * 0.05 * scale + up * 0.5 * scale, tip, band + across * 0.32 * scale])
+        pompom = _ellipse(tip, 0.08 * scale, 0.08 * scale, across, up)
+        return [trim, body, pompom]
+    if shape == "flower_crown":
+        band = head + up * 0.4 * scale
+        flowers = []
+        for k, x in enumerate(np.linspace(-0.32, 0.32, 5)):
+            center_f = band + across * x * scale + up * 0.04 * scale * np.cos(x * 4)
+            r = (0.08 if k % 2 == 0 else 0.06) * scale
+            flowers.append(_ellipse(center_f, r * 0.4, r * 0.4, across, up))
+            for a in np.linspace(0, TAU, 6, endpoint=False):
+                petal = center_f + (across * np.cos(a) + up * np.sin(a)) * r
+                flowers.append(_ellipse(petal, r * 0.35, r * 0.35, across, up, n=10))
+        return flowers
     if shape == "top_hat":
         band = head + up * 0.36 * scale
         brim = _ellipse(band, 0.42 * scale, 0.07 * scale, across, up)

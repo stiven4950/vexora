@@ -43,12 +43,23 @@ def draw_closing(runtime, layers: list[np.ndarray], frame_index: int, start: int
     progress = (frame_index - start) / max(length, 1)
     fade = (1.0 - progress) ** 0.7
     style = runtime.effect.style
+    from vfxglow.engine.season import OBJECTS
+
+    objects = [name for name in style.shapes if name in OBJECTS]
     strokes = []
     for position, color, phase, size in runtime.bits:
         twinkle = 0.5 + 0.5 * np.sin(frame_index * 0.7 + phase)
         center = position - np.array([0.0, size * 3.0 * progress])
-        star = sparkle(center, size * (0.6 + 0.6 * twinkle) * (1.0 - 0.5 * progress))
-        strokes += neon_layers(star, color, 1.2, fade * (0.4 + 0.6 * twinkle))
+        scale = size * (0.6 + 0.6 * twinkle) * (1.0 - 0.5 * progress)
+        if objects:
+            # Temporada: lo encendido se vuelve objetos de la época (murciélagos que se van).
+            from vfxglow.engine.season import object_outline
+
+            name = objects[int(phase * 10) % len(objects)]
+            for curve in object_outline(name, center - [0.0, size * 30 * progress * (name == "bat")], scale, progress, phase):
+                strokes += neon_layers(curve, color, 1.2, fade * (0.4 + 0.6 * twinkle))
+        else:
+            strokes += neon_layers(sparkle(center, scale), color, 1.2, fade * (0.4 + 0.6 * twinkle))
     stroke_batch(layer, strokes, style.hdr_gain)
     return layer
 

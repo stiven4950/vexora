@@ -82,11 +82,11 @@ class CreativeDirector:
             script = load_preset(path, brief.video.frame_count)
             season = self._season()
             if season is not None:
-                from vfxglow.director.schema import Effect
-                from vfxglow.director.seasons import decor_effect
+                from vfxglow.director.schema import Effect, resolve_timing
+                from vfxglow.director.seasons import preset_effects
 
-                decor = Effect.model_validate({"id": f"season_{season.id}", **decor_effect(season)})
-                script = script.model_copy(update={"effects": [*script.effects, decor]})
+                extra = [Effect.model_validate(raw) for raw in preset_effects(season)]
+                script = resolve_timing(script.model_copy(update={"effects": [*script.effects, *extra]}), brief.video.frame_count)
             return script
         artist = self.config.style == "artist" and bool(brief.beats)
         prompt = render_art_prompt(brief) if artist else render_prompt(brief)

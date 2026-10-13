@@ -15,7 +15,7 @@ from vfxglow.director.schema import Effect
 # Fotogramas del fundido al perder o recuperar el foco.
 FADE = 4
 
-_HEAD_ADORN = {"cap", "cowboy_hat", "top_hat", "fedora", "party_hat", "headphones", "halo", "crown"}
+_HEAD_ADORN = {"cap", "cowboy_hat", "top_hat", "fedora", "party_hat", "witch_hat", "santa_hat", "flower_crown", "headphones", "halo", "crown"}
 _CHEST_ADORN = {"necklace", "chain", "chest_stars", "belt", "metal_jacket"}
 _LEG_ADORN = {"knee_dots", "ankle_bands"}
 _BODY_PARTS = {
