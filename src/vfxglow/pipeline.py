@@ -153,6 +153,10 @@ class Pipeline:
             from vfxglow.analysis.attention import attention_timeline
 
             update["attention"] = attention_timeline(tracks, events, meta.fps, meta.width, meta.height)
+        if "duet" in missing:
+            from vfxglow.analysis.duet import duet_timeline
+
+            update["duet"] = duet_timeline(tracks, meta.fps, meta.width, meta.height)
         update["derived"] = list(DERIVED)
         write_model(brief_path, brief.model_copy(update=update))
         log.info("Señales derivadas calculadas: %s", ", ".join(dict.fromkeys(missing)))

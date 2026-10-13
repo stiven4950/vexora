@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -214,6 +216,17 @@ class AttentionSpan(_Strict):
     secondary: str | None = None
 
 
+class DuetSpan(_Strict):
+    """Tramo de una pareja: bailan al unísono (el mismo efecto va en los dos) o uno lleva el
+    turno (`solo`: solo él se enciende). `leader` es quien más se mueve en el tramo."""
+
+    start_frame: int
+    end_frame: int
+    mode: Literal["unison", "solo"]
+    leader: str
+    partner: str
+
+
 class SkinTone(_Strict):
     """Tono de piel medido (mediana en RGB lineal) y su luminancia: decide qué colores contrastan."""
 
@@ -238,5 +251,6 @@ class MotionBrief(_Strict):
     accessories: list[Accessory] = Field(default_factory=list)
     skin: dict[str, SkinTone] = Field(default_factory=dict)
     attention: list[AttentionSpan] = Field(default_factory=list)
+    duet: list[DuetSpan] = Field(default_factory=list)
     # Señales derivadas ya calculadas (analysis/analyzer.py: DERIVED).
     derived: list[str] = Field(default_factory=list)

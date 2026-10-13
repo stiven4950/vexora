@@ -1,14 +1,20 @@
-# Baile en pareja (referencia glowing/video_34.mp4). Cada persona tiene su color durante todo el
-# video (cian y magenta). Aureolas y ojos encendidos al entrar, corazones y notas musicales que
-# salen de las manos, rayos que recorren el cuerpo, contornos de la ropa, rodillas que brillan y
-# bandas en los tobillos al pisar. Ver docs/catalogo_efectos.md, sección "Baile".
+# Baile en pareja (referencia glowing/video_34.mp4, ver docs/referencias/video_34.md).
+#
+# Cada bailarín tiene su color todo el video (cian y rosa). Cuando bailan igual, lo que se
+# enciende en uno se enciende en el otro (duet: analysis/duet.py); cuando uno se aparta (se abre
+# el saco, se lleva la mano a la cabeza, gira), solo ese se enciende y el otro queda limpio.
+# Nada de contornos cerrados de brazos o piernas: tramos que recorren el borde, puntos en las
+# rodillas, bandas en los tobillos, aureolas, notas y corazones que salen de las manos.
 name: baile_duo
 title: Baile en pareja
-description: 'Dos personas, dos colores: aureolas, corazones y notas musicales, rayos sobre el cuerpo, rodillas encendidas y siluetas al moverse.'
+description: 'Dos personas, dos colores: lo que hace uno se enciende en el otro cuando bailan igual; aureolas, notas y corazones, rodillas y tobillos encendidos, coronas y torbellinos en los solos.'
 seed: 34
+tags: [baile, pareja, dúo, fiesta]
 colors:
 - [0.2, 0.85, 1.0]
-- [1.0, 0.3, 0.6]
+- [1.0, 0.35, 0.7]
+attention: true
+duet: true
 defaults:
   type: body_glow
   target: {kind: joint, id: body}
@@ -16,74 +22,258 @@ defaults:
   style: {thickness: 0.016, hdr_gain: 1.7, boil_frames: 3, fill: 0.0}
   render: {blend: add, motion_blur: 0.0, persistence: 0.0, group: glow}
 always:
-- type: droplets
-  target: {kind: joint, id: 'left_wrist,right_wrist'}
-  style:
-    thickness: 0.008
-    hdr_gain: 1.8
-    size: 0.45
-    min_speed: 0.2
-    chance: 0.4
-    shapes: [heart, note]
+# Al final todo se disipa en estrellas diminutas.
+- type: closing_stars
+  style: {size: 1.0, hdr_gain: 1.8, focus: false}
 reactions:
+# Seg. 0-2.5: la presentación de la pareja, aureolas y ojos encendidos en los dos.
 - action: entrance
   options:
   - name: aureola
     weight: 1.0
     effects:
     - type: adornment
-      style:
-        shapes: [halo]
-      trigger: {hold: 45, fade_in: 4, fade_out: 10}
+      style: {shapes: [halo], focus: false}
+      trigger: {hold: 60, fade_in: 4, fade_out: 12}
     - type: eyewear
       target: {kind: joint, id: nose}
-      style:
-        thickness: 0.06
-        shapes: [glint]
-      trigger: {hold: 45, fade_in: 4, fade_out: 10}
+      style: {thickness: 0.06, shapes: [glint], focus: false}
+      trigger: {hold: 60, fade_in: 4, fade_out: 12}
 - action: spotlight
   options:
-  - name: contorno
-    weight: 0.35
-    effects:
-    - type: body_glow
-      trigger: {hold: 4, fade_in: 3, fade_out: 6}
-      style: {fill: 0.0}
+  # Piernas (seg. 23.5-26.5, 33-34.8): puntos en las rodillas, banda en el tobillo con una línea
+  # que sube por la pierna, o tramos del contorno que suben como una onda.
   - name: rodillas
-    weight: 0.25
+    weight: 0.4
     kinds: [legs, feet]
     effects:
     - type: adornment
-      style:
-        shapes: [knee_dots]
-      trigger: {hold: 4, fade_in: 2, fade_out: 6}
+      style: {shapes: [knee_dots]}
+      trigger: {hold: 8, fade_in: 2, fade_out: 6}
   - name: tobillos
-    weight: 0.2
+    weight: 0.35
     kinds: [legs, feet]
     effects:
     - type: adornment
-      style:
-        shapes: [ankle_bands]
-        thickness: 0.02
-      trigger: {hold: 4, fade_in: 2, fade_out: 6}
+      style: {shapes: [ankle_bands], thickness: 0.02}
+      trigger: {hold: 6, fade_in: 2, fade_out: 6}
     - type: body_glow
       target: {kind: joint, id: legs}
+      style: {shapes: [wave], trail_frames: 18}
+      trigger: {hold: 6, fade_in: 2, fade_out: 6}
+  - name: piernas_onda
+    weight: 0.3
+    kinds: [legs, feet]
+    effects:
+    - type: body_glow
+      target: {kind: joint, id: legs}
+      style: {shapes: [wave], trail_frames: 18}
+      trigger: {hold: 6, fade_in: 2, fade_out: 6}
+  # Brazos (seg. 5.5-6.5, 19.5-21.2): la música sale de las manos, notas o corazones.
+  - name: notas
+    weight: 0.45
+    kinds: [left_arm, right_arm]
+    cooldown: 120
+    effects:
+    - type: droplets
+      target: {kind: joint, id: 'left_wrist,right_wrist'}
+      style: {thickness: 0.009, hdr_gain: 1.9, size: 1.6, min_speed: 0.15, chance: 1.0, shapes: [note]}
+      trigger: {hold: 10, fade_in: 1, fade_out: 10}
+  - name: corazones
+    weight: 0.35
+    kinds: [left_arm, right_arm]
+    cooldown: 120
+    effects:
+    - type: droplets
+      target: {kind: joint, id: 'left_wrist,right_wrist'}
+      style: {thickness: 0.009, hdr_gain: 1.9, size: 1.6, min_speed: 0.15, chance: 1.0, shapes: [heart]}
+      trigger: {hold: 10, fade_in: 1, fade_out: 10}
+  # Seg. 11, 15: tramos del contorno que recorren el brazo, o aros que suben hasta el hombro.
+  - name: brazo_onda
+    weight: 0.3
+    kinds: [left_arm, right_arm]
+    cooldown: 90
+    effects:
+    - type: body_glow
+      style: {shapes: [wave], trail_frames: 16}
       trigger: {hold: 4, fade_in: 2, fade_out: 6}
-      style: {fill: 0.0}
+  - name: aros
+    weight: 0.25
+    kinds: [left_arm, right_arm, legs]
+    cooldown: 90
+    effects:
+    - type: limb_rings
+      style: {rings: 2, trail_frames: 14, thickness: 0.014}
+      trigger: {hold: 4, fade_in: 2, fade_out: 5}
+  # Torso (seg. 4-4.5, 7.5): unas líneas sueltas en el pecho; de vez en cuando el contorno del
+  # saco entero (seg. 28, de espaldas) o la chaqueta de metal (seg. 10, al abrirse el saco).
+  - name: torso_lineas
+    weight: 0.35
+    kinds: [torso]
+    effects:
+    - type: body_glow
+      target: {kind: joint, id: torso}
+      style: {shapes: [abs, partial, lines_only]}
+      trigger: {hold: 4, fade_in: 3, fade_out: 6}
+  - name: saco
+    weight: 0.3
+    kinds: [torso]
+    cooldown: 240
+    effects:
+    - type: body_glow
+      target: {kind: joint, id: torso}
+      trigger: {hold: 8, fade_in: 3, fade_out: 8}
+  - name: chaqueta
+    weight: 0.12
+    exclusive: true
+    cooldown: 450
+    kinds: [torso, left_arm, right_arm]
+    effects:
+    - type: adornment
+      style: {shapes: [metal_jacket], palette_every: 30}
+      trigger: {hold: 30, fade_in: 4, fade_out: 10}
+  # Cabeza (seg. 15.5, 16.5): aureola o corona; ojos que brillan.
+  - name: aureola
+    weight: 0.3
+    kinds: [head]
+    cooldown: 240
+    yields_to: [entrance]
+    yield_chance: 1.0
+    yield_window_s: 2.5
+    effects:
+    - type: adornment
+      style: {shapes: [halo]}
+      trigger: {hold: 12, fade_in: 3, fade_out: 8}
+  - name: ojos
+    weight: 0.25
+    kinds: [head]
+    effects:
+    - type: eyewear
+      target: {kind: joint, id: nose}
+      style: {thickness: 0.06, shapes: [glint]}
+      trigger: {hold: 8, fade_in: 3, fade_out: 8}
+  # El vacío hace que lo siguiente se note (la referencia deja huecos de medio segundo).
   - name: nada
-    weight: 0.2
+    weight: 0.6
+    effects: []
+# Seg. 11.5: la mano a la cabeza da una corona (o las ondas de la música junto al oído).
+- action: hand_ear
+  options:
+  - name: corona
+    weight: 0.6
+    effects:
+    - type: adornment
+      style: {shapes: [crown]}
+      trigger: {hold: 18, fade_in: 3, fade_out: 8}
+  - name: ondas
+    weight: 0.4
+    effects:
+    - type: sound_waves
+      style: {thickness: 0.012, hdr_gain: 1.8}
+      trigger: {hold: 12, fade_in: 2, fade_out: 8}
+- action: heart_hands
+  options:
+  - name: corazon
+    weight: 0.7
+    effects:
+    - type: heart_fx
+      style: {thickness: 0.014, hdr_gain: 1.8}
+      trigger: {hold: 18, fade_in: 2, fade_out: 6}
+  - name: nada
+    weight: 0.3
+    effects: []
+- action: arms_open
+  options:
+  - name: alas
+    weight: 0.6
+    effects:
+    - type: wings
+      style: {thickness: 0.012, hdr_gain: 1.8}
+      trigger: {hold: 14, fade_in: 3, fade_out: 8}
+  - name: nada
+    weight: 0.4
+    effects: []
+- action: arms_up
+  options:
+  - name: fiesta
+    weight: 0.7
+    effects:
+    - type: confetti_fx
+      style: {thickness: 0.01, hdr_gain: 1.8}
+      trigger: {hold: 20, fade_in: 2, fade_out: 10}
+  - name: nada
+    weight: 0.3
+    effects: []
+- action: point
+  options:
+  - name: senal
+    weight: 0.6
+    effects:
+    - type: point_fx
+      style: {thickness: 0.012, hdr_gain: 1.9}
+      trigger: {hold: 10, fade_in: 1, fade_out: 6}
+  - name: nada
+    weight: 0.4
+    effects: []
+# Seg. 14.7, 17.5: el que gira lleva un torbellino; seg. 31: arcos que siguen los brazos.
+- action: spin_body
+  options:
+  - name: torbellino
+    weight: 0.6
+    effects:
+    - type: whirl_fx
+      style: {thickness: 0.012, hdr_gain: 1.8}
+      trigger: {hold: 8, fade_in: 2, fade_out: 8}
+  - name: arcos
+    weight: 0.4
+    effects:
+    - type: swoosh
+      target: {kind: joint, id: 'left_wrist,right_wrist'}
+      style: {strands: 2, trail_frames: 12, min_speed: 0.12}
+      trigger: {hold: 8, fade_in: 1, fade_out: 6}
+# Baile intenso de la pareja: a veces la fiesta entera (bola de espejos, discoteca).
+- action: frenzy
+  cooldown: 300
+  options:
+  - name: bola_espejos
+    weight: 0.35
+    exclusive: true
+    effects:
+    - type: mirror_ball
+      style: {focus: false, hdr_gain: 1.7, palette_every: 30}
+      trigger: {hold: 30, fade_in: 4, fade_out: 10}
+  - name: discoteca
+    weight: 0.3
+    exclusive: true
+    effects:
+    - type: disco_fx
+      style: {focus: false, hdr_gain: 1.8, palette_every: 30}
+      trigger: {hold: 24, fade_in: 3, fade_out: 10}
+  - name: rayos_x
+    weight: 0.15
+    exclusive: true
+    effects:
+    - type: xray
+      style: {thickness: 0.01, hdr_gain: 1.8}
+      trigger: {hold: 20, fade_in: 3, fade_out: 8}
+  - name: nada
+    weight: 0.3
+    effects: []
+# Seg. 21.5-23 y 27: el paso marcado deja chispas bajo el pie. Hay pasos todo el tiempo: pocos.
+- action: stomp
+  cooldown: 60
+  options:
+  - name: chispa
+    weight: 0.3
+    effects:
+    - type: pop_fx
+      style: {thickness: 0.01, hdr_gain: 1.9}
+      trigger: {hold: 12, fade_in: 1, fade_out: 6}
+  - name: nada
+    weight: 0.7
     effects: []
 - action: fast_swing
   options:
-  - name: rayo
-    weight: 0.15
-    cooldown: 60
-    requires_person: true
-    effects:
-    - type: lightning
-      target: {kind: joint, id: right_wrist}
-      style: {thickness: 0.02, hdr_gain: 1.8}
-      trigger: {hold: 10, fade_in: 1, fade_out: 5}
   - name: estela
     weight: 0.25
     effects:
@@ -92,5 +282,5 @@ reactions:
       style: {strands: 2, trail_frames: 10, min_speed: 0.15}
       trigger: {hold: 8, fade_in: 1, fade_out: 5}
   - name: nada
-    weight: 0.6
+    weight: 0.75
     effects: []

@@ -127,6 +127,19 @@ Línea de neón con núcleo blanco fino (0,5% del ancho del cuadro, 90% de opaci
 el halo. Las partes del cuerpo encendidas van en dos pasadas: tinte que conserva la luz de la piel
 y la línea blanca encima.
 
+### P13. En pareja: espejo cuando bailan igual, turnos cuando no
+
+Con dos personas que bailan (video_34):
+
+- **Cada una tiene su color** todo el video.
+- **Si hacen el mismo paso, el mismo efecto en las dos.** Es la pareja como unidad.
+- **Si una se aparta, solo esa se enciende** y la otra queda limpia. Se van turnando como en una
+  conversación: un gesto con significado de la otra (mano a la cabeza) es su respuesta.
+- **Un foco por persona**: nunca dos efectos distintos en el mismo bailarín.
+
+Implementado: `analysis/duet.py` (unísono y solo) y `duet: true` en el catálogo (el coreógrafo
+copia el efecto a la pareja o le cede el turno). Ver `docs/referencias/video_34.md`.
+
 ## 2. Procedimiento para una referencia nueva
 
 1. **Hojas de contacto**: original y referencia cada 0,25-0,3 s, y zoom en los momentos con

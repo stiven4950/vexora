@@ -21,6 +21,7 @@ import numpy as np
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
+from vfxglow.analysis.duet import duet_at
 from vfxglow.analysis.schema import MotionBrief, MotionEvent
 from vfxglow.director.palette import skin_luma, skin_scores
 from vfxglow.director.schema import Chapter, EffectScript, resolve_timing
@@ -92,6 +93,9 @@ class Catalog(_Strict):
     # atención del análisis (engine/focus.py).
     attention: bool = False
     chapter_min_s: float = 0.8
+    # Pareja (analysis/duet.py): al unísono, el efecto elegido para uno se copia al otro (cada
+    # uno con su color); en un solo, solo se enciende quien lleva el turno.
+    duet: bool = False
 
 
 class Decision(_Strict):
@@ -148,6 +152,11 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -
     # (al empezar) y los momentos clave que se crucen con su ventana: como mucho MAX_TOGETHER.
     lit: list[tuple[int, int]] = []
     exclusive_until = -1
+    duet = brief.duet if catalog.duet else []
+    mirrored: dict[tuple[str, str], list[tuple[int, str]]] = {}
+    # Último fotograma de un efecto copiado en cada persona (por grupo: el movimiento, o cada
+    # gesto): mientras dura, esa persona no enciende otro (lleva el mismo momento que su pareja).
+    busy: dict[tuple[str, str], int] = {}
     passes = [
         [(e, r) for r in catalog.reactions if r.action in KEY_ACTIONS for e in events if e.name == r.action],
         [(e, r) for r in catalog.reactions if r.action not in KEY_ACTIONS for e in events if e.name == r.action],
@@ -176,6 +185,17 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -
                 and any(fs <= end and start <= fe for fs, fe in face_windows)
             ):
                 option = Option(name="nada (cede a la cara)")
+            person = _person(event) if duet else None
+            span = duet_at(duet, event.start_frame) if person else None
+            group = "motion" if reaction.action in TURN_ACTIONS else reaction.action
+            if option.effects and span is not None:
+                if start <= busy.get((person, group), -1):
+                    option = Option(name="nada (lleva el mismo momento que su pareja)")
+                elif event.name == "spotlight" and event.confidence < 1.0:
+                    # En pareja, un foco por persona: el segundo foco duplicaría lo encendido.
+                    option = Option(name="nada (un foco por persona)")
+                elif span.mode == "solo" and person != span.leader and reaction.action in TURN_ACTIONS:
+                    option = Option(name="nada (turno de la pareja)")
             if (
                 option.effects
                 and reaction.action not in KEY_ACTIONS
@@ -195,6 +215,28 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -
                     face_windows.append((start, end))
                 if reaction.action not in AMBIENT_ACTIONS and reaction.action not in KEY_ACTIONS:
                     lit.append((start, end))
+                partner = None if span is None else (span.partner if person == span.leader else span.leader)
+                whole_scene = all(raw.get("type") in SCENE_TYPES for raw in option.effects)
+                twin = (
+                    _twin(event, person, partner, events, fps, reaction.action in MIRROR_ALWAYS)
+                    if span is not None and span.mode == "unison" and not whole_scene
+                    else None
+                )
+                if twin is not None:
+                    if twin not in events:
+                        extra.append(twin)
+                    mirrored.setdefault((reaction.action, option.name), []).append((twin.start_frame, twin.target))
+                    busy[(partner, group)] = max(busy.get((partner, group), -1), end)
+                    decisions.append(
+                        Decision(
+                            frame=twin.start_frame,
+                            second=round(twin.start_frame / fps, 2),
+                            action=reaction.action,
+                            target=twin.target,
+                            choice=f"{option.name} (espejo)",
+                            until=end,
+                        )
+                    )
             decisions.append(
                 Decision(
                     frame=event.start_frame,
@@ -221,6 +263,14 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -
                         {a.person for a in brief.accessories if a.kind in option.accessories}
                     )
                 effects.append(effect)
+            twins = sorted(mirrored.get((reaction.action, option.name), []))
+            for index, raw in enumerate(option.effects if twins else []):
+                # La copia para la pareja: su propio efecto (su estela, su estado) en sus fotogramas.
+                effect = _effect(catalog, raw, f"{reaction.action}_{option.name}_{index}_pareja")
+                trigger = dict(raw.get("trigger", {}))
+                trigger.update(event=reaction.action, frames=[f for f, _t in twins], targets=[t for _f, t in twins])
+                effect["triggers"] = [trigger]
+                effects.append(effect)
     script = EffectScript.model_validate(
         {"title": catalog.title or catalog.name, "theme": catalog.name, "seed": seed, "effects": effects}
     )
@@ -239,6 +289,40 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -
         script.chapters = build_chapters(events, palette, seed, fps, brief.video.frame_count, catalog.chapter_min_s, weights)
     decisions.sort(key=lambda d: (d.frame, d.action))
     return resolve_timing(script, brief.video.frame_count), Choreography(catalog=catalog.name, seed=seed, decisions=decisions)
+
+
+def _person(event: MotionEvent) -> str | None:
+    if event.attacker:
+        return event.attacker
+    return event.target.split(":", 1)[0] if event.target.startswith("person_") else None
+
+
+# Un gesto de la pareja a menos de esto cuenta como el mismo momento (no van sincronizados al cuadro).
+TWIN_S = 0.4
+
+
+def _twin(event: MotionEvent, person: str, partner: str, events: list[MotionEvent], fps: float, copy_if_missing: bool) -> MotionEvent | None:
+    """El mismo momento en la pareja: su propio evento si hizo lo mismo (mismo gesto y misma parte)
+    casi a la vez; si no y `copy_if_missing`, una copia del evento en su cuerpo, sin posición (cada
+    efecto la toma de sus articulaciones)."""
+    window = TWIN_S * fps
+    same = [
+        e for e in events
+        if e.name == event.name and _person(e) == partner and e.kind == event.kind and abs(e.start_frame - event.start_frame) <= window
+    ]
+    if same:
+        return min(same, key=lambda e: abs(e.start_frame - event.start_frame))
+    if not copy_if_missing:
+        return None
+    target = f"{partner}{event.target[len(person):]}" if event.target.startswith(person) else event.target
+    return event.model_copy(
+        update={
+            "target": target,
+            "attacker": partner if event.attacker == person else event.attacker,
+            "position": None,
+            "detail": f"Espejo de {person} (bailan al unísono).",
+        }
+    )
 
 
 # Spotlight desde la atención: trozos de esta duración, y regiones que no son una parte del
@@ -333,6 +417,14 @@ def build_chapters(events: list[MotionEvent], palette, seed: int, fps: float, fr
 
 # Acciones que una buena versión no debería dejar pasar sin efecto (gestos con significado y el
 # objeto protagonista).
+# En el solo de uno, el otro no enciende lo que sale de puro movimiento; un gesto con
+# significado (la mano a la cabeza, un giro) sí sale: es su respuesta (video_34, seg. 11.5).
+TURN_ACTIONS = ("spotlight", "fast_swing", "stomp", "step", "frenzy")
+# Al unísono, estas se copian a la pareja aunque el análisis no la haya visto hacer lo mismo
+# (lo que sale del movimiento y la entrada); un gesto solo si la pareja también lo hizo.
+MIRROR_ALWAYS = (*TURN_ACTIONS, "entrance")
+# Efectos de todo el cuadro (no de una persona): no se copian a la pareja.
+SCENE_TYPES = ("disco_fx", "mirror_ball", "equalizer", "beat_pulse", "closing_stars", "season_fx")
 KEY_ACTIONS = ("face_touch", "throw", "neck_slash", "prop_transfer", "prop_spin", "prop_worn")
 CANDIDATES = 8
 AMBIENT_ACTIONS = ("beat",)
@@ -354,7 +446,11 @@ def score_choreography(choreography: Choreography, brief: MotionBrief) -> float:
     fps = brief.video.fps or 30.0
     duration = max(brief.video.frame_count / fps, 1.0)
     # Los pulsos de música son muchos y cortos: no cuentan como cubrir un momento.
-    active = [d for d in choreography.decisions if not d.choice.startswith("nada") and d.action not in AMBIENT_ACTIONS]
+    # La copia en la pareja (espejo) es el mismo momento: no cuenta como otro efecto.
+    active = [
+        d for d in choreography.decisions
+        if not d.choice.startswith("nada") and not d.choice.endswith("(espejo)") and d.action not in AMBIENT_ACTIONS
+    ]
     keys = [d for d in choreography.decisions if d.action in KEY_ACTIONS]
     key_score = sum(not d.choice.startswith("nada") for d in keys) / len(keys) if keys else 1.0
     covered = 0.0
@@ -465,4 +561,6 @@ def _effect(catalog: Catalog, raw: dict, effect_id: str) -> dict:
     effect["id"] = effect_id
     style = effect.setdefault("style", {})
     style.setdefault("colors", [list(color) for color in catalog.colors])
+    if catalog.duet:
+        style.setdefault("by_person", True)
     return effect

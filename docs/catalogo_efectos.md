@@ -305,15 +305,22 @@ Las partes del cuerpo encendidas usan **dos pasadas**, como haría un editor: un
 
 ### video_34: pareja, un color por persona
 
+Lectura completa en `docs/referencias/video_34.md`. Al unísono, el mismo efecto en los dos
+(`duet: true`, `analysis/duet.py`); en un solo, solo quien lo lleva.
+
 | Seg. | Efecto en la referencia | Implementado |
 | --- | --- | --- |
-| 0.0–1.5 | Aureolas sobre la cabeza y ojos encendidos | ✅ `entrance → aureola` (`adornment halo` + `eyewear glint`) |
-| 5.2–6.1 | Notas musicales que salen de las manos | ✅ partículas `note` |
-| 19.2–20.7 | Corazones que salen de las manos | ✅ partículas `heart` |
-| 9.9–10.5 | Contorno de la chaqueta | ✅ `spotlight → contorno` (solo borde, `fill: 0`) |
-| 14.5–15.6 | Rayo que recorre el cuerpo | ✅ `fast_swing → rayo` |
-| 24.1–25.5 | Rodillas que brillan | ✅ `spotlight → rodillas` (`knee_dots`) |
-| 33.7–34.5 | Rayas en las piernas y bandas en los tobillos | ✅ `spotlight → tobillos` (`ankle_bands`) |
+| 0.0–2.5 | Aureolas y ojos encendidos en los dos | ✅ `entrance → aureola` (copiada a la pareja) |
+| 5.5–6.5 | Notas musicales que salen de las manos | ✅ `spotlight → notas` (`droplets note`, disparadas) |
+| 19.5–21.2 | Corazones que salen de las manos | ✅ `spotlight → corazones` |
+| 10.0–10.8 | Se abre el saco: contorno del saco | ✅ `spotlight → saco` / `chaqueta` |
+| 11.0–11.7 | Mano a la cabeza: corona | ✅ `hand_ear → corona` |
+| 14.5–15.6 | Rayos sobre el cuerpo | 🔜 (hoy: torbellino o rayos X en el giro y el frenesí) |
+| 21.5–23.2 | Chispas en el pie que pisa | ✅ `stomp → chispa` (`pop_fx`) |
+| 23.5–26.5 | Rodillas que brillan | ✅ `spotlight → rodillas` (`knee_dots`) |
+| 28.0–30.0 | Contorno del saco de espaldas | ✅ `spotlight → saco` |
+| 31.0 | Arcos que siguen los brazos al girar | ✅ `spin_body → arcos` |
+| 33.0–34.8 | Línea por la pierna y banda en el tobillo | ✅ `spotlight → tobillos` (`ankle_bands` + onda) |
 
 ### Objeto protagonista (`needs: [props]`)
 

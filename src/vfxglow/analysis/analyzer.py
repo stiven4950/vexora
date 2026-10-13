@@ -26,7 +26,7 @@ log = logging.getLogger("vfxglow.analysis")
 MIN_FACE_POINTS = 60
 # Señales derivadas del análisis que un brief puede traer; el pipeline calcula las que falten
 # en análisis anteriores (Pipeline._ensure_derived) sin rehacer el análisis.
-DERIVED = ("skin", "gestures", "gestures-6", "attention")
+DERIVED = ("skin", "gestures", "gestures-6", "attention", "duet")
 
 
 def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: str) -> VideoMeta:
@@ -138,6 +138,9 @@ def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: st
     from vfxglow.analysis.attention import attention_timeline
 
     attention = attention_timeline(frames, events, meta.fps, meta.width, meta.height)
+    from vfxglow.analysis.duet import duet_timeline
+
+    duet = duet_timeline(frames, meta.fps, meta.width, meta.height)
     analysis = run_dir / "analysis"
     scenes = read_scenes(video_path, beats, analysis / "scene_cache", config.analysis.scene)
     brief = build_brief(frames, meta, events=events, beats=beats, scene=scenes, audio_onsets=onsets)
@@ -146,7 +149,7 @@ def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: st
     accessories = detect_accessories(video_path, frames, analysis / "scene_cache", config.analysis.accessories, config.analysis.scene)
     from vfxglow.analysis.skin import estimate_skin
 
-    brief = brief.model_copy(update={"accessories": accessories, "skin": estimate_skin(video_path, frames), "attention": attention, "derived": list(DERIVED)})
+    brief = brief.model_copy(update={"accessories": accessories, "skin": estimate_skin(video_path, frames), "attention": attention, "duet": duet, "derived": list(DERIVED)})
     header = AnalysisHeader(
         video=meta,
         device=device,
