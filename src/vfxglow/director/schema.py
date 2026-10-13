@@ -225,6 +225,9 @@ class EffectStyle(_Strict):
     shapes: list[str] = Field(default_factory=lambda: ["drop"])
     # Si no está vacío, el efecto solo se dibuja en estas personas (p. ej. quienes llevan gafas).
     people: list[str] = Field(default_factory=list)
+    # Pareja: cada persona con su color (el color N de `colors` para person_N), también en los
+    # efectos que de otro modo usan el primero.
+    by_person: bool = False
     # swoosh: dibuja además la estela girada sobre su centro, formando una cruz.
     cross: bool = False
     # Si no está vacío, cada activación sortea sus colores de esta paleta (sustituyen a

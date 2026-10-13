@@ -91,9 +91,9 @@ def draw_throw_fx(runtime, track, points, frame_index: int, height: int, envelop
         radius = ORB_RADIUS * torso * (0.35 + 0.65 * np.clip(grow, 0.0, 1.0)) * pulse
         strokes += _orb(np.mean(tips, axis=0), radius, color, envelope, line, layer)
     else:
-        if event.position is None:
+        start = event_point(event, points, width, height)
+        if start is None:
             return
-        start = np.array(event.position) * [width, height]
         direction = np.array([np.cos(np.radians(event.direction_deg)), np.sin(np.radians(event.direction_deg))])
         elapsed = (frame_index - event.end_frame) / fps
         if shape == "orb":
@@ -125,13 +125,15 @@ def draw_pop_fx(runtime, track, points, frame_index: int, height: int, envelope:
     """Pisotón (`stomp`): un globo se infla bajo el pie mientras baja y revienta al pisar, con
     chispas y ráfagas de aire (video_33 seg. 28,2)."""
     style = runtime.effect.style
-    if envelope <= 0 or event is None or event.name != "stomp" or event.position is None:
+    if envelope <= 0 or event is None or event.name != "stomp":
         return
     width = layer.shape[1]
+    ground = event_point(event, points, width, height)
+    if ground is None:
+        return
     torso = torso_pixels(points, height)
     color = np.asarray(style.colors[0], dtype=np.float32)
     line = max(1.5, style.thickness * torso)
-    ground = np.array(event.position) * [width, height]
     radius = 0.16 * torso
     strokes: list = []
     if frame_index <= event.end_frame:
@@ -169,6 +171,14 @@ WHITE = np.array([1.0, 1.0, 1.0], dtype=np.float32)
 
 
 # ----- gestos sostenidos -----
+
+
+def event_point(event: MotionEvent, points, width: int, height: int) -> np.ndarray | None:
+    """Dónde ocurrió el evento: su posición o, en la copia para la pareja (sin posición), la
+    articulación de su objetivo."""
+    if event.position is not None:
+        return np.array(event.position, dtype=np.float64) * [width, height]
+    return points.get(event.target)
 
 
 def _person_points(points, event: MotionEvent | None):
@@ -273,14 +283,16 @@ def draw_confetti_fx(runtime, track, points, frame_index: int, height: int, enve
 def draw_sound_waves(runtime, track, points, frame_index: int, height: int, envelope: float, layer: np.ndarray, event: MotionEvent | None = None) -> None:
     """Mano en el oído: ondas de sonido ")))" que salen de la oreja hacia afuera de la cara."""
     style = runtime.effect.style
-    if envelope <= 0 or event is None or event.position is None:
+    if envelope <= 0 or event is None:
         return
     get = _person_points(points, event)
     ears = [e for e in (get("left_ear"), get("right_ear")) if e is not None]
     nose = get("nose")
     if not ears or nose is None:
         return
-    target = np.array(event.position) * [layer.shape[1], height]
+    target = event_point(event, points, layer.shape[1], height)
+    if target is None:
+        target = nose
     ear = min(ears, key=lambda e: float(np.linalg.norm(e - target)))
     out = (ear - nose) / max(float(np.linalg.norm(ear - nose)), 1e-6)
     angle = np.arctan2(out[1], out[0])

@@ -23,7 +23,7 @@ import numpy as np
 from vfxglow.analysis.schema import FrameRecord, MotionEvent
 from vfxglow.engine.anchors import joint_speed, resolve_anchor, torso_pixels
 from vfxglow.engine.raster import stroke_batch
-from vfxglow.engine.swoosh import neon_layers, swoosh_keys
+from vfxglow.engine.swoosh import focused, neon_layers, swoosh_keys
 
 TAU = 2.0 * np.pi
 # Fracción de la vida de la llamarada en la que alcanza su tamaño completo.
@@ -31,6 +31,8 @@ GROW = 0.3
 # Gotas en pantalla a la vez y nuevas por fotograma: pocas y pequeñas para no saturar el plano.
 DROPLET_LIMIT = 40
 DROPLETS_PER_FRAME = 2
+BIG_EVERY = 4
+BIG_PER_STROKE = 4
 # Topes de tamaño como fracción de la altura del cuadro (llamarada y partícula).
 MAX_BURST = 0.12
 MAX_BIT = 0.012
@@ -195,7 +197,9 @@ def draw_spark_dashes(runtime, points, frame_index: int, height: int, envelope: 
 # ----- gotas -----
 
 
-def draw_droplets(runtime, track: FrameRecord | None, points, frame_index: int, height: int, envelope: float, layer: np.ndarray) -> None:
+def draw_droplets(runtime, track: FrameRecord | None, points, frame_index: int, height: int, envelope: float, layer: np.ndarray, event: MotionEvent | None = None) -> None:
+    """Partículas que suelta una mano rápida. Disparadas por un evento, solo las suelta la persona
+    (o la extremidad) del evento."""
     effect = runtime.effect
     style = effect.style
     torso = torso_pixels(points, height)
@@ -205,7 +209,7 @@ def draw_droplets(runtime, track: FrameRecord | None, points, frame_index: int, 
         point = points.get(key)
         velocity = points.get(f"vel:{key}")
         fast = point is not None and velocity is not None and joint_speed(track, key) >= style.min_speed
-        if not fast:
+        if not fast or not focused(event, key):
             runtime.swoosh_stroke.pop(key, None)
             continue
         # Un golpe empieza cuando la mano supera el umbral; ahí se decide si suelta partículas
@@ -219,10 +223,19 @@ def draw_droplets(runtime, track: FrameRecord | None, points, frame_index: int, 
         shape = shapes[int(chooser.integers(0, len(shapes)))]
         gravity, inherit = SHAPES[shape]
         rng = np.random.default_rng(seed + frame_index)
-        for _ in range(min(DROPLETS_PER_FRAME, DROPLET_LIMIT - len(bits))):
+        count = DROPLETS_PER_FRAME
+        if style.size > 1.0:
+            # Figuras grandes (notas, corazones): pocas y espaciadas, como una ráfaga de 3-4 por
+            # mano y golpe, no una nube.
+            elapsed = frame_index - start
+            if elapsed % BIG_EVERY or elapsed >= BIG_EVERY * BIG_PER_STROKE:
+                continue
+            count = 1
+        for _ in range(min(count, DROPLET_LIMIT - len(bits))):
             spread = rng.normal(0, torso * 0.025, 2)
             life = float(rng.uniform(14, 26))
-            size = min(torso * style.size * float(rng.uniform(0.05, 0.1)), MAX_BIT * height)
+            # El tope crece con `size` (notas y corazones grandes, como en video_34).
+            size = min(torso * style.size * float(rng.uniform(0.05, 0.1)), MAX_BIT * height * max(style.size, 1.0))
             spin = float(rng.choice([-1.0, 1.0]))
             bits.append(
                 Bit(

@@ -57,6 +57,9 @@ def focused(event: MotionEvent | None, key: str) -> bool:
         return True
     if ":" in event.target:
         return key == event.target
+    if event.target.startswith("person_"):
+        # El evento nombra a una persona (un foco de la línea de atención): todas sus extremidades.
+        return key.startswith(f"{event.target}:")
     return key == event.target or key.endswith(f":{event.target}")
 
 

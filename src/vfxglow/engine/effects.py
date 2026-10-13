@@ -12,6 +12,7 @@ from vfxglow.analysis.names import CHEEKS, FACE68_BROWS, FACE68_JAW, FACE_OVAL, 
 from vfxglow.analysis.schema import FrameRecord, MotionEvent
 from vfxglow.director.schema import Effect
 from vfxglow.engine.anchors import chain_points, joint_speed, resolve_anchor, torso_pixels
+from vfxglow.engine.burst import person_index
 from vfxglow.engine.interaction import draw_charge, draw_cracks, draw_ripples, draw_sparks
 from vfxglow.engine.lightning import BoltTree, draw_lightning
 from vfxglow.engine.noise import ValueNoise
@@ -54,6 +55,7 @@ class EffectRuntime:
         self.beats: list[int] = []
         self.steps: list = []
         self.appearance = None
+        self.base_colors: list | None = None
 
 
 def render_effect(
@@ -71,6 +73,10 @@ def render_effect(
     effect = runtime.effect
     if effect.style.palette:
         _pick_colors(runtime, frame_index, event)
+    if effect.style.by_person:
+        if effect.type not in PERSON_COLORED:
+            _person_colors(runtime, event)
+        points = _rooted(points, event)
     if runtime.anchor_point is not None:
         points = dict(points)
         points["event_point"] = runtime.anchor_point
@@ -200,7 +206,7 @@ def render_effect(
     elif kind == "droplets":
         from vfxglow.engine.burst import draw_droplets
 
-        draw_droplets(runtime, track, points, frame_index, height, envelope, layer)
+        draw_droplets(runtime, track, points, frame_index, height, envelope, layer, event if effect.triggers else None)
     elif kind in {"eye_rings", "face_linework", "drawing"}:
         from vfxglow.engine.face_fx import draw_drawing, draw_eye_rings, draw_face_linework
 
@@ -242,6 +248,40 @@ def render_effect(
         layer[..., :3] *= keep[..., None]
         layer[..., 3] *= keep
     return layer
+
+
+# Estos ya eligen el color por persona (color N para person_N).
+PERSON_COLORED = {"body_glow", "adornment", "swoosh", "droplets", "eyewear"}
+
+
+def _rooted(points: dict[str, np.ndarray], event: MotionEvent | None) -> dict[str, np.ndarray]:
+    """Los puntos sin prefijo pasan a ser los de la persona del evento: un efecto que solo sabe
+    dibujar sobre "la persona" se dibuja sobre la de su evento."""
+    person = None
+    if event is not None:
+        person = event.attacker or (event.target.split(":", 1)[0] if event.target.startswith("person_") else None)
+    if not person:
+        return points
+    prefix = f"{person}:"
+    own = {key[len(prefix):]: value for key, value in points.items() if key.startswith(prefix)}
+    if not own:
+        return points
+    rooted = dict(points)
+    rooted.update(own)
+    return rooted
+
+
+def _person_colors(runtime: EffectRuntime, event: MotionEvent | None) -> None:
+    """Pone primero el color de la persona del evento (los demás le siguen en orden)."""
+    style = runtime.effect.style
+    if runtime.base_colors is None:
+        runtime.base_colors = list(style.colors)
+    base = runtime.base_colors
+    person = None
+    if event is not None:
+        person = event.attacker or (event.target.split(":", 1)[0] if event.target.startswith("person_") else None)
+    shift = person_index(person) % max(len(base), 1)
+    style.colors = base[shift:] + base[:shift]
 
 
 def _pick_colors(runtime: EffectRuntime, frame_index: int, event: MotionEvent | None) -> None:

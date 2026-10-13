@@ -73,8 +73,11 @@ class Body:
 
 
 def _people(track: FrameRecord | None, event: MotionEvent | None, style) -> list[str | None]:
-    if event is not None and event.attacker:
-        people = [event.attacker]
+    owner = None
+    if event is not None:
+        owner = event.attacker or (event.target.split(":", 1)[0] if event.target.startswith("person_") else None)
+    if owner:
+        people = [owner]
     elif track is not None and track.people:
         people = [p.person_id for p in track.people]
     else:

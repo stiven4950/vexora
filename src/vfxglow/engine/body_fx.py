@@ -23,19 +23,33 @@ GHOST_LAGS = (3, 6, 9)
 STEP_LIFE_S = 2.0
 
 
-def _get(points, name: str):
-    return points.get(name)
+def _getter(points, event):
+    """Puntos de la persona del evento (person_N:...), o los de la principal sin evento."""
+    person = None
+    if event is not None:
+        person = event.attacker or (event.target.split(":", 1)[0] if event.target.startswith("person_") else None)
+    prefix = f"{person}:" if person else ""
+    return lambda name: points.get(f"{prefix}{name}", points.get(name) if not prefix else None)
+
+
+def _torso(get, points, height: int) -> float:
+    a, b = get("mid_shoulder"), get("left_hip")
+    c = get("right_hip")
+    if a is not None and b is not None and c is not None:
+        return max(float(np.linalg.norm(a - (b + c) / 2)), 8.0)
+    return torso_pixels(points, height)
 
 
 def draw_xray(runtime, track, points, frame_index: int, height: int, envelope: float, layer: np.ndarray, event=None) -> None:
     style = runtime.effect.style
     if envelope <= 0:
         return
-    p = {name: points.get(name) for name in ("nose", "left_ear", "right_ear", "left_shoulder", "right_shoulder", "left_elbow", "right_elbow", "left_wrist", "right_wrist", "left_hip", "right_hip", "left_knee", "right_knee", "left_ankle", "right_ankle")}
+    get = _getter(points, event)
+    p = {name: get(name) for name in ("nose", "left_ear", "right_ear", "left_shoulder", "right_shoulder", "left_elbow", "right_elbow", "left_wrist", "right_wrist", "left_hip", "right_hip", "left_knee", "right_knee", "left_ankle", "right_ankle")}
     if p["left_shoulder"] is None or p["right_shoulder"] is None or p["left_hip"] is None or p["right_hip"] is None:
         return
     color = np.asarray(style.colors[0], dtype=np.float32)
-    torso = torso_pixels(points, height)
+    torso = _torso(get, points, height)
     line = max(1.5, style.thickness * torso)
     neck = (p["left_shoulder"] + p["right_shoulder"]) / 2
     pelvis = (p["left_hip"] + p["right_hip"]) / 2
@@ -97,12 +111,13 @@ def draw_wings(runtime, track, points, frame_index: int, height: int, envelope: 
     style = runtime.effect.style
     if envelope <= 0:
         return
-    torso = torso_pixels(points, height)
+    get = _getter(points, event)
+    torso = _torso(get, points, height)
     color = np.asarray(style.colors[0], dtype=np.float32)
     line = max(1.5, style.thickness * torso)
     strokes = []
     for side in ("left", "right"):
-        shoulder, wrist = points.get(f"{side}_shoulder"), points.get(f"{side}_wrist")
+        shoulder, wrist = get(f"{side}_shoulder"), get(f"{side}_wrist")
         if shoulder is not None and wrist is not None:
             for curve in _wing(shoulder, wrist, torso):
                 strokes += neon_layers(curve, color, line, envelope)
