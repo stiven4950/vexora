@@ -63,11 +63,18 @@ class CreativeDirector:
                 from vfxglow.director.seasons import apply_to_catalog
 
                 catalog = apply_to_catalog(catalog, season)
+            pins = None
+            if self.config.pins:
+                from vfxglow.director.pins import load_pins
+
+                pins = load_pins(Path(self.config.pins))
+                if pins.catalogo and pins.catalogo != self.config.catalog:
+                    raise ValueError(f"El guion de prueba es del catálogo {pins.catalogo}, no de {self.config.catalog}")
             if self.config.seed is not None:
-                script, self.choreography = choreograph(catalog, brief, self.config.seed)
+                script, self.choreography = choreograph(catalog, brief, self.config.seed, pins)
             else:
                 # Sin semilla: la mejor de varias coreografías (o la del puesto `take`).
-                script, self.choreography = best_choreography(catalog, brief, self.config.take)
+                script, self.choreography = best_choreography(catalog, brief, self.config.take, pins=pins)
             validate_script(
                 script,
                 set(brief.anchors) | set(CHAINS) | set(FACE_REGIONS) | set(LIMB_JOINTS),

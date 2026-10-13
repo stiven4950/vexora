@@ -167,6 +167,8 @@ class DirectorConfig(_Strict):
     take: int = 0
     # Temporada (configs/seasons.yaml) que se aplica encima del estilo: paleta y decoración.
     season: str | None = None
+    # Guion de prueba (director/pins.py): momentos fijados a mano que mandan sobre el sorteo.
+    pins: str | None = None
     model: str = "gpt-5"
     api_key_env: str = "OPENAI_API_KEY"
     temperature: float = 0.4

@@ -123,7 +123,9 @@ def load_catalog(path: Path) -> Catalog:
     return Catalog.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
 
 
-def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -> tuple[EffectScript, Choreography]:
+def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, pins=None) -> tuple[EffectScript, Choreography]:
+    """`pins` (director/pins.py, PinFile): momentos fijados a mano que van antes que todo y no
+    ceden ante ninguna regla; con `solo_estos`, no hay sorteo."""
     seed = catalog.seed if seed is None else seed
     fps = brief.video.fps or 30.0
     chosen: dict[tuple[str, str], list[tuple[int, str]]] = {}
@@ -157,13 +159,63 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -
     # Último fotograma de un efecto copiado en cada persona (por grupo: el movimiento, o cada
     # gesto): mientras dura, esa persona no enciende otro (lleva el mismo momento que su pareja).
     busy: dict[tuple[str, str], int] = {}
+    forced: dict[tuple[int, int], tuple[Option, object]] = {}
+    pinned: list[tuple[MotionEvent, Reaction]] = []
+    if pins is not None:
+        from vfxglow.director.pins import resolve_pins
+
+        for event, reaction, option, pin, made in resolve_pins(pins, catalog, events, brief, fps):
+            if made:
+                events.append(event)
+                extra.append(event)
+            forced[(id(event), id(reaction))] = (option, pin)
+            pinned.append((event, reaction))
     passes = [
         [(e, r) for r in catalog.reactions if r.action in KEY_ACTIONS for e in events if e.name == r.action],
         [(e, r) for r in catalog.reactions if r.action not in KEY_ACTIONS for e in events if e.name == r.action],
     ]
+    if pins is not None:
+        rest = [] if pins.solo_estos else [[pair for pair in pairs if (id(pair[0]), id(pair[1])) not in forced] for pairs in passes]
+        passes = [pinned, *rest]
     for pairs in passes:
         for event, reaction in sorted(pairs, key=lambda pair: (pair[0].start_frame, catalog.reactions.index(pair[1]))):
             memo = state[id(reaction)]
+            fixed = forced.get((id(event), id(reaction)))
+            if fixed is not None:
+                # Fijado a mano: sin sorteo ni cesiones.
+                option, pin = fixed
+                start, end = _window(option, event)
+                person = _person(event)
+                span = duet_at(duet, event.start_frame) if person else None
+                group = "motion" if reaction.action in TURN_ACTIONS else reaction.action
+                key_name = f"{option.name}{PINNED}"
+                chosen.setdefault((reaction.action, key_name), []).append((event.start_frame, event.target))
+                memo["last"] = event.start_frame
+                memo["used"][option.name] = event.start_frame
+                if option.exclusive:
+                    exclusive_until = max(exclusive_until, end)
+                if reaction.action in KEY_ACTIONS:
+                    key_windows.append((start, end))
+                if reaction.action in FACE_ACTIONS:
+                    face_windows.append((start, end))
+                if reaction.action not in AMBIENT_ACTIONS and reaction.action not in KEY_ACTIONS:
+                    lit.append((start, end))
+                whole_scene = all(raw.get("type") in SCENE_TYPES for raw in option.effects)
+                partner = _partner(person, span, brief)
+                mirror = pin.espejo if pin.espejo is not None else (span is not None and span.mode == "unison")
+                twin = _twin(event, person, partner, events, fps, True) if mirror and partner and not whole_scene else None
+                if twin is not None:
+                    if twin not in events:
+                        extra.append(twin)
+                    mirrored.setdefault((reaction.action, key_name), []).append((twin.start_frame, twin.target))
+                    busy[(partner, group)] = max(busy.get((partner, group), -1), end)
+                    decisions.append(
+                        Decision(frame=twin.start_frame, second=round(twin.start_frame / fps, 2), action=reaction.action, target=twin.target, choice=f"{option.name} (espejo)", until=end)
+                    )
+                decisions.append(
+                    Decision(frame=event.start_frame, second=round(event.start_frame / fps, 2), action=reaction.action, target=event.target, choice=f"{option.name} (fijado)", until=end)
+                )
+                continue
             resting = {name for name, frame in memo["used"].items() if event.start_frame - frame < _option(reaction, name).cooldown}
             option = _draw(reaction, event, seed, resting, brief)
             if option.yields_to and _yields(option, event, brief, seed, fps):
@@ -215,7 +267,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -
                     face_windows.append((start, end))
                 if reaction.action not in AMBIENT_ACTIONS and reaction.action not in KEY_ACTIONS:
                     lit.append((start, end))
-                partner = None if span is None else (span.partner if person == span.leader else span.leader)
+                partner = _partner(person, span, brief)
                 whole_scene = all(raw.get("type") in SCENE_TYPES for raw in option.effects)
                 twin = (
                     _twin(event, person, partner, events, fps, reaction.action in MIRROR_ALWAYS)
@@ -247,14 +299,18 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -
                     until=end if option.effects else event.start_frame,
                 )
             )
-    effects: list[dict] = [_effect(catalog, raw, f"always_{index}") for index, raw in enumerate(catalog.always)]
+    always = [] if pins is not None and pins.solo_estos else catalog.always
+    effects: list[dict] = [_effect(catalog, raw, f"always_{index}") for index, raw in enumerate(always)]
     for reaction in catalog.reactions:
-        for option in reaction.options:
-            picked = sorted(chosen.get((reaction.action, option.name), []))
-            if not picked:
-                continue
-            for index, raw in enumerate(option.effects):
-                effect = _effect(catalog, raw, f"{reaction.action}_{option.name}_{index}")
+        for option, suffix in ((o, s) for o in reaction.options for s in ("", PINNED)):
+            name = f"{option.name}{suffix}"
+            tag = "_fijado" if suffix else ""
+            picked = sorted(chosen.get((reaction.action, name), []))
+            for index, raw in enumerate(option.effects if picked else []):
+                effect = _effect(catalog, raw, f"{reaction.action}_{option.name}_{index}{tag}")
+                if suffix:
+                    # Lo fijado se ve aunque la línea de atención mire a otro lado.
+                    effect["style"]["focus"] = False
                 trigger = dict(raw.get("trigger", {}))
                 trigger.update(event=reaction.action, frames=[f for f, _t in picked], targets=[t for _f, t in picked])
                 effect["triggers"] = [trigger]
@@ -263,10 +319,12 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -
                         {a.person for a in brief.accessories if a.kind in option.accessories}
                     )
                 effects.append(effect)
-            twins = sorted(mirrored.get((reaction.action, option.name), []))
+            twins = sorted(mirrored.get((reaction.action, name), []))
             for index, raw in enumerate(option.effects if twins else []):
                 # La copia para la pareja: su propio efecto (su estela, su estado) en sus fotogramas.
-                effect = _effect(catalog, raw, f"{reaction.action}_{option.name}_{index}_pareja")
+                effect = _effect(catalog, raw, f"{reaction.action}_{option.name}_{index}{tag}_pareja")
+                if suffix:
+                    effect["style"]["focus"] = False
                 trigger = dict(raw.get("trigger", {}))
                 trigger.update(event=reaction.action, frames=[f for f, _t in twins], targets=[t for _f, t in twins])
                 effect["triggers"] = [trigger]
@@ -289,6 +347,18 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None) -
         script.chapters = build_chapters(events, palette, seed, fps, brief.video.frame_count, catalog.chapter_min_s, weights)
     decisions.sort(key=lambda d: (d.frame, d.action))
     return resolve_timing(script, brief.video.frame_count), Choreography(catalog=catalog.name, seed=seed, decisions=decisions)
+
+
+# Clave de lo fijado a mano en `chosen` (sus efectos van aparte, sin apagarse fuera de foco).
+PINNED = "#fijado"
+
+
+def _partner(person: str | None, span, brief: MotionBrief) -> str | None:
+    """La pareja: la del tramo de dúo o, sin él, la otra persona del video."""
+    if span is not None:
+        return span.partner if person == span.leader else span.leader
+    others = [p for p in brief.people if p != person]
+    return others[0] if person and others else None
 
 
 def _person(event: MotionEvent) -> str | None:
@@ -475,14 +545,15 @@ def score_choreography(choreography: Choreography, brief: MotionBrief) -> float:
     return 3.0 * key_score + 2.0 * coverage + variety - 2.0 * crowd - repeats - 6.0 * stacked
 
 
-def best_choreography(catalog: Catalog, brief: MotionBrief, take: int = 0, candidates: int = CANDIDATES) -> tuple[EffectScript, Choreography]:
+def best_choreography(catalog: Catalog, brief: MotionBrief, take: int = 0, candidates: int = CANDIDATES, pins=None) -> tuple[EffectScript, Choreography]:
     """Prueba `candidates` semillas, las ordena por `score_choreography` y devuelve la del puesto
     `take` (0 = la mejor). "Otra versión" es pedir el puesto siguiente: siempre una versión
     buena y distinta, sin que el usuario elija semillas."""
     results = []
-    for k in range(max(candidates, 1)):
+    # Solo lo fijado: no hay sorteo, todas las candidatas serían iguales.
+    for k in range(1 if pins is not None and pins.solo_estos else max(candidates, 1)):
         seed = catalog.seed + 1009 * k
-        script, choreo = choreograph(catalog, brief, seed)
+        script, choreo = choreograph(catalog, brief, seed, pins)
         results.append((score_choreography(choreo, brief), k, script, choreo))
     results.sort(key=lambda item: (-item[0], item[1]))
     score, _, script, choreo = results[take % len(results)]

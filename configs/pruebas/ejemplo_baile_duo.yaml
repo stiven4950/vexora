@@ -1,0 +1,9 @@
+# Guion de prueba (director/pins.py): el video sale exactamente con estos efectos.
+#   vfxglow run --video "../glowing/data/original/video_34 (1).mp4" --pin configs/pruebas/ejemplo_baile_duo.yaml
+catalogo: baile_duo
+solo_estos: true
+momentos:
+- {seg: 3.0, opcion: bola_espejos}
+- {seg: 10.2, opcion: saco, persona: person_1}
+- {seg: 24.0, opcion: rodillas, espejo: true}
+- {seg: 11.2, accion: hand_ear, opcion: corona}

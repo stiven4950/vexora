@@ -61,6 +61,7 @@ class Pipeline:
         seed: int | None = None,
         take: int = 0,
         season: str | None = None,
+        pins: Path | None = None,
     ) -> None:
         self.config_path = config_path
         self.config = load_config(config_path)
@@ -69,6 +70,16 @@ class Pipeline:
         if preset:
             self.config.director.provider = "preset"
             self.config.director.preset = preset
+        if pins is not None:
+            # Guion de prueba: lo fijado manda; el catálogo sale de --catalog o del propio guion.
+            from vfxglow.director.pins import load_pins
+
+            if not pins.exists():
+                raise FileNotFoundError(f"No existe el guion de prueba {pins}")
+            catalog = catalog or load_pins(pins).catalogo
+            if not catalog:
+                raise ValueError("El guion de prueba necesita un catálogo: --catalog o `catalogo:` en el archivo")
+            self.config.director.pins = str(pins.resolve())
         if catalog:
             self.config.director.provider = "catalog"
             self.config.director.catalog = catalog
@@ -194,11 +205,13 @@ class Pipeline:
         catalog_path = catalog_file(self.config_path, self.config.director.catalog)
         if self.config.director.provider == "catalog" and catalog_path.exists():
             preset_hash = sha256_file(catalog_path)
+        pins_path = Path(self.config.director.pins) if self.config.director.pins else None
         key = stage_key(
             "direct-1",
             sha256_file(brief_path),
             self.config.director.model_dump_json(),
             preset_hash,
+            sha256_file(pins_path) if pins_path is not None else "",
             _code("direct"),
         )
         dest = self.run_dir / "scripts" / "effect_script.json"
@@ -230,6 +243,7 @@ class Pipeline:
             preset={"preset": self.config.director.preset, "catalog": self.config.director.catalog}.get(self.config.director.provider, ""),
             seed=str(self.config.director.seed if self.config.director.seed is not None else ""),
             take=str(self.config.director.take),
+            pins=pins_path.name if pins_path is not None else "",
             theme=script.theme,
             script=sha256_file(dest)[:12],
             code=_code("direct")[:12],

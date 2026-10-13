@@ -76,3 +76,10 @@ cuenta dos cosas:
 | Un foco por persona | En pareja, el segundo foco de la línea de atención no enciende nada |
 | Color por persona | `style.by_person`: el color N para person_N en todos los efectos; los puntos sin prefijo pasan a ser los de la persona del evento, así cualquier efecto se dibuja sobre quien corresponde |
 | Catálogo | `baile_duo` rehecho: rodillas, tobillos con línea, onda por la pierna o el brazo, notas y corazones de las manos (disparados y grandes), líneas del pecho, saco, chaqueta, aureola, ojos, corona u ondas con la mano a la cabeza, torbellino o arcos al girar, chispas al pisar, fiesta en el frenesí |
+
+## Pendiente
+
+- Rayos que recorren el cuerpo (seg. 14,5–15,6).
+- `saco` fijado sobre B a los 10,2 s (`configs/pruebas/ejemplo_baile_duo.yaml`) dibuja un
+  trapecio en vez del contorno del saco: la silueta del segmentador no cubre a esa persona en ese
+  momento y `body_glow` cae a la forma de cápsulas del torso.

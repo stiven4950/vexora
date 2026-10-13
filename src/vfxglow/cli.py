@@ -47,6 +47,12 @@ def main(argv: list[str] | None = None) -> int:
         command.add_argument("--seed", type=int, default=None, help="Semilla exacta del catálogo (sin ella se elige sola la mejor coreografía)")
         command.add_argument("--season", type=str, default=None, help="Temporada encima del estilo (configs/seasons.yaml): halloween, navidad...")
         command.add_argument("--take", type=int, default=0, help="Sin --seed: 0 = la mejor coreografía; 1, 2... = otras versiones buenas")
+        command.add_argument(
+            "--pin",
+            type=Path,
+            default=None,
+            help="Guion de prueba (YAML): momentos fijados a mano que mandan sobre el sorteo",
+        )
         command.add_argument("--level", choices=["fast", "hq", "masks"], default=None)
         command.add_argument("--force", action="store_true", help="Ignora la caché de etapas")
         command.add_argument(
@@ -62,10 +68,22 @@ def main(argv: list[str] | None = None) -> int:
     add_common(sub.add_parser("render", help="Genera las capas HDR"))
     add_common(sub.add_parser("refine", help="Texturiza máscaras si el refinador está activo"))
     add_common(sub.add_parser("compose", help="Mezcla las capas sobre el video original"))
+    export = sub.add_parser("pin-export", help="Convierte una coreografía (choreography.json) en guion de prueba")
+    export.add_argument("--choreography", required=True, type=Path)
+    export.add_argument("--out", required=True, type=Path)
 
     args = parser.parse_args(argv)
     load_env_file(Path(".env"))
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    if args.command == "pin-export":
+        from vfxglow.director.choreography import Choreography
+        from vfxglow.director.pins import pins_from_choreography, save_pins
+
+        choreography = Choreography.model_validate_json(args.choreography.read_text(encoding="utf-8"))
+        pins = pins_from_choreography(choreography)
+        save_pins(pins, args.out)
+        logging.info("Guion de prueba con %d momentos: %s", len(pins.momentos), args.out)
+        return 0
     pipeline = Pipeline(
         args.config,
         args.video,
@@ -78,6 +96,7 @@ def main(argv: list[str] | None = None) -> int:
         seed=args.seed,
         take=args.take,
         season=args.season,
+        pins=args.pin,
     )
     getattr(pipeline, args.command if args.command != "run" else "run")()
     return 0

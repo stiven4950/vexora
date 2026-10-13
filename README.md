@@ -86,6 +86,41 @@ El video se escribe primero como `<tema>.partial.mp4` y solo se renombra si ffmp
 
 `output/final.mp4` de corridas anteriores es un formato viejo: no se sabe con qué código salió. Conviene borrarlo o ignorarlo.
 
+## Guion de prueba: fijar qué efectos salen
+
+Con un catálogo, la coreografía se sortea (siempre igual para la misma semilla). Para comprobar un
+efecto, un guion de prueba dice qué sale y cuándo, y el video sale exactamente así:
+
+```yaml
+# configs/pruebas/ejemplo_baile_duo.yaml
+catalogo: baile_duo
+solo_estos: true                                  # solo lo fijado: sin sorteo ni efectos `always`
+momentos:
+- {seg: 3.0, opcion: bola_espejos}                # efecto de escena
+- {seg: 10.2, opcion: saco, persona: person_1}    # solo en esa persona
+- {seg: 24.0, opcion: rodillas, espejo: true}     # también en la pareja
+- {seg: 11.2, accion: hand_ear, opcion: corona}   # sobre el gesto detectado ahí
+```
+
+```bash
+vfxglow run --video "../glowing/data/original/video_34 (1).mp4" --pin configs/pruebas/ejemplo_baile_duo.yaml
+```
+
+- Cada momento se engancha al evento detectado de su acción más cercano (a menos de 0,5 s, de
+  esa persona). Si no hay ninguno, se crea uno en ese instante: el efecto se puede probar aunque
+  el análisis no haya visto el gesto.
+- `accion` hace falta solo si la opción está en varias acciones. `espejo` sin valor sigue la regla
+  del catálogo (`duet`). `dur` es la duración del momento creado (0,6 s por omisión).
+- Con `solo_estos: false`, lo fijado se respeta y el resto se sortea alrededor.
+- Lo fijado no se apaga fuera del foco de atención.
+- Lo que no se puede cumplir (opción inexistente, persona que no está, segundo fuera del video)
+  detiene la corrida con el motivo.
+- Una coreografía que gustó se convierte en guion para fijarla o editarla:
+  `vfxglow pin-export --choreography runs/<run>/scripts/<tema>.choreography.json --out configs/pruebas/x.yaml`.
+
+`tests/test_pins.py` fija, uno por uno, todos los efectos de `baile_duo` sobre una pareja
+sintética y falla si alguno no dibuja nada.
+
 ## Gate de regresión
 
 ```bash
