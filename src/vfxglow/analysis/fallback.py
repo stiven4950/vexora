@@ -79,6 +79,24 @@ def body_outline(mask: np.ndarray) -> list[tuple[float, float]] | None:
     return [(float(x) / width, float(y) / height) for x, y in outline]
 
 
+def body_outlines(mask: np.ndarray) -> list[list[tuple[float, float]]]:
+    """Contornos de todas las siluetas de al menos el 1% del cuadro (cada persona separada)."""
+    height, width = mask.shape[:2]
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
+    out = []
+    for label in range(1, count):
+        if stats[label, cv2.CC_STAT_AREA] < 0.01 * width * height:
+            continue
+        solid = _solid((labels == label).astype(np.uint8), width)
+        contours, _ = cv2.findContours(solid, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        if not contours:
+            continue
+        outline = max(contours, key=cv2.contourArea).reshape(-1, 2).astype(np.float64)
+        outline = resample(np.vstack([outline, outline[:1]]), BODY_POINTS)
+        out.append([(float(x) / width, float(y) / height) for x, y in outline])
+    return out
+
+
 def locate_head(frame_bgr: np.ndarray, mask: np.ndarray) -> tuple[list[tuple[float, float]] | None, Landmark | None]:
     height, width = mask.shape[:2]
     count, labels, stats, _ = cv2.connectedComponentsWithStats(mask)

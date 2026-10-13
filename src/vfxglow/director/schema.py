@@ -228,6 +228,9 @@ class EffectStyle(_Strict):
     # Pareja: cada persona con su color (el color N de `colors` para person_N), también en los
     # efectos que de otro modo usan el primero.
     by_person: bool = False
+    # droplets disparadas: la mano suelta figuras a ritmo fijo mientras dura el momento, vaya
+    # rápido o no.
+    stream: bool = False
     # swoosh: dibuja además la estela girada sobre su centro, formando una cruz.
     cross: bool = False
     # Si no está vacío, cada activación sortea sus colores de esta paleta (sustituyen a

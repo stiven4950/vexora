@@ -197,6 +197,31 @@ def draw_spark_dashes(runtime, points, frame_index: int, height: int, envelope: 
 # ----- gotas -----
 
 
+# Chorro (style.stream): una figura cada STREAM_EVERY fotogramas por mano mientras dure el momento,
+# que sale hacia afuera y arriba (video_34, seg. 5.5-6.5 y 19.5-21: notas y corazones).
+STREAM_EVERY = 5
+
+
+def _stream(runtime, points, key: str, person: int, point: np.ndarray, velocity, elapsed: int, torso: float, height: int) -> None:
+    style = runtime.effect.style
+    if elapsed < 0 or elapsed % STREAM_EVERY or len(runtime.bits) >= DROPLET_LIMIT:
+        return
+    prefix = key.rsplit(":", 1)[0] + ":" if ":" in key else ""
+    center = points.get(f"{prefix}mid_shoulder")
+    out = point - center if center is not None else np.array([0.0, -1.0])
+    out = out / max(float(np.linalg.norm(out)), 1e-6)
+    rng = np.random.default_rng(zlib.crc32(f"{style.seed_offset}:{key}:{elapsed}".encode()) & 0xFFFFFFFF)
+    shapes = [name for name in style.shapes if name in SHAPES] or ["drop"]
+    shape = shapes[int(rng.integers(0, len(shapes)))]
+    gravity, inherit = SHAPES[shape]
+    drift = out * torso * 0.018 + np.array([0.0, -torso * 0.016]) + rng.normal(0, torso * 0.006, 2)
+    if velocity is not None:
+        drift = drift + velocity * inherit * 0.5
+    life = float(rng.uniform(12, 20))
+    size = min(torso * style.size * float(rng.uniform(0.07, 0.11)), MAX_BIT * height * max(style.size, 1.0))
+    runtime.bits.append(Bit(float(point[0]), float(point[1]), float(drift[0]), float(drift[1]), life, life, size, person, shape, gravity, float(rng.choice([-1.0, 1.0]))))
+
+
 def draw_droplets(runtime, track: FrameRecord | None, points, frame_index: int, height: int, envelope: float, layer: np.ndarray, event: MotionEvent | None = None) -> None:
     """Partículas que suelta una mano rápida. Disparadas por un evento, solo las suelta la persona
     (o la extremidad) del evento."""
@@ -205,9 +230,14 @@ def draw_droplets(runtime, track: FrameRecord | None, points, frame_index: int, 
     torso = torso_pixels(points, height)
     bits: list[Bit] = runtime.bits
     joints = [token.strip() for token in effect.target.id.split(",") if token.strip()]
+    stream = style.stream and event is not None
     for key, person in swoosh_keys(track, joints):
         point = points.get(key)
         velocity = points.get(f"vel:{key}")
+        if stream:
+            if point is not None and envelope > 0 and focused(event, key):
+                _stream(runtime, points, key, person, point, velocity, frame_index - event.start_frame, torso, height)
+            continue
         fast = point is not None and velocity is not None and joint_speed(track, key) >= style.min_speed
         if not fast or not focused(event, key):
             runtime.swoosh_stroke.pop(key, None)

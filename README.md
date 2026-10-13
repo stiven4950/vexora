@@ -110,7 +110,10 @@ vfxglow run --video "../glowing/data/original/video_34 (1).mp4" --pin configs/pr
   esa persona). Si no hay ninguno, se crea uno en ese instante: el efecto se puede probar aunque
   el análisis no haya visto el gesto.
 - `accion` hace falta solo si la opción está en varias acciones. `espejo` sin valor sigue la regla
-  del catálogo (`duet`). `dur` es la duración del momento creado (0,6 s por omisión).
+  del catálogo (`duet`). `dur` es lo que se ve el efecto (0,6 s por omisión).
+- `exacto: true` crea el momento justo en `seg` aunque haya un evento detectado cerca (para calcar
+  una referencia); `lado: left|right` dice qué mano o pie.
+- `configs/pruebas/video_34_referencia.yaml` calca la referencia de video_34 momento a momento.
 - Con `solo_estos: false`, lo fijado se respeta y el resto se sortea alrededor.
 - Lo fijado no se apaga fuera del foco de atención.
 - Lo que no se puede cumplir (opción inexistente, persona que no está, segundo fuera del video)

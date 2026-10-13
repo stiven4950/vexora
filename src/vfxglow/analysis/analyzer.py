@@ -61,9 +61,10 @@ def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: st
                 if needs_face:
                     fallback.apply(record, frame, mask)
                 if mask is not None and config.analysis.body_contour:
-                    from vfxglow.analysis.fallback import body_outline
+                    from vfxglow.analysis.fallback import body_outline, body_outlines
 
                     record.body_contour = body_outline(mask)
+                    record.body_contours = body_outlines(mask)
                 if blades is not None:
                     record.blades = blades.detect(record, frame)
                 if objects.enabled:

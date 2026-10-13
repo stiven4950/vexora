@@ -56,6 +56,12 @@ class Pin(_Strict):
     espejo: bool | None = None
     # Duración del evento creado cuando no hay uno detectado (s).
     dur: float = 0.6
+    # true: el momento se crea justo en `seg` y dura `dur`, aunque haya un evento detectado cerca
+    # (para calcar los tiempos de una referencia).
+    exacto: bool = False
+    # Mano o pie del momento creado ("left"/"right", lados de la persona): qué mano sostiene el
+    # corazón, qué pierna lleva la línea.
+    lado: str | None = None
 
 
 class PinFile(_Strict):
@@ -108,7 +114,7 @@ def resolve_pins(pins: PinFile, catalog, events: list[MotionEvent], brief: Motio
         if not 0 <= frame < brief.video.frame_count:
             raise ValueError(f"{where}: fuera del video (dura {brief.video.frame_count / fps:.2f} s)")
         window = PIN_WINDOW_S * fps
-        near = [
+        near = [] if pin.exacto else [
             e for e in events
             if e.name == reaction.action
             and abs(e.start_frame - frame) <= window
@@ -122,6 +128,8 @@ def resolve_pins(pins: PinFile, catalog, events: list[MotionEvent], brief: Motio
         person = pin.persona or brief.person_id
         joint = SYNTH_JOINT.get(reaction.action)
         target = "nose" if reaction.action == "entrance" else (f"{person}:{joint}" if joint else person)
+        if pin.lado:
+            target = f"{person}:{pin.lado}_wrist" if not joint else f"{person}:{pin.lado}_{joint.split('_', 1)[1]}"
         event = MotionEvent(
             name=reaction.action,
             target=target,

@@ -26,6 +26,7 @@ _BODY_PARTS = {
     "legs": {"legs"},
     "feet": {"legs"},
     "torso": {"torso"},
+    "jacket": {"torso", "left_arm", "right_arm"},
     "head": {"head"},
 }
 

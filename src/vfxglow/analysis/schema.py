@@ -120,6 +120,8 @@ class FrameRecord(_Strict):
     blades: list[Blade] = Field(default_factory=list)
     # Contorno del cuerpo (persona más grande del Selfie Segmenter), normalizado.
     body_contour: list[tuple[float, float]] | None = None
+    # Contornos de todas las siluetas grandes (una por persona separada; la pareja de video_34).
+    body_contours: list[list[tuple[float, float]]] = Field(default_factory=list)
     prop: Prop | None = None
 
 

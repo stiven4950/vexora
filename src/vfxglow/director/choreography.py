@@ -203,7 +203,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 whole_scene = all(raw.get("type") in SCENE_TYPES for raw in option.effects)
                 partner = _partner(person, span, brief)
                 mirror = pin.espejo if pin.espejo is not None else (span is not None and span.mode == "unison")
-                twin = _twin(event, person, partner, events, fps, True) if mirror and partner and not whole_scene else None
+                # Exacto: la pareja recibe la misma copia (mismo instante y duración).
+                twin = _twin(event, person, partner, [] if pin.exacto else events, fps, True) if mirror and partner and not whole_scene else None
                 if twin is not None:
                     if twin not in events:
                         extra.append(twin)
@@ -313,6 +314,9 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                     effect["style"]["focus"] = False
                 trigger = dict(raw.get("trigger", {}))
                 trigger.update(event=reaction.action, frames=[f for f, _t in picked], targets=[t for _f, t in picked])
+                if suffix:
+                    # Fijado: se ve lo que dura su momento (`dur`), sin la retención del catálogo.
+                    trigger["hold"] = 0
                 effect["triggers"] = [trigger]
                 if option.accessories:
                     effect["style"]["people"] = sorted(
@@ -327,6 +331,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                     effect["style"]["focus"] = False
                 trigger = dict(raw.get("trigger", {}))
                 trigger.update(event=reaction.action, frames=[f for f, _t in twins], targets=[t for _f, t in twins])
+                if suffix:
+                    trigger["hold"] = 0
                 effect["triggers"] = [trigger]
                 effects.append(effect)
     script = EffectScript.model_validate(
@@ -384,7 +390,9 @@ def _twin(event: MotionEvent, person: str, partner: str, events: list[MotionEven
         return min(same, key=lambda e: abs(e.start_frame - event.start_frame))
     if not copy_if_missing:
         return None
-    target = f"{partner}{event.target[len(person):]}" if event.target.startswith(person) else event.target
+    # Un objetivo sin persona (la nariz de la entrada) se le pone a la pareja: si no, el motor
+    # no distingue la copia del original.
+    target = f"{partner}{event.target[len(person):]}" if event.target.startswith(person) else f"{partner}:{event.target}"
     return event.model_copy(
         update={
             "target": target,

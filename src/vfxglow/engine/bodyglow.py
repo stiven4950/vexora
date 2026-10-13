@@ -21,12 +21,13 @@ import cv2
 import numpy as np
 
 from vfxglow.analysis.schema import FrameRecord, MotionEvent
+from vfxglow.engine.duo_doodles import DOODLES, doodle
 from vfxglow.engine.raster import fill_polygon, splat, stroke_batch
 from vfxglow.engine.swoosh import neon_layers
 
 TAU = 2.0 * np.pi
-PARTS = ("left_arm", "right_arm", "arms", "legs", "torso", "head", "feet", "hands", "body")
-ADORNMENTS = ("necklace", "chain", "chest_stars", "belt", "metal_jacket", "cap", "cowboy_hat", "top_hat", "fedora", "party_hat", "witch_hat", "santa_hat", "flower_crown", "headphones", "halo", "crown", "knee_dots", "ankle_bands")
+PARTS = ("left_arm", "right_arm", "arms", "legs", "torso", "head", "feet", "hands", "body", "jacket")
+ADORNMENTS = DOODLES + ("necklace", "chain", "chest_stars", "belt", "metal_jacket", "cap", "cowboy_hat", "top_hat", "fedora", "party_hat", "witch_hat", "santa_hat", "flower_crown", "headphones", "halo", "crown", "knee_dots", "ankle_bands")
 
 # Radio de cada cápsula en anchos de hombros.
 _LIMB = {"arm": 0.22, "leg": 0.26, "foot": 0.18, "hand": 0.2}
@@ -100,6 +101,9 @@ def draw_body_glow(runtime, track, points, frame_index: int, height: int, envelo
         return
     width = layer.shape[1]
     part = event.kind if event is not None and event.kind in PARTS else effect.target.id
+    if effect.target.id == "jacket":
+        # El saco es una prenda, no la parte que se movió: manda el objetivo del efecto.
+        part = "jacket"
     if part not in PARTS:
         part = "body"
     silhouette = _silhouette(track, width, height)
@@ -153,10 +157,14 @@ def draw_body_glow(runtime, track, points, frame_index: int, height: int, envelo
 
 
 def _silhouette(track: FrameRecord | None, width: int, height: int) -> np.ndarray | None:
-    if track is None or not track.body_contour:
+    """Siluetas de todas las personas (o la más grande, en análisis anteriores)."""
+    if track is None:
+        return None
+    outlines = track.body_contours or ([track.body_contour] if track.body_contour else [])
+    if not outlines:
         return None
     mask = np.zeros((height, width), np.uint8)
-    cv2.fillPoly(mask, [np.round(np.array(track.body_contour) * [width, height]).astype(np.int32)], 1)
+    cv2.fillPoly(mask, [np.round(np.array(o) * [width, height]).astype(np.int32) for o in outlines], 1)
     return mask
 
 
@@ -190,6 +198,25 @@ def part_mask(body: Body, part: str, shape: tuple[int, int], scale: float) -> np
     if part in ("feet", "body"):
         for side in sides:
             capsule((f"{side}_ankle", f"{side}_heel", f"{side}_foot_index"), _LIMB["foot"])
+    if part == "jacket":
+        # El saco: torso ancho (con el vuelo y la solapa abierta), hasta un poco bajo la cadera.
+        # Recortado con la silueta sigue el borde real de la prenda (video_34, seg. 10 y 28).
+        corners = [body.get(n) for n in ("left_shoulder", "right_shoulder", "right_hip", "left_hip")]
+        if all(c is not None for c in corners):
+            quad = np.array(corners, dtype=np.float64)
+            center = quad.mean(axis=0)
+            down = (quad[2] + quad[3]) / 2 - (quad[0] + quad[1]) / 2
+            # Más ancho que el cuerpo: así el borde que queda es el de la silueta (el saco real).
+            across = (quad[1] - quad[0]) / max(float(np.linalg.norm(quad[1] - quad[0])), 1e-6)
+            quad = center + (quad - center) * np.array([1.0, 1.0])
+            quad[[0, 3]] -= across * 0.9 * scale
+            quad[[1, 2]] += across * 0.9 * scale
+            quad[0] -= down * 0.08
+            quad[1] -= down * 0.08
+            quad[2] += down * 0.22
+            quad[3] += down * 0.22
+            cv2.fillPoly(mask, [np.round(quad).astype(np.int32)], 1, lineType=cv2.LINE_AA)
+            drawn = True
     if part in ("torso", "body"):
         corners = [body.get(n) for n in ("left_shoulder", "right_shoulder", "right_hip", "left_hip")]
         if all(c is not None for c in corners):
@@ -454,7 +481,7 @@ def draw_adornment(runtime, track, points, frame_index: int, height: int, envelo
             continue
         color = _color(style, person)
         line = max(1.4, style.thickness * scale)
-        for curve in adornment(shape, body, frame, scale, frame_index, seed, runtime, layer, color, envelope * grow):
+        for curve in adornment(shape, body, frame, scale, frame_index, seed, runtime, layer, color, envelope * grow, event):
             strokes += neon_layers(curve, color, line, envelope * grow)
     stroke_batch(layer, strokes, style.hdr_gain)
 
@@ -472,10 +499,12 @@ def _ellipse(center: np.ndarray, rx: float, ry: float, across: np.ndarray, up: n
     return center + np.cos(t)[:, None] * across * rx + np.sin(t)[:, None] * up * ry
 
 
-def adornment(shape, body: Body, frame, scale, frame_index, seed, runtime, layer, color, alpha) -> list[np.ndarray]:
+def adornment(shape, body: Body, frame, scale, frame_index, seed, runtime, layer, color, alpha, event=None) -> list[np.ndarray]:
     center, across, down = frame
     up = -down
     head = _head(body, scale, up)
+    if shape in DOODLES:
+        return doodle(shape, body, frame, scale, frame_index, seed, runtime, layer, color, alpha, head, event)
     if shape == "necklace":
         base = center + up * 0.06 * scale
         t = np.linspace(-1, 1, 24)
