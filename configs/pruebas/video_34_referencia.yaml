@@ -1,0 +1,58 @@
+# La coreografía de la referencia glowing/video_34.mp4, momento a momento, con los efectos de
+# baile_duo (lectura en docs/referencias/video_34.md). A = person_0 (traje claro), B = person_1
+# (saco rojo). Sirve para juzgar la calidad del procesamiento contra lo que hizo el animador.
+#   vfxglow run --video "../glowing/data/original/video_34 (1).mp4" --pin configs/pruebas/video_34_referencia.yaml
+catalogo: baile_duo
+solo_estos: true
+momentos:
+# 0-2,5: se presentan, aureolas y ojos en los dos.
+- {seg: 0.0, accion: entrance, opcion: aureola, espejo: true}
+# 1,0: corazón que sale de la mano de B.
+- {seg: 1.0, opcion: corazones, persona: person_1, espejo: false}
+# 3,5-4,5: mano al pecho, trazos en el pecho de los dos.
+- {seg: 3.7, opcion: torso_lineas, espejo: true}
+# 5,5-6,5: notas que salen de las manos de los dos.
+- {seg: 5.5, opcion: notas, espejo: true}
+# 7,5: rayos cortos en hombros y brazos de los dos.
+- {seg: 7.4, opcion: brazo_onda, espejo: true}
+# 8,5-9,5: corazón en A, rayo en el brazo de B.
+- {seg: 8.7, opcion: corazones, persona: person_0, espejo: false}
+- {seg: 8.9, opcion: brazo_onda, persona: person_1, espejo: false}
+# 10,0-10,8: B se abre el saco (solo).
+- {seg: 10.0, opcion: saco, persona: person_1, espejo: false}
+# 11,0-11,7: A responde con la mano en la cabeza: corona. B, rayo en el brazo.
+- {seg: 11.2, accion: hand_ear, opcion: corona, persona: person_0}
+- {seg: 11.3, opcion: brazo_onda, persona: person_1, espejo: false}
+# 12,0-14,0: B da un paso al frente, aro en la mano.
+- {seg: 12.5, opcion: aros, persona: person_1, espejo: false}
+# 14,5-15,8: A posa: líneas sobre el cuerpo y aureola.
+- {seg: 14.6, opcion: piernas_onda, persona: person_0, espejo: false}
+- {seg: 15.2, accion: spotlight, opcion: aureola, persona: person_0, espejo: false}
+# 16,2-16,7: aureola sobre B.
+- {seg: 16.3, accion: spotlight, opcion: aureola, persona: person_1, espejo: false}
+# 17,0-17,7: A se abre el saco: luz en el pecho; B, chispa en el pie.
+- {seg: 17.1, opcion: torso_lineas, persona: person_0, espejo: false}
+- {seg: 17.2, accion: stomp, opcion: chispa, persona: person_1, espejo: false}
+# 18,0: B, garabatos en los hombros.
+- {seg: 18.0, opcion: brazo_onda, persona: person_1, espejo: false}
+# 19,5-21,2: corazones de las manos de los dos.
+- {seg: 19.6, opcion: corazones, espejo: true}
+# 21,5-23,2: chispas en el pie que pisa, los dos.
+- {seg: 21.6, accion: stomp, opcion: chispa, espejo: true}
+- {seg: 22.6, accion: stomp, opcion: chispa, espejo: true}
+# 23,5-26,5: rodillas de los dos.
+- {seg: 23.7, opcion: rodillas, espejo: true}
+- {seg: 24.9, opcion: rodillas, espejo: true}
+- {seg: 26.0, opcion: rodillas, espejo: true}
+# 27,0-27,8: giro con los pies, chispas en el piso.
+- {seg: 27.2, accion: stomp, opcion: chispa, espejo: true}
+# 28,0-30,0: de espaldas, contorno del saco y luego tramos en los brazos.
+- {seg: 28.2, opcion: saco, espejo: true}
+- {seg: 29.2, opcion: brazo_onda, espejo: true}
+# 31,0: arcos que siguen los brazos al girar.
+- {seg: 31.0, accion: spin_body, opcion: arcos, espejo: true}
+# 32,0: A, aro en la mano.
+- {seg: 32.1, opcion: aros, persona: person_0, espejo: false}
+# 33,0-34,8: línea por la pierna y banda en el tobillo, los dos.
+- {seg: 33.4, opcion: tobillos, espejo: true}
+- {seg: 34.3, opcion: tobillos, espejo: true}
