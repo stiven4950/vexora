@@ -111,6 +111,29 @@ def _side_wrist(body, center: np.ndarray):
     return best
 
 
+# De perfil: cuánto tiene que adelantarse la nariz respecto al centro de los hombros (en anchos
+# de hombros) para decir hacia qué lado mira la persona.
+PROFILE_NOSE = 0.25
+
+
+def far_side(body) -> str | None:
+    """El lado del cuerpo que queda al fondo, de perfil ("left"/"right"), o None si está de frente o
+    de espaldas. Mirando a la derecha de la imagen, el lado izquierdo queda lejos de la cámara (la
+    profundidad de MediaPipe lo confirma en video_34, seg. 33-34: cadera izquierda más lejos)."""
+    from vfxglow.engine.bodyglow import facing
+
+    if facing(body) != "side":
+        return None
+    nose, a, b = body.get("nose"), body.get("left_shoulder"), body.get("right_shoulder")
+    if nose is None or a is None or b is None:
+        return None
+    width = max(float(np.linalg.norm(a - b)), 1.0)
+    ahead = float(nose[0] - (a[0] + b[0]) / 2) / max(width, body.scale * 0.5 if body.scale else 1.0)
+    if abs(ahead) < PROFILE_NOSE * 0.5:
+        return None
+    return "left" if ahead > 0 else "right"
+
+
 def _event_side(event) -> str | None:
     if event is None:
         return None
@@ -285,6 +308,7 @@ def doodle(shape, body, frame, scale, frame_index, seed, runtime, layer, color, 
         # sostiene: curva en S suave, que se dibuja de abajo hacia arriba.
         out = []
         reveal = min((age + 1) / 6.0, 1.0)
+        far = far_side(body)
         for side in ("left", "right"):
             ankle, knee, wrist = body.get(f"{side}_ankle"), body.get(f"{side}_knee"), body.get(f"{side}_wrist")
             if ankle is None or wrist is None:
@@ -308,7 +332,16 @@ def doodle(shape, body, frame, scale, frame_index, seed, runtime, layer, color, 
             hook_t = np.linspace(0, np.pi * 1.1, 10)
             hook = wrist + (direction[None, :] * np.sin(hook_t)[:, None] + normal[None, :] * (1 - np.cos(hook_t))[:, None]) * 0.05 * scale
             curve = np.vstack([curve, hook[1:]])
-            out.append(curve[: max(int(len(curve) * reveal), 2)])
+            curve = curve[: max(int(len(curve) * reveal), 2)]
+            if side == far:
+                # Perspectiva: la tira de la pierna de atrás queda al otro lado del cuerpo; solo se
+                # ve lo que sale de la silueta (P6: las partes tapadas no se dibujan).
+                from vfxglow.engine.duo_fx import body_mask, visible
+
+                mask = body_mask(body, layer.shape[:2], scale)
+                out += [curve[a:b] for a, b in visible(curve, -np.ones(len(curve)), mask)]
+            else:
+                out.append(curve)
         return out
     if shape in ("foot_spark", "floor_arc", "leg_line", "foot_ring", "foot_bolts"):
         side = _event_side(event)
