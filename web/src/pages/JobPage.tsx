@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { api } from "../api/client";
 import { rgb, timecode } from "../api/format";
-import type { Moment, Style } from "../api/types";
+import type { Moment, Season, Style } from "../api/types";
 import { Button } from "../components/Button";
 import { ChoreographyPanel } from "../components/ChoreographyPanel";
 import { CompareViewer, type CompareViewerHandle } from "../components/CompareViewer";
@@ -27,6 +27,9 @@ export function JobPage() {
   const [moments, setMoments] = useState<Moment[]>([]);
   const [styleList, setStyleList] = useState<Style[]>([]);
   const [nextStyle, setNextStyle] = useState<string>("");
+  const [seasonList, setSeasonList] = useState<Season[]>([]);
+  // Temporada de la variación: "" = sin temporada. undefined hasta conocer la del trabajo.
+  const [nextSeason, setNextSeason] = useState<string | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [playhead, setPlayhead] = useState(0);
@@ -34,11 +37,13 @@ export function JobPage() {
 
   useEffect(() => {
     api.styles().then(setStyleList).catch(() => setStyleList([]));
+    api.seasons().then(setSeasonList).catch(() => setSeasonList([]));
   }, []);
 
   useEffect(() => {
     if (job?.status === "done") api.choreography(job.id).then(setMoments).catch(() => setMoments([]));
     if (job) setNextStyle((current) => current || `${job.style_kind}:${job.style_current}`);
+    if (job) setNextSeason((current) => (current === undefined ? (job.season ?? "") : current));
   }, [job?.status, job?.id]);
 
   const current = styleList.find((s) => s.name === job?.style_current);
@@ -53,7 +58,7 @@ export function JobPage() {
     setBusy(true);
     setActionError(null);
     try {
-      const next = await api.variation(job.id, kind, name, null, job.season);
+      const next = await api.variation(job.id, kind, name, null, (nextSeason ?? job.season ?? "") || null);
       navigate(`/jobs/${next.id}`);
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : String(cause));
@@ -137,15 +142,34 @@ export function JobPage() {
 
             <section className={styles.card}>
               <span className="eyebrow">¿Otra opción?</span>
-              <p>Probamos otra coreografía buena para el mismo video, o el mismo video con otro estilo. No se vuelve a analizar: tarda poco.</p>
-              <select value={nextStyle} onChange={(event) => setNextStyle(event.target.value)} aria-label="Estilo de la variación">
+              <p>Probamos otra coreografía buena para el mismo video, con otro estilo o con otra temporada. No se vuelve a analizar: tarda poco.</p>
+              <label className={styles.pick}>
+                <span>Estilo</span>
+                <select value={nextStyle} onChange={(event) => setNextStyle(event.target.value)}>
                 {styleList.map((style) => (
                   <option key={`${style.kind}:${style.name}`} value={`${style.kind}:${style.name}`}>
                     {style.kind === "catalog" ? "◆ " : "◇ "}
                     {style.title}
                   </option>
                 ))}
-              </select>
+                </select>
+              </label>
+              {seasonList.length > 0 && (
+                <label className={styles.pick}>
+                  <span>Temporada</span>
+                  <select value={nextSeason ?? ""} onChange={(event) => setNextSeason(event.target.value)}>
+                    <option value="">Sin temporada</option>
+                    {[...seasonList]
+                      .sort((a, b) => Number(b.suggested) - Number(a.suggested))
+                      .map((season) => (
+                        <option key={season.id} value={season.id}>
+                          {season.emoji} {season.title}
+                          {season.suggested ? " · de temporada" : ""}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              )}
               <Button variant="ghost" icon="spark" disabled={busy} onClick={vary}>
                 Probar otra versión
               </Button>
