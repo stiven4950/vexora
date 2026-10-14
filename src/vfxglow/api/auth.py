@@ -1,8 +1,8 @@
 """Autenticación de la API: sesión de Google con Firebase Auth (docs/plan_cuentas_y_nube.md, fase 1).
 
 - Las peticiones llevan `Authorization: Bearer <ID token de Firebase>`. El token se verifica con
-  `firebase-admin` contra el proyecto `VEXORA_FIREBASE_PROJECT` (firma, caducidad y audiencia); no
-  hace falta la cuenta de servicio para esto.
+  `google-auth` y las llaves públicas de Google contra el proyecto `VEXORA_FIREBASE_PROJECT` (firma,
+  caducidad, emisor y audiencia); no hace falta la cuenta de servicio para esto.
 - Los videos, las miniaturas y el progreso (SSE) se piden desde `<video>`, `<img>` y
   `EventSource`, que no mandan cabeceras. Para esos, la API entrega URLs con una llave corta
   (`?k=`), firmada con `VEXORA_SECRET`, ligada al trabajo y al usuario, que caduca en MEDIA_TTL_S.
@@ -18,11 +18,14 @@ import hashlib
 import hmac
 import os
 import secrets
+import logging
 import time
 from functools import lru_cache
 
 from fastapi import Header, HTTPException
 from pydantic import BaseModel
+
+log = logging.getLogger("vfxglow.api.auth")
 
 AUTH_ENV = "VEXORA_AUTH"
 PROJECT_ENV = "VEXORA_FIREBASE_PROJECT"
@@ -43,26 +46,36 @@ def auth_enabled() -> bool:
 
 
 @lru_cache(maxsize=1)
-def _firebase():
-    import firebase_admin
-
+def _project() -> str:
     project = os.environ.get(PROJECT_ENV)
     if not project:
         raise RuntimeError(f"Falta {PROJECT_ENV} (el ID del proyecto de Firebase, p. ej. vexora-dev)")
-    try:
-        return firebase_admin.get_app()
-    except ValueError:
-        return firebase_admin.initialize_app(options={"projectId": project})
+    return project
+
+
+@lru_cache(maxsize=1)
+def _transport():
+    import google.auth.transport.requests
+    import requests
+
+    # Una sesión reutilizada: las llaves públicas de Google se cachean según sus cabeceras.
+    return google.auth.transport.requests.Request(session=requests.Session())
 
 
 def verify(token: str) -> User:
-    from firebase_admin import auth
+    """Verifica el ID token con las llaves públicas de Google (firma, caducidad, emisor y que sea
+    de este proyecto). No necesita la cuenta de servicio: firebase-admin sí la pediría."""
+    from google.oauth2 import id_token
 
+    project = _project()
     try:
-        claims = auth.verify_id_token(token, app=_firebase(), clock_skew_seconds=10)
+        claims = id_token.verify_firebase_token(token, _transport(), audience=project, clock_skew_in_seconds=10)
     except Exception as error:  # firma, caducidad, proyecto equivocado...
+        log.info("Token rechazado: %s", error)
         raise HTTPException(401, "Sesión no válida o vencida. Vuelve a entrar.") from error
-    return User(uid=claims["uid"], email=claims.get("email"), name=claims.get("name"), picture=claims.get("picture"))
+    if not claims or claims.get("iss") != f"https://securetoken.google.com/{project}" or not claims.get("sub"):
+        raise HTTPException(401, "Sesión no válida o vencida. Vuelve a entrar.")
+    return User(uid=claims["sub"], email=claims.get("email"), name=claims.get("name"), picture=claims.get("picture"))
 
 
 def current_user(authorization: str | None = Header(default=None)) -> User:
