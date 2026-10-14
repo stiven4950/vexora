@@ -20,7 +20,9 @@ persona del evento y escala con su ancho de hombros. Medidos sobre la referencia
 - body_bolts: rayos por el cuerpo y bajando por una pierna (14,6-15,4 s; 17,6 s).
 - foot_spark: destello y chispitas en la punta del pie que pisa (21,5-23 s).
 - floor_arc: estela en arco sobre el piso que barre el pie (27,2 s).
-- leg_line: una línea continua por el frente de la pierna, de la cadera al tobillo (33-34,8 s).
+- leg_line: una línea continua por el frente de la pierna, de la cadera al tobillo.
+- leg_string: una tira, como un hilo, de la banda del tobillo hasta la mano del mismo lado, con
+  una curva al final; sigue a la mano (33-34,8 s). Una por pierna.
 - side_edges: los costados del saco de espaldas, de la axila al bajo (28,2 s; 30,1 s).
 - shoulder_arcs: arcos que bajan por hombros y brazos de espaldas (28,7-29,6 s).
 - foot_ring: aro en el piso alrededor del pie que se levanta (9,8-10,6 s).
@@ -45,7 +47,7 @@ BOLT_FRAMES = 2
 DOODLES = (
     "head_ring", "lapel", "wrist_ring", "hand_heart", "rose", "neck_ring", "swirl", "big_note",
     "shoulder_bolts", "head_bolts", "hand_ring", "moon", "chest_burst", "body_bolts", "foot_spark",
-    "floor_arc", "leg_line", "side_edges", "shoulder_arcs", "heart_eyes", "spin_arcs", "glow_eyes",
+    "floor_arc", "leg_line", "leg_string", "side_edges", "shoulder_arcs", "heart_eyes", "spin_arcs", "glow_eyes",
     "foot_ring", "foot_bolts",
 ) + DUO_FX
 WHITE = np.array([1.0, 1.0, 1.0], np.float32)
@@ -277,6 +279,36 @@ def doodle(shape, body, frame, scale, frame_index, seed, runtime, layer, color, 
         if knee is not None:
             # Hasta la rodilla: en la referencia los rayos se quedan en el cuerpo (seg. 14,5).
             out += _bolt(np.array([body.get(f"{side}_hip") if body.get(f"{side}_hip") is not None else hips, knee]), scale, rng, 1)
+        return out
+    if shape == "leg_string":
+        # Del tobillo (encima de la banda) a la mano del mismo lado, como un hilo que la mano
+        # sostiene: curva en S suave, que se dibuja de abajo hacia arriba.
+        out = []
+        reveal = min((age + 1) / 6.0, 1.0)
+        for side in ("left", "right"):
+            ankle, knee, wrist = body.get(f"{side}_ankle"), body.get(f"{side}_knee"), body.get(f"{side}_wrist")
+            if ankle is None or wrist is None:
+                continue
+            start = ankle + up * 0.16 * scale
+            span = wrist - start
+            if float(np.linalg.norm(span)) < 0.3 * scale:
+                continue
+            side_dir = np.array([-span[1], span[0]]) / max(float(np.linalg.norm(span)), 1e-6)
+            # La tira pasa por delante de la rodilla y llega a la mano por fuera.
+            bow = 0.12 * scale * (1.0 if (side_dir @ across) >= 0 else -1.0)
+            c1 = start + span * 0.35 + side_dir * bow
+            c2 = start + span * 0.75 - side_dir * bow * 0.6
+            if knee is not None:
+                c1 = (c1 + knee + across * 0.04 * scale) / 2
+            t = np.linspace(0, 1, 40)[:, None]
+            curve = (1 - t) ** 3 * start + 3 * (1 - t) ** 2 * t * c1 + 3 * (1 - t) * t**2 * c2 + t**3 * wrist
+            # Rizo en la mano (seg. 34,0).
+            direction = (curve[-1] - curve[-4]) / max(float(np.linalg.norm(curve[-1] - curve[-4])), 1e-6)
+            normal = np.array([-direction[1], direction[0]])
+            hook_t = np.linspace(0, np.pi * 1.1, 10)
+            hook = wrist + (direction[None, :] * np.sin(hook_t)[:, None] + normal[None, :] * (1 - np.cos(hook_t))[:, None]) * 0.05 * scale
+            curve = np.vstack([curve, hook[1:]])
+            out.append(curve[: max(int(len(curve) * reveal), 2)])
         return out
     if shape in ("foot_spark", "floor_arc", "leg_line", "foot_ring", "foot_bolts"):
         side = _event_side(event)

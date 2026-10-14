@@ -120,6 +120,7 @@ no coincide trazo por trazo con el nuestro.
 | 14,3-16,0 | Una onda de rayos que recorre el cuerpo de A siguiendo la parte que se mueve y pasa a B al tocarse las manos | `energy_wave`: la nube se desliza hacia la articulación más rápida; un rayo cruza las manos que se tocan |
 | 15,0 y 16,0 | El "alma" de la cabeza se queda atrás por el impulso y vuelve como una goma | `soul`: media luna con resorte amortiguado |
 | 24,75-26,2 (extra) | No está en la referencia: A se pasa la mano por encima de la cabeza | `punk_hair`: cresta punk que se levanta púa por púa donde pasa la mano |
+| 33,0-34,8 | Bandas en el tobillo y una tira, como un hilo, que sube de la banda hasta la mano del mismo lado y la sigue | `ankle_bands` + `leg_string` (curva en S del tobillo a la muñeca con un rizo al final) |
 | 30,8-31,6 y 32 | Arcos en media luna, finos en las puntas y gruesos al centro, que giran alrededor del cuerpo en 3D; la parte de atrás se oculta | `orbit_arcs` (plano vertical que gira sobre el eje del cuerpo) y `hand_orbit` |
 
 ## Pendiente

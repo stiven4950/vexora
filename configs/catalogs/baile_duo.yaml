@@ -54,12 +54,12 @@ reactions:
     weight: 0.35
     kinds: [legs, feet]
     effects:
-    # Seg. 33-34.8: una línea continua por el frente de la pierna y bandas en el tobillo.
+    # Seg. 33-34.8: bandas en el tobillo y una tira desde ellas hasta la mano.
     - type: adornment
       style: {shapes: [ankle_bands], thickness: 0.035}
       trigger: {hold: 6, fade_in: 2, fade_out: 6}
     - type: adornment
-      style: {shapes: [leg_line], thickness: 0.012}
+      style: {shapes: [leg_string], thickness: 0.012}
       trigger: {hold: 6, fade_in: 2, fade_out: 6}
   - name: piernas_onda
     weight: 0.3
