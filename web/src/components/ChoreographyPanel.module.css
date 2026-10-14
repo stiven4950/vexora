@@ -1,0 +1,149 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  backdrop-filter: blur(16px);
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.toggle > span:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.total {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.chevron {
+  display: inline-flex;
+  color: var(--muted);
+  transition: transform 0.2s;
+}
+
+.up {
+  transform: rotate(180deg);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  text-transform: capitalize;
+  cursor: pointer;
+}
+
+.chip b {
+  font-family: var(--mono);
+  color: var(--violet-soft);
+  margin-left: 4px;
+}
+
+.more {
+  padding: 5px 10px;
+  border: 0;
+  background: none;
+  color: var(--violet-soft);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.chipOn {
+  color: var(--text);
+  border-color: var(--violet-soft);
+  background: rgba(var(--violet-rgb), 0.16);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0 4px 0 0;
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 0;
+  border-left: 3px solid hsl(var(--hue) 80% 62%);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover,
+.row:focus-visible {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+
+.current {
+  background: rgba(var(--violet-rgb), 0.14);
+  color: var(--text);
+}
+
+.time {
+  font-size: 12px;
+  color: var(--faint);
+}
+
+.what {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.what strong {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text);
+  text-transform: capitalize;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.what span {
+  font-size: 12px;
+}

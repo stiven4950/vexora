@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type PointerEvent } from "react";
 
 import { actionHue, actionLabel, choiceLabel, timecode } from "../api/format";
 import type { Moment } from "../api/types";
@@ -12,6 +12,13 @@ interface Props {
   /** Fotogramas fijos mientras los videos cargan (si no, se ve negro hasta reproducir). */
   originalPoster?: string;
   editedPoster?: string;
+  /** Tiempo de reproducción, como mucho cada 0,1 s (para resaltar el momento en curso). */
+  onTime?: (seconds: number) => void;
+}
+
+/** Lo que el visor deja hacer desde fuera: saltar a un instante y quedarse ahí. */
+export interface CompareViewerHandle {
+  seekTo: (seconds: number) => void;
 }
 
 /**
@@ -19,7 +26,10 @@ interface Props {
  * Los dos videos van sincronizados (el editado manda). Debajo, la línea de tiempo marca cada
  * reacción que sorteó la coreografía; clic en una marca salta a ese momento.
  */
-export function CompareViewer({ original, edited, moments, originalPoster, editedPoster }: Props) {
+export const CompareViewer = forwardRef<CompareViewerHandle, Props>(function CompareViewer(
+  { original, edited, moments, originalPoster, editedPoster, onTime },
+  ref,
+) {
   const main = useRef<HTMLVideoElement>(null);
   const follower = useRef<HTMLVideoElement>(null);
   const stage = useRef<HTMLDivElement>(null);
@@ -30,6 +40,9 @@ export function CompareViewer({ original, edited, moments, originalPoster, edite
   const [ratio, setRatio] = useState(9 / 16);
   const [hover, setHover] = useState<Moment | null>(null);
   const dragging = useRef(false);
+  const reported = useRef(-1);
+  const onTimeRef = useRef(onTime);
+  onTimeRef.current = onTime;
 
   // El original sigue al editado; si se desvía más de 1/15 s, se corrige.
   useEffect(() => {
@@ -41,6 +54,10 @@ export function CompareViewer({ original, edited, moments, originalPoster, edite
         if (Math.abs(a.currentTime - b.currentTime) > 0.066) b.currentTime = a.currentTime;
         if (a.paused !== b.paused) void (a.paused ? b.pause() : b.play());
         setTime(a.currentTime);
+        if (Math.abs(a.currentTime - reported.current) >= 0.1) {
+          reported.current = a.currentTime;
+          onTimeRef.current?.(a.currentTime);
+        }
       }
       raf = requestAnimationFrame(sync);
     };
@@ -58,6 +75,18 @@ export function CompareViewer({ original, edited, moments, originalPoster, edite
   const seek = (seconds: number) => {
     if (main.current) main.current.currentTime = Math.max(0, Math.min(seconds, duration));
   };
+
+  // Desde la lista de la coreografía: pausa en el cuadro exacto del momento y trae el visor a la vista.
+  useImperativeHandle(ref, () => ({
+    seekTo: (seconds: number) => {
+      const video = main.current;
+      if (!video) return;
+      video.pause();
+      video.currentTime = Math.max(0, Math.min(seconds, video.duration || seconds));
+      if (follower.current) follower.current.currentTime = video.currentTime;
+      stage.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    },
+  }));
 
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
@@ -162,4 +191,4 @@ export function CompareViewer({ original, edited, moments, originalPoster, edite
       </div>
     </div>
   );
-}
+});

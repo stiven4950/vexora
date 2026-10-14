@@ -55,7 +55,14 @@ export const ACTIONS: Record<string, string> = {
 };
 
 export const actionLabel = (action: string): string => ACTIONS[action] ?? action.replaceAll("_", " ");
-export const choiceLabel = (choice: string): string => choice.replaceAll("_", " ");
+export const choiceLabel = (choice: string): string =>
+  choice.replace(" (espejo)", " · en la pareja").replace(" (fijado)", "").replaceAll("_", " ");
+
+/** "person_1:left_wrist" → "Persona 2"; los objetivos sin persona no dicen nada. */
+export const personLabel = (target: string): string | null => {
+  const match = /^person_(\d+)/.exec(target);
+  return match ? `Persona ${Number(match[1]) + 1}` : null;
+};
 
 /** Color estable por acción para los marcadores de la línea de tiempo. */
 export const actionHue = (action: string): number => {

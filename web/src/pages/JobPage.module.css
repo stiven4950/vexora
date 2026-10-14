@@ -150,29 +150,6 @@ div.failed pre {
   font-family: var(--mono);
 }
 
-.choices {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.choices li {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 13.5px;
-  text-transform: capitalize;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--line);
-}
-
-.choices b {
-  font-family: var(--mono);
-  color: var(--violet-soft);
-}
 
 .error {
   color: var(--danger);

@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { api } from "../api/client";
-import { actionLabel, choiceLabel, rgb, timecode } from "../api/format";
+import { rgb, timecode } from "../api/format";
 import type { Moment, Style } from "../api/types";
 import { Button } from "../components/Button";
-import { CompareViewer } from "../components/CompareViewer";
+import { ChoreographyPanel } from "../components/ChoreographyPanel";
+import { CompareViewer, type CompareViewerHandle } from "../components/CompareViewer";
 import { Darkroom } from "../components/Darkroom";
 import { Icon } from "../components/Icon";
 import { Shell } from "../components/Shell";
@@ -28,6 +29,8 @@ export function JobPage() {
   const [nextStyle, setNextStyle] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [playhead, setPlayhead] = useState(0);
+  const viewer = useRef<CompareViewerHandle>(null);
 
   useEffect(() => {
     api.styles().then(setStyleList).catch(() => setStyleList([]));
@@ -42,12 +45,6 @@ export function JobPage() {
   const aurora: [string, string] | undefined = current?.palette[0]
     ? [rgb(current.palette[0], 0.2), rgb(current.palette[1] ?? current.palette[0], 0.16)]
     : undefined;
-
-  const summary = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const moment of moments) counts.set(moment.choice, (counts.get(moment.choice) ?? 0) + 1);
-    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
-  }, [moments]);
 
   // Otra versión: el servidor elige la siguiente mejor coreografía; el usuario no ve semillas.
   const vary = async () => {
@@ -121,6 +118,8 @@ export function JobPage() {
       {job.status === "done" && job.output_url && job.original_url && (
         <div className={styles.result}>
           <CompareViewer
+            ref={viewer}
+            onTime={setPlayhead}
             original={job.original_url}
             edited={job.output_url}
             moments={moments}
@@ -153,22 +152,8 @@ export function JobPage() {
               {actionError && <span className={styles.error}>{actionError}</span>}
             </section>
 
-            {summary.length > 0 && (
-              <section className={styles.card}>
-                <span className="eyebrow">La coreografía</span>
-                <ul className={styles.choices}>
-                  {summary.map(([choice, count]) => (
-                    <li key={choice}>
-                      <span>{choiceLabel(choice)}</span>
-                      <b>{count}</b>
-                    </li>
-                  ))}
-                </ul>
-                <span className={styles.meta}>
-                  {moments.length} reacciones en {new Set(moments.map((m) => m.action)).size} tipos de acción ·{" "}
-                  {[...new Set(moments.map((m) => actionLabel(m.action)))].slice(0, 3).join(", ")}
-                </span>
-              </section>
+            {moments.length > 0 && (
+              <ChoreographyPanel moments={moments} time={playhead} onSelect={(moment) => viewer.current?.seekTo(moment.second)} />
             )}
           </aside>
         </div>
