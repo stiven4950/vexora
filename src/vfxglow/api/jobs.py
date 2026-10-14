@@ -55,6 +55,9 @@ class Job(BaseModel):
     started: float | None = None
     finished: float | None = None
     parent: str | None = None
+    # uid de Firebase del dueño. Los trabajos de antes de las cuentas no tienen: son del usuario
+    # local (VEXORA_AUTH=off) hasta que alguien los adopte (JobStore.adopt).
+    owner: str | None = None
 
 
 class _Progress(logging.Handler):
@@ -92,6 +95,17 @@ class _Progress(logging.Handler):
         self.store.append_log(self.job_id, text, update)
 
 
+LOCAL_OWNER = "local"
+
+
+def _owner(job: Job) -> str:
+    return job.owner or LOCAL_OWNER
+
+
+def owns(job: Job, uid: str) -> bool:
+    return _owner(job) == uid
+
+
 class JobStore:
     def __init__(self, root: Path, config: Path) -> None:
         self.root = root
@@ -113,9 +127,21 @@ class JobStore:
 
     # ----- consulta -----
 
-    def list(self) -> list[Job]:
+    def list(self, owner: str | None = None) -> list[Job]:
+        """Los trabajos de `owner` (todos si es None), del más nuevo al más viejo."""
         with self._lock:
-            return sorted(self._jobs.values(), key=lambda job: job.created, reverse=True)
+            mine = [job for job in self._jobs.values() if owner is None or _owner(job) == owner]
+            return sorted(mine, key=lambda job: job.created, reverse=True)
+
+    def adopt(self, owner: str) -> int:
+        """Los trabajos sin dueño (de antes de las cuentas) pasan a `owner`. Devuelve cuántos."""
+        with self._lock:
+            orphans = [job for job in self._jobs.values() if job.owner is None]
+            for job in orphans:
+                job.owner = owner
+            if orphans:
+                self._save()
+            return len(orphans)
 
     def get(self, job_id: str) -> Job | None:
         with self._lock:
@@ -124,7 +150,7 @@ class JobStore:
 
     # ----- altas -----
 
-    def create(self, filename: str, data, style_kind: str, style: str, seed: int | None, season: str | None = None) -> Job:
+    def create(self, filename: str, data, style_kind: str, style: str, seed: int | None, season: str | None = None, owner: str | None = None) -> Job:
         job_id = uuid.uuid4().hex[:10]
         folder = self.uploads / job_id
         folder.mkdir(parents=True)
@@ -132,7 +158,7 @@ class JobStore:
         target = folder / safe
         with target.open("wb") as out:
             shutil.copyfileobj(data, out)
-        return self._enqueue(Job(id=job_id, created=time.time(), filename=filename, video_path=str(target), style_kind=style_kind, style=style, seed=seed, season=season))
+        return self._enqueue(Job(id=job_id, created=time.time(), filename=filename, video_path=str(target), style_kind=style_kind, style=style, seed=seed, season=season, owner=owner))
 
     def variation(self, parent: Job, style_kind: str, style: str, seed: int | None, season: str | None = None) -> Job:
         """Mismo video, otro estilo u otra versión: el análisis queda en caché y es rápido.
@@ -157,6 +183,7 @@ class JobStore:
                 take=take,
                 season=season,
                 parent=root,
+                owner=parent.owner,
             )
         )
 

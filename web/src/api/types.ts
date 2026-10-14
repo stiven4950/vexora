@@ -54,6 +54,8 @@ export interface Job {
   output_url: string | null;
   original_url: string | null;
   thumbnail_url: string | null;
+  /** Progreso en vivo (SSE). Las URLs de archivos traen su llave (?k=): parámetros extra con "&". */
+  events_url: string | null;
 }
 
 export interface Moment {

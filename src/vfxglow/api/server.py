@@ -17,13 +17,14 @@ from pathlib import Path
 
 import cv2
 import yaml
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from vfxglow.api.jobs import Job, JobStore
+from vfxglow.api.auth import User, auth_enabled, check_bind, current_user, media_key, media_owner
+from vfxglow.api.jobs import Job, JobStore, owns
 
 ROOT = Path(os.environ.get("VFXGLOW_ROOT", Path.cwd()))
 CONFIG = ROOT / "configs" / "default.yaml"
@@ -129,28 +130,55 @@ def _check_season(season: str | None) -> None:
 
 class JobView(Job):
     duration: float | None = None
+    # URLs de los archivos, con la llave corta (?k=) que las abre sin cabeceras (auth.py).
     output_url: str | None = None
     original_url: str | None = None
     thumbnail_url: str | None = None
+    events_url: str | None = None
 
 
 def view(job: Job) -> JobView:
     data = job.model_dump()
+    data["owner"] = None  # el uid no sale de la API
     data["log"] = job.log[-20:]
     done = job.status == "done" and job.output
+    key = f"?k={media_key(job.id, job.owner or 'local')}"
     return JobView(
         **data,
         duration=(job.finished or 0) - job.started if job.started and job.finished else None,
-        output_url=f"/api/jobs/{job.id}/output" if done else None,
-        original_url=f"/api/jobs/{job.id}/original",
-        thumbnail_url=f"/api/jobs/{job.id}/thumbnail",
+        output_url=f"/api/jobs/{job.id}/output{key}" if done else None,
+        original_url=f"/api/jobs/{job.id}/original{key}",
+        thumbnail_url=f"/api/jobs/{job.id}/thumbnail{key}",
+        events_url=f"/api/jobs/{job.id}/events{key}",
     )
 
 
-def _job(job_id: str) -> Job:
+# Correo de quien adopta los trabajos de antes de las cuentas (VEXORA_LEGACY_OWNER).
+LEGACY_ENV = "VEXORA_LEGACY_OWNER"
+
+
+def _adopt(user: User) -> None:
+    legacy = os.environ.get(LEGACY_ENV, "").strip().lower()
+    if auth_enabled() and legacy and (user.email or "").lower() == legacy:
+        adopted = jobs().adopt(user.uid)
+        if adopted:
+            logging.getLogger("vfxglow.api").info("%s adoptó %d trabajos sin dueño", user.email, adopted)
+
+
+def _job(job_id: str, user: User) -> Job:
+    """El trabajo, solo si es de `user`. El de otro da 404 (no se revela que existe)."""
+    job = jobs().get(job_id)
+    if job is None or not owns(job, user.uid):
+        raise HTTPException(404, "Trabajo no encontrado")
+    return job
+
+
+def _media_job(job_id: str, key: str | None) -> Job:
+    """El trabajo de un archivo pedido con la llave corta (?k=)."""
     job = jobs().get(job_id)
     if job is None:
         raise HTTPException(404, "Trabajo no encontrado")
+    media_owner(job_id, key, job.owner or "local")
     return job
 
 
@@ -161,8 +189,14 @@ def _check_style(kind: str, name: str) -> None:
 
 
 @app.get("/api/jobs", response_model=list[JobView])
-def list_jobs() -> list[JobView]:
-    return [view(job) for job in jobs().list()]
+def list_jobs(user: User = Depends(current_user)) -> list[JobView]:
+    _adopt(user)
+    return [view(job) for job in jobs().list(user.uid)]
+
+
+@app.get("/api/me", response_model=User)
+def me(user: User = Depends(current_user)) -> User:
+    return user
 
 
 @app.post("/api/jobs", response_model=JobView, status_code=201)
@@ -172,6 +206,7 @@ def create_job(
     style: str = Form(...),
     seed: int | None = Form(None),
     season: str | None = Form(None),
+    user: User = Depends(current_user),
 ) -> JobView:
     if Path(video.filename or "").suffix.lower() not in VIDEO_TYPES:
         raise HTTPException(415, f"Formato no soportado. Usa {', '.join(sorted(VIDEO_TYPES))}")
@@ -179,7 +214,7 @@ def create_job(
         raise HTTPException(413, f"El video supera {MAX_UPLOAD_MB} MB")
     _check_style(style_kind, style)
     _check_season(season or None)
-    return view(jobs().create(video.filename or "video.mp4", video.file, style_kind, style, seed, season or None))
+    return view(jobs().create(video.filename or "video.mp4", video.file, style_kind, style, seed, season or None, owner=user.uid))
 
 
 class VariationRequest(BaseModel):
@@ -190,28 +225,29 @@ class VariationRequest(BaseModel):
 
 
 @app.post("/api/jobs/{job_id}/variations", response_model=JobView, status_code=201)
-def create_variation(job_id: str, body: VariationRequest) -> JobView:
+def create_variation(job_id: str, body: VariationRequest, user: User = Depends(current_user)) -> JobView:
     _check_style(body.style_kind, body.style)
     _check_season(body.season)
-    return view(jobs().variation(_job(job_id), body.style_kind, body.style, body.seed, body.season))
+    return view(jobs().variation(_job(job_id, user), body.style_kind, body.style, body.seed, body.season))
 
 
 @app.get("/api/jobs/{job_id}", response_model=JobView)
-def get_job(job_id: str) -> JobView:
-    return view(_job(job_id))
+def get_job(job_id: str, user: User = Depends(current_user)) -> JobView:
+    return view(_job(job_id, user))
 
 
 @app.delete("/api/jobs/{job_id}", status_code=204)
-def delete_job(job_id: str) -> Response:
+def delete_job(job_id: str, user: User = Depends(current_user)) -> Response:
+    _job(job_id, user)
     if not jobs().delete(job_id):
         raise HTTPException(404, "Trabajo no encontrado")
     return Response(status_code=204)
 
 
 @app.get("/api/jobs/{job_id}/events")
-async def job_events(job_id: str) -> StreamingResponse:
+async def job_events(job_id: str, k: str | None = Query(None)) -> StreamingResponse:
     """Server-Sent Events: el estado del trabajo cada vez que cambia, hasta que termina."""
-    _job(job_id)
+    _media_job(job_id, k)
 
     async def stream():
         last = None
@@ -231,8 +267,8 @@ async def job_events(job_id: str) -> StreamingResponse:
 
 
 @app.get("/api/jobs/{job_id}/output")
-def job_output(job_id: str, download: bool = False) -> FileResponse:
-    job = _job(job_id)
+def job_output(job_id: str, download: bool = False, k: str | None = Query(None)) -> FileResponse:
+    job = _media_job(job_id, k)
     if not job.output or not Path(job.output).exists():
         raise HTTPException(404, "El video editado aún no existe")
     name = f"{Path(job.filename).stem}-{job.style}{'-' + str(job.seed) if job.seed is not None else ''}.mp4"
@@ -240,15 +276,15 @@ def job_output(job_id: str, download: bool = False) -> FileResponse:
 
 
 @app.get("/api/jobs/{job_id}/original")
-def job_original(job_id: str) -> FileResponse:
-    return FileResponse(_job(job_id).video_path, media_type="video/mp4")
+def job_original(job_id: str, k: str | None = Query(None)) -> FileResponse:
+    return FileResponse(_media_job(job_id, k).video_path, media_type="video/mp4")
 
 
 @app.get("/api/jobs/{job_id}/thumbnail")
-def job_thumbnail(job_id: str, original: bool = False, first: bool = False) -> Response:
+def job_thumbnail(job_id: str, original: bool = False, first: bool = False, k: str | None = Query(None)) -> Response:
     """Fotograma del editado (o del original con ?original=true): a un tercio del video, o el
     primero con ?first=true (póster del comparador: coincide con el inicio de la reproducción)."""
-    job = _job(job_id)
+    job = _media_job(job_id, k)
     source = job.output if not original and job.output and Path(job.output).exists() else job.video_path
     kind = f"{'out' if source == job.output else 'in'}{'-first' if first else ''}"
     cache = Path(job.video_path).parent / f"thumb-{job.id}-{kind}.jpg"
@@ -273,9 +309,9 @@ class Moment(BaseModel):
 
 
 @app.get("/api/jobs/{job_id}/choreography", response_model=list[Moment])
-def job_choreography(job_id: str) -> list[Moment]:
+def job_choreography(job_id: str, user: User = Depends(current_user)) -> list[Moment]:
     """Qué reacción salió en cada acción (solo estilos de catálogo); 'nada' se omite."""
-    job = _job(job_id)
+    job = _job(job_id, user)
     if not job.run_dir:
         return []
     path = Path(job.run_dir) / "scripts" / f"{job.style}.choreography.json"
@@ -312,7 +348,9 @@ def main() -> None:
 
     load_env_file(ROOT / ".env")
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
-    uvicorn.run(app, host=os.environ.get("VFXGLOW_HOST", "127.0.0.1"), port=int(os.environ.get("VFXGLOW_PORT", "8000")), log_level="info")
+    host = os.environ.get("VFXGLOW_HOST", "127.0.0.1")
+    check_bind(host)
+    uvicorn.run(app, host=host, port=int(os.environ.get("VFXGLOW_PORT", "8000")), log_level="info")
 
 
 if __name__ == "__main__":

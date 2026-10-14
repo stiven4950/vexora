@@ -1,6 +1,8 @@
 import type { CSSProperties, ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 
+import { useSession } from "../auth/AuthContext";
+
 import { Icon } from "./Icon";
 import { Logo } from "./Logo";
 import styles from "./Shell.module.css";
@@ -12,6 +14,7 @@ interface Props {
 }
 
 export function Shell({ children, aurora }: Props) {
+  const { user, signOut } = useSession();
   const tint = aurora ? ({ "--aurora-a": aurora[0], "--aurora-b": aurora[1] } as CSSProperties) : undefined;
   return (
     <>
@@ -28,6 +31,19 @@ export function Shell({ children, aurora }: Props) {
             <Icon name="grid" size={16} /> Biblioteca
           </NavLink>
         </nav>
+        {user && (
+          <div className={styles.user}>
+            {user.photoURL ? (
+              <img src={user.photoURL} alt="" referrerPolicy="no-referrer" />
+            ) : (
+              <span className={styles.initial}>{(user.displayName ?? user.email ?? "?").charAt(0).toUpperCase()}</span>
+            )}
+            <span className={styles.name}>{user.displayName ?? user.email}</span>
+            <button type="button" onClick={() => void signOut()}>
+              Salir
+            </button>
+          </div>
+        )}
       </header>
       <main className={styles.main}>{children}</main>
       <footer className={styles.footer}>

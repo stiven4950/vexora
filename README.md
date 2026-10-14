@@ -86,6 +86,26 @@ El video se escribe primero como `<tema>.partial.mp4` y solo se renombra si ffmp
 
 `output/final.mp4` de corridas anteriores es un formato viejo: no se sabe con qué código salió. Conviene borrarlo o ignorarlo.
 
+## Cuentas (Firebase Auth)
+
+La web pide entrar con Google y la API solo responde con una sesión válida; cada usuario ve solo sus
+trabajos. Configuración:
+
+- **Web:** `web/.env.local` con la configuración web de Firebase (plantilla en `web/.env.example`).
+- **API:** en `.env`, `VEXORA_FIREBASE_PROJECT` (el ID del proyecto, p. ej. `vexora-dev`) y
+  `VEXORA_SECRET` (firma de las URLs de archivos). `pip install -e ".[api]"` instala `firebase-admin`.
+- **Firebase:** activar Google en Authentication → Sign-in method. `localhost` ya está entre los
+  dominios autorizados; un dominio propio hay que agregarlo.
+
+Detalles:
+
+- Las peticiones llevan `Authorization: Bearer <ID token>`. Videos, miniaturas y progreso usan URLs
+  con una llave corta (`?k=`), firmada y ligada al trabajo y al usuario, que caduca en 6 horas.
+- El trabajo de otro usuario responde 404.
+- Los trabajos de antes de las cuentas los adopta, al entrar, el correo de `VEXORA_LEGACY_OWNER`.
+- `VEXORA_AUTH=off` desactiva la verificación (usuario local) para desarrollo; el servidor se
+  niega a arrancar así fuera de `127.0.0.1`. Sin `VITE_FIREBASE_API_KEY`, la web no pide sesión.
+
 ## Guion de prueba: fijar qué efectos salen
 
 Con un catálogo, la coreografía se sortea (siempre igual para la misma semilla). Para comprobar un

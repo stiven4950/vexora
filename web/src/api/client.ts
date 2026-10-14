@@ -1,3 +1,4 @@
+import { idToken } from "../auth/firebase";
 import type { Season, Job, Moment, Style, StyleKind } from "./types";
 
 export class ApiError extends Error {
@@ -9,8 +10,14 @@ export class ApiError extends Error {
   }
 }
 
+/** La sesión de Firebase en la cabecera: la API verifica el token en cada petición. */
+async function authHeaders(): Promise<Record<string, string>> {
+  const token = await idToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, init);
+  const response = await fetch(path, { ...init, headers: { ...(init?.headers as Record<string, string> | undefined), ...(await authHeaders()) } });
   if (!response.ok) {
     let detail = response.statusText;
     try {
@@ -33,7 +40,8 @@ export const api = {
   remove: (id: string) => request<void>(`/api/jobs/${id}`, { method: "DELETE" }),
 
   /** Sube el video con progreso real (fetch no informa del envío; XHR sí). */
-  create(video: File, kind: StyleKind, style: string, seed: number | null, onUpload?: (fraction: number) => void, season: string | null = null): Promise<Job> {
+  async create(video: File, kind: StyleKind, style: string, seed: number | null, onUpload?: (fraction: number) => void, season: string | null = null): Promise<Job> {
+    const headers = await authHeaders();
     const form = new FormData();
     form.append("video", video);
     form.append("style_kind", kind);
@@ -43,6 +51,7 @@ export const api = {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open("POST", "/api/jobs");
+      for (const [name, value] of Object.entries(headers)) xhr.setRequestHeader(name, value);
       xhr.upload.onprogress = (event) => event.lengthComputable && onUpload?.(event.loaded / event.total);
       xhr.onload = () => {
         const body = xhr.responseText ? JSON.parse(xhr.responseText) : {};

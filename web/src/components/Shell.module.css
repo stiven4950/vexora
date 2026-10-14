@@ -55,6 +55,45 @@
   box-shadow: inset 0 0 0 1px var(--line-strong);
 }
 
+.user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.user img,
+.initial {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+}
+
+.initial {
+  display: grid;
+  place-items: center;
+  color: var(--text);
+  background: rgba(var(--violet-rgb), 0.25);
+}
+
+.user button {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.user button:hover {
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+
 .main {
   width: min(1240px, 100%);
   margin: 0 auto;
@@ -79,5 +118,8 @@
 @media (max-width: 560px) {
   .nav a {
     padding: 8px 12px;
+  }
+  .name {
+    display: none;
   }
 }

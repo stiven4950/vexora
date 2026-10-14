@@ -57,7 +57,7 @@ export function Library() {
         {jobs?.map((job, index) => (
           <article key={job.id} className={styles.item} style={{ animationDelay: `${Math.min(index, 12) * 45}ms` }}>
             <Link to={`/jobs/${job.id}`} className={styles.thumb}>
-              {job.thumbnail_url && <img src={`${job.thumbnail_url}?v=${job.status}`} alt="" loading="lazy" />}
+              {job.thumbnail_url && <img src={`${job.thumbnail_url}&v=${job.status}`} alt="" loading="lazy" />}
               {(job.status === "running" || job.status === "queued") && (
                 <div className={styles.progress}>
                   <i style={{ width: `${job.progress * 100}%` }} />

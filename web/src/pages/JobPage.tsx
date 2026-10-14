@@ -123,13 +123,13 @@ export function JobPage() {
             original={job.original_url}
             edited={job.output_url}
             moments={moments}
-            originalPoster={`/api/jobs/${job.id}/thumbnail?original=true&first=true`}
-            editedPoster={`/api/jobs/${job.id}/thumbnail?first=true`}
+            originalPoster={job.thumbnail_url ? `${job.thumbnail_url}&original=true&first=true` : undefined}
+            editedPoster={job.thumbnail_url ? `${job.thumbnail_url}&first=true` : undefined}
           />
           <aside className={styles.side}>
             <section className={styles.card}>
               <span className="eyebrow">Exportar</span>
-              <a className={styles.download} href={`${job.output_url}?download=true`}>
+              <a className={styles.download} href={`${job.output_url}&download=true`}>
                 <Icon name="download" /> Descargar MP4
               </a>
               {job.duration && <span className={styles.meta}>Revelado en {timecode(job.duration)}</span>}

@@ -31,7 +31,8 @@ export function useJob(id: string | undefined): { job: Job | null; error: string
         if (closed) return;
         setJob(first);
         if (first.status === "done" || first.status === "failed") return;
-        source = new EventSource(`/api/jobs/${id}/events`);
+        if (!first.events_url) return;
+        source = new EventSource(first.events_url);
         source.onmessage = (event) => setJob(JSON.parse(event.data) as Job);
         source.onerror = () => {
           source?.close();

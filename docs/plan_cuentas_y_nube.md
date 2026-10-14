@@ -1,6 +1,6 @@
 # Plan: cuentas de usuario, biblioteca, nube, compartir y planes
 
-Estado: propuesta, sin implementar. El modelo de negocio no está definido; el plan deja los
+Estado: fase 1 (ingreso con Google y API protegida) implementada; el resto, propuesta. El modelo de negocio no está definido; el plan deja los
 permisos por plan en un solo lugar para cambiarlos sin tocar el resto.
 
 ## Punto de partida
