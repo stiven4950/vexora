@@ -38,10 +38,10 @@ export function JobPage() {
 
   useEffect(() => {
     if (job?.status === "done") api.choreography(job.id).then(setMoments).catch(() => setMoments([]));
-    if (job) setNextStyle((current) => current || `${job.style_kind}:${job.style}`);
+    if (job) setNextStyle((current) => current || `${job.style_kind}:${job.style_current}`);
   }, [job?.status, job?.id]);
 
-  const current = styleList.find((s) => s.name === job?.style);
+  const current = styleList.find((s) => s.name === job?.style_current);
   const aurora: [string, string] | undefined = current?.palette[0]
     ? [rgb(current.palette[0], 0.2), rgb(current.palette[1] ?? current.palette[0], 0.16)]
     : undefined;

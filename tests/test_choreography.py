@@ -152,9 +152,27 @@ def test_include_rejects_repeated_option_names(tmp_path: Path) -> None:
         load_catalog(tmp_path / "solo.yaml")
 
 
-def test_solo_and_duo_dance_share_the_duo_drawings() -> None:
+def test_one_dance_style_for_solo_and_pair() -> None:
+    from vfxglow.config import catalog_file
+
     names = lambda c: {o.name for r in c.reactions for o in r.options}  # noqa: E731
-    duo = load_catalog(ROOT / "configs/catalogs/baile_duo.yaml")
-    neon = load_catalog(ROOT / "configs/catalogs/baile_neon.yaml")
-    for shared in ("cinta", "alma", "aro_orbita", "cresta_punk", "discos", "rosa_corazon", "notas"):
-        assert shared in names(duo) and shared in names(neon)
+    dance = load_catalog(ROOT / "configs/catalogs/baile.yaml")
+    for effect in ("cinta", "alma", "aro_orbita", "cresta_punk", "discos", "notas", "brazo", "sombrero_cinturon", "aureola"):
+        assert effect in names(dance)
+    assert dance.duet and dance.chapters
+    # Los nombres de antes siguen llevando al mismo catálogo.
+    config = ROOT / "configs/default.yaml"
+    assert catalog_file(config, "baile_duo") == catalog_file(config, "baile_neon") == catalog_file(config, "baile")
+
+
+def test_pair_gets_one_color_per_person_and_solo_gets_color_chapters() -> None:
+    from vfxglow.analysis.schema import DuetSpan
+
+    dance = load_catalog(ROOT / "configs/catalogs/baile.yaml")
+    spot = MotionEvent(name="spotlight", target="person_0", start_frame=30, end_frame=60, confidence=1.0, kind="legs")
+    solo_script, _ = choreograph(dance, _brief([spot]), 3)
+    assert solo_script.chapters
+    pair = _brief([spot]).model_copy(update={"duet": [DuetSpan(start_frame=0, end_frame=899, mode="unison", leader="person_0", partner="person_1")]})
+    pair_script, _ = choreograph(dance, pair, 3)
+    assert not pair_script.chapters
+    assert all(e.style.by_person and not e.style.palette and e.style.colors[:2] == [tuple(c) for c in dance.colors] for e in pair_script.effects)

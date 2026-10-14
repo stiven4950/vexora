@@ -7,7 +7,7 @@ from pathlib import Path
 
 from vfxglow.analysis.analyzer import analyze_video
 from vfxglow.analysis.schema import AnalysisHeader, VideoMeta
-from vfxglow.config import LAYER_GROUPS, catalog_file, load_config, preset_file
+from vfxglow.config import LAYER_GROUPS, catalog_file, catalog_name, load_config, preset_file
 from vfxglow.device import require_cuda, resolve_device
 from vfxglow.director.director import CreativeDirector
 from vfxglow.director.schema import EffectScript, effect_group
@@ -82,7 +82,7 @@ class Pipeline:
             self.config.director.pins = str(pins.resolve())
         if catalog:
             self.config.director.provider = "catalog"
-            self.config.director.catalog = catalog
+            self.config.director.catalog = catalog_name(catalog)
         if seed is not None:
             self.config.director.seed = seed
         # Sin semilla, la coreografía es la del puesto `take` entre varias candidatas (0 = la mejor).

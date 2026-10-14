@@ -1,5 +1,5 @@
-# Efectos compartidos por los estilos de baile (solista y pareja). Los incluyen baile_duo y
-# baile_neon con `include:` (director/choreography.py): sus opciones se suman a las de la misma
+# Efectos compartidos por los estilos de baile (solista y pareja). Los incluyen el catálogo baile con
+# `include:` (director/choreography.py): sus opciones se suman a las de la misma
 # acción del catálogo, con el peso multiplicado por el `weight` del include. Leídos de la
 # referencia video_34 (docs/referencias/video_34.md); dibujos en engine/duo_doodles.py y
 # engine/duo_fx.py. Funcionan con una persona o con dos.
@@ -52,7 +52,7 @@ reactions:
     cooldown: 90
     effects:
     - type: body_glow
-      style: {shapes: [wave], trail_frames: 16}
+      style: {shapes: [wave], trail_frames: 16, fill: 0.0}
       trigger: {hold: 4, fade_in: 2, fade_out: 6}
   - name: saco
     weight: 0.3
@@ -62,6 +62,7 @@ reactions:
     # El borde real del saco (silueta), con guiones de costura dentro (seg. 10.3, 28).
     - type: body_glow
       target: {kind: joint, id: jacket}
+      style: {fill: 0.0}
       trigger: {hold: 8, fade_in: 3, fade_out: 8}
   # Seg. 10.3: se abre el saco: la solapa con un tinte suave y costuras dentro.
   - name: solapa_abierta
@@ -88,7 +89,7 @@ reactions:
     effects:
     - type: body_glow
       target: {kind: joint, id: jacket}
-      style: {shapes: [hem]}
+      style: {shapes: [hem], fill: 0.0}
       trigger: {hold: 6, fade_in: 2, fade_out: 6}
   # Dibujos de la referencia (engine/duo_doodles.py), cada uno en su parte.
   - name: rayos_brazos

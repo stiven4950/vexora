@@ -25,6 +25,7 @@ from pydantic import BaseModel
 
 from vfxglow.api.auth import User, auth_enabled, check_bind, current_user, media_key, media_owner
 from vfxglow.api.jobs import Job, JobStore, owns
+from vfxglow.config import catalog_name
 
 ROOT = Path(os.environ.get("VFXGLOW_ROOT", Path.cwd()))
 CONFIG = ROOT / "configs" / "default.yaml"
@@ -135,6 +136,8 @@ class JobView(Job):
     original_url: str | None = None
     thumbnail_url: str | None = None
     events_url: str | None = None
+    # El estilo con su nombre de hoy (un trabajo viejo puede decir baile_duo: hoy es baile).
+    style_current: str = ""
 
 
 def view(job: Job) -> JobView:
@@ -150,6 +153,7 @@ def view(job: Job) -> JobView:
         original_url=f"/api/jobs/{job.id}/original{key}",
         thumbnail_url=f"/api/jobs/{job.id}/thumbnail{key}",
         events_url=f"/api/jobs/{job.id}/events{key}",
+        style_current=catalog_name(job.style) if job.style_kind == "catalog" else job.style,
     )
 
 
@@ -182,10 +186,14 @@ def _media_job(job_id: str, key: str | None) -> Job:
     return job
 
 
-def _check_style(kind: str, name: str) -> None:
+def _check_style(kind: str, name: str) -> str:
+    """El nombre del estilo, con los nombres viejos de catálogo ya traducidos; 422 si no existe."""
+    if kind == "catalog":
+        name = catalog_name(name)
     folder = "catalogs" if kind == "catalog" else "presets"
     if kind not in ("catalog", "preset") or not (ROOT / "configs" / folder / f"{name}.yaml").exists():
         raise HTTPException(422, f"Estilo desconocido: {kind}/{name}")
+    return name
 
 
 @app.get("/api/jobs", response_model=list[JobView])
@@ -212,7 +220,7 @@ def create_job(
         raise HTTPException(415, f"Formato no soportado. Usa {', '.join(sorted(VIDEO_TYPES))}")
     if video.size is not None and video.size > MAX_UPLOAD_MB * 1024 * 1024:
         raise HTTPException(413, f"El video supera {MAX_UPLOAD_MB} MB")
-    _check_style(style_kind, style)
+    style = _check_style(style_kind, style)
     _check_season(season or None)
     return view(jobs().create(video.filename or "video.mp4", video.file, style_kind, style, seed, season or None, owner=user.uid))
 
@@ -226,9 +234,9 @@ class VariationRequest(BaseModel):
 
 @app.post("/api/jobs/{job_id}/variations", response_model=JobView, status_code=201)
 def create_variation(job_id: str, body: VariationRequest, user: User = Depends(current_user)) -> JobView:
-    _check_style(body.style_kind, body.style)
+    style = _check_style(body.style_kind, body.style)
     _check_season(body.season)
-    return view(jobs().variation(_job(job_id, user), body.style_kind, body.style, body.seed, body.season))
+    return view(jobs().variation(_job(job_id, user), body.style_kind, style, body.seed, body.season))
 
 
 @app.get("/api/jobs/{job_id}", response_model=JobView)

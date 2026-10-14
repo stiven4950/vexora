@@ -3,7 +3,7 @@
 Sirve para comprobar un efecto: se le dice "en el segundo 3 pon la bola de espejos" y el video
 sale exactamente con eso (`vfxglow run ... --pin pruebas/x.yaml`). Formato:
 
-    catalogo: baile_duo            # opcional; si está, debe coincidir con --catalog
+    catalogo: baile                # opcional; si está, debe coincidir con --catalog
     solo_estos: true               # true: solo lo fijado (sin sorteo ni efectos `always`)
     momentos:
       - {seg: 3.0, opcion: bola_espejos}

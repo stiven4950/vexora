@@ -112,8 +112,8 @@ Con un catálogo, la coreografía se sortea (siempre igual para la misma semilla
 efecto, un guion de prueba dice qué sale y cuándo, y el video sale exactamente así:
 
 ```yaml
-# configs/pruebas/ejemplo_baile_duo.yaml
-catalogo: baile_duo
+# configs/pruebas/ejemplo_baile.yaml
+catalogo: baile
 solo_estos: true                                  # solo lo fijado: sin sorteo ni efectos `always`
 momentos:
 - {seg: 3.0, opcion: bola_espejos}                # efecto de escena
@@ -123,7 +123,7 @@ momentos:
 ```
 
 ```bash
-vfxglow run --video "../glowing/data/original/video_34 (1).mp4" --pin configs/pruebas/ejemplo_baile_duo.yaml
+vfxglow run --video "../glowing/data/original/video_34 (1).mp4" --pin configs/pruebas/ejemplo_baile.yaml
 ```
 
 - Cada momento se engancha al evento detectado de su acción más cercano (a menos de 0,5 s, de
@@ -141,7 +141,7 @@ vfxglow run --video "../glowing/data/original/video_34 (1).mp4" --pin configs/pr
 - Una coreografía que gustó se convierte en guion para fijarla o editarla:
   `vfxglow pin-export --choreography runs/<run>/scripts/<tema>.choreography.json --out configs/pruebas/x.yaml`.
 
-`tests/test_pins.py` fija, uno por uno, todos los efectos de `baile_duo` sobre una pareja
+`tests/test_pins.py` fija, uno por uno, todos los efectos de `baile` sobre una pareja
 sintética y falla si alguno no dibuja nada.
 
 ## Comparar contra la referencia, cuadro a cuadro

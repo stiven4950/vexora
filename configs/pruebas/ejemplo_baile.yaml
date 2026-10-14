@@ -1,6 +1,6 @@
 # Guion de prueba (director/pins.py): el video sale exactamente con estos efectos.
-#   vfxglow run --video "../glowing/data/original/video_34 (1).mp4" --pin configs/pruebas/ejemplo_baile_duo.yaml
-catalogo: baile_duo
+#   vfxglow run --video "../glowing/data/original/video_34 (1).mp4" --pin configs/pruebas/ejemplo_baile.yaml
+catalogo: baile
 solo_estos: true
 momentos:
 - {seg: 3.0, opcion: bola_espejos}

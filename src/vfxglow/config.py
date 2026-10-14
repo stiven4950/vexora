@@ -237,5 +237,13 @@ def preset_file(config_path: Path, name: str) -> Path:
     return config_path.resolve().parent / "presets" / f"{name}.yaml"
 
 
+# Nombres anteriores de catálogos: siguen funcionando (comandos, guiones de prueba, trabajos viejos).
+CATALOG_ALIASES = {"baile_neon": "baile", "baile_duo": "baile"}
+
+
+def catalog_name(name: str) -> str:
+    return CATALOG_ALIASES.get(name, name)
+
+
 def catalog_file(config_path: Path, name: str) -> Path:
-    return config_path.resolve().parent / "catalogs" / f"{name}.yaml"
+    return config_path.resolve().parent / "catalogs" / f"{catalog_name(name)}.yaml"

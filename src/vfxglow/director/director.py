@@ -17,7 +17,7 @@ from vfxglow.director.strategies import StrategyPlan, applicable, cuts_of, descr
 from vfxglow.director.validator import ScriptError, validate_script
 
 
-# Un catálogo crea un efecto por opción elegida al menos una vez (baile_neon ya pasa de 40). El
+# Un catálogo crea un efecto por opción elegida al menos una vez (baile ya pasa de 40). El
 # límite es una red de seguridad, no un criterio de estilo: la saturación la controlan la línea de
 # atención y la nota de las versiones.
 CATALOG_MAX_EFFECTS = 120
@@ -54,7 +54,9 @@ class CreativeDirector:
         if self.config.provider == "catalog":
             from vfxglow.director.choreography import best_choreography, choreograph, load_catalog
 
-            path = self.preset_dir.parent / "catalogs" / f"{self.config.catalog}.yaml"
+            from vfxglow.config import catalog_name
+
+            path = self.preset_dir.parent / "catalogs" / f"{catalog_name(self.config.catalog)}.yaml"
             if not path.exists():
                 raise FileNotFoundError(f"No existe el catálogo {path}")
             catalog = load_catalog(path)
@@ -68,7 +70,7 @@ class CreativeDirector:
                 from vfxglow.director.pins import load_pins
 
                 pins = load_pins(Path(self.config.pins))
-                if pins.catalogo and pins.catalogo != self.config.catalog:
+                if pins.catalogo and catalog_name(pins.catalogo) != catalog_name(self.config.catalog):
                     raise ValueError(f"El guion de prueba es del catálogo {pins.catalogo}, no de {self.config.catalog}")
             if self.config.seed is not None:
                 script, self.choreography = choreograph(catalog, brief, self.config.seed, pins)

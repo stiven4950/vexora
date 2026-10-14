@@ -1,12 +1,23 @@
-# Baile en solitario (referencia glowing/video_33.mp4). Cada tramo de ~1 s se enciende la parte
-# del cuerpo que más se mueve (spotlight): tinte de color pegado a la silueta, línea casi blanca y
-# halo, a veces con abdominales o bíceps dibujados. En las pausas aparecen accesorios dibujados
-# (collar, estrellas en el pecho, gorra, sombrero, audífonos, gafas). El color cambia por tramo.
-# Ver docs/catalogo_efectos.md, sección "Baile".
-name: baile_neon
+# Baile: un solo estilo para una persona o para dos (referencias glowing/video_33.mp4, solista, y
+# glowing/video_34.mp4, pareja; ver docs/catalogo_efectos.md, sección "Baile").
+#
+# - Lo que más se mueve se enciende (spotlight): tinte pegado a la silueta, línea casi blanca y
+#   halo, a veces abdominales o bíceps; en las pausas, accesorios dibujados; la gorra como objeto.
+# - Los dibujos leídos de video_34 (rosas, cintas, alma, rayos, discos, arcos 3D, cresta punk,
+#   notas y corazones...) vienen de _baile_compartido.yaml.
+# - Con una persona, el color cambia por capítulo. Con dos (duet), cada una lleva su color todo el
+#   video (`colors`): al unísono lo que se enciende en una se copia a la otra; en un solo, solo
+#   se enciende quien lo lleva (analysis/duet.py, director/choreography.py).
+name: baile
 title: Baile neón
-description: 'Lo que más se mueve se enciende: brazos, torso, piernas o pies teñidos de neón, abdominales dibujados, collares, estrellas en el
-  pecho y sombreros.'
+description: 'Para una persona o para dos: lo que más se mueve se enciende, rosas, cintas, notas y corazones, rayos y arcos 3D; en pareja, cada uno con su color y lo que hace uno se enciende en el otro cuando bailan igual.'
+tags: [baile, solista, pareja, dúo, fiesta]
+# Con dos personas: el color de cada una (persona 1, persona 2).
+colors:
+- [0.2, 0.85, 1.0]
+- [1.0, 0.35, 0.7]
+# Pareja (analysis/duet.py): espejo al unísono, turnos en los solos. Con una persona no hace nada.
+duet: true
 seed: 33
 # La gorra que pasa de mano en mano (seg. 0-9 de la referencia) es el objeto protagonista: se
 # sigue con Grounding DINO + SAM 2 (lento: ~1,2 s por fotograma en MPS, queda en caché).
@@ -17,9 +28,9 @@ prop: a baseball cap. a hat.
 chapters: true
 # Nada compite con el protagonista: lo que no está en foco se apaga (línea de atención).
 attention: true
-# Los dibujos de baile_duo (rosas, cintas, alma, rayos, discos, arcos 3D, cresta punk...) también
-# para una persona sola, a la mitad de peso para que no tapen los efectos propios del solista.
-include: [{name: _baile_compartido, weight: 0.5}]
+# Dibujos de video_34 (configs/catalogs/_baile_compartido.yaml), a un peso que deja espacio a los
+# efectos de cuerpo y accesorios.
+include: [{name: _baile_compartido, weight: 0.75}]
 defaults:
   type: body_glow
   target: {kind: joint, id: body}
@@ -51,6 +62,18 @@ always:
 - type: prop_outline
   style: {fill: 0.0, palette_every: 30}
 reactions:
+# Al empezar: un aro en la frente y ojos de corazón (en pareja, en los dos).
+- action: entrance
+  options:
+  - name: aureola
+    weight: 1.0
+    effects:
+    - type: adornment
+      style: {shapes: [head_ring], thickness: 0.012, focus: false}
+      trigger: {hold: 70, fade_in: 4, fade_out: 12}
+    - type: adornment
+      style: {shapes: [heart_eyes], thickness: 0.008, focus: false}
+      trigger: {hold: 70, fade_in: 4, fade_out: 12}
 - action: spotlight
   options:
   - name: brazo
@@ -276,6 +299,18 @@ reactions:
         shapes: [abs]
         fill: 0.0
       trigger: *id008
+  # Cabeza: un aro sobre la frente (no justo después de la entrada).
+  - name: aureola
+    weight: 0.3
+    kinds: [head]
+    cooldown: 240
+    yields_to: [entrance]
+    yield_chance: 1.0
+    yield_window_s: 2.5
+    effects:
+    - type: adornment
+      style: {shapes: [head_ring], thickness: 0.012}
+      trigger: {hold: 12, fade_in: 3, fade_out: 8}
   - name: nada
     weight: 0.12
     effects: []
@@ -449,6 +484,13 @@ reactions:
     - type: mirror_ball
       style: {focus: false, hdr_gain: 1.7, palette_every: 30}
       trigger: {hold: 20, fade_in: 4, fade_out: 10}
+  - name: rayos_x
+    exclusive: true
+    weight: 0.15
+    effects:
+    - type: xray
+      style: {thickness: 0.01, hdr_gain: 1.8}
+      trigger: {hold: 20, fade_in: 3, fade_out: 8}
   - name: ecualizador
     exclusive: true
     weight: 0.3

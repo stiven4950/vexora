@@ -356,6 +356,14 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 trigger.update(event=reaction.action, frames=[f for f, _t in twins], targets=[t for _f, t in twins])
                 effect["triggers"] = [trigger]
                 effects.append(effect)
+    pair = bool(duet)
+    if pair:
+        # Pareja: cada persona con su color fijo (catalog.colors), sin el sorteo de la paleta ni
+        # los capítulos de color del solista.
+        for effect in effects:
+            effect["style"].pop("palette", None)
+            effect["style"]["colors"] = [list(color) for color in catalog.colors]
+            effect["style"].setdefault("by_person", True)
     script = EffectScript.model_validate(
         {"title": catalog.title or catalog.name, "theme": catalog.name, "seed": seed, "effects": effects}
     )
@@ -368,7 +376,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
         for effect in script.effects:
             if effect.style.palette:
                 effect.style.palette_weights = [round(float(w), 4) for w in skin_scores(effect.style.palette, luma) ** 2]
-    if catalog.chapters:
+    if catalog.chapters and not pair:
         palette = catalog.defaults.get("style", {}).get("palette") or catalog.colors
         weights = skin_scores(palette, luma) ** 2 if luma is not None else None
         script.chapters = build_chapters(events, palette, seed, fps, brief.video.frame_count, catalog.chapter_min_s, weights)
@@ -657,6 +665,4 @@ def _effect(catalog: Catalog, raw: dict, effect_id: str) -> dict:
     effect["id"] = effect_id
     style = effect.setdefault("style", {})
     style.setdefault("colors", [list(color) for color in catalog.colors])
-    if catalog.duet:
-        style.setdefault("by_person", True)
     return effect

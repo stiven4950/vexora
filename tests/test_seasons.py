@@ -26,7 +26,7 @@ def test_suggestion_follows_the_calendar() -> None:
 
 
 def test_season_lives_inside_triggered_effects_not_as_a_frame() -> None:
-    catalog = load_catalog(Path("configs/catalogs/baile_neon.yaml"))
+    catalog = load_catalog(Path("configs/catalogs/baile.yaml"))
     halloween = find(SEASONS, "halloween")
     themed = apply_to_catalog(catalog, halloween)
     assert themed.defaults["style"]["palette"][0] == list(halloween.palette[0])

@@ -250,11 +250,15 @@ los videos de espadas. Por eso está apagada por defecto y la enciende el catál
 ## Baile
 
 Dos referencias de baile con un lenguaje distinto al de pelea: **lo que más se mueve se enciende**.
-Catálogos `baile_neon` (solista, video_33) y `baile_duo` (pareja, video_34).
+Un solo catálogo, `baile`, para una persona o para dos (referencias video_33, solista, y video_34,
+pareja). Con una persona, el color cambia por capítulo; con dos, cada una lleva su color todo el
+video, lo que se enciende en una se copia a la otra cuando bailan igual y en un solo solo se
+enciende quien lo lleva. `baile_neon` y `baile_duo` siguen funcionando como nombres del mismo
+catálogo (comandos, guiones de prueba y trabajos anteriores).
 
 ```bash
-vfxglow run --video ../glowing/data/original/video_33.mp4 --catalog baile_neon
-vfxglow run --video "../glowing/data/original/video_34 (1).mp4" --catalog baile_duo
+vfxglow run --video ../glowing/data/original/video_33.mp4 --catalog baile
+vfxglow run --video "../glowing/data/original/video_34 (1).mp4" --catalog baile
 ```
 
 ### El neón de estas referencias (aplicado a todo el motor)
@@ -307,10 +311,9 @@ Las partes del cuerpo encendidas usan **dos pasadas**, como haría un editor: un
 
 Los dibujos leídos de video_34 (rosas, cintas, alma, rayos, discos de DJ, arcos 3D, cresta punk,
 notas y corazones, rodillas y tobillos...) viven en `configs/catalogs/_baile_compartido.yaml`.
-`baile_duo` y `baile_neon` los incluyen con `include:`; el solista, a la mitad de peso:
-`include: [{name: _baile_compartido, weight: 0.5}]`. Sus opciones se suman a las de la misma
-acción de cada catálogo. Los archivos que empiezan con `_` son fragmentos, no estilos: no salen en
-la lista de la web. Todos se dibujan con una persona o con dos.
+`baile` los incluye con `include: [{name: _baile_compartido, weight: 0.75}]`; sus opciones se
+suman a las de la misma acción. Los archivos que empiezan con `_` son fragmentos, no estilos: no
+salen en la lista de la web. Todos se dibujan con una persona o con dos.
 
 ### video_34: pareja, un color por persona
 
@@ -586,7 +589,7 @@ El beso (`face_touch`) cede ante `cover_eyes` y `hand_ear`.
   separados más de 0,12 caras) gana la sorpresa.
 - Los signos crecen 2,5 veces alrededor de un punto sobre la cabeza: con la cara lejos, a tamaño
   real quedan del tamaño del halo del neón y no se leen.
-- En `baile_neon` es la opción `expresion` cuando la cabeza es protagonista. Cede ante la gorra
+- En `baile` es la opción `expresion` cuando la cabeza es protagonista. Cede ante la gorra
   puesta, el beso y el "ya valió".
 
 ### Efectos propios ya renderizados (`sprite_fx`)
@@ -630,7 +633,7 @@ como mucho 3 veces y con enfriamiento. La API expone `/api/seasons` (con la suge
 web la propone en el paso "Toque de temporada".
 
 ```bash
-vfxglow run --video ../glowing/data/original/video_33.mp4 --catalog baile_neon --season halloween
+vfxglow run --video ../glowing/data/original/video_33.mp4 --catalog baile --season halloween
 ```
 
 ### Colores según el tono de piel
@@ -652,7 +655,7 @@ apagado, y el coreógrafo lo usa como peso (al cuadrado) al sortear colores: en 
 ### Opciones que ceden el paso (`yields_to`)
 
 Una opción puede ceder ante otra acción cercana: si a menos de `yield_window_s` (1,5 s) hay una
-de las acciones de `yields_to`, con probabilidad `yield_chance` (0,75) no sale. En `baile_neon`
+de las acciones de `yields_to`, con probabilidad `yield_chance` (0,75) no sale. En `baile`
 los accesorios de cabeza ceden ante `prop_worn` y `face_touch`, para no tapar la caricatura de la
 gorra puesta ni el beso; al azar, a veces sí coinciden.
 

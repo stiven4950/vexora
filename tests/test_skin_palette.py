@@ -61,7 +61,7 @@ def test_best_choreography_is_at_least_as_good_as_the_catalog_seed_and_takes_dif
         ]
     ] + [MotionEvent(name="spotlight", target="person_0", start_frame=f, end_frame=f + 35, confidence=1.0, kind=k) for f, k in zip(range(0, 900, 36), ["legs", "torso", "left_arm", "right_arm", "head"] * 6)]
     brief = MotionBrief(video=meta, person_id="person_0", anchors=[], limbs=[], events=events, summary="", beats=[Beat(id=0, start_frame=0, end_frame=899, kind="steady")])
-    catalog = load_catalog(Path("configs/catalogs/baile_neon.yaml"))
+    catalog = load_catalog(Path("configs/catalogs/baile.yaml"))
     best, best_choreo = best_choreography(catalog, brief, take=0)
     _, plain = choreograph(catalog, brief)
     assert best_choreo.score >= score_choreography(plain, brief) - 1e-9

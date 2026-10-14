@@ -59,14 +59,14 @@ def _spot(person: str, frame: int, kind: str) -> MotionEvent:
 
 
 def test_a_pinned_moment_wins_over_the_draw() -> None:
-    catalog = load_catalog(ROOT / "configs/catalogs/baile_duo.yaml")
+    catalog = load_catalog(ROOT / "configs/catalogs/baile.yaml")
     pins = PinFile(momentos=[Pin(seg=1.0, opcion="rodillas", persona="person_1")])
     _, choreo = choreograph(catalog, _brief([_spot("person_1", 30, "legs")]), 1, pins)
     assert [d.choice for d in choreo.decisions if d.frame == 30 and d.target == "person_1"] == ["rodillas (fijado)"]
 
 
 def test_without_a_detected_event_the_moment_is_created() -> None:
-    catalog = load_catalog(ROOT / "configs/catalogs/baile_duo.yaml")
+    catalog = load_catalog(ROOT / "configs/catalogs/baile.yaml")
     script, choreo = choreograph(catalog, _brief(), 1, PinFile(solo_estos=True, momentos=[Pin(seg=2.0, opcion="bola_espejos")]))
     assert [d.choice for d in choreo.decisions] == ["bola_espejos (fijado)"]
     assert [e.start_frame for e in script.extra_events if e.name == "frenzy"] == [60]
@@ -74,7 +74,7 @@ def test_without_a_detected_event_the_moment_is_created() -> None:
 
 
 def test_only_these_leaves_out_everything_else_and_mirror_copies_to_the_partner() -> None:
-    catalog = load_catalog(ROOT / "configs/catalogs/baile_duo.yaml")
+    catalog = load_catalog(ROOT / "configs/catalogs/baile.yaml")
     events = [_spot("person_0", 10, "legs"), _spot("person_1", 40, "left_arm")]
     pins = PinFile(solo_estos=True, momentos=[Pin(seg=10 / FPS, opcion="rodillas", persona="person_0", espejo=True)])
     script, choreo = choreograph(catalog, _brief(events), 1, pins)
@@ -85,7 +85,7 @@ def test_only_these_leaves_out_everything_else_and_mirror_copies_to_the_partner(
 
 
 def test_impossible_moments_are_errors() -> None:
-    catalog = load_catalog(ROOT / "configs/catalogs/baile_duo.yaml")
+    catalog = load_catalog(ROOT / "configs/catalogs/baile.yaml")
     with pytest.raises(ValueError, match="no existe"):
         choreograph(catalog, _brief(), 1, PinFile(momentos=[Pin(seg=1.0, opcion="dragon")]))
     with pytest.raises(ValueError, match="person_7"):
@@ -95,7 +95,7 @@ def test_impossible_moments_are_errors() -> None:
 
 
 def test_a_choreography_exported_as_pins_comes_out_the_same(tmp_path: Path) -> None:
-    catalog = load_catalog(ROOT / "configs/catalogs/baile_duo.yaml")
+    catalog = load_catalog(ROOT / "configs/catalogs/baile.yaml")
     events = [_spot(p, f, k) for f in (0, 36, 72) for p, k in (("person_0", "legs"), ("person_1", "left_arm"))]
     _, original = choreograph(catalog, _brief(events), 5)
     path = tmp_path / "fijado.yaml"
@@ -108,14 +108,20 @@ def test_a_choreography_exported_as_pins_comes_out_the_same(tmp_path: Path) -> N
     assert lit(again) == lit(original)
 
 
-def test_every_effect_of_the_duo_catalog_draws_where_it_is_pinned() -> None:
+# Efectos que dependen de algo que esta pareja sintética no tiene: los pasos detectados (huellas),
+# la gorra seguida (objeto), los golpes de la música (ecualizador, pulso) o la silueta del
+# segmentador (fantasma). Se comprueban en sus propias pruebas y con videos reales.
+NEEDS_MORE = {"footprints", "prop_spring", "prop_outline", "prop_rings", "prop_doodle", "equalizer", "beat_pulse", "ghost_trail"}
+
+
+def test_every_effect_of_the_dance_catalog_draws_where_it_is_pinned() -> None:
     """Cada opción, fijada sola en el cuadro 30 sobre una pareja que baila, dibuja algo."""
-    catalog = load_catalog(ROOT / "configs/catalogs/baile_duo.yaml")
+    catalog = load_catalog(ROOT / "configs/catalogs/baile.yaml")
     frames = _frames()
     silent = []
     for reaction in catalog.reactions:
         for option in reaction.options:
-            if not option.effects:
+            if not option.effects or all(e.get("type") in NEEDS_MORE for e in option.effects):
                 continue
             pins = PinFile(solo_estos=True, momentos=[Pin(seg=1.0, accion=reaction.action, opcion=option.name, persona="person_1")])
             script, _ = choreograph(catalog, _brief(), 1, pins)

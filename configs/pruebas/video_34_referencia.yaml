@@ -4,7 +4,7 @@
 # docs/referencias/video_34.md. Los tiempos son del original (la referencia se adelanta hasta 3
 # cuadros al final). A = person_0 (traje claro), B = person_1 (saco rojo).
 #   vfxglow run --video "../glowing/data/original/video_34 (1).mp4" --pin configs/pruebas/video_34_referencia.yaml
-catalogo: baile_duo
+catalogo: baile
 solo_estos: true
 momentos:
 # --- Entrada: aro en la frente y ojos de corazón (A hasta 3,4 s; B hasta 2,67 s).
@@ -23,7 +23,7 @@ momentos:
 # --- 5,2-6,9: notas de las manos de los dos (pequeñas primero, luego más grandes).
 - {seg: 5.2, opcion: notas, espejo: true, exacto: true, dur: 1.7}
 # --- 7,2-7,9: hilos de energía que saltan y se juntan en un corazón en el pecho.
-- {seg: 7.2, opcion: energia, espejo: true, exacto: true, dur: 0.35}
+- {seg: 7.2, accion: spotlight, opcion: energia, espejo: true, exacto: true, dur: 0.35}
 - {seg: 7.53, opcion: corazon_pecho, espejo: true, exacto: true, dur: 0.37}
 # --- 8,3-10,6: A, destello y corazones en la mano, ojos y un aro alrededor del pie. B, rayos en
 # los brazos, sobre la cabeza y el borde del saco.

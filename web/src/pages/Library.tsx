@@ -28,7 +28,7 @@ export function Library() {
   }, []);
 
   const remove = async (job: Job) => {
-    if (!window.confirm(`¿Borrar "${job.filename}" (${job.style})?`)) return;
+    if (!window.confirm(`¿Borrar "${job.filename}" (${job.style_current})?`)) return;
     await api.remove(job.id);
     void load();
   };
@@ -69,7 +69,7 @@ export function Library() {
               <div>
                 <strong title={job.filename}>{job.filename}</strong>
                 <span className="mono">
-                  {job.style}
+                  {job.style_current}
                   {job.style_kind === "catalog" && job.seed === null && job.take > 0 && ` · v${job.take + 1}`}
                   {job.seed !== null && ` · #${job.seed}`} · {ago(job.created)}
                 </span>
