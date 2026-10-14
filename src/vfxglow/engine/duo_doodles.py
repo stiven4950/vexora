@@ -37,6 +37,7 @@ import zlib
 
 import numpy as np
 
+from vfxglow.engine.duo_fx import DUO_FX, duo_fx
 from vfxglow.engine.raster import fill_polygon, splat
 
 TAU = 2.0 * np.pi
@@ -46,7 +47,7 @@ DOODLES = (
     "shoulder_bolts", "head_bolts", "hand_ring", "moon", "chest_burst", "body_bolts", "foot_spark",
     "floor_arc", "leg_line", "side_edges", "shoulder_arcs", "heart_eyes", "spin_arcs", "glow_eyes",
     "foot_ring", "foot_bolts",
-)
+) + DUO_FX
 WHITE = np.array([1.0, 1.0, 1.0], np.float32)
 
 
@@ -81,10 +82,16 @@ def zigzag(path: np.ndarray, amp: float, rng: np.random.Generator, step: float) 
 
 
 def _bolt(path: np.ndarray, scale: float, rng: np.random.Generator, branches: int = 1) -> list[np.ndarray]:
-    """Rayo con ramitas cortas que salen de puntos al azar."""
+    """Rayo con ramitas cortas que salen de puntos al azar, y hebras que se ramifican de ellas."""
+    from vfxglow.engine.duo_fx import branched
+
     main = zigzag(path, 0.09 * scale, rng, 0.07 * scale)
     out = [main]
-    for _ in range(branches):
+    for _ in range(branches + 2):
+        k = int(rng.integers(1, max(len(main) - 1, 2)))
+        angle = rng.uniform(0, TAU)
+        out += branched(main[k], np.array([np.cos(angle), np.sin(angle)]), scale * rng.uniform(0.1, 0.2), rng, 1)
+    for _ in range(0):
         k = int(rng.integers(1, max(len(main) - 1, 2)))
         angle = rng.uniform(0, TAU)
         tip = main[k] + np.array([np.cos(angle), np.sin(angle)]) * scale * rng.uniform(0.12, 0.25)
@@ -112,6 +119,8 @@ def _event_side(event) -> str | None:
 
 
 def doodle(shape, body, frame, scale, frame_index, seed, runtime, layer, color, alpha, head, event=None) -> list[np.ndarray]:
+    if shape in DUO_FX:
+        return duo_fx(shape, body, frame, scale, frame_index, seed, runtime, layer, color, alpha, head, event)
     center, across, down = frame
     up = -down
     age = runtime.active_frames

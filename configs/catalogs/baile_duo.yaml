@@ -301,6 +301,74 @@ reactions:
     - type: adornment
       style: {shapes: [foot_bolts], thickness: 0.009}
       trigger: {hold: 8, fade_in: 1, fade_out: 6}
+  # Segunda lectura cuadro a cuadro (engine/duo_fx.py).
+  - name: alma
+    weight: 0.15
+    kinds: [head]
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [soul], thickness: 0.01}
+      trigger: {hold: 14, fade_in: 2, fade_out: 6}
+  - name: cinta
+    weight: 0.15
+    kinds: [left_arm, right_arm]
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [ribbon], thickness: 0.008}
+      trigger: {hold: 14, fade_in: 2, fade_out: 8}
+  - name: rosa_corazon
+    weight: 0.1
+    kinds: [torso, left_arm, right_arm]
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [rose_heart], thickness: 0.01}
+      trigger: {hold: 12, fade_in: 3, fade_out: 8}
+  - name: energia
+    weight: 0.15
+    kinds: [torso, left_arm, right_arm]
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [energy_sparks], thickness: 0.007}
+      trigger: {hold: 6, fade_in: 1, fade_out: 4}
+  - name: corazon_pecho
+    weight: 0.1
+    kinds: [torso]
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [chest_heart], thickness: 0.008}
+      trigger: {hold: 8, fade_in: 1, fade_out: 6}
+    - type: adornment
+      style: {shapes: [shoulder_bolts], thickness: 0.008}
+      trigger: {hold: 8, fade_in: 1, fade_out: 6}
+  - name: onda_rayos
+    weight: 0.15
+    kinds: [torso, legs, left_arm, right_arm]
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [energy_wave], thickness: 0.007}
+      trigger: {hold: 20, fade_in: 2, fade_out: 6}
+  - name: discos
+    weight: 0.1
+    kinds: [left_arm, right_arm]
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [dj_disc], thickness: 0.009}
+      trigger: {hold: 12, fade_in: 2, fade_out: 6}
+  - name: aro_orbita
+    weight: 0.12
+    kinds: [left_arm, right_arm]
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [hand_orbit], thickness: 0.008}
+      trigger: {hold: 10, fade_in: 2, fade_out: 6}
   - name: luna
     weight: 0.15
     kinds: [head]
@@ -393,7 +461,7 @@ reactions:
     weight: 0.4
     effects:
     - type: adornment
-      style: {shapes: [spin_arcs], thickness: 0.013}
+      style: {shapes: [orbit_arcs], thickness: 0.014}
       trigger: {hold: 8, fade_in: 1, fade_out: 6}
 # Baile intenso de la pareja: a veces la fiesta entera (bola de espejos, discoteca).
 - action: frenzy

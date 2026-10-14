@@ -109,6 +109,18 @@ Coincidencia (fotogramas-persona con efecto en alguna versión donde las dos dib
 parte del cuerpo, o ninguna): del 23% al 53%. Lo que queda es sobre todo forma: un dibujo a mano
 no coincide trazo por trazo con el nuestro.
 
+## Segunda lectura: volumen y movimiento (`engine/duo_fx.py`)
+
+| Seg. | Lo que hace el animador | Implementación |
+| --- | --- | --- |
+| 3,0-5,0 | Rosas en la mano que pasan al pecho (una empieza como corazón); de ellas sale una cinta de gimnasia rítmica que se despliega, ondula, se tuerce y se enrosca en perspectiva | `rose_heart`, `ribbon` (banda de ancho variable con giro: de canto fina, de frente ancha) |
+| 5,2-6,9 y 19-21 | Notas y corazones que nacen en la mano, pequeños primero y más grandes después; se quedan en el camino de la mano y se encogen hasta desaparecer | `droplets` con `stream`: tamaño en rampa (0,5 s) y encogimiento con la edad; cabezas rellenas |
+| 7,2-7,9 | Hilos de energía cortos y ramificados que saltan por el cuerpo y se juntan en un corazón en el pecho | `energy_sparks`, `chest_heart`; todos los rayos con ramas de ramas |
+| 12,2-12,7 | Discos de DJ acostados bajo las palmas | `dj_disc`: giran y sueltan chispas de colores tangentes al borde, como un esmeril |
+| 14,3-16,0 | Una onda de rayos que recorre el cuerpo de A siguiendo la parte que se mueve y pasa a B al tocarse las manos | `energy_wave`: la nube se desliza hacia la articulación más rápida; un rayo cruza las manos que se tocan |
+| 15,0 y 16,0 | El "alma" de la cabeza se queda atrás por el impulso y vuelve como una goma | `soul`: media luna con resorte amortiguado |
+| 30,8-31,6 y 32 | Arcos en media luna, finos en las puntas y gruesos al centro, que giran alrededor del cuerpo en 3D; la parte de atrás se oculta | `orbit_arcs` (plano vertical que gira sobre el eje del cuerpo) y `hand_orbit` |
+
 ## Pendiente
 
 - Bordes de cada tramo: la referencia enciende y apaga en 1-3 cuadros con fundidos distintos.

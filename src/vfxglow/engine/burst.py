@@ -200,14 +200,17 @@ def draw_spark_dashes(runtime, points, frame_index: int, height: int, envelope: 
 # ----- gotas -----
 
 
-# Chorro (style.stream): una figura cada STREAM_EVERY fotogramas por mano mientras dure el momento,
-# que sale hacia afuera y arriba (video_34, seg. 5.5-6.5 y 19.5-21: notas y corazones).
-STREAM_EVERY = 6
+# Chorro (style.stream): una figura cada STREAM_EVERY fotogramas por mano mientras dure el momento
+# (video_34, seg. 5,2-6,9 y 19-21: notas y corazones). Las primeras salen pequeñas y las
+# siguientes cada vez más grandes (STREAM_RAMP_S); cada una se queda en el camino de la mano y se
+# encoge hasta desaparecer.
+STREAM_EVERY = 3
+STREAM_RAMP_S = 0.5
 
 
 def _stream(runtime, points, key: str, person: int, point: np.ndarray, velocity, elapsed: int, torso: float, height: int) -> None:
     style = runtime.effect.style
-    every = 6 if any(s in ("note", "beamed") for s in style.shapes) else STREAM_EVERY
+    every = 4 if any(s in ("note", "beamed") for s in style.shapes) else STREAM_EVERY
     if elapsed < 0 or elapsed % every or len(runtime.bits) >= DROPLET_LIMIT:
         return
     prefix = key.rsplit(":", 1)[0] + ":" if ":" in key else ""
@@ -220,14 +223,10 @@ def _stream(runtime, points, key: str, person: int, point: np.ndarray, velocity,
     gravity, inherit = SHAPES[shape]
     # Corazones: suben hasta los hombros. Notas: quedan casi quietas donde pasó la mano, y al
     # barrer la mano forman la fila (seg. 5,9).
-    if shape == "heart":
-        drift = out * torso * 0.012 + np.array([0.0, -torso * 0.03]) + rng.normal(0, torso * 0.006, 2)
-        if velocity is not None:
-            drift = drift + velocity * inherit * 0.2
-    else:
-        drift = np.array([0.0, -torso * 0.003]) + rng.normal(0, torso * 0.002, 2)
-    life = float(rng.uniform(16, 24))
-    size = min(torso * style.size * float(rng.uniform(0.07, 0.11)), MAX_BIT * height * max(style.size, 1.0))
+    drift = np.array([0.0, -torso * 0.004]) + rng.normal(0, torso * 0.002, 2)
+    life = float(rng.uniform(18, 24))
+    ramp = 0.35 + 0.65 * min(elapsed / max(STREAM_RAMP_S * runtime.fps, 1.0), 1.0)
+    size = min(torso * style.size * 0.1 * ramp, MAX_BIT * height * max(style.size, 1.0))
     # Sin gravedad: la deriva ya dice hacia dónde van (la de la forma las haría subir o caer).
     runtime.bits.append(Bit(float(point[0]), float(point[1]), float(drift[0]), float(drift[1]), life, life, size, person, shape, 0.0, float(rng.choice([-1.0, 1.0]))))
 
@@ -297,8 +296,16 @@ def draw_droplets(runtime, track: FrameRecord | None, points, frame_index: int, 
     strokes = []
     for bit in bits:
         fade = min(1.0, 2.5 * bit.life / bit.max_life)
-        for line in bit_outline(bit):
-            if style.stream and (bit.shape == "heart" or (bit.shape == "beamed" and len(line) > 4)):
+        if style.stream:
+            # Se encoge al envejecer (no se desvanece de golpe).
+            fade = 1.0
+            full = bit.size
+            bit.size = full * max(bit.life / bit.max_life, 0.0) ** 0.7
+        lines = bit_outline(bit)
+        if style.stream:
+            bit.size = full
+        for line in lines:
+            if style.stream and (bit.shape == "heart" or (bit.shape in ("beamed", "note") and len(line) > 4)):
                 # Corazones del chorro: rellenos de blanco con halo del color (video_34, seg. 20).
                 fill_polygon(layer, line, np.ones(3, np.float32), fade * 0.9 * max(envelope, 0.0), 1.0, feather=1.5)
             strokes += _neon(line, _palette(style, bit.color), width, fade)
