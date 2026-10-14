@@ -90,8 +90,26 @@ Guion de prueba con los 50 momentos de la referencia, instante y duración medid
 | La entrada en los dos | La copia de un evento sin persona (la nariz) se le pone a la pareja: antes el motor la confundía con el original |
 | Tiempos | En lo fijado, `dur` es lo que se ve (sin la retención del catálogo) |
 
+## Comparación cuadro a cuadro (`tools/compare_reference.py`)
+
+Mide en cada fotograma dónde añadió luz el animador y dónde nosotros, por persona. Lo que encontró:
+
+- La referencia no va al mismo instante que el original: se adelanta hasta 3 cuadros hacia el
+  final. Los tiempos del guion se pasaron al original con ese corrimiento.
+- Los tramos exactos de cada efecto (por persona y parte del cuerpo) salieron de esta medición, no
+  de la hoja de contacto.
+- Dos momentos fijados de la misma opción que coinciden (la entrada de cada uno, el pie de los
+  dos) se pisaban: ahora cada momento fijado es su propio efecto.
+- De perfil, el ancho de hombros se encoge y todo lo dibujado con él también (las bandas del
+  tobillo casi desaparecían): la escala del cuerpo usa también el largo del torso.
+- Las notas son corcheas dobles rellenas que quedan donde pasó la mano (forman la fila al barrer);
+  los corazones suben hasta los hombros; el remolino sube desde la mano.
+
+Coincidencia (fotogramas-persona con efecto en alguna versión donde las dos dibujan en la misma
+parte del cuerpo, o ninguna): del 23% al 53%. Lo que queda es sobre todo forma: un dibujo a mano
+no coincide trazo por trazo con el nuestro.
+
 ## Pendiente
 
-- Los ojos encendidos de A y la cola del saco al girar (18-18,6 s).
-- Los corazones del chorro son contornos; en la referencia, rellenos y más pegados a la mano.
-- Los guiones de costura dentro del saco abierto (10,3 s).
+- Bordes de cada tramo: la referencia enciende y apaga en 1-3 cuadros con fundidos distintos.
+- Formas a mano alzada: rayos, remolinos y la rosa se parecen pero no calcan los trazos.

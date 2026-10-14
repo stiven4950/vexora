@@ -70,7 +70,7 @@ def test_without_a_detected_event_the_moment_is_created() -> None:
     script, choreo = choreograph(catalog, _brief(), 1, PinFile(solo_estos=True, momentos=[Pin(seg=2.0, opcion="bola_espejos")]))
     assert [d.choice for d in choreo.decisions] == ["bola_espejos (fijado)"]
     assert [e.start_frame for e in script.extra_events if e.name == "frenzy"] == [60]
-    assert [e.id for e in script.effects] == ["frenzy_bola_espejos_0_fijado"]
+    assert [e.id for e in script.effects] == ["frenzy_bola_espejos_0_fijado_0"]
 
 
 def test_only_these_leaves_out_everything_else_and_mirror_copies_to_the_partner() -> None:
@@ -78,7 +78,8 @@ def test_only_these_leaves_out_everything_else_and_mirror_copies_to_the_partner(
     events = [_spot("person_0", 10, "legs"), _spot("person_1", 40, "left_arm")]
     pins = PinFile(solo_estos=True, momentos=[Pin(seg=10 / FPS, opcion="rodillas", persona="person_0", espejo=True)])
     script, choreo = choreograph(catalog, _brief(events), 1, pins)
-    assert {e.id for e in script.effects} == {"spotlight_rodillas_0_fijado", "spotlight_rodillas_0_fijado_pareja"}
+    assert {e.id for e in script.effects} == {"spotlight_rodillas_0_fijado_0", "spotlight_rodillas_0_fijado_1"}
+    assert {e.triggers[0].targets[0] for e in script.effects} == {"person_0", "person_1"}
     assert all(not e.style.focus for e in script.effects)
     assert {d.target for d in choreo.decisions} == {"person_0", "person_1"}
 

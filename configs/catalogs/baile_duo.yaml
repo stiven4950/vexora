@@ -56,7 +56,7 @@ reactions:
     effects:
     # Seg. 33-34.8: una línea continua por el frente de la pierna y bandas en el tobillo.
     - type: adornment
-      style: {shapes: [ankle_bands], thickness: 0.02}
+      style: {shapes: [ankle_bands], thickness: 0.035}
       trigger: {hold: 6, fade_in: 2, fade_out: 6}
     - type: adornment
       style: {shapes: [leg_line], thickness: 0.012}
@@ -77,7 +77,7 @@ reactions:
     effects:
     - type: droplets
       target: {kind: joint, id: 'left_wrist,right_wrist'}
-      style: {thickness: 0.009, hdr_gain: 1.9, size: 1.6, min_speed: 0.15, chance: 1.0, stream: true, shapes: [note]}
+      style: {thickness: 0.008, hdr_gain: 1.2, size: 0.9, min_speed: 0.15, chance: 1.0, stream: true, shapes: [beamed, note, beamed]}
       trigger: {hold: 10, fade_in: 1, fade_out: 10}
   - name: corazones
     weight: 0.35
@@ -86,7 +86,7 @@ reactions:
     effects:
     - type: droplets
       target: {kind: joint, id: 'left_wrist,right_wrist'}
-      style: {thickness: 0.009, hdr_gain: 1.9, size: 1.6, min_speed: 0.15, chance: 1.0, stream: true, shapes: [heart]}
+      style: {thickness: 0.008, hdr_gain: 1.2, size: 1.4, min_speed: 0.15, chance: 1.0, stream: true, shapes: [heart]}
       trigger: {hold: 10, fade_in: 1, fade_out: 10}
   # Seg. 11, 15: tramos del contorno que recorren el brazo, o aros que suben hasta el hombro.
   - name: brazo_onda
@@ -124,6 +124,16 @@ reactions:
     - type: body_glow
       target: {kind: joint, id: jacket}
       trigger: {hold: 8, fade_in: 3, fade_out: 8}
+  # Seg. 10.3: se abre el saco: la solapa con un tinte suave y costuras dentro.
+  - name: solapa_abierta
+    weight: 0.12
+    kinds: [torso]
+    cooldown: 300
+    effects:
+    - type: body_glow
+      target: {kind: joint, id: jacket}
+      style: {shapes: [flap, stitches], fill: 0.12}
+      trigger: {hold: 8, fade_in: 3, fade_out: 8}
   - name: chaqueta
     weight: 0.12
     exclusive: true
@@ -149,10 +159,19 @@ reactions:
     weight: 0.25
     kinds: [head]
     effects:
-    - type: eyewear
-      target: {kind: joint, id: nose}
-      style: {thickness: 0.012, shapes: [hearts, dots]}
+    - type: adornment
+      style: {shapes: [glow_eyes], thickness: 0.01}
       trigger: {hold: 8, fade_in: 3, fade_out: 8}
+  # Seg. 18: al girar, el faldón del saco se enciende.
+  - name: faldon
+    weight: 0.12
+    kinds: [torso, legs]
+    cooldown: 240
+    effects:
+    - type: body_glow
+      target: {kind: joint, id: jacket}
+      style: {shapes: [hem]}
+      trigger: {hold: 6, fade_in: 2, fade_out: 6}
   # Dibujos de la referencia (engine/duo_doodles.py), cada uno en su parte.
   - name: rayos_brazos
     weight: 0.2
@@ -266,6 +285,22 @@ reactions:
     - type: adornment
       style: {shapes: [leg_line], thickness: 0.012}
       trigger: {hold: 6, fade_in: 2, fade_out: 6}
+  - name: aro_pie
+    weight: 0.1
+    kinds: [legs, feet]
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [foot_ring], thickness: 0.011}
+      trigger: {hold: 8, fade_in: 2, fade_out: 6}
+  - name: rayos_pie
+    weight: 0.1
+    kinds: [legs, feet]
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [foot_bolts], thickness: 0.009}
+      trigger: {hold: 8, fade_in: 1, fade_out: 6}
   - name: luna
     weight: 0.15
     kinds: [head]

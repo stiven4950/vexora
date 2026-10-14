@@ -160,6 +160,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
     # gesto): mientras dura, esa persona no enciende otro (lleva el mismo momento que su pareja).
     busy: dict[tuple[str, str], int] = {}
     forced: dict[tuple[int, int], tuple[Option, object]] = {}
+    pinned_out: list[tuple[Reaction, Option, list[tuple[int, str]]]] = []
     pinned: list[tuple[MotionEvent, Reaction]] = []
     if pins is not None:
         from vfxglow.director.pins import resolve_pins
@@ -188,8 +189,9 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 person = _person(event)
                 span = duet_at(duet, event.start_frame) if person else None
                 group = "motion" if reaction.action in TURN_ACTIONS else reaction.action
-                key_name = f"{option.name}{PINNED}"
-                chosen.setdefault((reaction.action, key_name), []).append((event.start_frame, event.target))
+                # Cada momento fijado es su propio efecto: dos que coinciden (la entrada de cada
+                # uno, el pie de los dos) se dibujan a la vez.
+                pinned_out.append((reaction, option, [(event.start_frame, event.target)]))
                 memo["last"] = event.start_frame
                 memo["used"][option.name] = event.start_frame
                 if option.exclusive:
@@ -208,7 +210,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 if twin is not None:
                     if twin not in events:
                         extra.append(twin)
-                    mirrored.setdefault((reaction.action, key_name), []).append((twin.start_frame, twin.target))
+                    pinned_out.append((reaction, option, [(twin.start_frame, twin.target)]))
                     busy[(partner, group)] = max(busy.get((partner, group), -1), end)
                     decisions.append(
                         Decision(frame=twin.start_frame, second=round(twin.start_frame / fps, 2), action=reaction.action, target=twin.target, choice=f"{option.name} (espejo)", until=end)
@@ -302,21 +304,25 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
             )
     always = [] if pins is not None and pins.solo_estos else catalog.always
     effects: list[dict] = [_effect(catalog, raw, f"always_{index}") for index, raw in enumerate(always)]
+    for number, (reaction, option, picked) in enumerate(pinned_out):
+        for index, raw in enumerate(option.effects):
+            effect = _effect(catalog, raw, f"{reaction.action}_{option.name}_{index}_fijado_{number}")
+            # Lo fijado se ve aunque la línea de atención mire a otro lado, lo que dura su momento
+            # (`dur`), sin la retención ni el enfriamiento del catálogo.
+            effect["style"]["focus"] = False
+            trigger = dict(raw.get("trigger", {}))
+            trigger.update(event=reaction.action, frames=[f for f, _t in picked], targets=[t for _f, t in picked], hold=0, cooldown=0)
+            effect["triggers"] = [trigger]
+            effects.append(effect)
     for reaction in catalog.reactions:
-        for option, suffix in ((o, s) for o in reaction.options for s in ("", PINNED)):
-            name = f"{option.name}{suffix}"
-            tag = "_fijado" if suffix else ""
+        for option in reaction.options:
+            name = option.name
+            tag = ""
             picked = sorted(chosen.get((reaction.action, name), []))
             for index, raw in enumerate(option.effects if picked else []):
                 effect = _effect(catalog, raw, f"{reaction.action}_{option.name}_{index}{tag}")
-                if suffix:
-                    # Lo fijado se ve aunque la línea de atención mire a otro lado.
-                    effect["style"]["focus"] = False
                 trigger = dict(raw.get("trigger", {}))
                 trigger.update(event=reaction.action, frames=[f for f, _t in picked], targets=[t for _f, t in picked])
-                if suffix:
-                    # Fijado: se ve lo que dura su momento (`dur`), sin la retención del catálogo.
-                    trigger["hold"] = 0
                 effect["triggers"] = [trigger]
                 if option.accessories:
                     effect["style"]["people"] = sorted(
@@ -327,12 +333,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
             for index, raw in enumerate(option.effects if twins else []):
                 # La copia para la pareja: su propio efecto (su estela, su estado) en sus fotogramas.
                 effect = _effect(catalog, raw, f"{reaction.action}_{option.name}_{index}{tag}_pareja")
-                if suffix:
-                    effect["style"]["focus"] = False
                 trigger = dict(raw.get("trigger", {}))
                 trigger.update(event=reaction.action, frames=[f for f, _t in twins], targets=[t for _f, t in twins])
-                if suffix:
-                    trigger["hold"] = 0
                 effect["triggers"] = [trigger]
                 effects.append(effect)
     script = EffectScript.model_validate(
@@ -353,10 +355,6 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
         script.chapters = build_chapters(events, palette, seed, fps, brief.video.frame_count, catalog.chapter_min_s, weights)
     decisions.sort(key=lambda d: (d.frame, d.action))
     return resolve_timing(script, brief.video.frame_count), Choreography(catalog=catalog.name, seed=seed, decisions=decisions)
-
-
-# Clave de lo fijado a mano en `chosen` (sus efectos van aparte, sin apagarse fuera de foco).
-PINNED = "#fijado"
 
 
 def _partner(person: str | None, span, brief: MotionBrief) -> str | None:

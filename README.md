@@ -124,6 +124,20 @@ vfxglow run --video "../glowing/data/original/video_34 (1).mp4" --pin configs/pr
 `tests/test_pins.py` fija, uno por uno, todos los efectos de `baile_duo` sobre una pareja
 sintética y falla si alguno no dibuja nada.
 
+## Comparar contra la referencia, cuadro a cuadro
+
+```bash
+python tools/compare_reference.py --original <original>.mp4 --reference <glowing>.mp4 \
+    --ours runs/<run>/output/<tema>.mp4 --tracks runs/<run>/analysis/tracks.jsonl --out runs/<run>/compare
+```
+
+En cada fotograma empareja el instante (la referencia puede ir corrida unos cuadros; el
+corrimiento se mide a lo largo del video), alinea la imagen, saca la luz que cada versión añadió
+sobre el original y la compara por persona: si los dos dibujan, y si es en la misma parte del
+cuerpo (tolerancia de un tercio del ancho de hombros). Escribe `frames.csv` (por fotograma y
+persona) y `mismatches.json` (tramos donde falta, sobra o está en otro lugar) e imprime el
+porcentaje de coincidencia.
+
 ## Gate de regresión
 
 ```bash

@@ -127,7 +127,11 @@ def resolve_pins(pins: PinFile, catalog, events: list[MotionEvent], brief: Motio
             continue
         person = pin.persona or brief.person_id
         joint = SYNTH_JOINT.get(reaction.action)
-        target = "nose" if reaction.action == "entrance" else (f"{person}:{joint}" if joint else person)
+        if reaction.action == "entrance":
+            # Con persona, su nariz: dos entradas fijadas (una por persona) no se confunden.
+            target = f"{pin.persona}:nose" if pin.persona else "nose"
+        else:
+            target = f"{person}:{joint}" if joint else person
         if pin.lado:
             target = f"{person}:{pin.lado}_wrist" if not joint else f"{person}:{pin.lado}_{joint.split('_', 1)[1]}"
         event = MotionEvent(

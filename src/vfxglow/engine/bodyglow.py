@@ -51,10 +51,15 @@ class Body:
 
     @property
     def scale(self) -> float | None:
+        """Ancho de hombros, o 0,55 del largo del torso si es mayor: de perfil los hombros se
+        juntan y todo lo dibujado se encogería (video_34, seg. 33)."""
         a, b = self.get("left_shoulder"), self.get("right_shoulder")
         if a is None or b is None:
             return None
-        return max(float(np.linalg.norm(a - b)), 12.0)
+        width = float(np.linalg.norm(a - b))
+        hips = self.mid("left_hip", "right_hip")
+        torso = float(np.linalg.norm((a + b) / 2 - hips)) if hips is not None else 0.0
+        return max(width, 0.55 * torso, 12.0)
 
     def frame(self) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
         """(centro de hombros, eje derecha-imagen, eje hacia abajo del torso), ejes unitarios."""
@@ -121,6 +126,9 @@ def draw_body_glow(runtime, track, points, frame_index: int, height: int, envelo
             clipped = cv2.bitwise_and(region, silhouette)
             if clipped.sum() >= _SILHOUETTE_MIN * region.sum():
                 region = clipped
+        if "flap" in style.shapes:
+            # Solo la solapa que se abre: el lado de la mano que la sostiene (video_34, seg. 10.3).
+            region = flap_half(region, body, scale, event)
         contours = _outline(region)
         if not contours:
             continue
@@ -133,12 +141,20 @@ def draw_body_glow(runtime, track, points, frame_index: int, height: int, envelo
             # lines_only: sin el contorno de la parte, solo las líneas interiores (abdominales...).
             if "no_outline" not in style.shapes and "lines_only" not in style.shapes:
                 wobble = contour + boil.normal(0, scale * 0.004, contour.shape)
-                if "wave" in style.shapes or "wave_down" in style.shapes:
+                if "hem" in style.shapes:
+                    # Solo el faldón: el borde del saco por debajo de la cintura (video_34, seg. 18).
+                    for piece in hem_pieces(wobble, body, scale):
+                        strokes += neon_layers(piece, color, line, envelope)
+                elif "wave" in style.shapes or "wave_down" in style.shapes:
                     # Solo tramos del contorno que recorren la parte como una onda (seg. 24).
                     for piece in wave_pieces(wobble, runtime.active_frames, style.trail_frames, "wave_down" in style.shapes):
                         strokes += neon_layers(piece, color, line, envelope)
                 else:
                     strokes += neon_layers(np.vstack([wobble, wobble[:1]]), color, line, envelope)
+        if "stitches" in style.shapes:
+            # Costuras: guiones cortos verticales dentro de la prenda (video_34, seg. 10.3).
+            key = event.start_frame if event is not None else 0
+            strokes += [x for dash in stitch_dashes(region, scale, key) for x in neon_layers(dash, color, line * 0.7, envelope)]
         if "no_outline" in style.shapes:
             continue
         if "abs" in style.shapes and part in ("torso", "body"):
@@ -233,6 +249,58 @@ def part_mask(body: Body, part: str, shape: tuple[int, int], scale: float) -> np
             cv2.ellipse(mask, tuple(np.round(center).astype(int)), (int(0.36 * scale), int(0.46 * scale)), 0, 0, 360, 1, -1, lineType=cv2.LINE_AA)
             drawn = True
     return mask if drawn else None
+
+
+def flap_half(region: np.ndarray, body: Body, scale: float, event: MotionEvent | None) -> np.ndarray:
+    frame = body.frame()
+    if frame is None:
+        return region
+    center, across, _down = frame
+    side = None
+    if event is not None:
+        side = next((s for s in ("left", "right") if s in event.target), None)
+    if side is None:
+        wrists = {s: body.get(f"{s}_wrist") for s in ("left", "right")}
+        seen = {s: w for s, w in wrists.items() if w is not None}
+        side = max(seen, key=lambda s: float(np.linalg.norm(seen[s] - center))) if seen else "left"
+    shoulder = body.get(f"{side}_shoulder")
+    sign = 1.0 if shoulder is None or float((shoulder - center) @ across) >= 0 else -1.0
+    ys, xs = np.mgrid[0 : region.shape[0], 0 : region.shape[1]]
+    along = (xs - center[0]) * across[0] * sign + (ys - center[1]) * across[1] * sign
+    return (region & (along > 0.05 * scale)).astype(np.uint8)
+
+
+def hem_pieces(contour: np.ndarray, body: Body, scale: float) -> list[np.ndarray]:
+    """Tramos del contorno por debajo de la cintura (el faldón del saco)."""
+    frame = body.frame()
+    hips = body.mid("left_hip", "right_hip")
+    if frame is None or hips is None:
+        return [contour]
+    down = frame[2]
+    below = (contour - hips) @ down > -0.12 * scale
+    pieces, start = [], None
+    for k, flag in enumerate(np.append(below, False)):
+        if flag and start is None:
+            start = k
+        elif not flag and start is not None:
+            if k - start >= 4:
+                pieces.append(contour[start:k])
+            start = None
+    return pieces
+
+
+def stitch_dashes(region: np.ndarray, scale: float, key: int) -> list[np.ndarray]:
+    """Guiones verticales cortos en una rejilla dentro de la región, la mitad al azar."""
+    step = max(int(0.13 * scale), 4)
+    length = 0.07 * scale
+    inner = cv2.erode(region, np.ones((step, step), np.uint8))
+    rng = np.random.default_rng(zlib.crc32(f"stitch:{key}".encode()) & 0xFFFFFFFF)
+    dashes = []
+    for y in range(step // 2, region.shape[0], step):
+        for x in range((y // step % 2) * step // 2, region.shape[1], step):
+            if inner[y, x] and rng.random() < 0.55:
+                dashes.append(np.array([[x, y - length / 2], [x, y + length / 2]], dtype=np.float64))
+    return dashes
 
 
 def _outline(mask: np.ndarray) -> list[np.ndarray]:
@@ -585,8 +653,9 @@ def adornment(shape, body: Body, frame, scale, frame_index, seed, runtime, layer
         for side in ("left", "right"):
             knee = body.get(f"{side}_knee")
             if knee is not None:
-                splat(layer, float(knee[0]), float(knee[1]), scale * 0.07, np.array([1.0, 1.0, 1.0], np.float32) * 1.6, alpha, runtime.kernels)
-                splat(layer, float(knee[0]), float(knee[1]), scale * 0.16, color * 1.4, alpha * 0.5, runtime.kernels)
+                # Medido en video_34 (seg. 24,5): núcleo blanco de ~0,12 hombros y halo del color.
+                splat(layer, float(knee[0]), float(knee[1]), scale * 0.12, np.array([1.0, 1.0, 1.0], np.float32) * 1.6, alpha, runtime.kernels)
+                splat(layer, float(knee[0]), float(knee[1]), scale * 0.24, color * 1.4, alpha * 0.5, runtime.kernels)
         return []
     if shape == "ankle_bands":
         bands = []
@@ -596,9 +665,12 @@ def adornment(shape, body: Body, frame, scale, frame_index, seed, runtime, layer
                 continue
             shin = (ankle - knee) / max(float(np.linalg.norm(ankle - knee)), 1e-6)
             normal = np.array([-shin[1], shin[0]])
-            for offset in (0.04, 0.12):
-                mid = ankle - shin * offset * scale
-                bands.append(np.array([mid - normal * 0.11 * scale, mid + normal * 0.11 * scale]))
+            # Una banda ancha y gruesa en el tobillo, rellena de blanco (video_34, seg. 33,5).
+            mid = ankle - shin * 0.08 * scale
+            half_w, half_h = normal * 0.16 * scale, shin * 0.07 * scale
+            quad = np.array([mid - half_w - half_h, mid + half_w - half_h, mid + half_w + half_h, mid - half_w + half_h])
+            fill_polygon(layer, quad, np.ones(3, np.float32) * 1.3, alpha, 1.0, feather=2.0)
+            bands.append(np.vstack([quad, quad[:1]]))
         return bands
     if head is None:
         return []

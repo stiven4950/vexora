@@ -22,7 +22,7 @@ import numpy as np
 
 from vfxglow.analysis.schema import FrameRecord, MotionEvent
 from vfxglow.engine.anchors import joint_speed, resolve_anchor, torso_pixels
-from vfxglow.engine.raster import stroke_batch
+from vfxglow.engine.raster import fill_polygon, stroke_batch
 from vfxglow.engine.swoosh import focused, neon_layers, swoosh_keys
 
 TAU = 2.0 * np.pi
@@ -57,7 +57,10 @@ class Bit:
 
 
 # Forma -> (gravedad relativa: negativa sube, fracción de la velocidad de la mano que hereda).
+# Corchea doble (♫): dos cabezas unidas por una barra (video_34, seg. 5,3-6,1).
+SHAPES_EXTRA = ("beamed",)
 SHAPES: dict[str, tuple[float, float]] = {
+    "beamed": (0.0, 0.0),
     "drop": (1.0, 0.55),
     "ring": (-0.12, 0.3),
     "leaf": (-0.25, 0.3),
@@ -199,12 +202,13 @@ def draw_spark_dashes(runtime, points, frame_index: int, height: int, envelope: 
 
 # Chorro (style.stream): una figura cada STREAM_EVERY fotogramas por mano mientras dure el momento,
 # que sale hacia afuera y arriba (video_34, seg. 5.5-6.5 y 19.5-21: notas y corazones).
-STREAM_EVERY = 5
+STREAM_EVERY = 6
 
 
 def _stream(runtime, points, key: str, person: int, point: np.ndarray, velocity, elapsed: int, torso: float, height: int) -> None:
     style = runtime.effect.style
-    if elapsed < 0 or elapsed % STREAM_EVERY or len(runtime.bits) >= DROPLET_LIMIT:
+    every = 6 if any(s in ("note", "beamed") for s in style.shapes) else STREAM_EVERY
+    if elapsed < 0 or elapsed % every or len(runtime.bits) >= DROPLET_LIMIT:
         return
     prefix = key.rsplit(":", 1)[0] + ":" if ":" in key else ""
     center = points.get(f"{prefix}mid_shoulder")
@@ -214,12 +218,18 @@ def _stream(runtime, points, key: str, person: int, point: np.ndarray, velocity,
     shapes = [name for name in style.shapes if name in SHAPES] or ["drop"]
     shape = shapes[int(rng.integers(0, len(shapes)))]
     gravity, inherit = SHAPES[shape]
-    drift = out * torso * 0.018 + np.array([0.0, -torso * 0.016]) + rng.normal(0, torso * 0.006, 2)
-    if velocity is not None:
-        drift = drift + velocity * inherit * 0.5
-    life = float(rng.uniform(12, 20))
+    # Corazones: suben hasta los hombros. Notas: quedan casi quietas donde pasó la mano, y al
+    # barrer la mano forman la fila (seg. 5,9).
+    if shape == "heart":
+        drift = out * torso * 0.012 + np.array([0.0, -torso * 0.03]) + rng.normal(0, torso * 0.006, 2)
+        if velocity is not None:
+            drift = drift + velocity * inherit * 0.2
+    else:
+        drift = np.array([0.0, -torso * 0.003]) + rng.normal(0, torso * 0.002, 2)
+    life = float(rng.uniform(16, 24))
     size = min(torso * style.size * float(rng.uniform(0.07, 0.11)), MAX_BIT * height * max(style.size, 1.0))
-    runtime.bits.append(Bit(float(point[0]), float(point[1]), float(drift[0]), float(drift[1]), life, life, size, person, shape, gravity, float(rng.choice([-1.0, 1.0]))))
+    # Sin gravedad: la deriva ya dice hacia dónde van (la de la forma las haría subir o caer).
+    runtime.bits.append(Bit(float(point[0]), float(point[1]), float(drift[0]), float(drift[1]), life, life, size, person, shape, 0.0, float(rng.choice([-1.0, 1.0]))))
 
 
 def draw_droplets(runtime, track: FrameRecord | None, points, frame_index: int, height: int, envelope: float, layer: np.ndarray, event: MotionEvent | None = None) -> None:
@@ -288,6 +298,9 @@ def draw_droplets(runtime, track: FrameRecord | None, points, frame_index: int, 
     for bit in bits:
         fade = min(1.0, 2.5 * bit.life / bit.max_life)
         for line in bit_outline(bit):
+            if style.stream and (bit.shape == "heart" or (bit.shape == "beamed" and len(line) > 4)):
+                # Corazones del chorro: rellenos de blanco con halo del color (video_34, seg. 20).
+                fill_polygon(layer, line, np.ones(3, np.float32), fade * 0.9 * max(envelope, 0.0), 1.0, feather=1.5)
             strokes += _neon(line, _palette(style, bit.color), width, fade)
     stroke_batch(layer, strokes, style.hdr_gain * max(envelope, 0.0))
 
@@ -317,6 +330,13 @@ def bit_outline(bit: Bit) -> list[np.ndarray]:
         t = np.linspace(0, TAU, 30)
         r = bit.size * 0.11
         return [center + np.stack([16 * np.sin(t) ** 3, -(13 * np.cos(t) - 5 * np.cos(2 * t) - 2 * np.cos(3 * t) - np.cos(4 * t))], axis=1) * r]
+    if bit.shape == "beamed":
+        r = bit.size
+        heads = [center + np.array([dx * r, dy * r]) for dx, dy in ((0.0, 0.0), (2.6, -0.5))]
+        ellipse = np.stack([np.cos(np.linspace(0, TAU, 14)), np.sin(np.linspace(0, TAU, 14)) * 0.7], axis=1) * r
+        tops = [h + np.array([r, -3.0 * r]) for h in heads]
+        beam = np.array([tops[0], tops[1], tops[1] + np.array([0.0, 0.7 * r]), tops[0] + np.array([0.0, 0.7 * r]), tops[0]])
+        return [heads[0] + ellipse, heads[1] + ellipse, np.array([heads[0] + np.array([r, 0.0]), tops[0]]), np.array([heads[1] + np.array([r, 0.0]), tops[1]]), beam]
     if bit.shape == "note":
         r = bit.size
         head = center + np.stack([np.cos(np.linspace(0, TAU, 14)), np.sin(np.linspace(0, TAU, 14)) * 0.7], axis=1) * r

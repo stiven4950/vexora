@@ -1,77 +1,91 @@
-# La coreografía de la referencia glowing/video_34.mp4, calcada momento a momento (instante y
-# duración medidos sobre la referencia; lectura en docs/referencias/video_34.md).
-# A = person_0 (traje claro), B = person_1 (saco rojo).
+# La coreografía de la referencia glowing/video_34.mp4, calcada momento a momento. Los tramos
+# salen de la comparación cuadro a cuadro (tools/compare_reference.py: dónde y cuándo añadió luz
+# el animador, por persona y parte del cuerpo) y el dibujo de cada uno, de la lectura en
+# docs/referencias/video_34.md. Los tiempos son del original (la referencia se adelanta hasta 3
+# cuadros al final). A = person_0 (traje claro), B = person_1 (saco rojo).
 #   vfxglow run --video "../glowing/data/original/video_34 (1).mp4" --pin configs/pruebas/video_34_referencia.yaml
 catalogo: baile_duo
 solo_estos: true
 momentos:
-# 0-2,5: se presentan: aro en la frente y ojos de corazón en los dos.
-- {seg: 0.0, accion: entrance, opcion: aureola, espejo: true, exacto: true, dur: 2.4}
-# 0,4-1,6: A, el borde del saco y un aro en la muñeca; B, corazón en la mano.
-- {seg: 0.4, opcion: solapa, persona: person_0, espejo: false, exacto: true, dur: 1.0}
-- {seg: 0.9, opcion: aro_muneca, persona: person_0, espejo: false, exacto: true, dur: 0.6}
-- {seg: 0.9, opcion: corazon_mano, persona: person_1, lado: left, espejo: false, exacto: true, dur: 0.7}
-- {seg: 1.9, opcion: aro_muneca, persona: person_0, espejo: false, exacto: true, dur: 0.4}
-# 3,4-4,6: B, una rosa en el pecho y un remolino que sale de la mano; A, un lazo en el cuello.
-- {seg: 3.4, opcion: rosa, persona: person_1, lado: left, espejo: false, exacto: true, dur: 1.1}
-- {seg: 3.4, opcion: lazo, persona: person_0, espejo: false, exacto: true, dur: 1.1}
-- {seg: 3.9, opcion: remolino, persona: person_1, lado: right, espejo: false, exacto: true, dur: 0.7}
-# 5,3-6,2: notas de las manos de los dos; 6,3-6,7: una nota grande en la mano.
-- {seg: 5.3, opcion: notas, espejo: true, exacto: true, dur: 0.75}
-- {seg: 6.3, opcion: nota_grande, espejo: true, exacto: true, dur: 0.5}
-# 7,3-7,8: rayos por hombros y brazos de los dos.
-- {seg: 7.3, opcion: rayos_brazos, espejo: true, exacto: true, dur: 0.4}
-# 8,5-9,7: B, rayos en los brazos y luego sobre la cabeza; A, destello y corazones en la mano.
-- {seg: 8.5, opcion: rayos_brazos, persona: person_1, espejo: false, exacto: true, dur: 0.3}
-- {seg: 8.5, opcion: aro_muneca, persona: person_0, espejo: false, exacto: true, dur: 0.3}
-- {seg: 8.9, opcion: corazon_mano, persona: person_0, lado: right, espejo: false, exacto: true, dur: 0.6}
-- {seg: 8.9, opcion: rayos_brazos, persona: person_1, espejo: false, exacto: true, dur: 0.4}
-- {seg: 9.35, opcion: rayos_cabeza, persona: person_1, espejo: false, exacto: true, dur: 0.4}
-# 10,0-10,8: B se abre el saco: el borde del saco.
-- {seg: 10.0, opcion: saco, persona: person_1, espejo: false, exacto: true, dur: 0.8}
-# 10,9-11,3: B, rayos en los brazos. 11,3-12,6: A responde con la mano en la cabeza: corona.
-- {seg: 10.9, opcion: rayos_brazos, persona: person_1, espejo: false, exacto: true, dur: 0.4}
-- {seg: 11.0, accion: hand_ear, opcion: corona, persona: person_0, exacto: true, dur: 1.8}
-# 12,0-14,2: B, el aro en la mano (paso al frente, mano a la cara).
-- {seg: 12.0, opcion: aro_mano, persona: person_1, lado: right, espejo: false, exacto: true, dur: 0.7}
-- {seg: 13.1, opcion: aro_mano, persona: person_1, lado: right, espejo: false, exacto: true, dur: 0.3}
-- {seg: 13.9, opcion: aro_mano, persona: person_1, lado: right, espejo: false, exacto: true, dur: 0.35}
-# 14,5-15,6: A posa: rayo por la pierna, luna detrás de la cabeza y rayos por el cuerpo.
-- {seg: 14.45, opcion: rayos_cuerpo, persona: person_0, espejo: false, exacto: true, dur: 0.4}
-- {seg: 14.9, opcion: luna, persona: person_0, espejo: false, exacto: true, dur: 0.35}
-- {seg: 14.9, opcion: rayos_brazos, persona: person_0, espejo: false, exacto: true, dur: 0.35}
-- {seg: 15.3, opcion: rayos_brazos, persona: person_0, espejo: false, exacto: true, dur: 0.3}
-# 16,2-16,7: luna detrás de la cabeza de B.
-- {seg: 16.2, opcion: luna, persona: person_1, espejo: false, exacto: true, dur: 0.45}
-# 17,0-17,8: A se abre el saco: la luz estalla en el pecho; luego rayos por el cuerpo. B, el pie.
-- {seg: 16.95, opcion: estallido, persona: person_0, espejo: false, exacto: true, dur: 0.4}
-- {seg: 17.2, accion: stomp, opcion: destello, persona: person_1, espejo: false, exacto: true, dur: 0.3}
-- {seg: 17.45, opcion: rayos_cuerpo, persona: person_0, espejo: false, exacto: true, dur: 0.4}
-# 18,0-18,6: B, rayos sobre la cabeza; A, ojos encendidos.
-- {seg: 17.95, opcion: rayos_cabeza, persona: person_1, espejo: false, exacto: true, dur: 0.35}
-- {seg: 18.0, opcion: ojos, persona: person_0, espejo: false, exacto: true, dur: 0.6}
-# 19,0-21,3: corazones que salen de las manos de los dos.
-- {seg: 18.9, opcion: corazones, espejo: true, exacto: true, dur: 2.3}
+# --- Entrada: aro en la frente y ojos de corazón (A hasta 3,4 s; B hasta 2,67 s).
+- {seg: 0.0, accion: entrance, opcion: aureola, persona: person_0, espejo: false, exacto: true, dur: 3.4}
+- {seg: 0.0, accion: entrance, opcion: aureola, persona: person_1, espejo: false, exacto: true, dur: 2.67}
+# A: el borde del saco y un aro en la muñeca. B: corazón en la mano.
+- {seg: 0.0, opcion: solapa, persona: person_0, espejo: false, exacto: true, dur: 1.55}
+- {seg: 0.5, opcion: aro_muneca, persona: person_0, espejo: false, exacto: true, dur: 1.5}
+- {seg: 0.95, opcion: corazon_mano, persona: person_1, lado: left, espejo: false, exacto: true, dur: 0.65}
+- {seg: 2.15, opcion: aro_muneca, persona: person_0, espejo: false, exacto: true, dur: 0.25}
+# --- 3,3-5,0: B, la rosa y luego el remolino; A, el lazo al cuello y luego un remolino en el pecho.
+- {seg: 3.3, opcion: rosa, persona: person_1, lado: left, espejo: false, exacto: true, dur: 1.7}
+- {seg: 3.95, opcion: remolino, persona: person_1, lado: right, espejo: false, exacto: true, dur: 1.05}
+- {seg: 3.45, opcion: lazo, persona: person_0, espejo: false, exacto: true, dur: 0.75}
+- {seg: 4.1, opcion: remolino, persona: person_0, lado: left, espejo: false, exacto: true, dur: 0.9}
+# --- 5,2-7,0: notas de las manos de los dos y luego una nota grande.
+- {seg: 5.2, opcion: notas, espejo: true, exacto: true, dur: 0.95}
+- {seg: 6.3, opcion: nota_grande, espejo: true, exacto: true, dur: 0.65}
+# --- 7,2-7,9: rayos por hombros y brazos de los dos.
+- {seg: 7.2, opcion: rayos_brazos, espejo: true, exacto: true, dur: 0.7}
+# --- 8,3-10,6: A, destello y corazones en la mano, ojos y un aro alrededor del pie. B, rayos en
+# los brazos, sobre la cabeza y el borde del saco.
+- {seg: 8.27, opcion: aro_muneca, persona: person_0, espejo: false, exacto: true, dur: 0.15}
+- {seg: 8.47, opcion: corazon_mano, persona: person_0, lado: right, espejo: false, exacto: true, dur: 1.3}
+- {seg: 8.6, opcion: rayos_brazos, persona: person_1, espejo: false, exacto: true, dur: 0.47}
+- {seg: 9.37, opcion: rayos_cabeza, persona: person_1, espejo: false, exacto: true, dur: 0.35}
+- {seg: 9.73, opcion: solapa, persona: person_1, espejo: false, exacto: true, dur: 0.5}
+- {seg: 9.8, opcion: ojos, persona: person_0, espejo: false, exacto: true, dur: 0.15}
+- {seg: 9.83, opcion: aro_pie, persona: person_0, espejo: false, exacto: true, dur: 0.8}
+# --- 10,3-10,8: B se abre el saco: la solapa con costuras.
+- {seg: 10.3, opcion: solapa_abierta, persona: person_1, lado: right, espejo: false, exacto: true, dur: 0.5}
+# --- 10,8-14,2: A responde con la mano en la cabeza: la corona, dos veces. B: rayos en el brazo y
+# el aro en la mano (también junto a la cara).
+- {seg: 10.83, accion: hand_ear, opcion: corona, persona: person_0, exacto: true, dur: 1.75}
+- {seg: 13.33, accion: hand_ear, opcion: corona, persona: person_0, exacto: true, dur: 0.72}
+- {seg: 10.93, opcion: rayos_brazos, persona: person_1, espejo: false, exacto: true, dur: 0.4}
+- {seg: 11.35, opcion: aro_mano, persona: person_1, lado: left, espejo: false, exacto: true, dur: 1.15}
+- {seg: 12.7, opcion: aro_mano, persona: person_1, lado: right, espejo: false, exacto: true, dur: 0.6}
+- {seg: 13.6, opcion: aro_mano, persona: person_1, lado: right, espejo: false, exacto: true, dur: 0.57}
+# --- 14,3-15,7: A posa: rayos por el cuerpo y la pierna, la luna, rayos en el brazo.
+- {seg: 14.27, opcion: rayos_cuerpo, persona: person_0, espejo: false, exacto: true, dur: 0.58}
+- {seg: 15.0, opcion: luna, persona: person_0, espejo: false, exacto: true, dur: 0.3}
+- {seg: 15.0, opcion: rayos_brazos, persona: person_0, espejo: false, exacto: true, dur: 0.25}
+- {seg: 15.37, opcion: rayos_brazos, persona: person_0, espejo: false, exacto: true, dur: 0.35}
+# --- 15,5-15,9: B, rayos por el hombro y el brazo.
+- {seg: 15.53, opcion: rayos_brazos, persona: person_1, espejo: false, exacto: true, dur: 0.35}
+# --- 16,0-16,8: la luna de B.
+- {seg: 16.03, opcion: luna, persona: person_1, espejo: false, exacto: true, dur: 0.74}
+# --- 16,8-18,6: A se abre el saco: la luz en el pecho, rayos por el cuerpo, el faldón al girar y
+# los ojos encendidos. B: rayos en el pie y luego sobre la cabeza.
+- {seg: 16.77, opcion: estallido, persona: person_0, espejo: false, exacto: true, dur: 0.5}
+- {seg: 17.33, opcion: rayos_cuerpo, persona: person_0, espejo: false, exacto: true, dur: 0.6}
+- {seg: 17.85, opcion: faldon, persona: person_0, espejo: false, exacto: true, dur: 0.3}
+- {seg: 18.13, opcion: ojos, persona: person_0, espejo: false, exacto: true, dur: 0.45}
+- {seg: 16.87, opcion: rayos_pie, persona: person_1, espejo: false, exacto: true, dur: 0.96}
+- {seg: 18.0, opcion: rayos_cabeza, persona: person_1, espejo: false, exacto: true, dur: 0.57}
+# --- 19,0-21,15: corazones que salen de las manos de los dos.
+- {seg: 19.0, opcion: corazones, espejo: true, exacto: true, dur: 2.15}
 - {seg: 19.3, opcion: corazon_mano, espejo: true, exacto: true, dur: 0.5}
-# 21,6-23,0: destellos en el pie que pisa, los dos.
-- {seg: 21.6, accion: stomp, opcion: destello, espejo: true, exacto: true, dur: 0.25}
-- {seg: 22.5, accion: stomp, opcion: destello, espejo: true, exacto: true, dur: 0.25}
-- {seg: 23.0, accion: stomp, opcion: destello, espejo: true, exacto: true, dur: 0.25}
-# 23,5-26,6: rodillas encendidas, los dos.
-- {seg: 23.5, opcion: rodillas, espejo: true, exacto: true, dur: 3.0}
-# 27,1-27,5: A barre el piso con el pie: arco en el piso; B, destello.
-- {seg: 27.1, accion: stomp, opcion: arco_piso, persona: person_0, espejo: false, exacto: true, dur: 0.4}
-- {seg: 27.3, accion: stomp, opcion: destello, persona: person_1, espejo: false, exacto: true, dur: 0.3}
-# 28,0-30,3: de espaldas: el borde del saco, los costados, arcos por hombros y brazos.
-- {seg: 27.85, opcion: saco, espejo: true, exacto: true, dur: 0.3}
-- {seg: 28.15, opcion: costados, espejo: true, exacto: true, dur: 0.25}
-- {seg: 28.45, opcion: hombros, espejo: true, exacto: true, dur: 0.45}
-- {seg: 29.35, opcion: hombros, espejo: true, exacto: true, dur: 0.45}
-- {seg: 29.5, opcion: rayos_brazos, persona: person_0, espejo: false, exacto: true, dur: 0.3}
-- {seg: 29.85, opcion: costados, persona: person_1, espejo: false, exacto: true, dur: 0.35}
-# 30,9-31,3: arcos que siguen los brazos al girar.
-- {seg: 30.9, accion: spin_body, opcion: arcos, espejo: true, exacto: true, dur: 0.4}
-# 31,95-32,4: A, el aro en la mano.
-- {seg: 31.95, opcion: aro_mano, persona: person_0, lado: right, espejo: false, exacto: true, dur: 0.4}
-# 33,3-34,8: línea por la pierna y bandas en el tobillo, los dos.
-- {seg: 33.3, opcion: tobillos, espejo: true, exacto: true, dur: 1.5}
+# --- 21,2-23,3: destellos en el pie que pisa (B casi seguido; A en tres golpes).
+- {seg: 21.23, accion: stomp, opcion: destello, persona: person_0, espejo: false, exacto: true, dur: 0.64}
+- {seg: 22.03, accion: stomp, opcion: destello, persona: person_0, espejo: false, exacto: true, dur: 0.4}
+- {seg: 22.6, accion: stomp, opcion: destello, persona: person_0, espejo: false, exacto: true, dur: 0.37}
+- {seg: 21.2, accion: stomp, opcion: destello, persona: person_1, espejo: false, exacto: true, dur: 0.85}
+- {seg: 22.1, accion: stomp, opcion: destello, persona: person_1, espejo: false, exacto: true, dur: 0.55}
+- {seg: 22.67, accion: stomp, opcion: destello, persona: person_1, espejo: false, exacto: true, dur: 0.6}
+# --- 23,3-26,5: rodillas encendidas, los dos.
+- {seg: 23.33, opcion: rodillas, espejo: true, exacto: true, dur: 3.15}
+# --- 27,0-27,7: A barre el piso con el pie; B, destello.
+- {seg: 27.27, accion: stomp, opcion: arco_piso, persona: person_0, espejo: false, exacto: true, dur: 0.43}
+- {seg: 27.03, accion: stomp, opcion: destello, persona: person_1, espejo: false, exacto: true, dur: 0.37}
+# --- 28,0-30,5: de espaldas: el borde del saco, los costados, hombros y brazos.
+- {seg: 28.0, opcion: saco, espejo: true, exacto: true, dur: 0.17}
+- {seg: 28.2, opcion: costados, espejo: true, exacto: true, dur: 0.2}
+- {seg: 28.4, opcion: hombros, espejo: true, exacto: true, dur: 0.6}
+- {seg: 29.03, opcion: hombros, espejo: true, exacto: true, dur: 0.9}
+- {seg: 29.13, opcion: rayos_brazos, persona: person_0, espejo: false, exacto: true, dur: 0.75}
+- {seg: 30.13, opcion: costados, persona: person_1, espejo: false, exacto: true, dur: 0.4}
+# --- 30,8-31,6: arcos que giran alrededor de los dos.
+- {seg: 30.77, accion: spin_body, opcion: arcos, espejo: true, exacto: true, dur: 0.6}
+# --- 31,9-32,3: A, el aro en la mano.
+- {seg: 31.87, opcion: aro_mano, persona: person_0, lado: right, espejo: false, exacto: true, dur: 0.43}
+# --- 32,9-34,7: línea por la pierna y bandas en el tobillo, los dos.
+- {seg: 32.93, opcion: tobillos, espejo: true, exacto: true, dur: 1.75}

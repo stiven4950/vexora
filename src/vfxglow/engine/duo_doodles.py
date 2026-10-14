@@ -23,6 +23,9 @@ persona del evento y escala con su ancho de hombros. Medidos sobre la referencia
 - leg_line: una línea continua por el frente de la pierna, de la cadera al tobillo (33-34,8 s).
 - side_edges: los costados del saco de espaldas, de la axila al bajo (28,2 s; 30,1 s).
 - shoulder_arcs: arcos que bajan por hombros y brazos de espaldas (28,7-29,6 s).
+- foot_ring: aro en el piso alrededor del pie que se levanta (9,8-10,6 s).
+- foot_bolts: rayos alrededor del pie (16,9-17,8 s).
+- glow_eyes: ojos encendidos, dos destellos blancos con un resplandor del color sobre la cara (18 s).
 - spin_arcs: dos arcos grandes que giran alrededor del cuerpo en un giro (31,0 s).
 
 Los rayos cambian de forma cada BOLT_FRAMES fotogramas, como un dibujo animado a mano.
@@ -41,7 +44,8 @@ BOLT_FRAMES = 2
 DOODLES = (
     "head_ring", "lapel", "wrist_ring", "hand_heart", "rose", "neck_ring", "swirl", "big_note",
     "shoulder_bolts", "head_bolts", "hand_ring", "moon", "chest_burst", "body_bolts", "foot_spark",
-    "floor_arc", "leg_line", "side_edges", "shoulder_arcs", "heart_eyes", "spin_arcs",
+    "floor_arc", "leg_line", "side_edges", "shoulder_arcs", "heart_eyes", "spin_arcs", "glow_eyes",
+    "foot_ring", "foot_bolts",
 )
 WHITE = np.array([1.0, 1.0, 1.0], np.float32)
 
@@ -114,7 +118,7 @@ def doodle(shape, body, frame, scale, frame_index, seed, runtime, layer, color, 
     grow = float(np.clip(age / 6.0, 0.0, 1.0))
     rng = np.random.default_rng((seed + frame_index // BOLT_FRAMES) & 0xFFFFFFFF)
     hips = body.mid("left_hip", "right_hip")
-    if shape == "heart_eyes":
+    if shape in ("heart_eyes", "glow_eyes"):
         eyes = [body.get("left_eye"), body.get("right_eye")]
         nose = body.get("nose")
         if any(e is None for e in eyes):
@@ -124,6 +128,12 @@ def doodle(shape, body, frame, scale, frame_index, seed, runtime, layer, color, 
             eyes = [nose + up * 0.08 * scale + across * s * 0.09 * scale for s in (-1.0, 1.0)]
         size = max(0.06 * scale, float(np.linalg.norm(eyes[0] - eyes[1])) * 0.38)
         out = []
+        if shape == "glow_eyes":
+            face = (eyes[0] + eyes[1]) / 2
+            splat(layer, float(face[0]), float(face[1]), 0.28 * scale, color * 1.2, alpha * 0.6, runtime.kernels)
+            for eye in eyes:
+                splat(layer, float(eye[0]), float(eye[1]), size * 0.6, WHITE * 1.2, alpha, runtime.kernels)
+            return []
         for eye in eyes:
             heart = _heart(eye, size)
             fill_polygon(layer, heart, WHITE, alpha * 0.9, 1.0, feather=1.0)
@@ -187,9 +197,11 @@ def doodle(shape, body, frame, scale, frame_index, seed, runtime, layer, color, 
             leaf = np.array([(bloom + hand) / 2, (bloom + hand) / 2 + across * 0.1 * scale + up * 0.04 * scale, (bloom + hand) / 2 + across * 0.02 * scale - up * 0.03 * scale])
             return [spiral, cup, *petals, stem, leaf]
         if shape == "swirl":
-            # Remolino: sale de la mano hacia afuera y se enrosca, creciendo con el tiempo.
-            out_dir = (hand - center) / max(float(np.linalg.norm(hand - center)), 1e-6)
-            t = np.linspace(0, 1, 60)[: max(int(60 * min(age / 10.0, 1.0)), 3)]
+            # Remolino: sube desde la mano, abriéndose hacia afuera, y se enrosca (seg. 4,0-4,5).
+            outward = (hand - center) / max(float(np.linalg.norm(hand - center)), 1e-6)
+            out_dir = up * 0.8 + outward * 0.6
+            out_dir = out_dir / max(float(np.linalg.norm(out_dir)), 1e-6)
+            t = np.linspace(0, 1, 60)[: max(int(60 * min(age / 5.0, 1.0)), 3)]
             spine = hand[None, :] + out_dir[None, :] * (t[:, None] * 0.9 * scale)
             normal = np.array([-out_dir[1], out_dir[0]])
             loops = np.sin(t * TAU * 2.5)[:, None] * normal * 0.18 * scale * (0.4 + t[:, None]) + np.cos(t * TAU * 2.5)[:, None] * out_dir * 0.1 * scale
@@ -203,9 +215,10 @@ def doodle(shape, body, frame, scale, frame_index, seed, runtime, layer, color, 
         neck = center + up * 0.08 * scale
         return [_ellipse(neck, 0.24 * scale, 0.09 * scale, across, up)]
     if shape == "shoulder_bolts":
+        # Por encima de los hombros y bajando hasta el codo (no el brazo entero, seg. 7,5).
         path = []
         for side in ("left", "right"):
-            chain = [body.get(f"{side}_wrist"), body.get(f"{side}_elbow"), body.get(f"{side}_shoulder")]
+            chain = [body.get(f"{side}_elbow"), body.get(f"{side}_shoulder")]
             chain = [p + up * 0.05 * scale for p in chain if p is not None]
             path.append(chain if side == "left" else chain[::-1])
         line = np.array(path[0] + [center + up * 0.1 * scale] + path[1]) if path[0] or path[1] else None
@@ -231,7 +244,7 @@ def doodle(shape, body, frame, scale, frame_index, seed, runtime, layer, color, 
         disc = _ellipse(c, r, r, across, up, 0, TAU, 48)
         bite = _ellipse(inner_c, r * 0.85, r * 0.85, across, up, 0, TAU, 48)
         # Blanca (como en la referencia), con un halo suave del color de la persona.
-        fill_polygon(layer, disc, WHITE * 1.6, alpha * 0.95, 1.0, feather=3.0, holes=[bite])
+        fill_polygon(layer, disc, WHITE * 1.05, alpha * 0.9, 1.0, feather=3.0, holes=[bite])
         mid = c + across * side * r * 0.5
         splat(layer, float(mid[0]), float(mid[1]), r * 0.9, color * 0.8, alpha * 0.35, runtime.kernels)
         return []
@@ -252,10 +265,11 @@ def doodle(shape, body, frame, scale, frame_index, seed, runtime, layer, color, 
         shoulder = body.get(f"{'right' if side == 'left' else 'left'}_shoulder")
         if shoulder is not None:
             out += _bolt(np.array([shoulder, center + down * 0.2 * scale, hips]), scale, rng, 2)
-        if knee is not None and ankle is not None:
-            out += _bolt(np.array([body.get(f"{side}_hip") if body.get(f"{side}_hip") is not None else hips, knee, ankle]), scale, rng, 1)
+        if knee is not None:
+            # Hasta la rodilla: en la referencia los rayos se quedan en el cuerpo (seg. 14,5).
+            out += _bolt(np.array([body.get(f"{side}_hip") if body.get(f"{side}_hip") is not None else hips, knee]), scale, rng, 1)
         return out
-    if shape in ("foot_spark", "floor_arc", "leg_line"):
+    if shape in ("foot_spark", "floor_arc", "leg_line", "foot_ring", "foot_bolts"):
         side = _event_side(event)
         if side is None:
             ankles = {s: body.get(f"{s}_ankle") for s in ("left", "right")}
@@ -271,14 +285,24 @@ def doodle(shape, body, frame, scale, frame_index, seed, runtime, layer, color, 
         if shape == "foot_spark":
             from vfxglow.engine.burst import sparkle
 
-            splat(layer, float(foot[0]), float(foot[1]), 0.06 * scale, WHITE * 1.6, alpha, runtime.kernels)
-            splat(layer, float(foot[0]), float(foot[1]), 0.15 * scale, color * 1.3, alpha * 0.5, runtime.kernels)
+            # Resplandor en la punta del pie (seg. 21,5-23: ~0,1 hombros de blanco y halo).
+            splat(layer, float(foot[0]), float(foot[1]), 0.1 * scale, WHITE * 1.5, alpha, runtime.kernels)
+            splat(layer, float(foot[0]), float(foot[1]), 0.22 * scale, color * 1.3, alpha * 0.6, runtime.kernels)
             sparks = []
             for k in range(4):
                 angle = rng.uniform(0, TAU)
                 pos = foot + np.array([np.cos(angle), np.sin(angle) * 0.6]) * scale * rng.uniform(0.1, 0.25)
                 sparks.append(sparkle(pos, 0.04 * scale))
             return sparks
+        if shape == "foot_ring":
+            return [_ellipse(foot + down * 0.02 * scale, 0.32 * scale, 0.08 * scale, across, up)]
+        if shape == "foot_bolts":
+            out = []
+            for k in range(3):
+                angle = rng.uniform(0, TAU)
+                tip = foot + np.array([np.cos(angle), np.sin(angle) * 0.5]) * scale * rng.uniform(0.2, 0.35)
+                out.append(zigzag(np.array([foot + up * 0.05 * scale, tip]), 0.05 * scale, rng, 0.05 * scale))
+            return out
         if shape == "floor_arc":
             ground = foot + down * 0.04 * scale
             sweep = min(age / 8.0, 1.0)
@@ -286,11 +310,12 @@ def doodle(shape, body, frame, scale, frame_index, seed, runtime, layer, color, 
             arc = _ellipse(ground + across * 0.45 * scale, 0.75 * scale, 0.12 * scale, across, up, np.pi + 0.2, np.pi + 0.2 + a1, 30)
             return [arc]
         if shape == "leg_line" and hip is not None and knee is not None and ankle is not None:
+            # Una curva suave de la cadera al tobillo que pasa cerca de la rodilla (no quebrada).
             forward = across * (0.05 * scale)
-            t = np.linspace(0, 1, 20)[:, None]
-            upper = hip + (knee - hip) * t + forward
-            lower = knee + (ankle - knee) * t + forward
-            line = np.vstack([upper, lower[1:]])
+            t = np.linspace(0, 1, 30)[:, None]
+            control = 2 * knee - (hip + ankle) / 2
+            control = (control + (hip + ankle) / 2) / 2 + (knee - (hip + ankle) / 2) * 0.5
+            line = (1 - t) ** 2 * hip + 2 * (1 - t) * t * control + t**2 * (ankle - (ankle - knee) * 0.05) + forward
             return [line[: max(int(len(line) * min(age / 6.0, 1.0)), 2)]]
         return []
     if shape == "side_edges" and hips is not None:
