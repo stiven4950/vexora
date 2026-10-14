@@ -316,7 +316,7 @@ reactions:
     cooldown: 300
     effects:
     - type: adornment
-      style: {shapes: [ribbon], thickness: 0.008}
+      style: {shapes: [ribbon], thickness: 0.013}
       trigger: {hold: 14, fade_in: 2, fade_out: 8}
   - name: rosa_corazon
     weight: 0.1
@@ -369,6 +369,15 @@ reactions:
     - type: adornment
       style: {shapes: [hand_orbit], thickness: 0.008}
       trigger: {hold: 10, fade_in: 2, fade_out: 6}
+  # La mano por encima de la cabeza: una cresta punk que se dibuja con la pasada.
+  - name: cresta_punk
+    weight: 0.12
+    kinds: [head, left_arm, right_arm]
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [punk_hair], thickness: 0.011}
+      trigger: {hold: 20, fade_in: 1, fade_out: 10}
   - name: luna
     weight: 0.15
     kinds: [head]

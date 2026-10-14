@@ -16,6 +16,8 @@ Adornos (`type: adornment`, `style.shapes`), como los de engine/duo_doodles.py:
   colores por el borde, como un esmeril (seg. 12,3).
 - orbit_arcs: arcos en media luna (finos en las puntas, gruesos al centro) que giran alrededor
   del cuerpo en 3D; la parte que pasa por detrás de la persona no se ve (seg. 30,8-31,6).
+- punk_hair: cresta punk que se dibuja púa por púa por donde pasa la mano al deslizarse por encima
+  de la cabeza (idea propia, no está en la referencia; seg. 24,75-25,3).
 - hand_orbit: el mismo aro de arcos alrededor de la mano, inclinado (seg. 31,9-32,3).
 
 Las bandas con grosor variable se rellenan de blanco y el color va en el halo (P11).
@@ -32,7 +34,7 @@ from vfxglow.engine.raster import fill_polygon, splat
 
 TAU = 2.0 * np.pi
 WHITE = np.array([1.0, 1.0, 1.0], np.float32)
-DUO_FX = ("soul", "ribbon", "rose_heart", "energy_sparks", "chest_heart", "energy_wave", "dj_disc", "orbit_arcs", "hand_orbit")
+DUO_FX = ("punk_hair", "soul", "ribbon", "rose_heart", "energy_sparks", "chest_heart", "energy_wave", "dj_disc", "orbit_arcs", "hand_orbit")
 
 
 def band(curve: np.ndarray, widths: np.ndarray) -> np.ndarray | None:
@@ -137,6 +139,8 @@ def duo_fx(shape, body, frame, scale, frame_index, seed, runtime, layer, color, 
     age = runtime.active_frames
     rng = np.random.default_rng((seed + frame_index // 2) & 0xFFFFFFFF)
     hips = body.mid("left_hip", "right_hip")
+    if shape == "punk_hair" and head is not None:
+        return _punk_hair(runtime, body, head, scale, across, up, age, layer, color, alpha)
     if shape == "soul" and head is not None:
         st = _state(runtime, f"soul:{body.prefix}")
         if age <= 1 or "pos" not in st:
@@ -178,27 +182,7 @@ def duo_fx(shape, body, frame, scale, frame_index, seed, runtime, layer, color, 
                 fill_polygon(layer, heart, WHITE * 1.1, alpha * 0.9, 1.0, feather=1.5)
                 return [heart]
             return _rose(bloom, scale, across, up)
-        st = _state(runtime, f"ribbon:{body.prefix}{side}")
-        if age <= 1 or "dir" not in st:
-            d = up * 0.35 + outward * 0.95
-            st["dir"] = d / np.linalg.norm(d)
-        t = age / 30.0
-        # La cinta barre: su dirección gira despacio (como el brazo de la gimnasta).
-        turn = 0.9 * np.sin(t * 2.2)
-        c, s_ = np.cos(turn), np.sin(turn)
-        d = np.array([st["dir"][0] * c - st["dir"][1] * s_, st["dir"][0] * s_ + st["dir"][1] * c])
-        n = np.array([-d[1], d[0]])
-        length = 1.3 * scale * min(age / 8.0, 1.0)
-        s = np.linspace(0.0, 1.0, 90)
-        phase = s * TAU * 3.2 - t * TAU * 1.6
-        loops = (np.cos(phase)[:, None] * d + np.sin(phase)[:, None] * n * 0.55) * (0.32 * scale * (0.3 + 0.7 * s))[:, None]
-        wave = np.sin(s * TAU * 1.1 - t * TAU * 1.2)[:, None] * n * 0.3 * scale * s[:, None]
-        curve = hand + d * (s * length)[:, None] + wave + loops
-        # Perspectiva: la cinta gira sobre sí misma; de canto se ve fina, de frente ancha.
-        twist = np.abs(np.cos(s * TAU * 1.5 - t * TAU * 2.0))
-        widths = 0.08 * scale * (0.2 + 0.8 * twist) * taper(len(s), 0.5)
-        fill_band(layer, curve, widths, alpha * 0.9)
-        return [curve]
+        return _ribbon(runtime, body, side, hand, outward, center, scale, up, age, layer, alpha)
     if shape == "energy_sparks":
         anchors = [p for p in (body.get("left_shoulder"), body.get("right_shoulder"), body.get("left_elbow"), body.get("right_elbow"), body.get("left_wrist"), body.get("right_wrist")) if p is not None]
         if hips is not None:
@@ -318,6 +302,116 @@ def duo_fx(shape, body, frame, scale, frame_index, seed, runtime, layer, color, 
                 out.append(curve[a:b])
         return out
     return []
+
+
+# Cresta punk: PUNK_SPIKES púas en abanico sobre la coronilla. Una púa se levanta (en
+# PUNK_GROW cuadros) cuando la mano pasa cerca de su base; si la mano no se ve, se levantan en
+# orden desde el lado por donde entró la mano.
+PUNK_SPIKES = 9
+PUNK_GROW = 4
+PUNK_REACH = 0.45  # en anchos de hombros
+
+
+def _punk_hair(runtime, body, head, scale, across, up, age, layer, color, alpha) -> list[np.ndarray]:
+    st = _state(runtime, f"punk:{body.prefix}")
+    angles = np.linspace(np.radians(155), np.radians(25), PUNK_SPIKES)  # de un lado al otro, por arriba
+    crown = head + up * 0.12 * scale
+    radius = 0.3 * scale
+    bases = crown + np.cos(angles)[:, None] * across * radius + np.sin(angles)[:, None] * up * radius * 0.8
+    tips_dir = np.cos(angles)[:, None] * across * 0.55 + up * 1.0
+    tips_dir /= np.linalg.norm(tips_dir, axis=1, keepdims=True)
+    # Más altas al centro (la cresta).
+    heights = scale * (0.32 + 0.28 * np.sin(np.linspace(0, np.pi, PUNK_SPIKES)))
+    hands = []
+    for s_ in ("left", "right"):
+        for joint in (f"{s_}_index", f"{s_}_middle_tip", f"{s_}_wrist"):
+            point = body.get(joint)
+            if point is not None:
+                hands.append(point)
+                break
+    if age <= 1 or "born" not in st:
+        st["born"] = {}
+        near = min(hands, key=lambda h: float(np.linalg.norm(h - crown))) if hands else crown - across * radius
+        st["order"] = list(np.argsort([float(np.linalg.norm(b - near)) for b in bases]))
+    born = st["born"]
+    for k, base in enumerate(bases):
+        if k not in born and any(float(np.linalg.norm(h - base)) < PUNK_REACH * scale for h in hands):
+            born[k] = age
+    # Respaldo: la mano tapa o no se detecta bien; se levantan en orden a ritmo de la pasada.
+    for rank, k in enumerate(st["order"]):
+        if k not in born and age >= rank * 1.5:
+            born[k] = age
+    out = []
+    for k, start in born.items():
+        grow = float(np.clip((age - start + 1) / PUNK_GROW, 0.0, 1.0))
+        base = bases[k]
+        side = np.array([-tips_dir[k][1], tips_dir[k][0]]) * 0.07 * scale
+        tip = base + tips_dir[k] * heights[k] * grow
+        spike = np.array([base - side, tip, base + side])
+        fill_polygon(layer, spike, np.asarray(color, np.float32) * 0.9, alpha * 0.55, 1.0, feather=1.5)
+        out.append(spike)
+    return out
+
+
+# Cinta de gimnasia: una cuerda de RIBBON_POINTS puntos que cuelga de la punta del bastón (la mano
+# más un círculo suave que traza la gimnasta). Se simula (Verlet: inercia, amortiguación, un poco
+# de gravedad y largo fijo por tramo), así que ondula y se enrosca con fluidez, sin saltos.
+RIBBON_POINTS = 36
+RIBBON_LENGTH = 1.6  # en anchos de hombros
+RIBBON_DAMPING = 0.97
+RIBBON_GRAVITY = 0.0008  # por cuadro, en anchos de hombros
+RIBBON_CIRCLE = 0.45  # radio del círculo de la punta del bastón
+RIBBON_TURN_S = 0.75  # una vuelta del bastón
+RIBBON_PREROLL = 24  # cuadros simulados antes del primero: la cinta aparece ya en vuelo
+
+
+def _ribbon(runtime, body, side, hand, outward, center, scale, up, age, layer, alpha) -> list[np.ndarray]:
+    st = _state(runtime, f"ribbon:{body.prefix}{side}")
+    seg = RIBBON_LENGTH * scale / (RIBBON_POINTS - 1)
+    # Punta del bastón: más allá de la mano, girando en un círculo suave hacia afuera y arriba.
+    reach = up * 0.8 + outward * 0.6
+    reach = reach / max(float(np.linalg.norm(reach)), 1e-6)
+    across_reach = np.array([-reach[1], reach[0]])
+
+    def tip_at(frame: float) -> np.ndarray:
+        angle = frame / max(RIBBON_TURN_S * runtime.fps, 1.0) * TAU
+        return hand + reach * 0.6 * scale + (np.cos(angle) * across_reach + np.sin(angle) * reach * 0.6) * RIBBON_CIRCLE * scale
+
+    def step(pts, prev, tip):
+        velocity = (pts - prev) * RIBBON_DAMPING
+        prev = pts.copy()
+        pts = pts + velocity + np.array([0.0, RIBBON_GRAVITY * scale])
+        pts[0] = tip
+        for _ in range(6):
+            delta = pts[1:] - pts[:-1]
+            dist = np.maximum(np.linalg.norm(delta, axis=1, keepdims=True), 1e-6)
+            fix = delta * (1 - seg / dist) * 0.5
+            pts[1:] -= fix
+            pts[:-1] += fix
+            pts[0] = tip
+        return pts, prev
+
+    if age <= 1 or "pts" not in st or len(st["pts"]) != RIBBON_POINTS:
+        # Arranca tendida detrás de la punta y se simula un momento: aparece ya en vuelo.
+        first = tip_at(age - RIBBON_PREROLL)
+        pts = first + np.outer(np.arange(RIBBON_POINTS) * seg, -reach)
+        prev = pts.copy()
+        for k in range(RIBBON_PREROLL):
+            pts, prev = step(pts, prev, tip_at(age - RIBBON_PREROLL + k + 1))
+        st["pts"], st["prev"] = pts, prev
+    pts, prev = step(st["pts"], st["prev"], tip_at(age))
+    st["pts"], st["prev"] = pts, prev
+    tip = pts[0]
+    from vfxglow.geom import catmull_rom
+
+    curve = catmull_rom(pts, samples_per_seg=3)
+    s = np.linspace(0.0, 1.0, len(curve))
+    # Perspectiva: la cinta gira sobre sí misma despacio a lo largo; de canto fina, de frente ancha.
+    twist = np.abs(np.cos(s * TAU * 0.9 - age * 0.08))
+    widths = 0.12 * scale * (0.25 + 0.75 * twist) * (1.0 - 0.8 * s)
+    fill_band(layer, curve, widths, alpha * 0.9)
+    stick = np.array([hand, tip])
+    return [curve, stick]
 
 
 def _rose(bloom: np.ndarray, scale: float, across: np.ndarray, up: np.ndarray) -> list[np.ndarray]:

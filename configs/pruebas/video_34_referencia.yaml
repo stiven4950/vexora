@@ -71,6 +71,9 @@ momentos:
 - {seg: 22.67, accion: stomp, opcion: destello, persona: person_1, espejo: false, exacto: true, dur: 0.6}
 # --- 23,3-26,5: rodillas encendidas, los dos.
 - {seg: 23.33, opcion: rodillas, espejo: true, exacto: true, dur: 3.15}
+# --- 24,75-26,2 (extra, no está en la referencia): A se pasa la mano por encima de la cabeza y se
+# dibuja una cresta punk púa por púa por donde pasa la mano.
+- {seg: 24.75, opcion: cresta_punk, persona: person_0, lado: right, espejo: false, exacto: true, dur: 1.4}
 # --- 27,0-27,7: A barre el piso con el pie; B, destello.
 - {seg: 27.27, accion: stomp, opcion: arco_piso, persona: person_0, espejo: false, exacto: true, dur: 0.43}
 - {seg: 27.03, accion: stomp, opcion: destello, persona: person_1, espejo: false, exacto: true, dur: 0.37}
