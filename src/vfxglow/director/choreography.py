@@ -120,7 +120,26 @@ class Choreography(_Strict):
 
 
 def load_catalog(path: Path) -> Catalog:
-    return Catalog.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
+    """Lee un catálogo y le suma sus `include`: fragmentos (`configs/catalogs/_<nombre>.yaml`, solo
+    con `reactions`) cuyas opciones se agregan a las de la misma acción, con el peso multiplicado
+    por el `weight` del include (1 si se da solo el nombre). Una acción que el catálogo no tiene se
+    agrega entera. Dos opciones con el mismo nombre en la misma acción son un error."""
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    for item in raw.pop("include", None) or []:
+        name, scale = (item, 1.0) if isinstance(item, str) else (item["name"], float(item.get("weight", 1.0)))
+        fragment = yaml.safe_load((path.parent / f"{name}.yaml").read_text(encoding="utf-8")) or {}
+        for extra in fragment.get("reactions", []):
+            options = [{**option, "weight": float(option.get("weight", 1.0)) * scale} for option in extra.get("options", [])]
+            reaction = next((r for r in raw["reactions"] if r["action"] == extra["action"]), None)
+            if reaction is None:
+                raw["reactions"].append({**extra, "options": options})
+                continue
+            names = {option["name"] for option in reaction["options"]}
+            clash = names & {option["name"] for option in options}
+            if clash:
+                raise ValueError(f"{path.name}: {name} repite opciones de {extra['action']}: {', '.join(sorted(clash))}")
+            reaction["options"] += options
+    return Catalog.model_validate(raw)
 
 
 def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, pins=None) -> tuple[EffectScript, Choreography]:

@@ -303,6 +303,15 @@ Las partes del cuerpo encendidas usan **dos pasadas**, como haría un editor: un
 | 27.2 | Barrido del brazo | Estela blanca gruesa | ✅ `fast_swing → estela` (modo pintura) |
 | 28.1–28.7 | Cadera | **Sombrero vaquero** y cinturón dibujados | ✅ sombrero; cinturón 🔜 |
 
+### Efectos compartidos entre solista y pareja
+
+Los dibujos leídos de video_34 (rosas, cintas, alma, rayos, discos de DJ, arcos 3D, cresta punk,
+notas y corazones, rodillas y tobillos...) viven en `configs/catalogs/_baile_compartido.yaml`.
+`baile_duo` y `baile_neon` los incluyen con `include:`; el solista, a la mitad de peso:
+`include: [{name: _baile_compartido, weight: 0.5}]`. Sus opciones se suman a las de la misma
+acción de cada catálogo. Los archivos que empiezan con `_` son fragmentos, no estilos: no salen en
+la lista de la web. Todos se dibujan con una persona o con dos.
+
 ### video_34: pareja, un color por persona
 
 Lectura completa en `docs/referencias/video_34.md`. Al unísono, el mismo efecto en los dos

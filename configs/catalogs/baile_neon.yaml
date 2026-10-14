@@ -17,6 +17,9 @@ prop: a baseball cap. a hat.
 chapters: true
 # Nada compite con el protagonista: lo que no está en foco se apaga (línea de atención).
 attention: true
+# Los dibujos de baile_duo (rosas, cintas, alma, rayos, discos, arcos 3D, cresta punk...) también
+# para una persona sola, a la mitad de peso para que no tapen los efectos propios del solista.
+include: [{name: _baile_compartido, weight: 0.5}]
 defaults:
   type: body_glow
   target: {kind: joint, id: body}

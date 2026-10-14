@@ -122,3 +122,39 @@ def test_kind_and_accessory_filters_and_same_frame_targets() -> None:
     pecho = by_id["intent_pecho_0"]
     # Mismo fotograma, otra persona: el trigger distingue por target.
     assert [w.event.target for w in ActivationTimeline(pecho, intents).windows] == ["person_1:left_wrist"]
+
+
+def test_include_adds_shared_options_with_scaled_weight(tmp_path: Path) -> None:
+    (tmp_path / "_comun.yaml").write_text(
+        "reactions:\n"
+        "- action: fast_swing\n  options:\n  - {name: rayo, weight: 0.4, effects: [{trigger: {hold: 2}}]}\n"
+        "- action: stomp\n  options:\n  - {name: chispa, weight: 1.0}\n"
+    )
+    (tmp_path / "solo.yaml").write_text(
+        "name: solo\ninclude: [{name: _comun, weight: 0.5}]\n"
+        "defaults: {type: swoosh, target: {kind: joint, id: right_wrist}}\n"
+        "reactions:\n- action: fast_swing\n  options:\n  - {name: swoosh, weight: 1.0}\n"
+    )
+    catalog = load_catalog(tmp_path / "solo.yaml")
+    swing = next(r for r in catalog.reactions if r.action == "fast_swing")
+    assert [(o.name, o.weight) for o in swing.options] == [("swoosh", 1.0), ("rayo", 0.2)]
+    assert any(r.action == "stomp" for r in catalog.reactions)
+
+
+def test_include_rejects_repeated_option_names(tmp_path: Path) -> None:
+    import pytest
+
+    (tmp_path / "_comun.yaml").write_text("reactions:\n- action: fast_swing\n  options:\n  - {name: swoosh}\n")
+    (tmp_path / "solo.yaml").write_text(
+        "name: solo\ninclude: [_comun]\nreactions:\n- action: fast_swing\n  options:\n  - {name: swoosh}\n"
+    )
+    with pytest.raises(ValueError, match="swoosh"):
+        load_catalog(tmp_path / "solo.yaml")
+
+
+def test_solo_and_duo_dance_share_the_duo_drawings() -> None:
+    names = lambda c: {o.name for r in c.reactions for o in r.options}  # noqa: E731
+    duo = load_catalog(ROOT / "configs/catalogs/baile_duo.yaml")
+    neon = load_catalog(ROOT / "configs/catalogs/baile_neon.yaml")
+    for shared in ("cinta", "alma", "aro_orbita", "cresta_punk", "discos", "rosa_corazon", "notas"):
+        assert shared in names(duo) and shared in names(neon)

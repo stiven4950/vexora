@@ -1,0 +1,344 @@
+# Efectos compartidos por los estilos de baile (solista y pareja). Los incluyen baile_duo y
+# baile_neon con `include:` (director/choreography.py): sus opciones se suman a las de la misma
+# acción del catálogo, con el peso multiplicado por el `weight` del include. Leídos de la
+# referencia video_34 (docs/referencias/video_34.md); dibujos en engine/duo_doodles.py y
+# engine/duo_fx.py. Funcionan con una persona o con dos.
+reactions:
+- action: spotlight
+  options:
+  # Piernas (seg. 23.5-26.5, 33-34.8): puntos en las rodillas, banda en el tobillo con una línea
+  # que sube por la pierna, o tramos del contorno que suben como una onda.
+  - name: rodillas
+    weight: 0.4
+    kinds: [legs, feet]
+    effects:
+    - type: adornment
+      style: {shapes: [knee_dots]}
+      trigger: {hold: 8, fade_in: 2, fade_out: 6}
+  - name: tobillos
+    weight: 0.35
+    kinds: [legs, feet]
+    effects:
+    # Seg. 33-34.8: bandas en el tobillo y una tira desde ellas hasta la mano.
+    - type: adornment
+      style: {shapes: [ankle_bands], thickness: 0.035}
+      trigger: {hold: 6, fade_in: 2, fade_out: 6}
+    - type: adornment
+      style: {shapes: [leg_string], thickness: 0.012}
+      trigger: {hold: 6, fade_in: 2, fade_out: 6}
+  # Brazos (seg. 5.5-6.5, 19.5-21.2): la música sale de las manos, notas o corazones.
+  - name: notas
+    weight: 0.45
+    kinds: [left_arm, right_arm]
+    cooldown: 120
+    effects:
+    - type: droplets
+      target: {kind: joint, id: 'left_wrist,right_wrist'}
+      style: {thickness: 0.008, hdr_gain: 1.2, size: 0.9, min_speed: 0.15, chance: 1.0, stream: true, shapes: [beamed, note, beamed]}
+      trigger: {hold: 10, fade_in: 1, fade_out: 10}
+  - name: corazones
+    weight: 0.35
+    kinds: [left_arm, right_arm]
+    cooldown: 120
+    effects:
+    - type: droplets
+      target: {kind: joint, id: 'left_wrist,right_wrist'}
+      style: {thickness: 0.008, hdr_gain: 1.2, size: 1.4, min_speed: 0.15, chance: 1.0, stream: true, shapes: [heart]}
+      trigger: {hold: 10, fade_in: 1, fade_out: 10}
+  # Seg. 11, 15: tramos del contorno que recorren el brazo, o aros que suben hasta el hombro.
+  - name: brazo_onda
+    weight: 0.3
+    kinds: [left_arm, right_arm]
+    cooldown: 90
+    effects:
+    - type: body_glow
+      style: {shapes: [wave], trail_frames: 16}
+      trigger: {hold: 4, fade_in: 2, fade_out: 6}
+  - name: saco
+    weight: 0.3
+    kinds: [torso]
+    cooldown: 240
+    effects:
+    # El borde real del saco (silueta), con guiones de costura dentro (seg. 10.3, 28).
+    - type: body_glow
+      target: {kind: joint, id: jacket}
+      trigger: {hold: 8, fade_in: 3, fade_out: 8}
+  # Seg. 10.3: se abre el saco: la solapa con un tinte suave y costuras dentro.
+  - name: solapa_abierta
+    weight: 0.12
+    kinds: [torso]
+    cooldown: 300
+    effects:
+    - type: body_glow
+      target: {kind: joint, id: jacket}
+      style: {shapes: [flap, stitches], fill: 0.12}
+      trigger: {hold: 8, fade_in: 3, fade_out: 8}
+  - name: ojos
+    weight: 0.25
+    kinds: [head]
+    effects:
+    - type: adornment
+      style: {shapes: [glow_eyes], thickness: 0.01}
+      trigger: {hold: 8, fade_in: 3, fade_out: 8}
+  # Seg. 18: al girar, el faldón del saco se enciende.
+  - name: faldon
+    weight: 0.12
+    kinds: [torso, legs]
+    cooldown: 240
+    effects:
+    - type: body_glow
+      target: {kind: joint, id: jacket}
+      style: {shapes: [hem]}
+      trigger: {hold: 6, fade_in: 2, fade_out: 6}
+  # Dibujos de la referencia (engine/duo_doodles.py), cada uno en su parte.
+  - name: rayos_brazos
+    weight: 0.2
+    kinds: [left_arm, right_arm, torso]
+    cooldown: 120
+    effects:
+    - type: adornment
+      style: {shapes: [shoulder_bolts], thickness: 0.009}
+      trigger: {hold: 6, fade_in: 1, fade_out: 6}
+  - name: corazon_mano
+    weight: 0.2
+    kinds: [left_arm, right_arm]
+    cooldown: 150
+    effects:
+    - type: adornment
+      style: {shapes: [hand_heart], thickness: 0.011}
+      trigger: {hold: 8, fade_in: 2, fade_out: 8}
+  - name: nota_grande
+    weight: 0.12
+    kinds: [left_arm, right_arm]
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [big_note], thickness: 0.012}
+      trigger: {hold: 6, fade_in: 2, fade_out: 6}
+  - name: aro_mano
+    weight: 0.18
+    kinds: [left_arm, right_arm]
+    cooldown: 150
+    effects:
+    - type: adornment
+      style: {shapes: [hand_ring], thickness: 0.01}
+      trigger: {hold: 8, fade_in: 2, fade_out: 6}
+  - name: aro_muneca
+    weight: 0.1
+    kinds: [left_arm, right_arm]
+    cooldown: 150
+    effects:
+    - type: adornment
+      style: {shapes: [wrist_ring], thickness: 0.01}
+      trigger: {hold: 6, fade_in: 2, fade_out: 6}
+  - name: remolino
+    weight: 0.15
+    kinds: [left_arm, right_arm]
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [swirl], thickness: 0.011}
+      trigger: {hold: 6, fade_in: 2, fade_out: 8}
+  - name: rosa
+    weight: 0.12
+    kinds: [torso, left_arm, right_arm]
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [rose], thickness: 0.01}
+      trigger: {hold: 10, fade_in: 3, fade_out: 8}
+  - name: lazo
+    weight: 0.12
+    kinds: [torso]
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [neck_ring], thickness: 0.01}
+      trigger: {hold: 8, fade_in: 2, fade_out: 6}
+  - name: solapa
+    weight: 0.12
+    kinds: [torso]
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [lapel], thickness: 0.01}
+      trigger: {hold: 8, fade_in: 2, fade_out: 6}
+  - name: estallido
+    weight: 0.1
+    kinds: [torso]
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [chest_burst], thickness: 0.009}
+      trigger: {hold: 10, fade_in: 2, fade_out: 8}
+  - name: rayos_cuerpo
+    weight: 0.12
+    kinds: [torso, legs]
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [body_bolts], thickness: 0.009}
+      trigger: {hold: 10, fade_in: 1, fade_out: 6}
+  - name: costados
+    weight: 0.12
+    kinds: [torso]
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [side_edges], thickness: 0.011}
+      trigger: {hold: 8, fade_in: 2, fade_out: 6}
+  - name: hombros
+    weight: 0.12
+    kinds: [torso, left_arm, right_arm]
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [shoulder_arcs], thickness: 0.011}
+      trigger: {hold: 8, fade_in: 2, fade_out: 6}
+  - name: linea_pierna
+    weight: 0.15
+    kinds: [legs, feet]
+    cooldown: 150
+    effects:
+    - type: adornment
+      style: {shapes: [leg_line], thickness: 0.012}
+      trigger: {hold: 6, fade_in: 2, fade_out: 6}
+  - name: aro_pie
+    weight: 0.1
+    kinds: [legs, feet]
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [foot_ring], thickness: 0.011}
+      trigger: {hold: 8, fade_in: 2, fade_out: 6}
+  - name: rayos_pie
+    weight: 0.1
+    kinds: [legs, feet]
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [foot_bolts], thickness: 0.009}
+      trigger: {hold: 8, fade_in: 1, fade_out: 6}
+  # Segunda lectura cuadro a cuadro (engine/duo_fx.py).
+  - name: alma
+    weight: 0.15
+    kinds: [head]
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [soul], thickness: 0.01}
+      trigger: {hold: 14, fade_in: 2, fade_out: 6}
+  - name: cinta
+    weight: 0.15
+    kinds: [left_arm, right_arm]
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [ribbon], thickness: 0.013}
+      trigger: {hold: 14, fade_in: 2, fade_out: 8}
+  - name: rosa_corazon
+    weight: 0.1
+    kinds: [torso, left_arm, right_arm]
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [rose_heart], thickness: 0.01}
+      trigger: {hold: 12, fade_in: 3, fade_out: 8}
+  - name: energia
+    weight: 0.15
+    kinds: [torso, left_arm, right_arm]
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [energy_sparks], thickness: 0.007}
+      trigger: {hold: 6, fade_in: 1, fade_out: 4}
+  - name: corazon_pecho
+    weight: 0.1
+    kinds: [torso]
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [chest_heart], thickness: 0.008}
+      trigger: {hold: 8, fade_in: 1, fade_out: 6}
+    - type: adornment
+      style: {shapes: [shoulder_bolts], thickness: 0.008}
+      trigger: {hold: 8, fade_in: 1, fade_out: 6}
+  - name: onda_rayos
+    weight: 0.15
+    kinds: [torso, legs, left_arm, right_arm]
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [energy_wave], thickness: 0.007}
+      trigger: {hold: 20, fade_in: 2, fade_out: 6}
+  - name: discos
+    weight: 0.1
+    kinds: [left_arm, right_arm]
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [dj_disc], thickness: 0.009}
+      trigger: {hold: 12, fade_in: 2, fade_out: 6}
+  - name: aro_orbita
+    weight: 0.12
+    kinds: [left_arm, right_arm]
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [hand_orbit], thickness: 0.008}
+      trigger: {hold: 10, fade_in: 2, fade_out: 6}
+  # La mano por encima de la cabeza: una cresta punk que se dibuja con la pasada.
+  - name: cresta_punk
+    weight: 0.12
+    kinds: [head, left_arm, right_arm]
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [punk_hair], thickness: 0.011}
+      trigger: {hold: 20, fade_in: 1, fade_out: 10}
+  - name: luna
+    weight: 0.15
+    kinds: [head]
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [moon], thickness: 0.012}
+      trigger: {hold: 14, fade_in: 3, fade_out: 8}
+  - name: rayos_cabeza
+    weight: 0.12
+    kinds: [head]
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [head_bolts], thickness: 0.009}
+      trigger: {hold: 8, fade_in: 1, fade_out: 6}
+- action: hand_ear
+  options:
+  - name: corona
+    weight: 0.6
+    effects:
+    - type: adornment
+      style: {shapes: [crown]}
+      trigger: {hold: 18, fade_in: 3, fade_out: 8}
+- action: spin_body
+  options:
+  - name: arcos
+    weight: 0.4
+    effects:
+    - type: adornment
+      style: {shapes: [orbit_arcs], thickness: 0.014}
+      trigger: {hold: 8, fade_in: 1, fade_out: 6}
+- action: stomp
+  options:
+  - name: destello
+    weight: 0.3
+    effects:
+    - type: adornment
+      style: {shapes: [foot_spark], thickness: 0.008}
+      trigger: {hold: 8, fade_in: 1, fade_out: 6}
+  - name: arco_piso
+    weight: 0.1
+    effects:
+    - type: adornment
+      style: {shapes: [floor_arc], thickness: 0.014}
+      trigger: {hold: 10, fade_in: 1, fade_out: 8}

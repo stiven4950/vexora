@@ -67,6 +67,8 @@ def styles() -> list[Style]:
 
     out = []
     for path in sorted((ROOT / "configs" / "catalogs").glob("*.yaml")):
+        if path.name.startswith("_"):
+            continue  # fragmentos que otros catálogos incluyen, no estilos
         catalog = load_catalog(path)
         palette = catalog.defaults.get("style", {}).get("palette") or catalog.colors
         out.append(
