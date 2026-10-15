@@ -77,3 +77,38 @@ def test_new_effects_are_recorded_once(tmp_path: Path) -> None:
     assert record_proposals(lectura, ledger, "video_35.mp4") == 0
     line = json.loads(ledger.read_text(encoding="utf-8").strip())
     assert line["nombre"] == "soga" and line["video"] == "video_35.mp4"
+
+
+def test_busy_model_is_retried(monkeypatch) -> None:
+    import io
+    import urllib.error
+
+    from vfxglow.config import DeepConfig
+    from vfxglow.director import deep
+
+    calls = []
+
+    class Done(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def fake(url, key, data=None, headers=None, method=None, timeout=120.0):
+        calls.append(url)
+        if len(calls) < 3:
+            raise urllib.error.HTTPError(url, 503, "busy", {}, io.BytesIO(b'{"error": "high demand"}'))
+        return Done(b'{"ok": true}')
+
+    monkeypatch.setattr(deep, "_request", fake)
+    waits = []
+    assert deep._generate(DeepConfig(), "k", {}, sleep=waits.append) == {"ok": True}
+    assert waits == [15, 45]
+
+    calls.clear()
+    monkeypatch.setattr(deep, "_request", lambda *a, **k: (_ for _ in ()).throw(urllib.error.HTTPError("u", 400, "bad", {}, io.BytesIO(b"bad"))))
+    import pytest
+
+    with pytest.raises(RuntimeError, match="400"):
+        deep._generate(DeepConfig(), "k", {}, sleep=waits.append)

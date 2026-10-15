@@ -166,6 +166,8 @@ class DeepConfig(_Strict):
     # Fotogramas por segundo que mira el modelo (Gemini usa 1 si no se dice: se pierde los gestos).
     fps: float = 5.0
     timeout_s: float = 600.0
+    # Reintentos si el modelo está saturado (503) o se pasa la cuota por minuto (429).
+    retries: int = 4
 
 
 class DirectorConfig(_Strict):

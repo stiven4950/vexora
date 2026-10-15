@@ -20,6 +20,11 @@ Necesita `GEMINI_API_KEY` en el `.env` local (nunca en git).
 
 Un guion fijado a mano (`--pin`) manda sobre el análisis profundo.
 
+Si el modelo está saturado (error 503, "high demand") o se pasa la cuota por minuto (429), se
+reintenta solo 4 veces, esperando 15, 45, 90 y 180 s, sin volver a subir el video. Si sigue
+saturado, el error lo dice; el análisis de movimiento ya quedó guardado y reintentar más tarde es
+rápido.
+
 ## Qué pasa por dentro (`src/vfxglow/director/deep.py`)
 
 1. Arma el prompt de animador con el catálogo real: acciones, opciones y figuras, y qué hacen las

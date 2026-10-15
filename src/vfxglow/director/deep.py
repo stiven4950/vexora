@@ -216,17 +216,7 @@ def ask_gemini(video: Path, prompt: str, cfg: DeepConfig) -> tuple[dict, dict]:
             }],
             "generationConfig": {"responseMimeType": "application/json"},
         }
-        try:
-            with _request(
-                f"{API}/v1beta/models/{cfg.model}:generateContent",
-                key,
-                json.dumps(body).encode(),
-                {"Content-Type": "application/json"},
-                timeout=cfg.timeout_s,
-            ) as response:
-                raw = json.loads(response.read())
-        except urllib.error.HTTPError as exc:
-            raise RuntimeError(f"Gemini respondió {exc.code}: {exc.read()[:400].decode(errors='replace')}") from exc
+        raw = _generate(cfg, key, body)
     finally:
         try:
             _request(f"{API}/v1beta/{info['name']}", key, method="DELETE").close()
@@ -235,6 +225,33 @@ def ask_gemini(video: Path, prompt: str, cfg: DeepConfig) -> tuple[dict, dict]:
     parts = raw["candidates"][0]["content"]["parts"]
     text = "".join(part.get("text", "") for part in parts if not part.get("thought"))
     return json.loads(text), raw.get("usageMetadata", {})
+
+
+# Saturación pasajera (503 "high demand", 429 por cuota por minuto, 500/504): se reintenta con
+# espera creciente, sin volver a subir el video.
+RETRY_CODES = (429, 500, 503, 504)
+RETRY_WAITS_S = (15, 45, 90, 180)
+
+
+def _generate(cfg: DeepConfig, key: str, body: dict, sleep=time.sleep) -> dict:
+    waits = list(RETRY_WAITS_S[: max(cfg.retries, 0)])
+    while True:
+        try:
+            with _request(
+                f"{API}/v1beta/models/{cfg.model}:generateContent",
+                key,
+                json.dumps(body).encode(),
+                {"Content-Type": "application/json"},
+                timeout=cfg.timeout_s,
+            ) as response:
+                return json.loads(response.read())
+        except urllib.error.HTTPError as exc:
+            detail = exc.read()[:400].decode(errors="replace")
+            if exc.code not in RETRY_CODES or not waits:
+                raise RuntimeError(f"Gemini respondió {exc.code}: {detail}") from exc
+            wait = waits.pop(0)
+            log.warning("Gemini respondió %d (saturado); reintento en %d s (quedan %d)", exc.code, wait, len(waits))
+            sleep(wait)
 
 
 # ----- de la respuesta al guion -----
