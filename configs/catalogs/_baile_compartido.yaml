@@ -313,22 +313,17 @@ reactions:
     - type: adornment
       style: {shapes: [head_bolts], thickness: 0.009}
       trigger: {hold: 8, fade_in: 1, fade_out: 6}
-  # Zapatos encendidos: el contorno real del zapato (silueta) teñido y con línea de neón, y al
-  # mover el pie salen partículas de la punta. Cada movimiento sortea una figura; con temporada,
+  # Zapatos dibujados encima de los del video (tenis, bota, vaquera, patín...), y al mover el pie
+  # salen partículas. Cada movimiento sortea una figura; con temporada,
   # las figuras son las de la temporada (director/seasons.py reemplaza las de droplets).
   - name: zapatos
     weight: 0.2
     kinds: [legs, feet]
     cooldown: 240
     effects:
-    - type: body_glow
-      target: {kind: joint, id: feet}
-      style: {shapes: [no_outline], fill: 0.7}
-      render: {blend: tint}
-      trigger: {hold: 30, fade_in: 3, fade_out: 8}
-    - type: body_glow
-      target: {kind: joint, id: feet}
-      style: {fill: 0.0, thickness: 0.012}
+    # Cada vez, un estilo de zapato dibujado (engine/shoes.py).
+    - type: adornment
+      style: {shapes: [sneaker, hightop, combat_boot, cowboy_boot, roller_skate, winged_shoe], thickness: 0.008}
       trigger: {hold: 30, fade_in: 3, fade_out: 8}
     - type: droplets
       # Desde el tobillo (la velocidad se mide ahí), justo sobre el zapato. 0.04: el 10-25% de los

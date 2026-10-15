@@ -19,7 +19,7 @@ _HEAD_ADORN = {"cap", "cowboy_hat", "top_hat", "fedora", "party_hat", "witch_hat
                "hero_mask", "masquerade", "bat_mask", "cat_mask", "fox_mask", "bunny", "mustache", "horns", "antennae",
                "ninja_band", "pirate_patch", "head_ring"}
 _CHEST_ADORN = {"necklace", "chain", "chest_stars", "belt", "metal_jacket", "tie", "bowtie"}
-_LEG_ADORN = {"knee_dots", "ankle_bands"}
+_LEG_ADORN = {"knee_dots", "ankle_bands", "sneaker", "hightop", "combat_boot", "cowboy_boot", "roller_skate", "winged_shoe"}
 _BODY_PARTS = {
     "left_arm": {"left_arm"},
     "right_arm": {"right_arm"},
