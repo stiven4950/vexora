@@ -325,8 +325,13 @@ class Pipeline:
         script_path = self.run_dir / "scripts" / "effect_script.json"
         script = read_model(script_path, EffectScript)
         # Una salida por tema: face_neon y paint_reveal sobre el mismo video no se pisan.
-        dest = self.run_dir / "output" / f"{script.theme}.mp4"
-        stage = f"compose:{script.theme}"
+        # Con guion de prueba, el nombre del guion también: la referencia y la propuesta de Gemini
+        # sobre video_35 no se pisan.
+        name = script.theme
+        if self.config.director.pins:
+            name += "__" + Path(self.config.director.pins).stem
+        dest = self.run_dir / "output" / f"{name}.mp4"
+        stage = f"compose:{name}"
         index_path = self.run_dir / "layers" / "index.json"
         if stream is None:
             stream = not (index_path.exists() and self.manifest.stages.get("render") == self._render_key())
