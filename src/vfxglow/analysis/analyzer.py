@@ -114,6 +114,9 @@ def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: st
         from vfxglow.analysis.blades import finalize_blades
 
         finalize_blades(raw, config.analysis.blades, meta.width, meta.height)
+    from vfxglow.analysis.cast import keep_performers
+
+    keep_performers(raw)
     frames = smooth_tracks(raw, meta.fps, config.analysis)
     add_motion(frames, meta, config.analysis.events.glitch_speed)
     events = EventDetector(config.analysis.events).detect(frames, meta)
