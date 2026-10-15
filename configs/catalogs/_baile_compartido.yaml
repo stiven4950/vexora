@@ -315,38 +315,63 @@ reactions:
       style: {shapes: [punk_crest], thickness: 0.009, palette_every: 30}
       trigger: {hold: 40, fade_in: 2, fade_out: 6}
   - name: serpiente
-    weight: 0.08
+    weight: 0.35
     kinds: [left_arm, right_arm]
-    cooldown: 600
+    cooldown: 900
     effects:
     - type: adornment
       style: {shapes: [snake], thickness: 0.008, focus: false}
       trigger: {hold: 45, fade_in: 1, fade_out: 4}
   # Propuestas de Gemini al leer video_35 (docs/metaforas.md).
   - name: chispa
-    weight: 0.08
+    weight: 0.35
     kinds: [left_arm, right_arm]
-    cooldown: 450
+    cooldown: 900
     effects:
     - type: adornment
       style: {shapes: [spark_trap], thickness: 0.008, focus: false}
       trigger: {hold: 30, fade_in: 1, fade_out: 4}
   - name: cuerda
-    weight: 0.06
+    weight: 0.35
     kinds: [left_arm, right_arm]
-    cooldown: 600
+    cooldown: 900
     effects:
     - type: adornment
       style: {shapes: [time_rope], thickness: 0.008, focus: false}
       trigger: {hold: 25, fade_in: 1, fade_out: 4}
   - name: traje
-    weight: 0.08
+    weight: 0.35
     kinds: [torso]
-    cooldown: 600
+    cooldown: 900
     effects:
     - type: adornment
       style: {shapes: [supersuit], thickness: 0.008, focus: false}
       trigger: {hold: 25, fade_in: 2, fade_out: 6}
+  # Más metáforas con historia (engine/stories.py, docs/metaforas.md).
+  - name: abeja
+    weight: 0.35
+    kinds: [head]
+    cooldown: 900
+    effects:
+    - type: adornment
+      style: {shapes: [bee], thickness: 0.007, focus: false}
+      trigger: {hold: 50, fade_in: 1, fade_out: 4}
+  - name: yoyo
+    weight: 0.3
+    kinds: [left_arm, right_arm]
+    cooldown: 900
+    effects:
+    - type: adornment
+      style: {shapes: [yoyo], thickness: 0.008, focus: false}
+      trigger: {hold: 45, fade_in: 1, fade_out: 4}
+  - name: burbuja
+    weight: 0.25
+    kinds: [torso, legs]
+    cooldown: 900
+    effects:
+    - type: adornment
+      style: {shapes: [bubble], thickness: 0.007, focus: false}
+      trigger: {hold: 50, fade_in: 2, fade_out: 4}
   - name: luna
     weight: 0.15
     kinds: [head]
@@ -514,6 +539,13 @@ reactions:
     - type: adornment
       style: {shapes: [battery], thickness: 0.01, focus: false}
       trigger: {hold: 40, fade_in: 2, fade_out: 8}
+  - name: pajaro
+    weight: 0.25
+    cooldown: 900
+    effects:
+    - type: adornment
+      style: {shapes: [bird], thickness: 0.007, focus: false}
+      trigger: {hold: 50, fade_in: 1, fade_out: 4}
   - name: planeador
     weight: 0.15
     cooldown: 450
@@ -528,3 +560,30 @@ reactions:
     - type: adornment
       style: {shapes: [hero_text], thickness: 0.008, focus: false}
       trigger: {hold: 14, fade_in: 2, fade_out: 6}
+- action: arms_up
+  options:
+  - name: cohete
+    weight: 0.4
+    cooldown: 900
+    effects:
+    - type: adornment
+      style: {shapes: [rocket], thickness: 0.008, focus: false}
+      trigger: {hold: 50, fade_in: 1, fade_out: 6}
+- action: throw
+  options:
+  - name: kamehameha
+    weight: 0.5
+    cooldown: 900
+    effects:
+    - type: adornment
+      style: {shapes: [energy_ball], thickness: 0.008, focus: false}
+      trigger: {hold: 40, fade_in: 1, fade_out: 6}
+- action: still
+  options:
+  - name: burbuja_quieta
+    weight: 0.4
+    cooldown: 900
+    effects:
+    - type: adornment
+      style: {shapes: [bubble], thickness: 0.007, focus: false}
+      trigger: {hold: 50, fade_in: 2, fade_out: 4}

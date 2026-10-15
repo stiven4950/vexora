@@ -35,6 +35,27 @@ está en `configs/pruebas/video_35_gemini.yaml`. Escuchar la letra de la canció
 | Traje de luz (`supersuit`) | `spotlight: traje` | Con la letra "I don't need no supersuit": dos cierres suben dibujando una armadura, el emblema brilla y las placas caen como gotas |
 | Planeador (`glider`) | `arms_open: planeador` | Alas entre las muñecas y la cintura, ondas de la sirena a los costados y, al final, un rayo de punta a punta de los brazos |
 
+## Segunda tanda (implementadas, `engine/stories.py`)
+
+Las primeras propuestas de la lista de abajo, más el yo-yo que pidió Gemini al leer
+`michael_jackson_dance`. Varias reaccionan al cuerpo de verdad, no solo al reloj del momento.
+
+| Metáfora | Opción del catálogo | Historia |
+| --- | --- | --- |
+| Yo-yo de gravedad (`yoyo`) | `spotlight: yoyo` | Una esfera con hilo rebota entre la mano del gesto y el piso, se aplasta al tocarlo; al final la mano la recoge y estalla en chispas |
+| Abeja (`bee`) | `spotlight: abeja` | Zumba en ochos alrededor de la cabeza y esquiva la mano que se acerca; si las manos se juntan, la atrapan con un aplauso |
+| Bola de energía (`energy_ball`) | `throw: kamehameha` | Se carga en la mano que lanza (o entre las dos, si están juntas) y sale como un rayo hacia donde iba la mano |
+| Cohete (`rocket`) | `arms_up: cohete` | Despega de los pies con humo, sube por el cuerpo y estalla en fuegos artificiales sobre la cabeza |
+| Pájaro (`bird`) | `arms_open: pajaro` | Llega volando, se posa en el antebrazo, salta y picotea; sale volando al final o si el brazo se sacude |
+| Burbuja (`bubble`) | `still: burbuja_quieta`, `spotlight: burbuja` | Envuelve a la persona, tiembla más cuanto más se mueve y revienta con un movimiento fuerte |
+
+## Que se alternen
+
+Todas las metáforas con historia tienen un enfriamiento de 900 cuadros, más que cualquier clip:
+ninguna se repite en un mismo video. En el momento destacado pesan lo suficiente para que salgan
+unas 3 por video, sorteadas entre todas. El análisis profundo tiene la misma regla en su prompt:
+de 2 a 4, solo donde encajen, sin repetir.
+
 ## Propuestas para otros videos
 
 | Metáfora | Cuándo encaja | Historia |
