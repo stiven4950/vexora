@@ -120,7 +120,11 @@ def draw_body_glow(runtime, track, points, frame_index: int, height: int, envelo
         scale = body.scale
         if scale is None:
             continue
-        region = part_mask(body, part, (height, width), scale)
+        part_here = part
+        if "biceps" in style.shapes and part in ("left_arm", "right_arm") and all(flexed(body, s) for s in ("left", "right")):
+            # Pose de fisicoculturista: los dos brazos, no solo el que se movió (michael_jackson_dance, seg. 28).
+            part_here = "arms"
+        region = part_mask(body, part_here, (height, width), scale)
         if region is None:
             continue
         if silhouette is not None:
@@ -164,11 +168,10 @@ def draw_body_glow(runtime, track, points, frame_index: int, height: int, envelo
             pick = np.random.default_rng(zlib.crc32(f"{style.seed_offset}:torso:{key}".encode()) & 0xFFFFFFFF)
             drawing = reveal(torso_drawing(body, style.shapes, pick), body, event, runtime.active_frames)
             strokes += [s for line_ in drawing for s in neon_layers(line_, color, line * 0.8, envelope)]
-        if "biceps" in style.shapes and part in ("left_arm", "right_arm", "arms"):
-            sides = ("left", "right") if part == "arms" else (part.split("_")[0],)
+        if "biceps" in style.shapes and part_here in ("left_arm", "right_arm", "arms"):
+            sides = ("left", "right") if part_here == "arms" else (part_here.split("_")[0],)
             for side in sides:
-                curve = biceps_line(body, side)
-                if curve is not None:
+                for curve in biceps_lines(body, side, frame_index):
                     strokes += neon_layers(curve, color, line * 0.8, envelope)
     stroke_batch(layer, strokes, style.hdr_gain)
 
@@ -518,14 +521,54 @@ def abs_lines(body: Body) -> list[np.ndarray]:
     return lines
 
 
+def flexed(body: Body, side: str) -> bool:
+    """Brazo doblado con la mano arriba del codo: la pose de presumir el bíceps."""
+    shoulder, elbow, wrist = (body.get(f"{side}_{j}") for j in ("shoulder", "elbow", "wrist"))
+    if shoulder is None or elbow is None or wrist is None:
+        return False
+    a, b = shoulder - elbow, wrist - elbow
+    cos = float(np.dot(a, b) / max(np.linalg.norm(a) * np.linalg.norm(b), 1e-6))
+    return cos > -0.5 and wrist[1] < elbow[1]  # ángulo del codo menor de 120° y la mano arriba
+
+
 def biceps_line(body: Body, side: str) -> np.ndarray | None:
     shoulder, elbow = body.get(f"{side}_shoulder"), body.get(f"{side}_elbow")
     if shoulder is None or elbow is None:
         return None
     d = elbow - shoulder
+    n = _outward(body, shoulder, d)
+    t = np.linspace(0.2, 0.85, 14)[:, None]
+    bulge = 0.24 if flexed(body, side) else 0.16  # flexionado, el músculo se infla
+    return shoulder + d * t + n * np.sin(np.pi * (t - 0.2) / 0.65) * float(np.linalg.norm(d)) * bulge
+
+
+def _outward(body: Body, shoulder: np.ndarray, d: np.ndarray) -> np.ndarray:
+    """Normal del brazo que apunta hacia arriba (donde se infla el bíceps al flexionar)."""
     n = np.array([-d[1], d[0]]) / max(float(np.linalg.norm(d)), 1e-6)
-    t = np.linspace(0.2, 0.85, 12)[:, None]
-    return shoulder + d * t + n * np.sin(np.pi * (t - 0.2) / 0.65) * float(np.linalg.norm(d)) * 0.16
+    return n if n[1] <= 0 else -n
+
+
+def biceps_lines(body: Body, side: str, frame_index: int = 0) -> list[np.ndarray]:
+    """Brazo de caricatura: el bíceps inflado, la línea del tríceps por debajo y, si presume,
+    tres marcas de esfuerzo que laten sobre el músculo."""
+    shoulder, elbow = body.get(f"{side}_shoulder"), body.get(f"{side}_elbow")
+    peak = biceps_line(body, side)
+    if peak is None:
+        return []
+    d = elbow - shoulder
+    length = float(np.linalg.norm(d))
+    n = _outward(body, shoulder, d)
+    t = np.linspace(0.3, 0.8, 10)[:, None]
+    triceps = shoulder + d * t - n * np.sin(np.pi * (t - 0.3) / 0.5) * length * 0.1
+    lines = [peak, triceps]
+    if flexed(body, side):
+        top = shoulder + d * 0.55 + n * length * 0.32
+        pulse = 1.0 + 0.15 * np.sin(frame_index * 0.9)
+        u = d / max(length, 1e-6)
+        for angle in (-0.5, 0.0, 0.5):
+            ray = n * np.cos(angle) + u * np.sin(angle)
+            lines.append(np.array([top + ray * length * 0.06, top + ray * length * 0.06 * (1 + 2.2 * pulse)]))
+    return lines
 
 
 # ----- adornos -----
