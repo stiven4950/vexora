@@ -30,3 +30,10 @@ def test_two_dancers_stay_a_pair() -> None:
     frames = [FrameRecord(frame=i, time_s=i / 25, people=[_person("person_0", 0.3, 0.6), _person("person_1", 0.7, 0.55)]) for i in range(20)]
     assert keep_performers(frames) == "pareja"
     assert all([p.person_id for p in f.people] == ["person_0", "person_1"] for f in frames)
+
+
+def test_every_gesture_is_a_known_event() -> None:
+    from vfxglow.analysis.gestures import GESTURE_NAMES
+    from vfxglow.director.schema import EVENT_NAMES
+
+    assert GESTURE_NAMES <= set(EVENT_NAMES)
