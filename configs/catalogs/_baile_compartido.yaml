@@ -322,6 +322,31 @@ reactions:
     - type: adornment
       style: {shapes: [snake], thickness: 0.008, focus: false}
       trigger: {hold: 45, fade_in: 1, fade_out: 4}
+  # Propuestas de Gemini al leer video_35 (docs/metaforas.md).
+  - name: chispa
+    weight: 0.08
+    kinds: [left_arm, right_arm]
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [spark_trap], thickness: 0.008, focus: false}
+      trigger: {hold: 30, fade_in: 1, fade_out: 4}
+  - name: cuerda
+    weight: 0.06
+    kinds: [left_arm, right_arm]
+    cooldown: 600
+    effects:
+    - type: adornment
+      style: {shapes: [time_rope], thickness: 0.008, focus: false}
+      trigger: {hold: 25, fade_in: 1, fade_out: 4}
+  - name: traje
+    weight: 0.08
+    kinds: [torso]
+    cooldown: 600
+    effects:
+    - type: adornment
+      style: {shapes: [supersuit], thickness: 0.008, focus: false}
+      trigger: {hold: 25, fade_in: 2, fade_out: 6}
   - name: luna
     weight: 0.15
     kinds: [head]
@@ -489,6 +514,13 @@ reactions:
     - type: adornment
       style: {shapes: [battery], thickness: 0.01, focus: false}
       trigger: {hold: 40, fade_in: 2, fade_out: 8}
+  - name: planeador
+    weight: 0.15
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [glider], thickness: 0.008, focus: false}
+      trigger: {hold: 40, fade_in: 2, fade_out: 6}
   - name: heroe
     weight: 0.2
     cooldown: 450

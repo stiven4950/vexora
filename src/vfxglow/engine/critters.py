@@ -16,6 +16,21 @@ final. Cada uno recorre su guion según la fracción `u` del momento (0 al encen
   aplasta al frenar, tiembla, y al final revienta en gotas (seg. 25,4-27,0: el lanzamiento de béisbol
   con un globo de agua).
 
+Propuestos por Gemini al leer video_35 completo como animador (configs/pruebas/video_35_gemini.yaml):
+
+- `spark_trap`: una chispa viva con ojos salta de la gorra a la mano levantada, intenta escapar
+  hacia arriba, el puño la atrapa (se aplasta y suelta chispas), se escapa otra vez, la vuelve a
+  atrapar y al final se parte en dos aros que corren a las muñecas (seg. 8,9-10,1).
+- `time_rope`: un ancla de luz se clava en el aire al costado y una soga va de ella a las manos;
+  al jalar se tensa recta, vibra como cuerda de guitarra y marca "<<"; floja, se comba. Al final se
+  suelta, se enrolla en las manos y queda una bola de energía (seg. 16,3-17,2).
+- `supersuit`: dos cierres suben de la cadera a los hombros y van dibujando una armadura de
+  placas (pectorales, emblema, hombreras); el emblema brilla al 100% y al final las placas se
+  desarman y caen como gotas ("I don't need no supersuit", seg. 19,9-20,9).
+- `glider`: alas de planeador entre las muñecas y los costados, ondas de sonido que salen del
+  pecho y estelas en las puntas de los dedos; al final las alas se funden en un rayo que atraviesa
+  los brazos de punta a punta (seg. 28,8-30,8).
+
 El estado entre cuadros (posiciones suavizadas) se guarda en `runtime.swoosh["_critters"]`.
 """
 
@@ -27,7 +42,7 @@ from vfxglow.engine.raster import fill_polygon, splat
 
 TAU = 2.0 * np.pi
 WHITE = np.array([1.0, 1.0, 1.0], np.float32)
-CRITTERS = ("stick_man", "ufo", "snake", "water_balloon")
+CRITTERS = ("stick_man", "ufo", "snake", "water_balloon", "spark_trap", "time_rope", "supersuit", "glider")
 
 
 def _state(runtime, key: str) -> dict:
@@ -328,6 +343,258 @@ def _water_balloon(body, frame, scale, frame_index, runtime, layer, color, alpha
     return [blob, np.array([knot, knot - direction * 0.05 * scale + normal * 0.03 * scale])]
 
 
+def _activation(runtime, event, name: str, body) -> dict:
+    """Estado propio de cada vez que se enciende (el ancla de la soga no se reutiliza)."""
+    start = event.start_frame if event is not None else 0
+    return _state(runtime, f"{name}:{body.prefix}:{start}")
+
+
+# ----- la chispa atrapada en el puño -----
+
+
+def _sprite(pos, r, k, up, frame_index, layer, color, alpha, runtime) -> list[np.ndarray]:
+    """Chispa con ojos. `k` > 1 la estira hacia arriba (huye); < 1 la aplasta (atrapada)."""
+    side = np.array([-up[1], up[0]])
+    t = np.linspace(0, TAU, 28)
+    blob = pos + np.outer(np.cos(t) * r / np.sqrt(k), side) + np.outer(np.sin(t) * r * k, up)
+    fill_polygon(layer, blob, np.asarray(color, np.float32), alpha * 0.5, 0.9, feather=1.5)
+    for s in (-1, 1):
+        eye = pos + up * r * 0.25 * k + side * s * r * 0.35 / np.sqrt(k)
+        splat(layer, float(eye[0]), float(eye[1]), max(r * 0.16, 1.0), WHITE * 1.6, alpha, runtime.kernels)
+    curves = [blob]
+    for n in range(6):  # púas eléctricas que giran
+        a = frame_index * 0.35 + n * TAU / 6
+        d = np.cos(a) * side + np.sin(a) * up
+        base = pos + d * r * 1.15
+        kink = base + d * r * 0.3 + np.array([-d[1], d[0]]) * r * 0.15
+        curves.append(np.array([base, kink, base + d * r * 0.6]))
+    return curves
+
+
+def _knuckle_sparks(layer, hand, scale, frame_index, alpha, runtime) -> None:
+    rng = np.random.default_rng(frame_index)
+    for _ in range(6):
+        angle, dist = rng.uniform(0, TAU), rng.uniform(0.05, 0.16) * scale
+        point = hand + np.array([np.cos(angle), np.sin(angle)]) * dist
+        splat(layer, float(point[0]), float(point[1]), 0.015 * scale + 1, WHITE * 1.5, alpha, runtime.kernels)
+
+
+def _spark_trap(body, frame, scale, frame_index, runtime, layer, color, alpha, event, head) -> list[np.ndarray]:
+    center, across, down = frame
+    up = -down
+    wrists = {s: body.get(f"{s}_wrist") for s in ("left", "right")}
+    if any(w is None for w in wrists.values()):
+        return []
+    side = min(wrists, key=lambda s: float(np.dot(wrists[s] - center, down)))  # la mano levantada
+    other = wrists["left" if side == "right" else "right"]
+    wrist, elbow = wrists[side], body.get(f"{side}_elbow")
+    forearm = (wrist - elbow) / max(float(np.linalg.norm(wrist - elbow)), 1e-6) if elbow is not None else up
+    hand = wrist + forearm * 0.1 * scale
+    top = head + up * 0.25 * scale if head is not None else center + up * 0.7 * scale
+    u = _phase(runtime, event)
+    r = 0.1 * scale
+    if u < 0.15:  # salta de la gorra a la mano en un arco
+        s = _ease(_seg(u, 0.0, 0.15))
+        pos = top + (hand + up * 0.15 * scale - top) * s + up * np.sin(s * np.pi) * 0.25 * scale
+        return _sprite(pos, r, 1.2, up, frame_index, layer, color, alpha, runtime)
+    if u < 0.45:  # flota frente a la palma e intenta escapar hacia arriba
+        s = _seg(u, 0.15, 0.45)
+        pos = hand + up * (0.15 + 0.12 * s) * scale + across * np.sin(frame_index * 0.9) * 0.04 * scale
+        return _sprite(pos, r, 1.0 + 0.5 * s, up, frame_index, layer, color, alpha, runtime)
+    if u < 0.55 or 0.68 <= u < 0.82:  # el puño la atrapa: aplastada, chispas entre los nudillos
+        _knuckle_sparks(layer, hand, scale, frame_index, alpha, runtime)
+        return _sprite(hand, r * 0.8, 0.45, up, frame_index, layer, color, alpha, runtime)
+    if u < 0.68:  # el puño se abre: se escapa un momento
+        s = _seg(u, 0.55, 0.68)
+        pos = hand + up * np.sin(s * np.pi) * 0.25 * scale
+        return _sprite(pos, r, 1.6 - 0.6 * s, up, frame_index, layer, color, alpha, runtime)
+    # se parte en dos aros que corren a las muñecas
+    s = _ease(_seg(u, 0.82, 1.0))
+    t = np.linspace(0, TAU, 24)
+    curves = []
+    for target in (wrist, other):
+        pos = hand + (target - hand) * s
+        ring_r = (0.03 + 0.07 * s) * scale
+        curves.append(pos + np.outer(np.cos(t) * ring_r, across) + np.outer(np.sin(t) * ring_r * 0.4, up))
+    return curves
+
+
+# ----- la soga del tiempo -----
+
+
+def _anchor_glyph(at, size, up) -> list[np.ndarray]:
+    side = np.array([-up[1], up[0]])
+    t = np.linspace(0, TAU, 16)
+    ring = at + up * size + np.outer(np.cos(t), side) * size * 0.18 + np.outer(np.sin(t), up) * size * 0.18
+    shank = np.array([at + up * size * 0.82, at - up * size * 0.8])
+    stock = np.array([at + up * size * 0.5 - side * size * 0.35, at + up * size * 0.5 + side * size * 0.35])
+    a = np.linspace(np.pi * 0.1, np.pi * 0.9, 18)
+    arm = at - up * size * 0.35 + np.outer(np.cos(a), side) * size * 0.6 - np.outer(np.sin(a), up) * size * 0.45
+    return [ring, shank, stock, arm]
+
+
+def _time_rope(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list[np.ndarray]:
+    center, across, down = frame
+    up = -down
+    wrists = [body.get("left_wrist"), body.get("right_wrist")]
+    if any(w is None for w in wrists):
+        return []
+    hands = np.mean(wrists, axis=0)
+    st = _activation(runtime, event, "rope", body)
+    height, width = layer.shape[:2]
+    if "anchor" not in st:  # se clava detrás de él, contra su marcha: al jalar se aleja del ancla
+        hips = [v for v in (body.points.get(f"vel:{body.prefix}{j}") for j in ("left_hip", "right_hip")) if v is not None]
+        drift = float(np.mean([v[0] for v in hips])) if hips else 0.0
+        lean = -drift if abs(drift) > 1e-3 else float(hands[0] - center[0]) or 1.0
+        anchor = hands + np.array([np.sign(lean) * 2.4 * scale, -0.15 * scale])
+        st["anchor"] = np.clip(anchor, [0.05 * width, 0.1 * height], [0.95 * width, 0.9 * height])
+        st["dist"] = float(np.linalg.norm(hands - st["anchor"]))
+        st["tension"] = 0.0
+    anchor = st["anchor"]
+    u = _phase(runtime, event)
+    dist = float(np.linalg.norm(hands - anchor))
+    pull = float(np.clip((dist - st["dist"]) / (0.012 * scale), 0.0, 1.0))  # se aleja: jala
+    st["tension"] = 0.6 * st["tension"] + 0.4 * pull
+    st["dist"] = dist
+    tension = st["tension"]
+    curves = _anchor_glyph(anchor, 0.25 * scale, up) if u < 0.8 else []
+    if u >= 0.8:  # se suelta, se enrolla en las manos y queda una bola de energía
+        s = _seg(u, 0.8, 1.0)
+        t = np.linspace(0, TAU * 3 * (1 - s) + 0.5, 50)
+        r = (0.25 * (1 - s) + 0.06) * scale * np.linspace(1.0, 0.3, len(t))
+        curves.append(hands + np.outer(np.cos(t + frame_index * 0.5) * r, across) + np.outer(np.sin(t + frame_index * 0.5) * r * 0.5, up))
+        if s > 0.6:
+            ball = hands + np.outer(np.cos(t), across) * 0.08 * scale + np.outer(np.sin(t), up) * 0.08 * scale
+            fill_polygon(layer, ball, np.asarray(color, np.float32), alpha * 0.6, 0.9, feather=2.0)
+            splat(layer, float(hands[0]), float(hands[1]), 0.06 * scale, WHITE * 1.6, alpha, runtime.kernels)
+        return curves
+    grow = _ease(_seg(u, 0.0, 0.12))  # la soga sale disparada del ancla hacia las manos
+    end = anchor + (hands - anchor) * grow
+    s = np.linspace(0, 1, 32)[:, None]
+    span = end - anchor
+    normal = np.array([-span[1], span[0]]) / max(float(np.linalg.norm(span)), 1e-6)
+    sag = (1 - tension) * 0.2 * scale * (1 + 0.15 * np.sin(frame_index * 0.8))  # floja, con rebote
+    buzz = tension * 0.025 * scale * np.sin(frame_index * 2.3) * np.sin(s * np.pi * 3)  # tensa: vibra
+    rope = anchor + span * s + down * sag * np.sin(s * np.pi) + normal * buzz
+    curves.append(rope)
+    if tension > 0.35:  # "<<": rebobina hacia las manos
+        d = span / max(float(np.linalg.norm(span)), 1e-6)
+        for at in (0.4, 0.6):
+            tip = rope[int(at * 31)] + up * 0.09 * scale
+            for off in (0.0, 0.05):
+                point = tip + d * off * scale
+                curves.append(np.array([point - d * 0.04 * scale + up * 0.04 * scale, point, point - d * 0.04 * scale - up * 0.04 * scale]))
+    return curves
+
+
+# ----- la armadura de luz -----
+
+
+def _supersuit(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list[np.ndarray]:
+    center, across, down = frame
+    corners = [body.get(j) for j in ("left_shoulder", "right_shoulder", "left_hip", "right_hip")]
+    if any(c is None for c in corners):
+        return []
+    ls, rs, lh, rh = corners
+    u = _phase(runtime, event)
+    pull = 1.0 + 0.12 * np.sin(np.pi * _seg(u, 0.45, 0.75))  # tira de las solapas hacia afuera
+
+    def at(points):
+        out = []
+        for x, y in points:
+            left, right = ls + (lh - ls) * y, rs + (rh - rs) * y
+            mid = (left + right) / 2
+            out.append(mid + (right - left) * 0.5 * x * pull)
+        return np.array(out)
+
+    plates = [
+        [(-0.85, 0.12), (-0.1, 0.12), (-0.1, 0.42), (-0.5, 0.5), (-0.8, 0.38), (-0.85, 0.12)],
+        [(0.85, 0.12), (0.1, 0.12), (0.1, 0.42), (0.5, 0.5), (0.8, 0.38), (0.85, 0.12)],
+        [(-1.05, 0.05), (-0.95, -0.1), (-0.65, -0.08), (-0.55, 0.05)],
+        [(1.05, 0.05), (0.95, -0.1), (0.65, -0.08), (0.55, 0.05)],
+        *[[(-0.6, y), (0.0, y + 0.08), (0.6, y)] for y in (0.6, 0.72, 0.84)],
+    ]
+    emblem = [(0.0, 0.18), (0.13, 0.3), (0.0, 0.42), (-0.13, 0.3), (0.0, 0.18)]
+    if u < 0.45:  # dos cierres suben de la cadera a los hombros y dibujan las placas
+        level = 1.05 - 1.2 * _ease(_seg(u, 0.0, 0.45))
+        curves = []
+        for plate in plates + [emblem]:
+            shown = [pt for pt in plate if pt[1] >= level]
+            if len(shown) >= 2:
+                curves.append(at(shown))
+        for x in (-0.1, 0.1):
+            zipper = at([(x, 1.0), (x, max(level, -0.05))])
+            curves.append(zipper)
+            splat(layer, float(zipper[-1][0]), float(zipper[-1][1]), 0.03 * scale, WHITE * 1.6, alpha, runtime.kernels)
+        return curves
+    if u < 0.75:  # completa: el emblema brilla al 100%
+        curves = [at(plate) for plate in plates]
+        badge = at(emblem)
+        fill_polygon(layer, badge, np.asarray(color, np.float32), alpha * 0.7, 0.9, feather=1.5)
+        glow = badge.mean(axis=0)
+        splat(layer, float(glow[0]), float(glow[1]), 0.07 * scale * (1 + 0.2 * np.sin(frame_index)), WHITE * 1.8, alpha, runtime.kernels)
+        return curves + [badge]
+    # se desarma: las placas caen como gotas de luz hacia las piernas
+    s = _seg(u, 0.75, 1.0)
+    curves = []
+    for n, plate in enumerate(plates + [emblem]):
+        piece = at(plate)
+        middle = piece.mean(axis=0)
+        fall = down * (s * s * (0.6 + 0.08 * n)) * scale + across * np.sin(n * 2.1) * s * 0.1 * scale
+        piece = middle + (piece - middle) * (1 - 0.8 * s) + fall
+        curves.append(piece)
+        splat(layer, float(piece.mean(axis=0)[0]), float(piece.mean(axis=0)[1]), 0.02 * scale + 1, WHITE * 1.4, alpha * (1 - s), runtime.kernels)
+    return curves
+
+
+# ----- el planeador de la sirena -----
+
+
+def _glider(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list[np.ndarray]:
+    from vfxglow.engine.duo_doodles import zigzag
+    from vfxglow.engine.duo_fx import fill_band, taper
+
+    center, across, down = frame
+    joints = {f"{s}_{j}": body.get(f"{s}_{j}") for s in ("left", "right") for j in ("wrist", "elbow", "shoulder", "hip")}
+    if any(p is None for p in joints.values()):
+        return []
+    u = _phase(runtime, event)
+    st = _activation(runtime, event, "glider", body)
+    chest = center + down * 0.3 * scale
+    if u >= 0.85:  # las alas se funden en un rayo de punta a punta de los brazos
+        path = np.array([joints[k] for k in ("left_wrist", "left_elbow", "left_shoulder", "right_shoulder", "right_elbow", "right_wrist")])
+        rng = np.random.default_rng(frame_index)
+        return [zigzag(path, 0.05 * scale, rng, 0.05 * scale)]
+    unfold = _ease(_seg(u, 0.0, 0.15))
+    curves: list[np.ndarray] = []
+    for s in ("left", "right"):
+        wrist, elbow, shoulder, hip = (joints[f"{s}_{j}"] for j in ("wrist", "elbow", "shoulder", "hip"))
+        tip = shoulder + (wrist - shoulder) * unfold
+        root = shoulder + (hip - shoulder) * 0.85
+        bend = shoulder + (elbow - shoulder) * unfold
+        k = np.linspace(0, 1, 16)[:, None]  # borde de fuga: curva de la cintura a la punta
+        control = root + (tip - root) * 0.6 + down * 0.05 * scale
+        trailing = (1 - k) ** 2 * root + 2 * (1 - k) * k * control + k ** 2 * tip
+        wing = np.vstack([np.array([tip, bend, shoulder, root]), trailing[1:]])
+        fill_polygon(layer, wing, np.asarray(color, np.float32), alpha * 0.25, 0.9, feather=2.0)
+        curves.append(wing)
+        for at in (0.4, 0.7):  # costillas del ala, del hombro al borde de fuga
+            curves.append(np.array([shoulder + (bend - shoulder) * at * 0.5, trailing[int(at * 15)]]))
+        trail = st.setdefault(s, [])  # estela en la punta de los dedos, con retraso
+        trail.append(wrist.copy())
+        del trail[:-10]
+        if len(trail) >= 3 and unfold > 0.9:
+            fill_band(layer, np.array(trail), 0.012 * scale * taper(len(trail), 0.7) + 0.5, alpha * 0.6)
+    for n in range(3):  # ondas de la sirena que salen del pecho
+        age = ((frame_index + n * 8) % 24) / 24
+        r = (0.5 + 1.6 * age) * scale
+        spread = (1 - age) * 0.5  # al alejarse se acortan hasta apagarse
+        for facing in (0.0, np.pi):  # a los dos costados, no sobre la cara
+            a = np.linspace(facing - spread, facing + spread, 16)
+            curves.append(chest + np.outer(np.cos(a) * r, across) + np.outer(np.sin(a) * r * 0.6, down))
+    return curves
+
+
 def critter(shape, body, frame, scale, frame_index, seed, runtime, layer, color, alpha, head, event=None) -> list[np.ndarray]:
     if shape == "stick_man":
         return _stick_man(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
@@ -337,4 +604,12 @@ def critter(shape, body, frame, scale, frame_index, seed, runtime, layer, color,
         return _snake(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape == "water_balloon":
         return _water_balloon(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape == "spark_trap":
+        return _spark_trap(body, frame, scale, frame_index, runtime, layer, color, alpha, event, head)
+    if shape == "time_rope":
+        return _time_rope(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape == "supersuit":
+        return _supersuit(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape == "glider":
+        return _glider(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     return []

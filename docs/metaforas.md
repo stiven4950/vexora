@@ -23,6 +23,18 @@ para elegirlas, tanto para el coreógrafo como para el director con IA (`docs/pl
 | Serpiente (`snake`) | Brazo protagonista | Recorre los brazos de mano a mano, se enrosca en la muñeca y sale disparada como un rayo |
 | Batería (`battery`) | Brazos que se abren | Se carga en el pecho hasta el "100%" |
 
+## Las que propuso Gemini al leer video_35 completo (implementadas)
+
+Gemini (Argon) recibió el video entero con el prompt de animador y propuso estas cuatro. Su guion
+está en `configs/pruebas/video_35_gemini.yaml`. Escuchar la letra de la canción le dio dos de ellas.
+
+| Metáfora | Opción del catálogo | Historia |
+| --- | --- | --- |
+| Chispa atrapada (`spark_trap`) | `spotlight: chispa` | Salta de la gorra a la mano levantada, intenta escapar, el puño la atrapa dos veces y se parte en dos aros que corren a las muñecas |
+| Soga del tiempo (`time_rope`) | `spotlight: cuerda` | Un ancla se clava detrás de él; al jalar, la soga se tensa, vibra y marca "<<"; al final se enrolla en las manos como una bola de energía |
+| Traje de luz (`supersuit`) | `spotlight: traje` | Con la letra "I don't need no supersuit": dos cierres suben dibujando una armadura, el emblema brilla y las placas caen como gotas |
+| Planeador (`glider`) | `arms_open: planeador` | Alas entre las muñecas y la cintura, ondas de la sirena a los costados y, al final, un rayo de punta a punta de los brazos |
+
 ## Propuestas para otros videos
 
 | Metáfora | Cuándo encaja | Historia |
