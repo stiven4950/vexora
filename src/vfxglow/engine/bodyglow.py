@@ -106,9 +106,10 @@ def draw_body_glow(runtime, track, points, frame_index: int, height: int, envelo
         return
     width = layer.shape[1]
     part = event.kind if event is not None and event.kind in PARTS else effect.target.id
-    if effect.target.id == "jacket":
-        # El saco es una prenda, no la parte que se movió: manda el objetivo del efecto.
-        part = "jacket"
+    if effect.target.id in PARTS and effect.target.id != "body":
+        # El efecto pide una parte concreta (el saco, los pies, el torso): manda esa, no la parte
+        # que se movió.
+        part = effect.target.id
     if part not in PARTS:
         part = "body"
     silhouette = _silhouette(track, width, height)

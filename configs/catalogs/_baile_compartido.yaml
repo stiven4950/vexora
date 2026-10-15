@@ -313,6 +313,29 @@ reactions:
     - type: adornment
       style: {shapes: [head_bolts], thickness: 0.009}
       trigger: {hold: 8, fade_in: 1, fade_out: 6}
+  # Zapatos encendidos: el contorno real del zapato (silueta) teñido y con línea de neón, y al
+  # mover el pie salen partículas de la punta. Cada movimiento sortea una figura; con temporada,
+  # las figuras son las de la temporada (director/seasons.py reemplaza las de droplets).
+  - name: zapatos
+    weight: 0.2
+    kinds: [legs, feet]
+    cooldown: 240
+    effects:
+    - type: body_glow
+      target: {kind: joint, id: feet}
+      style: {shapes: [no_outline], fill: 0.7}
+      render: {blend: tint}
+      trigger: {hold: 30, fade_in: 3, fade_out: 8}
+    - type: body_glow
+      target: {kind: joint, id: feet}
+      style: {fill: 0.0, thickness: 0.012}
+      trigger: {hold: 30, fade_in: 3, fade_out: 8}
+    - type: droplets
+      # Desde el tobillo (la velocidad se mide ahí), justo sobre el zapato. 0.04: el 10-25% de los
+      # cuadros más rápidos del pie en video_33 y video_34.
+      target: {kind: joint, id: 'left_ankle,right_ankle'}
+      style: {thickness: 0.008, hdr_gain: 1.8, size: 1.1, min_speed: 0.04, chance: 0.85, shapes: [star, heart, note, ring, leaf, curl, flake, drop]}
+      trigger: {hold: 30, fade_in: 1, fade_out: 10}
 - action: hand_ear
   options:
   - name: corona
