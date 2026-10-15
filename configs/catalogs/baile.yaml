@@ -62,17 +62,29 @@ always:
 - type: prop_outline
   style: {fill: 0.0, palette_every: 30}
 reactions:
-# Al empezar: un aro en la frente y ojos de corazón (en pareja, en los dos).
+# Al empezar: un aro en la frente y ojos de corazón, o un disfraz de cara (en pareja, en los dos).
 - action: entrance
   options:
   - name: aureola
-    weight: 1.0
+    weight: 0.4
     effects:
     - type: adornment
       style: {shapes: [head_ring], thickness: 0.012, focus: false}
       trigger: {hold: 70, fade_in: 4, fade_out: 12}
     - type: adornment
       style: {shapes: [heart_eyes], thickness: 0.008, focus: false}
+      trigger: {hold: 70, fade_in: 4, fade_out: 12}
+  - name: antifaz_entrada
+    weight: 0.3
+    effects:
+    - type: adornment
+      style: {shapes: [hero_mask, masquerade, bat_mask, cat_mask, fox_mask], thickness: 0.009, focus: false}
+      trigger: {hold: 70, fade_in: 4, fade_out: 12}
+  - name: ocurrencia_entrada
+    weight: 0.3
+    effects:
+    - type: adornment
+      style: {shapes: [bunny, horns, antennae, ninja_band, mustache], thickness: 0.009, focus: false}
       trigger: {hold: 70, fade_in: 4, fade_out: 12}
 - action: spotlight
   options:
@@ -300,6 +312,43 @@ reactions:
         shapes: [abs]
         fill: 0.0
       trigger: *id008
+  # Disfraces de cara y cabeza (engine/costumes.py): cada vez sale uno de la lista.
+  - name: antifaz
+    weight: 0.2
+    kinds: [head]
+    cooldown: 240
+    yields_to: [prop_worn, face_touch]
+    effects:
+    - type: adornment
+      style: {shapes: [hero_mask, masquerade, bat_mask], thickness: 0.009}
+      trigger: {hold: 18, fade_in: 3, fade_out: 8}
+  - name: animal
+    weight: 0.2
+    kinds: [head]
+    cooldown: 240
+    yields_to: [prop_worn, face_touch]
+    effects:
+    - type: adornment
+      style: {shapes: [cat_mask, fox_mask, bunny], thickness: 0.009}
+      trigger: {hold: 18, fade_in: 3, fade_out: 8}
+  - name: ocurrencia
+    weight: 0.2
+    kinds: [head]
+    cooldown: 240
+    yields_to: [prop_worn, face_touch]
+    effects:
+    - type: adornment
+      style: {shapes: [mustache, horns, antennae, ninja_band, pirate_patch], thickness: 0.009}
+      trigger: {hold: 18, fade_in: 3, fade_out: 8}
+  # Cuello: corbata o moño.
+  - name: corbata
+    weight: 0.2
+    kinds: [torso]
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [tie, bowtie], thickness: 0.009}
+      trigger: {hold: 18, fade_in: 3, fade_out: 8}
   # Cabeza: un aro sobre la frente (no justo después de la entrada).
   - name: aureola
     weight: 0.3
@@ -568,7 +617,7 @@ reactions:
     - type: adornment
       style:
         thickness: 0.016
-        shapes: [necklace, chain, chest_stars, cap, cowboy_hat, top_hat, fedora, party_hat]
+        shapes: [necklace, chain, chest_stars, cap, cowboy_hat, top_hat, fedora, party_hat, tie, bowtie, hero_mask, cat_mask, horns, antennae]
       trigger: {hold: 20, fade_in: 4, fade_out: 8}
   - name: nada
     weight: 0.5

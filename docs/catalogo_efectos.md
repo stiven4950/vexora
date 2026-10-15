@@ -307,6 +307,21 @@ Las partes del cuerpo encendidas usan **dos pasadas**, como haría un editor: un
 | 27.2 | Barrido del brazo | Estela blanca gruesa | ✅ `fast_swing → estela` (modo pintura) |
 | 28.1–28.7 | Cadera | **Sombrero vaquero** y cinturón dibujados | ✅ sombrero; cinturón 🔜 |
 
+### Disfraces de cara y cabeza, y prendas del cuello (`engine/costumes.py`)
+
+Adornos anclados a la cara (ojos, nariz, boca), que giran con la cabeza. En `baile` salen al empezar
+(en lugar de la aureola, a veces), cuando la cabeza o el torso son protagonistas, y en las pausas.
+
+| Opción | Figuras (sale una de la lista) |
+| --- | --- |
+| `antifaz` | `hero_mask` (superhéroe), `masquerade` (veneciano con plumas), `bat_mask` (con orejas puntiagudas) |
+| `animal` | `cat_mask`, `fox_mask`, `bunny` |
+| `ocurrencia` | `mustache` (bigote), `horns` (cuernos), `antennae` (antenas que se balancean), `ninja_band` (bandana al viento), `pirate_patch` (parche) |
+| `corbata` | `tie` (corbata con rayas), `bowtie` (moño) |
+
+De espaldas no se dibuja lo que va sobre la cara ni la corbata; sí orejas, cuernos, antenas y
+bandana.
+
 ### Efectos compartidos entre solista y pareja
 
 Los dibujos leídos de video_34 (rosas, cintas, alma, rayos, discos de DJ, arcos 3D, cresta punk,

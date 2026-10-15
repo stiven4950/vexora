@@ -37,7 +37,13 @@ def test_every_part_has_a_mask(part: str) -> None:
 def test_every_adornment_draws(shape: str) -> None:
     from vfxglow.engine.effects import EffectRuntime
 
-    body = Body(_points(), None)
+    points = _points()
+    from vfxglow.engine.costumes import FACE, NECK
+
+    if shape in FACE + NECK:
+        # Van sobre la cara o el pecho: de frente (la pose de prueba está de espaldas).
+        points = {name.replace("left", "@").replace("right", "left").replace("@", "right"): p for name, p in points.items()}
+    body = Body(points, None)
     effect = Effect(id="a", type="adornment", target=EffectTarget(kind="joint", id="nose"))
     runtime = EffectRuntime(effect, 1, 10)
     layer = np.zeros((200, 200, 4), np.float32)

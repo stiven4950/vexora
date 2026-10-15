@@ -39,6 +39,7 @@ import zlib
 
 import numpy as np
 
+from vfxglow.engine.costumes import COSTUMES, costume
 from vfxglow.engine.duo_fx import DUO_FX, duo_fx
 from vfxglow.engine.raster import fill_polygon, splat
 
@@ -49,7 +50,7 @@ DOODLES = (
     "shoulder_bolts", "head_bolts", "hand_ring", "moon", "chest_burst", "body_bolts", "foot_spark",
     "floor_arc", "leg_line", "leg_string", "side_edges", "shoulder_arcs", "heart_eyes", "spin_arcs", "glow_eyes",
     "foot_ring", "foot_bolts",
-) + DUO_FX
+) + DUO_FX + COSTUMES
 WHITE = np.array([1.0, 1.0, 1.0], np.float32)
 
 
@@ -144,6 +145,10 @@ def _event_side(event) -> str | None:
 
 
 def doodle(shape, body, frame, scale, frame_index, seed, runtime, layer, color, alpha, head, event=None) -> list[np.ndarray]:
+    if shape in COSTUMES:
+        from vfxglow.engine.bodyglow import facing
+
+        return costume(shape, body, frame, scale, frame_index, layer, color, alpha, facing(body) == "back")
     if shape in DUO_FX:
         return duo_fx(shape, body, frame, scale, frame_index, seed, runtime, layer, color, alpha, head, event)
     center, across, down = frame

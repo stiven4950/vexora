@@ -33,7 +33,8 @@ def _person(pid: str, cx: float, i: int) -> PersonPose:
             dy = -0.12 * np.sin(i * 0.6) * (1.0 if "wrist" in name else 0.5)
         if name.startswith("left_") and any(k in name for k in ("knee", "ankle", "heel", "foot")):
             dx = -0.04 * abs(np.sin(i * 0.4))
-        lms.append(Landmark(name=name, x=cx + x + dx, y=0.5 + y + dy, c=0.95))
+        # De frente: el lado izquierdo de la persona queda a la derecha de la imagen.
+        lms.append(Landmark(name=name, x=cx - x - dx, y=0.5 + y + dy, c=0.95))
     # La velocidad la calcula el análisis: aquí, golpes rápidos de muñeca (pico 0,3; en video_34 el
     # 1% más rápido pasa de 0,35).
     speed = 0.3 * abs(np.cos(i * 0.6))
