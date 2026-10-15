@@ -1,0 +1,367 @@
+{
+ "protagonista": "Bailarina con top deportivo rojo oscuro, pantalones anchos grises con rayas negras a los lados, zapatillas blancas, trenza larga y al inicio un sombrero tipo fedora gris.",
+ "publico": "ninguno (escenario vacío con cortina negra de fondo)",
+ "lectura": [
+  {
+   "inicio": 0.0,
+   "fin": 1.6,
+   "cuerpo": "Posada quieta, mano derecha sujetando el ala del sombrero tapando la cara, brazo izquierdo extendido bajo.",
+   "intencion": "Misterio, espera tensa antes de empezar, estilo clásico Michael Jackson.",
+   "camara": "Estática, plano entero."
+  },
+  {
+   "inicio": 1.6,
+   "fin": 5.2,
+   "cuerpo": "Camina despacio hacia atrás haciendo deslizamientos (moonwalk suave) mientras sigue sujetando el sombrero.",
+   "intencion": "Flotar sobre el suelo, entrada sigilosa y con estilo.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 5.2,
+   "fin": 6.4,
+   "cuerpo": "Gira el torso hacia su derecha y se detiene de perfil, tocando el sombrero con la mano izquierda.",
+   "intencion": "Pausa dramática, marcando el perfil.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 6.4,
+   "fin": 10.1,
+   "cuerpo": "Inclinada de perfil, da golpes secos de cadera (hip hits) al ritmo de la guitarra mientras agarra el pantalón.",
+   "intencion": "Marcar cada golpe de guitarra con el cuerpo como un resorte.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 10.1,
+   "fin": 11.9,
+   "cuerpo": "Desliza el pie derecho, sube las manos a la cabeza y da un giro rápido completo sobre sí misma.",
+   "intencion": "Soltar la tensión acumulada con un torbellino.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 11.9,
+   "fin": 14.0,
+   "cuerpo": "Abre ambos brazos a los lados en horizontal y hace una onda suave que recorre de una mano a la otra pasando por los hombros.",
+   "intencion": "Conducir la corriente eléctrica de punta a punta.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 14.0,
+   "fin": 15.6,
+   "cuerpo": "Agarra el sombrero con la mano derecha y lo lanza con fuerza hacia la derecha fuera del cuadro, quedando con el brazo extendido.",
+   "intencion": "Despojarse del disfraz y lanzar un proyectil de energía ('disappear').",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 15.6,
+   "fin": 16.5,
+   "cuerpo": "Da pequeños saltos hacia atrás juntando los pies y vibrando los hombros ('the fire's in their eyes').",
+   "intencion": "Encenderse por dentro, mirada intensa.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 16.5,
+   "fin": 17.4,
+   "cuerpo": "Pasa la mano derecha frente a sus ojos como una visera y luego por el cuello.",
+   "intencion": "Advertencia ('their words are really clear').",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 17.4,
+   "fin": 20.1,
+   "cuerpo": "Cruza y abre los pies rápidamente en el sitio (charleston/footwork) con los brazos abiertos a media altura ('so beat it').",
+   "intencion": "Pies calientes que chispean contra el piso.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 20.1,
+   "fin": 21.3,
+   "cuerpo": "Levanta la pierna derecha dando una patada circular rápida hacia afuera ('just beat it').",
+   "intencion": "Golpe seco de rechazo.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 21.3,
+   "fin": 23.6,
+   "cuerpo": "Camina hacia adelante con actitud relajada, balanceando los hombros de lado a lado.",
+   "intencion": "Caminar con flow y confianza por el escenario.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 23.6,
+   "fin": 25.1,
+   "cuerpo": "Se desliza hacia su izquierda abriendo las piernas y sacando cadera con el brazo derecho extendido.",
+   "intencion": "Esquivar con elegancia ('you better run').",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 25.1,
+   "fin": 28.0,
+   "cuerpo": "De medio perfil, extiende el brazo izquierdo hacia adelante y con la mano derecha hace toques subiendo por ese brazo ('don't wanna see no blood').",
+   "intencion": "Usar el brazo extendido como pasarela donde camina una historia.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 28.0,
+   "fin": 31.3,
+   "cuerpo": "Sube ambos brazos flexionando los bíceps en pose de fisicoculturista ('don't be a macho man') y luego estira el brazo derecho arriba.",
+   "intencion": "Parodiar y presumir fuerza bruta ('macho man').",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 31.3,
+   "fin": 33.8,
+   "cuerpo": "Con los codos levantados y las manos planas a los lados de la cabeza, mueve el cuello y el torso de lado a lado (isolations).",
+   "intencion": "Marco geométrico y robótico alrededor de la cabeza.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 33.8,
+   "fin": 36.1,
+   "cuerpo": "Sube los brazos cruzando las muñecas sobre la cabeza, baja las manos por el cuerpo y señala con ambos índices hacia la cámara ('you wanna be bad').",
+   "intencion": "Desafío directo al espectador.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 36.1,
+   "fin": 37.6,
+   "cuerpo": "Gira de perfil y lanza el brazo derecho hacia arriba arqueando la espalda.",
+   "intencion": "Grito visual de liberación en el coro ('beat it!').",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 37.6,
+   "fin": 39.6,
+   "cuerpo": "Flexiona las rodillas bajando el centro de gravedad y rebota haciendo un gesto de control con la mano derecha frente a ella.",
+   "intencion": "Domar y rebotar la energía con la mano.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 39.6,
+   "fin": 41.8,
+   "cuerpo": "Se gira hacia la derecha y sale caminando con estilo mientras el video se funde a negro.",
+   "intencion": "Despedida triunfal dejando rastro.",
+   "camara": "Estática, fundido a negro al final."
+  }
+ ],
+ "historia": {
+  "arco": "Arranca en misterio bajo el sombrero (0-14s), explota al lanzar el sombrero en el primer coro (14-21s), juega con la letra en el segundo verso ('macho man', 'no blood', 21-36s) y cierra con energía pura saliendo de escena (36-41.8s).",
+  "motivo": "Los destellos y rayos en pies y manos que conectan el suelo con los gestos de brazos.",
+  "contrastes": "Quietud geométrica inicial frente al lanzamiento explosivo del sombrero; humor literal en 'macho man' frente a fluidez eléctrica en las ondas.",
+  "colores": "Acto 1 (0-14s, misterio): Cian eléctrico #00f0ff. Acto 2 (14-21.3s, fuego/coro): Rojo neón y naranja #ff2a00. Acto 3 (21.3-36.1s, juego y 'macho man'): Verde ácido y amarillo #39ff14 / #ffe600. Cierre (36.1-41.8s, clímax): Magenta #ff00aa."
+ },
+ "momentos": [
+  {
+   "seg": 0.0,
+   "dur": 1.6,
+   "accion": "still",
+   "opcion": "accesorio",
+   "figura": "fedora",
+   "color": "#00f0ff",
+   "intencion": "Subrayar la silueta misteriosa del sombrero fedora mientras está completamente quieta al inicio.",
+   "nuevo": null
+  },
+  {
+   "seg": 1.6,
+   "dur": 3.6,
+   "accion": "spotlight",
+   "opcion": "huellas",
+   "figura": null,
+   "color": "#00f0ff",
+   "intencion": "Dejar un rastro luminoso en el piso mientras se desliza hacia atrás en moonwalk.",
+   "nuevo": null
+  },
+  {
+   "seg": 5.2,
+   "dur": 1.2,
+   "accion": "spotlight",
+   "opcion": "cabeza_gafas",
+   "figura": "glint",
+   "color": "#00f0ff",
+   "intencion": "Un destello rápido en la mirada al detenerse de perfil y tocar el ala del sombrero.",
+   "nuevo": null
+  },
+  {
+   "seg": 6.4,
+   "dur": 3.7,
+   "accion": "spotlight",
+   "opcion": "costados",
+   "figura": "side_edges",
+   "color": "#00f0ff",
+   "intencion": "Marcar los golpes secos de cadera y cintura al ritmo de los acordes de guitarra.",
+   "nuevo": null
+  },
+  {
+   "seg": 10.1,
+   "dur": 1.8,
+   "accion": "spin_body",
+   "opcion": "arcos",
+   "figura": "orbit_arcs",
+   "color": "#00f0ff",
+   "intencion": "Envolver el giro rápido de 360 grados con arcos orbitales que centrifugan la energía.",
+   "nuevo": null
+  },
+  {
+   "seg": 11.9,
+   "dur": 2.1,
+   "accion": "spotlight",
+   "opcion": "serpiente",
+   "figura": "snake",
+   "color": "#00f0ff",
+   "intencion": "La onda que recorre de un brazo extendido al otro es una serpiente eléctrica que viaja de mano a mano.",
+   "nuevo": null
+  },
+  {
+   "seg": 14.0,
+   "dur": 1.6,
+   "accion": "throw",
+   "opcion": "energia",
+   "figura": "orb",
+   "color": "#ff2a00",
+   "intencion": "Al quitarse y lanzar el sombrero fuera de escena ('you better disappear'), dispara una esfera de energía que sigue el sombrero.",
+   "nuevo": null
+  },
+  {
+   "seg": 15.6,
+   "dur": 0.9,
+   "accion": "spotlight",
+   "opcion": "ojos",
+   "figura": "glow_eyes",
+   "color": "#ff2a00",
+   "intencion": "Iluminar los ojos justo cuando la letra dice 'the fire's in their eyes'.",
+   "nuevo": null
+  },
+  {
+   "seg": 16.5,
+   "dur": 0.9,
+   "accion": "cover_eyes",
+   "opcion": "antifaz",
+   "figura": "mask",
+   "color": "#ff2a00",
+   "intencion": "Cuando pasa la mano frente a los ojos, deja dibujado un antifaz luminoso.",
+   "nuevo": null
+  },
+  {
+   "seg": 17.4,
+   "dur": 2.7,
+   "accion": "spotlight",
+   "opcion": "rayos_pie",
+   "figura": "foot_bolts",
+   "color": "#ff2a00",
+   "intencion": "En el coro 'so beat it', el juego rápido de pies saca chispas y rayos contra el suelo.",
+   "nuevo": null
+  },
+  {
+   "seg": 20.1,
+   "dur": 1.2,
+   "accion": "fast_swing",
+   "opcion": "globo_agua",
+   "figura": "water_balloon",
+   "color": "#ff2a00",
+   "intencion": "La patada circular rápida estira y revienta un globo de energía en el aire en 'just beat it'.",
+   "nuevo": null
+  },
+  {
+   "seg": 21.3,
+   "dur": 2.3,
+   "accion": "spotlight",
+   "opcion": "hombros",
+   "figura": "shoulder_arcs",
+   "color": "#39ff14",
+   "intencion": "Acompañar el caminado con rebote de hombros hacia adelante con arcos que rebotan sobre los hombros.",
+   "nuevo": null
+  },
+  {
+   "seg": 23.6,
+   "dur": 1.5,
+   "accion": "spotlight",
+   "opcion": "piernas_onda",
+   "figura": "wave",
+   "color": "#39ff14",
+   "intencion": "Seguir el deslizamiento lateral amplio de las piernas ('you better run') con una onda fluida.",
+   "nuevo": null
+  },
+  {
+   "seg": 25.1,
+   "dur": 2.9,
+   "accion": "point",
+   "opcion": "munequito",
+   "figura": "stick_man",
+   "color": "#39ff14",
+   "intencion": "El brazo izquierdo extendido sirve de puente por donde camina el muñequito mientras la mano derecha lo persigue subiendo por el brazo.",
+   "nuevo": null
+  },
+  {
+   "seg": 28.0,
+   "dur": 3.3,
+   "accion": "spotlight",
+   "opcion": "brazo",
+   "figura": "biceps",
+   "color": "#ffe600",
+   "intencion": "Cuando la letra dice 'don't be a macho man' y ella hace pose de culturista, dibujar bíceps gigantes de caricatura en sus brazos.",
+   "nuevo": null
+  },
+  {
+   "seg": 31.3,
+   "dur": 2.5,
+   "accion": "hands_on_head",
+   "opcion": "ovni",
+   "figura": "ufo",
+   "color": "#ffe600",
+   "intencion": "Con las manos planas enmarcando la cabeza y haciendo isolations de cuello, un ovni orbita entre sus manos y cabeza.",
+   "nuevo": null
+  },
+  {
+   "seg": 33.8,
+   "dur": 2.3,
+   "accion": "spotlight",
+   "opcion": "traje",
+   "figura": "supersuit",
+   "color": "#39ff14",
+   "intencion": "Al cruzar las manos arriba y bajarlas por el torso hasta apuntar al frente ('you wanna be bad'), sube una armadura de neón que estalla al señalar.",
+   "nuevo": null
+  },
+  {
+   "seg": 36.1,
+   "dur": 1.5,
+   "accion": "fast_swing",
+   "opcion": "estela_energia",
+   "figura": null,
+   "color": "#ff00aa",
+   "intencion": "El lanzamiento del brazo derecho hacia el cielo arqueando la espalda deja una estela de energía ascendente.",
+   "nuevo": null
+  },
+  {
+   "seg": 37.6,
+   "dur": 2.0,
+   "accion": "spotlight",
+   "opcion": "chispa",
+   "figura": "spark_trap",
+   "color": "#ff00aa",
+   "intencion": "Mientras rebota flexionada controlando el pulso con la mano derecha, atrapa y rebota una chispa viva en su mano.",
+   "nuevo": "yoyo_gravedad"
+  },
+  {
+   "seg": 39.6,
+   "dur": 2.2,
+   "accion": "spotlight",
+   "opcion": "alma",
+   "figura": "soul",
+   "color": "#ff00aa",
+   "intencion": "Al girarse y caminar fuera del escenario hacia la oscuridad, su silueta deja un eco luminoso que se desvanece.",
+   "nuevo": null
+  }
+ ],
+ "efectos_nuevos": [
+  {
+   "nombre": "yoyo_gravedad",
+   "segundos": "37.6-39.6",
+   "escenario": "El espacio vertical entre la palma de la mano derecha a media altura y el suelo.",
+   "nace": "De la palma de la mano derecha cuando la coloca frente a ella al flexionar las rodillas.",
+   "recorrido": "Una esfera pesada de neón unida por un hilo elástico de luz a sus dedos baja hasta tocar el suelo y vuelve a subir con cada rebote de sus rodillas.",
+   "conflicto": "La esfera intenta escapar rebotando cada vez más fuerte contra el piso, tensando el hilo.",
+   "final": "En el último rebote (39.5s) ella cierra la mano, el hilo la jala de golpe y se disuelve en chispas justo cuando gira para irse.",
+   "fisica": "Elasticidad de resorte y aplastamiento (squash & stretch) al rebotar contra el suelo al ritmo del groove.",
+   "porque": "Su gesto de mano rebotando en el aire mientras flexiona las rodillas parece estar botando una pelota o controlando un yo-yo invisible con el cuerpo."
+  }
+ ]
+}

@@ -1,0 +1,164 @@
+catalogo: baile
+solo_estos: true
+momentos:
+- seg: 0.0
+  opcion: accesorio
+  accion: still
+  dur: 1.6
+  exacto: true
+  figura: fedora
+  color: '#00f0ff'
+  nota: Subrayar la silueta misteriosa del sombrero fedora mientras está completamente
+    quieta al inicio.
+- seg: 1.6
+  opcion: huellas
+  accion: spotlight
+  dur: 3.6
+  exacto: true
+  color: '#00f0ff'
+  nota: Dejar un rastro luminoso en el piso mientras se desliza hacia atrás en moonwalk.
+- seg: 5.2
+  opcion: cabeza_gafas
+  accion: spotlight
+  dur: 1.2
+  exacto: true
+  figura: glint
+  color: '#00f0ff'
+  nota: Un destello rápido en la mirada al detenerse de perfil y tocar el ala del
+    sombrero.
+- seg: 6.4
+  opcion: costados
+  accion: spotlight
+  dur: 3.7
+  exacto: true
+  color: '#00f0ff'
+  nota: Marcar los golpes secos de cadera y cintura al ritmo de los acordes de guitarra.
+- seg: 10.1
+  opcion: arcos
+  accion: spin_body
+  dur: 1.8
+  exacto: true
+  color: '#00f0ff'
+  nota: Envolver el giro rápido de 360 grados con arcos orbitales que centrifugan
+    la energía.
+- seg: 11.9
+  opcion: serpiente
+  accion: spotlight
+  dur: 2.1
+  exacto: true
+  color: '#00f0ff'
+  nota: La onda que recorre de un brazo extendido al otro es una serpiente eléctrica
+    que viaja de mano a mano.
+- seg: 14.0
+  opcion: energia
+  accion: throw
+  dur: 1.6
+  exacto: true
+  figura: orb
+  color: '#ff2a00'
+  nota: Al quitarse y lanzar el sombrero fuera de escena ('you better disappear'),
+    dispara una esfera de energía que sigue el sombrero.
+- seg: 15.6
+  opcion: ojos
+  accion: spotlight
+  dur: 0.9
+  exacto: true
+  color: '#ff2a00'
+  nota: Iluminar los ojos justo cuando la letra dice 'the fire's in their eyes'.
+- seg: 16.5
+  opcion: antifaz
+  accion: cover_eyes
+  dur: 0.9
+  exacto: true
+  figura: mask
+  color: '#ff2a00'
+  nota: Cuando pasa la mano frente a los ojos, deja dibujado un antifaz luminoso.
+- seg: 17.4
+  opcion: rayos_pie
+  accion: spotlight
+  dur: 2.7
+  exacto: true
+  color: '#ff2a00'
+  nota: En el coro 'so beat it', el juego rápido de pies saca chispas y rayos contra
+    el suelo.
+- seg: 20.1
+  opcion: globo_agua
+  accion: fast_swing
+  dur: 1.2
+  exacto: true
+  color: '#ff2a00'
+  nota: La patada circular rápida estira y revienta un globo de energía en el aire
+    en 'just beat it'.
+- seg: 21.3
+  opcion: hombros
+  accion: spotlight
+  dur: 2.3
+  exacto: true
+  color: '#39ff14'
+  nota: Acompañar el caminado con rebote de hombros hacia adelante con arcos que rebotan
+    sobre los hombros.
+- seg: 23.6
+  opcion: piernas_onda
+  accion: spotlight
+  dur: 1.5
+  exacto: true
+  color: '#39ff14'
+  nota: Seguir el deslizamiento lateral amplio de las piernas ('you better run') con
+    una onda fluida.
+- seg: 25.1
+  opcion: munequito
+  accion: point
+  dur: 2.9
+  exacto: true
+  color: '#39ff14'
+  nota: El brazo izquierdo extendido sirve de puente por donde camina el muñequito
+    mientras la mano derecha lo persigue subiendo por el brazo.
+- seg: 28.0
+  opcion: brazo
+  accion: spotlight
+  dur: 3.3
+  exacto: true
+  figura: biceps
+  color: '#ffe600'
+  nota: Cuando la letra dice 'don't be a macho man' y ella hace pose de culturista,
+    dibujar bíceps gigantes de caricatura en sus brazos.
+- seg: 31.3
+  opcion: ovni
+  accion: hands_on_head
+  dur: 2.5
+  exacto: true
+  color: '#ffe600'
+  nota: Con las manos planas enmarcando la cabeza y haciendo isolations de cuello,
+    un ovni orbita entre sus manos y cabeza.
+- seg: 33.8
+  opcion: traje
+  accion: spotlight
+  dur: 2.3
+  exacto: true
+  color: '#39ff14'
+  nota: Al cruzar las manos arriba y bajarlas por el torso hasta apuntar al frente
+    ('you wanna be bad'), sube una armadura de neón que estalla al señalar.
+- seg: 36.1
+  opcion: estela_energia
+  accion: fast_swing
+  dur: 1.5
+  exacto: true
+  color: '#ff00aa'
+  nota: El lanzamiento del brazo derecho hacia el cielo arqueando la espalda deja
+    una estela de energía ascendente.
+- seg: 37.6
+  opcion: chispa
+  accion: spotlight
+  dur: 2.0
+  exacto: true
+  color: '#ff00aa'
+  nota: '[nuevo: yoyo_gravedad] Mientras rebota flexionada controlando el pulso con
+    la mano derecha, atrapa y rebota una chispa viva en su mano.'
+- seg: 39.6
+  opcion: alma
+  accion: spotlight
+  dur: 2.2
+  exacto: true
+  color: '#ff00aa'
+  nota: Al girarse y caminar fuera del escenario hacia la oscuridad, su silueta deja
+    un eco luminoso que se desvanece.
