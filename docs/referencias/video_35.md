@@ -64,4 +64,18 @@ show de personajes. Cada pose del bailarín es un personaje distinto y el dibujo
 | --- | --- | --- |
 | El público como "segunda persona" en 631 de 810 cuadros, y 10 tramos de pareja | El detector toma hasta dos personas y la segunda es alguien sentado | `analysis/cast.py`: solo quedan protagonistas (al menos el 60% del más alto del cuadro y el 55% de la altura típica del video); con un solo bailarín, es siempre person_0 |
 | El bailarín cambiaba de identidad (person_0 / person_1) | Todos visten de negro: el seguimiento por apariencia se confunde | Solista: se sigue por continuidad de la caja y se fija en person_0 |
-| 42 cuadros sin nadie (25,3-26,5 s) | El bailarín está cortado o casi encima de la cámara y la pose no lo ve | Pendiente: mejor que ponerle efectos al público |
+| 48 cuadros sin nadie (25,3-26,5 s) | El bailarín sale del cuadro y la cámara se acerca: la pose no lo ve | `cast.recover_lead`: se predice su caja entre los vecinos y se vuelve a buscar la pose en un recorte de su silueta. Recupera 25 de 48; el resto está de verdad fuera del cuadro. Un candidato mucho más pequeño que el bailarín de hace medio segundo (público de pie) no toma su lugar |
+| La cresta y las gafas quedaban corridas a un lado de la cabeza | Este video no tiene malla de la cara (0 de 810), la cabeza sale de la pose y el suavizado One Euro con `beta` 0,04 la retrasaba hasta 167 px | `beta` 5: error medio de 25,6 px a 7,9 px, con algo más de temblor |
+
+## Respuestas del autor (las ❓) y cómo se implementaron
+
+| Seg. | Lo que es | Implementación |
+| --- | --- | --- |
+| 0,3 y 2,5 | Peinado de tres puntas con relieve sobre el contorno de la gorra vista desde abajo, con gafas; cambia de perspectiva al subir la cabeza | `characters.punk_crest`: tres puntas a distinta profundidad que giran con la cabeza (de perfil se ven tres, de frente una), lados curvos (no serrucho) y un brillo para el volumen |
+| 3,1 | Las gafas se recogen hacia arriba y el peinado se deshace en arcos que giran sobre la cabeza | Segunda parte de `punk_crest` |
+| 4,3-5,7 | Un muñequito camina por el brazo extendido, la otra mano lo ataja, da una vuelta y lo aplasta | `critters.stick_man` (disparo: señalar) |
+| 6,1-8,9 | Un ovni que él crea, lo orbita, se sale de control a los 7,3, le deja caer algo en el pecho y lo persigue; se deforma por la velocidad | `critters.ufo` (disparo: manos sobre la cabeza) |
+| 25,4-27,0 | Lanzamiento de béisbol con un globo de agua que se comprime y deforma | `critters.water_balloon` (disparo: golpe rápido) |
+
+La misma estructura (escenario, conflicto, final) sirve para otros videos: `docs/metaforas.md`.
+El guion `configs/pruebas/video_35_referencia.yaml` fija los 26 momentos de la referencia.
