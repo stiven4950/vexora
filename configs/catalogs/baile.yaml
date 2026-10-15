@@ -163,7 +163,8 @@ reactions:
     - type: foot_paint
       style: {size: 0.3, trail_frames: 14}
       trigger: {hold: 8, fade_in: 2, fade_out: 6}
-  # De vez en cuando, disfraces de cuerpo entero: chaqueta metalera o rayos X.
+  # De vez en cuando, disfraces de cuerpo entero: chaqueta metalera con púas (engine/jacket.py) o
+  # rayos X.
   - name: chaqueta
     exclusive: true
     weight: 0.3
