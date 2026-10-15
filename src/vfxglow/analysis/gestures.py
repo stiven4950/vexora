@@ -228,6 +228,10 @@ HEART_MIN_S = 0.5
 ARMS_UP = 0.25  # muñecas por encima de la nariz, en torsos
 OPEN_WIDE = 2.3  # muñecas separadas, en anchos de hombros
 OPEN_LEVEL = 0.35  # muñecas a la altura de los hombros (torsos)
+ROCK_RATIO = 1.6  # índice y meñique más largos que medio y anular (doblados)
+HEAD_REACH = 0.9  # muñecas a menos de esto (anchos de hombros) de la nariz, de lado
+LUNGE_S = 0.4
+LUNGE_GROWTH = 0.3  # el ancho de hombros crece un 30% en LUNGE_S: se acerca a la cámara
 POINT_REACH = 0.85  # brazo extendido (hombro-muñeca, torsos)
 POINT_INDEX = 1.6  # índice más largo que el resto de los dedos (desde la muñeca)
 EAR_NEAR = 0.45  # dedos junto a la oreja (tamaños de cara)
@@ -465,6 +469,92 @@ def _frenzy(frames, fps, width, height):
 
 # Detectores de gestos y nombres de sus eventos (el pipeline los recalcula en análisis
 # anteriores; ver Pipeline._ensure_derived).
+def _finger(lm: dict, name: str):
+    return lm.get(f"{name}_finger_tip", lm.get(f"{name}_tip"))
+
+
+def rock_hands_events(frames, fps, width, height):
+    """Cuernos de rock 🤘: índice y meñique estirados, medio y anular doblados (video_35, seg. 0,7)."""
+
+    def flag(record, owner, pts):
+        found = []
+        for side in ("left", "right"):
+            hand = owner.left_hand if side == "left" else owner.right_hand
+            if hand is None:
+                continue
+            lm = {l.name.replace(f"{side}_", ""): np.array([l.x * width, l.y * height]) for l in hand.landmarks}
+            wrist = lm.get("wrist")
+            tips = {f: _finger(lm, f) for f in ("index", "middle", "ring", "pinky")}
+            if wrist is None or any(t is None for t in tips.values()):
+                continue
+            reach = {f: float(np.linalg.norm(t - wrist)) for f, t in tips.items()}
+            folded = (reach["middle"] + reach["ring"]) / 2
+            if min(reach["index"], reach["pinky"]) > ROCK_RATIO * folded:
+                found.append(side)
+        if not found:
+            return None
+        side = "both" if len(found) == 2 else found[0]
+        anchor = pts.get(f"{found[0]}_wrist")
+        return (side, anchor) if anchor is not None else None
+
+    return _pose_events(frames, fps, width, height, "rock_hands", "Cuernos de rock con la mano.", flag)
+
+
+def hands_on_head_events(frames, fps, width, height):
+    """Las dos manos sobre la cabeza (sujetan la gorra, forman un aro): video_35 seg. 3,4 y 13,2."""
+
+    def flag(record, owner, pts):
+        if not all(k in pts for k in ("left_wrist", "right_wrist", "nose", "left_shoulder", "right_shoulder")):
+            return None
+        torso, nose = _torso(pts), pts["nose"]
+        width_sh = float(np.linalg.norm(pts["left_shoulder"] - pts["right_shoulder"]))
+        near = all(abs(pts[f"{s}_wrist"][0] - nose[0]) < HEAD_REACH * width_sh for s in ("left", "right"))
+        high = all(pts[f"{s}_wrist"][1] < nose[1] + 0.05 * torso and pts[f"{s}_wrist"][1] > nose[1] - 0.6 * torso for s in ("left", "right"))
+        return ("both", nose - np.array([0.0, 0.3 * torso])) if near and high else None
+
+    return _pose_events(frames, fps, width, height, "hands_on_head", "Las dos manos sobre la cabeza.", flag)
+
+
+def arms_x_events(frames, fps, width, height):
+    """Brazos cruzados en X frente al pecho: cada muñeca del otro lado y por encima de su codo."""
+
+    def flag(record, owner, pts):
+        if not all(f"{s}_{j}" in pts for s in ("left", "right") for j in ("wrist", "elbow", "shoulder")):
+            return None
+        mid = (pts["left_shoulder"][0] + pts["right_shoulder"][0]) / 2
+        side_l = np.sign(pts["left_shoulder"][0] - mid)
+        crossed = np.sign(pts["left_wrist"][0] - mid) == -side_l and np.sign(pts["right_wrist"][0] - mid) == side_l
+        raised = all(pts[f"{s}_wrist"][1] < pts[f"{s}_elbow"][1] for s in ("left", "right"))
+        return ("both", (pts["left_wrist"] + pts["right_wrist"]) / 2) if crossed and raised else None
+
+    return _pose_events(frames, fps, width, height, "arms_x", "Brazos cruzados en X frente al pecho.", flag)
+
+
+def lunge_events(frames, fps, width, height):
+    """Se lanza hacia la cámara: el cuerpo crece rápido (LUNGE_GROWTH en LUNGE_S) (video_35, 14,2: Venom)."""
+    events: list[MotionEvent] = []
+    window = max(int(LUNGE_S * fps), 2)
+    for person in sorted({p.person_id for record in frames for p in _people(record)}):
+        sizes = []
+        for record in frames:
+            _, pts = _pose(record, person, width, height)
+            if pts and "left_shoulder" in pts and "right_shoulder" in pts and "nose" in pts:
+                sizes.append(float(np.linalg.norm(pts["left_shoulder"] - pts["right_shoulder"])))
+            else:
+                sizes.append(np.nan)
+        sizes = np.array(sizes)
+        last = -10**9
+        for i in range(window, len(frames)):
+            a, b = sizes[i - window], sizes[i]
+            if np.isfinite(a) and np.isfinite(b) and b > a * (1 + LUNGE_GROWTH) and i - last > window * 2:
+                _, pts = _pose(frames[i], person, width, height)
+                events.append(MotionEvent(name="lunge", target=person, start_frame=frames[i - window].frame, end_frame=frames[i].frame,
+                                          confidence=0.8, detail="Se lanza hacia la cámara.", kind="both",
+                                          position=(float(pts["nose"][0] / width), float(pts["nose"][1] / height))))
+                last = i
+    return events
+
+
 GESTURE_DETECTORS = (
     throw_events,
     neck_slash_events,
@@ -478,5 +568,9 @@ GESTURE_DETECTORS = (
     cover_eyes_events,
     spin_body_events,
     step_events,
+    rock_hands_events,
+    hands_on_head_events,
+    arms_x_events,
+    lunge_events,
 )
-GESTURE_NAMES = {"throw", "neck_slash", "stomp", "frenzy", "heart_hands", "arms_up", "arms_open", "point", "hand_ear", "cover_eyes", "spin_body", "step"}
+GESTURE_NAMES = {"rock_hands", "hands_on_head", "arms_x", "lunge", "throw", "neck_slash", "stomp", "frenzy", "heart_hands", "arms_up", "arms_open", "point", "hand_ear", "cover_eyes", "spin_body", "step"}
