@@ -64,12 +64,28 @@ class Pin(_Strict):
     lado: str | None = None
     # Figura exacta de un adorno que sortea entre varias (horns dentro de "ocurrencia").
     figura: str | None = None
+    # Color del momento ("#ff3366"): manda sobre los capítulos de color del solista desde aquí
+    # hasta el siguiente momento con color (los actos de color del análisis profundo).
+    color: str | None = None
+    # Qué quiere decir el gesto (la intención que leyó el análisis profundo); se ve en el panel.
+    nota: str | None = None
 
 
 class PinFile(_Strict):
     catalogo: str | None = None
     solo_estos: bool = False
     momentos: list[Pin] = Field(default_factory=list)
+
+
+def hex_color(text: str | None) -> tuple[float, float, float] | None:
+    """"#ff3366" → (1.0, 0.2, 0.4). Lo que no es un color de 6 dígitos da None."""
+    value = (text or "").strip().lstrip("#")
+    if len(value) != 6:
+        return None
+    try:
+        return tuple(int(value[k:k + 2], 16) / 255.0 for k in (0, 2, 4))
+    except ValueError:
+        return None
 
 
 def load_pins(path: Path) -> PinFile:

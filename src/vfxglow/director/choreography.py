@@ -120,6 +120,8 @@ class Decision(_Strict):
     choice: str
     # Último fotograma en que su efecto sigue encendido (para contar efectos simultáneos).
     until: int = -1
+    # La intención del gesto, cuando el momento viene del análisis profundo.
+    note: str = ""
 
 
 class Choreography(_Strict):
@@ -249,7 +251,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                         Decision(frame=twin.start_frame, second=round(twin.start_frame / fps, 2), action=reaction.action, target=twin.target, choice=f"{option.name} (espejo)", until=end)
                     )
                 decisions.append(
-                    Decision(frame=event.start_frame, second=round(event.start_frame / fps, 2), action=reaction.action, target=event.target, choice=f"{option.name} (fijado)", until=end)
+                    Decision(frame=event.start_frame, second=round(event.start_frame / fps, 2), action=reaction.action, target=event.target, choice=f"{option.name} (fijado)", until=end, note=pin.nota or "")
                 )
                 continue
             resting = {name for name, frame in memo["used"].items() if event.start_frame - frame < _option(reaction, name).cooldown}
@@ -405,6 +407,10 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
         palette = catalog.defaults.get("style", {}).get("palette") or catalog.colors
         weights = skin_scores(palette, luma) ** 2 if luma is not None else None
         script.chapters = build_chapters(events, palette, seed, fps, brief.video.frame_count, catalog.chapter_min_s, weights)
+    if pins is not None and not pair:
+        acts = pin_chapters(pins, fps, brief.video.frame_count)
+        if acts:
+            script.chapters = acts
     decisions.sort(key=lambda d: (d.frame, d.action))
     return resolve_timing(script, brief.video.frame_count), Choreography(catalog=catalog.name, seed=seed, decisions=decisions)
 
@@ -557,6 +563,25 @@ FOCUS_EVENTS = {
 }
 # El traspaso se ve antes del evento (el resorte aparece antes de soltar): su foco se adelanta.
 FOCUS_LEAD_S = {"prop_transfer": 0.35}
+
+
+def pin_chapters(pins, fps: float, frame_count: int) -> list[Chapter]:
+    """Capítulos de color de los momentos fijados con `color`: cada uno manda desde su segundo
+    hasta el siguiente con color (el primero, desde el inicio). Sin colores, ninguno."""
+    from vfxglow.director.pins import hex_color
+
+    marks = sorted(
+        (int(round(pin.seg * fps)), color) for pin in pins.momentos if (color := hex_color(pin.color)) is not None
+    )
+    chapters: list[Chapter] = []
+    for k, (frame, color) in enumerate(marks):
+        start = 0 if k == 0 else frame
+        stop = marks[k + 1][0] if k + 1 < len(marks) else frame_count
+        if stop <= start:
+            continue
+        accent = marks[k + 1][1] if k + 1 < len(marks) else color
+        chapters.append(Chapter(start_frame=start, end_frame=stop - 1, focus="guion", colors=[color, accent]))
+    return chapters
 
 
 def build_chapters(events: list[MotionEvent], palette, seed: int, fps: float, frame_count: int, min_s: float = 0.8, weights=None) -> list[Chapter]:
