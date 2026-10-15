@@ -26,7 +26,7 @@ log = logging.getLogger("vfxglow.analysis")
 MIN_FACE_POINTS = 60
 # Señales derivadas del análisis que un brief puede traer; el pipeline calcula las que falten
 # en análisis anteriores (Pipeline._ensure_derived) sin rehacer el análisis.
-DERIVED = ("skin", "gestures", "gestures-6", "attention", "duet")
+DERIVED = ("skin", "gestures", "gestures-6", "gestures-7", "attention", "duet")
 
 
 def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: str) -> VideoMeta:
@@ -116,7 +116,11 @@ def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: st
         finalize_blades(raw, config.analysis.blades, meta.width, meta.height)
     from vfxglow.analysis.cast import keep_performers
 
-    keep_performers(raw)
+    if keep_performers(raw, meta.fps) == "solo":
+        from vfxglow.analysis.cast import recover_lead
+        from vfxglow.analysis.models_store import ensure_model, pose_filename
+
+        recover_lead(video_path, raw, meta.fps, ensure_model(models_dir, pose_filename(config.analysis.mediapipe.pose_variant)))
     frames = smooth_tracks(raw, meta.fps, config.analysis)
     add_motion(frames, meta, config.analysis.events.glitch_speed)
     events = EventDetector(config.analysis.events).detect(frames, meta)
