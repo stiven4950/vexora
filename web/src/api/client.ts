@@ -49,6 +49,7 @@ export const api = {
     onUpload?: (fraction: number) => void,
     season: string | null = null,
     wardrobe: Record<string, Wardrobe> = {},
+    deep = false,
   ): Promise<Job> {
     const headers = await authHeaders();
     const form = new FormData();
@@ -58,6 +59,7 @@ export const api = {
     if (seed !== null) form.append("seed", String(seed));
     if (season) form.append("season", season);
     if (Object.keys(wardrobe).length) form.append("wardrobe", JSON.stringify(wardrobe));
+    if (deep) form.append("deep", "true");
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open("POST", "/api/jobs");
@@ -73,10 +75,18 @@ export const api = {
     });
   },
 
-  variation: (id: string, kind: StyleKind, style: string, seed: number | null, season: string | null = null, wardrobe: Record<string, Wardrobe> | null = null) =>
+  variation: (
+    id: string,
+    kind: StyleKind,
+    style: string,
+    seed: number | null,
+    season: string | null = null,
+    wardrobe: Record<string, Wardrobe> | null = null,
+    deep: boolean | null = null,
+  ) =>
     request<Job>(`/api/jobs/${id}/variations`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ style_kind: kind, style, seed, season, wardrobe }),
+      body: JSON.stringify({ style_kind: kind, style, seed, season, wardrobe, deep }),
     }),
 };

@@ -215,6 +215,7 @@ def create_job(
     seed: int | None = Form(None),
     season: str | None = Form(None),
     wardrobe: str | None = Form(None),
+    deep: bool = Form(False),
     user: User = Depends(current_user),
 ) -> JobView:
     if Path(video.filename or "").suffix.lower() not in VIDEO_TYPES:
@@ -224,7 +225,7 @@ def create_job(
     style = _check_style(style_kind, style)
     _check_season(season or None)
     wear = _check_wardrobe(json.loads(wardrobe) if wardrobe and wardrobe.strip().startswith("{") else ({"*": wardrobe} if wardrobe else {}))
-    return view(jobs().create(video.filename or "video.mp4", video.file, style_kind, style, seed, season or None, owner=user.uid, wardrobe=wear))
+    return view(jobs().create(video.filename or "video.mp4", video.file, style_kind, style, seed, season or None, owner=user.uid, wardrobe=wear, deep=deep))
 
 
 class VariationRequest(BaseModel):
@@ -234,6 +235,8 @@ class VariationRequest(BaseModel):
     season: str | None = None
     # Vestuario por persona; sin él, el del trabajo de origen.
     wardrobe: dict[str, str] | None = None
+    # Análisis profundo; sin valor, el del trabajo de origen.
+    deep: bool | None = None
 
 
 def _check_wardrobe(wardrobe: dict[str, str]) -> dict[str, str]:
@@ -250,7 +253,7 @@ def create_variation(job_id: str, body: VariationRequest, user: User = Depends(c
     style = _check_style(body.style_kind, body.style)
     _check_season(body.season)
     wear = _check_wardrobe(body.wardrobe) if body.wardrobe is not None else None
-    return view(jobs().variation(_job(job_id, user), body.style_kind, style, body.seed, body.season, wear))
+    return view(jobs().variation(_job(job_id, user), body.style_kind, style, body.seed, body.season, wear, body.deep))
 
 
 @app.get("/api/jobs/{job_id}", response_model=JobView)
@@ -328,6 +331,8 @@ class Moment(BaseModel):
     action: str
     target: str
     choice: str
+    # La intención del gesto, cuando el momento viene del análisis profundo.
+    note: str = ""
 
 
 class PersonView(BaseModel):
@@ -415,7 +420,7 @@ def job_choreography(job_id: str, user: User = Depends(current_user)) -> list[Mo
     if not path.exists():
         return []
     decisions = json.loads(path.read_text(encoding="utf-8")).get("decisions", [])
-    return [Moment(**{k: d[k] for k in ("second", "action", "target", "choice")}) for d in decisions if not d["choice"].startswith("nada")]
+    return [Moment(note=d.get("note", ""), **{k: d[k] for k in ("second", "action", "target", "choice")}) for d in decisions if not d["choice"].startswith("nada")]
 
 
 @app.get("/api/health")

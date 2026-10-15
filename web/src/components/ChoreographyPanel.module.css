@@ -147,3 +147,14 @@
 .what span {
   font-size: 12px;
 }
+
+/* La intención del gesto que leyó el análisis profundo. */
+.note {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-style: italic;
+  line-height: 1.35;
+  opacity: 0.7;
+  white-space: normal;
+}

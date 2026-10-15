@@ -20,6 +20,8 @@ export function Studio() {
   const [seasonList, setSeasonList] = useState<Season[]>([]);
   const [season, setSeason] = useState<string | null>(null);
   const [wardrobe, setWardrobe] = useState<Wardrobe>("ninguno");
+  // Análisis profundo: opcional, más lento y de pago. Por defecto, el económico.
+  const [deep, setDeep] = useState(false);
   const [showPresets, setShowPresets] = useState(false);
   const [upload, setUpload] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +52,7 @@ export function Studio() {
     try {
       // Sin semilla: el servidor prueba varias coreografías y se queda con la mejor.
       const wear: Record<string, Wardrobe> = chosen.kind === "catalog" && wardrobe !== "ninguno" ? { "*": wardrobe } : {};
-      const job = await api.create(file, chosen.kind, chosen.name, null, setUpload, season, wear);
+      const job = await api.create(file, chosen.kind, chosen.name, null, setUpload, season, wear, chosen.kind === "catalog" && deep);
       navigate(`/jobs/${job.id}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -170,7 +172,7 @@ export function Studio() {
       )}
 
       {chosen?.kind === "catalog" && (
-        <section className={`${styles.step} ${styles.last}`}>
+        <section className={styles.step}>
           <header>
             <span className={styles.num}>{seasonList.length > 0 ? "04" : "03"}</span>
             <div>
@@ -184,6 +186,30 @@ export function Studio() {
                 {w.label}
               </button>
             ))}
+          </div>
+        </section>
+      )}
+
+      {chosen?.kind === "catalog" && (
+        <section className={`${styles.step} ${styles.last}`}>
+          <header>
+            <span className={styles.num}>{seasonList.length > 0 ? "05" : "04"}</span>
+            <div>
+              <h2>Análisis</h2>
+              <p>
+                El económico reacciona a cada gesto. El profundo le pasa el video completo, con su música, a una IA que lo lee
+                como un animador: entiende la intención de cada movimiento y arma metáforas con historia. Tarda unos minutos más
+                y tiene costo.
+              </p>
+            </div>
+          </header>
+          <div className={styles.seasons}>
+            <button type="button" className={`${styles.season} ${!deep ? styles.on : ""}`} onClick={() => setDeep(false)}>
+              Económico
+            </button>
+            <button type="button" className={`${styles.season} ${deep ? styles.on : ""}`} onClick={() => setDeep(true)}>
+              ✦ Profundo con IA
+            </button>
           </div>
         </section>
       )}

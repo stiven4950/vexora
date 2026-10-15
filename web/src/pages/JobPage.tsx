@@ -33,6 +33,7 @@ export function JobPage() {
   const [people, setPeople] = useState<Person[]>([]);
   // Vestuario de la variación, por persona (arranca en el del trabajo).
   const [nextWardrobe, setNextWardrobe] = useState<Record<string, Wardrobe> | null>(null);
+  const [nextDeep, setNextDeep] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [playhead, setPlayhead] = useState(0);
@@ -70,7 +71,8 @@ export function JobPage() {
     setActionError(null);
     try {
       const wear = kind === "catalog" && nextWardrobe ? nextWardrobe : null;
-      const next = await api.variation(job.id, kind, name, null, (nextSeason ?? job.season ?? "") || null, wear);
+      const deep = kind === "catalog" ? (nextDeep ?? job.deep) : false;
+      const next = await api.variation(job.id, kind, name, null, (nextSeason ?? job.season ?? "") || null, wear, deep);
       navigate(`/jobs/${next.id}`);
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : String(cause));
@@ -110,6 +112,7 @@ export function JobPage() {
             {current?.title ?? job.style}
             {job.style_kind === "catalog" && ` · ${versionLabel(job)}`}
             {job.season && ` · ${job.season.replace(/_/g, " ")}`}
+            {job.deep && " · análisis profundo"}
           </span>
           <h1>{job.filename}</h1>
         </div>
@@ -206,6 +209,15 @@ export function JobPage() {
                     ))}
                   </ul>
                 </div>
+              )}
+              {nextStyle.startsWith("catalog:") && (
+                <label className={styles.pick}>
+                  <span>Análisis</span>
+                  <select value={(nextDeep ?? job.deep) ? "deep" : "fast"} onChange={(event) => setNextDeep(event.target.value === "deep")}>
+                    <option value="fast">Económico</option>
+                    <option value="deep">✦ Profundo con IA (más lento, con costo)</option>
+                  </select>
+                </label>
               )}
               <Button variant="ghost" icon="spark" disabled={busy} onClick={vary}>
                 Probar otra versión

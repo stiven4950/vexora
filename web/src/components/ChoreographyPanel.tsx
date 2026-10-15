@@ -100,6 +100,7 @@ export function ChoreographyPanel({ moments, time, onSelect }: Props) {
                         {actionLabel(moment.action)}
                         {person && ` · ${person}`}
                       </span>
+                      {moment.note && <em className={styles.note}>{moment.note}</em>}
                     </span>
                     <Icon name="play" size={12} />
                   </button>

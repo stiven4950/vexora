@@ -60,6 +60,8 @@ export interface Job {
   style_current: string;
   /** Vestuario por persona ({"*": "vestido", "person_1": "chaqueta"}). */
   wardrobe: Record<string, Wardrobe>;
+  /** Análisis profundo: un modelo vio el video completo y escribió la coreografía. */
+  deep: boolean;
 }
 
 /** Prendas de cuerpo entero que puede llevar una persona. */
@@ -84,4 +86,6 @@ export interface Moment {
   action: string;
   target: string;
   choice: string;
+  /** La intención del gesto (solo con análisis profundo). */
+  note?: string;
 }

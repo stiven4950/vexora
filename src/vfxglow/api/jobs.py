@@ -60,6 +60,8 @@ class Job(BaseModel):
     owner: str | None = None
     # Vestuario por persona que eligió el usuario ({"*": "vestido", "person_1": "chaqueta"}).
     wardrobe: dict[str, str] = Field(default_factory=dict)
+    # Análisis profundo (director/deep.py): opcional y de pago; por defecto, el económico.
+    deep: bool = False
 
 
 class _Progress(logging.Handler):
@@ -90,6 +92,8 @@ class _Progress(logging.Handler):
                 update["progress"] = _ANALYZE
         elif text.startswith("Escribiendo overlay"):
             update = {"message": "Preparando análisis"}
+        elif text.startswith("Análisis profundo"):
+            update = {"stage": "direct", "message": "Análisis profundo con IA (puede tardar unos minutos)"}
         elif text.startswith("Guion"):
             update = {"stage": "direct", "progress": _ANALYZE + _DIRECT, "message": "Coreografía lista"}
         elif text.startswith("Componiendo") or text.startswith("Renderizando"):
@@ -152,7 +156,7 @@ class JobStore:
 
     # ----- altas -----
 
-    def create(self, filename: str, data, style_kind: str, style: str, seed: int | None, season: str | None = None, owner: str | None = None, wardrobe: dict[str, str] | None = None) -> Job:
+    def create(self, filename: str, data, style_kind: str, style: str, seed: int | None, season: str | None = None, owner: str | None = None, wardrobe: dict[str, str] | None = None, deep: bool = False) -> Job:
         job_id = uuid.uuid4().hex[:10]
         folder = self.uploads / job_id
         folder.mkdir(parents=True)
@@ -160,15 +164,16 @@ class JobStore:
         target = folder / safe
         with target.open("wb") as out:
             shutil.copyfileobj(data, out)
-        return self._enqueue(Job(id=job_id, created=time.time(), filename=filename, video_path=str(target), style_kind=style_kind, style=style, seed=seed, season=season, owner=owner, wardrobe=wardrobe or {}))
+        return self._enqueue(Job(id=job_id, created=time.time(), filename=filename, video_path=str(target), style_kind=style_kind, style=style, seed=seed, season=season, owner=owner, wardrobe=wardrobe or {}, deep=deep))
 
-    def variation(self, parent: Job, style_kind: str, style: str, seed: int | None, season: str | None = None, wardrobe: dict[str, str] | None = None) -> Job:
+    def variation(self, parent: Job, style_kind: str, style: str, seed: int | None, season: str | None = None, wardrobe: dict[str, str] | None = None, deep: bool | None = None) -> Job:
         """Mismo video, otro estilo u otra versión: el análisis queda en caché y es rápido.
 
         Sin semilla, "otra versión" del mismo estilo es la siguiente del ranking (la mejor que no
         se haya hecho todavía para ese video); con otro estilo, se empieza por la mejor."""
         root = parent.parent or parent.id
         wear = parent.wardrobe if wardrobe is None else wardrobe
+        deep = parent.deep if deep is None else deep
         take = 0
         if seed is None:
             with self._lock:
@@ -186,6 +191,7 @@ class JobStore:
                 take=take,
                 season=season,
                 wardrobe=wear,
+                deep=deep,
                 parent=root,
                 owner=parent.owner,
             )
@@ -256,6 +262,8 @@ class JobStore:
             kwargs["season"] = job.season
             if job.style_kind == "catalog" and job.wardrobe:
                 kwargs["wardrobe"] = job.wardrobe
+            if job.style_kind == "catalog" and job.deep:
+                kwargs["deep"] = True
             pipeline = Pipeline(self.config, Path(job.video_path), **kwargs)
             self._update(job.id, run_dir=str(pipeline.run_dir))
             output = pipeline.run()
