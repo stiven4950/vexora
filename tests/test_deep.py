@@ -112,3 +112,10 @@ def test_busy_model_is_retried(monkeypatch) -> None:
 
     with pytest.raises(RuntimeError, match="400"):
         deep._generate(DeepConfig(), "k", {}, sleep=waits.append)
+
+
+def test_prompt_lists_figures_not_style_flags() -> None:
+    prompt = build_prompt(CATALOG, 30.0)
+    assert "burbuja [bubble]" in prompt and "cohete [rocket]" in prompt
+    assert "no_outline" not in prompt and "lines_only" not in prompt
+    assert "nunca\n  la misma dos veces" in prompt

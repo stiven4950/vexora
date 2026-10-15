@@ -73,6 +73,12 @@ STORIES = {
     "time_rope": "un ancla detrás de la persona y una soga que jala con las manos; al final se enrolla en una bola de energía",
     "supersuit": "dos cierres suben dibujando una armadura en el torso; el emblema brilla y las placas caen",
     "glider": "alas de planeador entre muñecas y cintura, ondas a los costados y un rayo final de punta a punta",
+    "yoyo": "una esfera con hilo elástico rebota entre la mano y el piso; al final la mano la recoge y estalla en chispas",
+    "bee": "una abeja zumba en ochos alrededor de la cabeza y esquiva la mano; un aplauso la atrapa",
+    "energy_ball": "una bola de energía se carga en la mano (o entre las dos) y sale disparada como un rayo",
+    "rocket": "un cohete despega de los pies con humo, sube por el cuerpo y estalla en fuegos sobre la cabeza",
+    "bird": "un pájaro llega, se posa en el brazo extendido, picotea y sale volando si el brazo se sacude",
+    "bubble": "una burbuja envuelve a la persona, tiembla con lo pequeño y revienta con un movimiento fuerte",
     "battery": "una batería se carga en el pecho hasta 100%",
     "hero_text": "la palabra HERO en el pecho",
     "punk_crest": "cresta punk que gira con la cabeza; las gafas suben y se vuelve arcos",
@@ -105,7 +111,13 @@ Trabaja en este orden:
    que sigue. DESPUÉS busca en el catálogo el efecto que la cuenta. Si ninguno la cuenta bien, es
    un efecto nuevo: descríbelo y usa en ese momento el efecto del catálogo más parecido.
 
-Reglas: ningún segundo sin efecto; un efecto principal por momento; dibujos simples y legibles.
+Reglas:
+- Ningún segundo sin efecto; un efecto principal por momento; dibujos simples y legibles.
+- Las figuras con historia (lista de abajo) llaman mucho la atención: úsalas en los 2 a 4
+  momentos más fuertes del video, solo donde la metáfora encaje de verdad con el gesto, y nunca
+  la misma dos veces. No las fuerces: el resto del video lo cuentan los demás efectos.
+- Si la metáfora ideal de un momento no está en el catálogo, propón el efecto nuevo (hasta 3 por
+  video): es bienvenido y se programa después.
 
 Catálogo (accion: opciones; entre corchetes, las figuras que dibuja cada opción):
 {catalog}
@@ -125,11 +137,20 @@ Responde SOLO este JSON (sin texto fuera de él):
                        "recorrido": "", "conflicto": "", "final": "", "fisica": "", "porque": ""}}]
 }}
 - seg y dur en segundos con un decimal. accion y opcion: SOLO combinaciones del catálogo.
-- figura: opcional, una de las figuras de esa opción.
+- figura: opcional y SOLO una de las que aparecen entre corchetes en esa opción; si la que
+  imaginas no está en la lista, usa null (no inventes nombres de figuras).
 - color: hexadecimal, el del acto o el momento.
 - nuevo: el nombre del efecto nuevo que ese momento debería tener (descrito en efectos_nuevos),
   o null. En ese caso accion/opcion son el sustituto más parecido del catálogo.
 """
+
+
+# Marcas de estilo que viajan en `shapes` pero no son figuras (cómo se dibuja, no qué).
+STYLE_FLAGS = {"no_outline", "no_fill", "lines_only", "partial", "abs", "wave", "wave_down", "hem", "flap", "stitches", "dots"}
+
+
+def figures(option) -> list[str]:
+    return sorted({s for raw in option.effects for s in raw.get("style", {}).get("shapes", [])} - STYLE_FLAGS)
 
 
 def catalog_text(catalog) -> str:
@@ -137,7 +158,7 @@ def catalog_text(catalog) -> str:
     for reaction in catalog.reactions:
         options = []
         for option in reaction.options:
-            shapes = sorted({s for raw in option.effects for s in raw.get("style", {}).get("shapes", [])})
+            shapes = figures(option)
             if not option.effects:
                 continue
             options.append(f"{option.name} [{', '.join(shapes)}]" if shapes else option.name)
@@ -289,8 +310,10 @@ def to_pins(answer: dict, catalog, duration: float) -> tuple[PinFile, list[str]]
         reaction, option = match
         if reaction.action != raw.get("accion"):
             warnings.append(f"{seg} s: {option.name} es de {reaction.action}, no de {raw.get('accion')}")
-        shapes = {s for e in option.effects for s in e.get("style", {}).get("shapes", [])}
+        shapes = figures(option)
         figura = raw.get("figura") if raw.get("figura") in shapes and len(shapes) > 1 else None
+        if raw.get("figura") and raw.get("figura") not in shapes:
+            warnings.append(f"{seg} s: la figura {raw.get('figura')} no es de {option.name}; se sortea")
         color = raw.get("color") if hex_color(raw.get("color")) is not None else None
         nota = str(raw.get("intencion") or "").strip()[:200] or None
         if raw.get("nuevo"):
