@@ -58,6 +58,8 @@ class Job(BaseModel):
     # uid de Firebase del dueño. Los trabajos de antes de las cuentas no tienen: son del usuario
     # local (VEXORA_AUTH=off) hasta que alguien los adopte (JobStore.adopt).
     owner: str | None = None
+    # Vestuario por persona que eligió el usuario ({"*": "vestido", "person_1": "chaqueta"}).
+    wardrobe: dict[str, str] = Field(default_factory=dict)
 
 
 class _Progress(logging.Handler):
@@ -150,7 +152,7 @@ class JobStore:
 
     # ----- altas -----
 
-    def create(self, filename: str, data, style_kind: str, style: str, seed: int | None, season: str | None = None, owner: str | None = None) -> Job:
+    def create(self, filename: str, data, style_kind: str, style: str, seed: int | None, season: str | None = None, owner: str | None = None, wardrobe: dict[str, str] | None = None) -> Job:
         job_id = uuid.uuid4().hex[:10]
         folder = self.uploads / job_id
         folder.mkdir(parents=True)
@@ -158,18 +160,19 @@ class JobStore:
         target = folder / safe
         with target.open("wb") as out:
             shutil.copyfileobj(data, out)
-        return self._enqueue(Job(id=job_id, created=time.time(), filename=filename, video_path=str(target), style_kind=style_kind, style=style, seed=seed, season=season, owner=owner))
+        return self._enqueue(Job(id=job_id, created=time.time(), filename=filename, video_path=str(target), style_kind=style_kind, style=style, seed=seed, season=season, owner=owner, wardrobe=wardrobe or {}))
 
-    def variation(self, parent: Job, style_kind: str, style: str, seed: int | None, season: str | None = None) -> Job:
+    def variation(self, parent: Job, style_kind: str, style: str, seed: int | None, season: str | None = None, wardrobe: dict[str, str] | None = None) -> Job:
         """Mismo video, otro estilo u otra versión: el análisis queda en caché y es rápido.
 
         Sin semilla, "otra versión" del mismo estilo es la siguiente del ranking (la mejor que no
         se haya hecho todavía para ese video); con otro estilo, se empieza por la mejor."""
         root = parent.parent or parent.id
+        wear = parent.wardrobe if wardrobe is None else wardrobe
         take = 0
         if seed is None:
             with self._lock:
-                done = [j.take for j in self._jobs.values() if (j.parent or j.id) == root and j.style == style and j.style_kind == style_kind and j.seed is None and j.season == season]
+                done = [j.take for j in self._jobs.values() if (j.parent or j.id) == root and j.style == style and j.style_kind == style_kind and j.seed is None and j.season == season and j.wardrobe == wear]
             take = max(done) + 1 if done else 0
         return self._enqueue(
             Job(
@@ -182,6 +185,7 @@ class JobStore:
                 seed=seed,
                 take=take,
                 season=season,
+                wardrobe=wear,
                 parent=root,
                 owner=parent.owner,
             )
@@ -250,6 +254,8 @@ class JobStore:
         try:
             kwargs = {"catalog": job.style, "seed": job.seed, "take": job.take} if job.style_kind == "catalog" else {"preset": job.style}
             kwargs["season"] = job.season
+            if job.style_kind == "catalog" and job.wardrobe:
+                kwargs["wardrobe"] = job.wardrobe
             pipeline = Pipeline(self.config, Path(job.video_path), **kwargs)
             self._update(job.id, run_dir=str(pipeline.run_dir))
             output = pipeline.run()

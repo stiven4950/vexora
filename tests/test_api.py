@@ -196,3 +196,15 @@ def test_without_auth_the_server_only_listens_locally(monkeypatch: pytest.Monkey
     check_bind("127.0.0.1")
     with pytest.raises(SystemExit):
         check_bind("0.0.0.0")
+
+
+def test_wardrobe_is_chosen_by_the_user_and_kept_in_versions(client: TestClient) -> None:
+    files = {"video": ("clip.mp4", io.BytesIO(b"\x00" * 128), "video/mp4")}
+    job = client.post("/api/jobs", files=files, data={"style": "pelea", "wardrobe": '{"*": "vestido"}'}).json()
+    assert job["wardrobe"] == {"*": "vestido"}
+    same = client.post(f"/api/jobs/{job['id']}/variations", json={"style": "pelea"}).json()
+    assert same["wardrobe"] == {"*": "vestido"}
+    per_person = client.post(f"/api/jobs/{job['id']}/variations", json={"style": "pelea", "wardrobe": {"person_0": "chaqueta", "person_1": "vestido"}}).json()
+    assert per_person["wardrobe"] == {"person_0": "chaqueta", "person_1": "vestido"}
+    bad = client.post(f"/api/jobs/{job['id']}/variations", json={"style": "pelea", "wardrobe": {"person_0": "armadura"}})
+    assert bad.status_code == 422

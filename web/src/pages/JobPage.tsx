@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { api } from "../api/client";
 import { rgb, timecode } from "../api/format";
-import type { Moment, Season, Style } from "../api/types";
+import { WARDROBES, type Moment, type Person, type Season, type Style, type Wardrobe } from "../api/types";
 import { Button } from "../components/Button";
 import { ChoreographyPanel } from "../components/ChoreographyPanel";
 import { CompareViewer, type CompareViewerHandle } from "../components/CompareViewer";
@@ -30,6 +30,9 @@ export function JobPage() {
   const [seasonList, setSeasonList] = useState<Season[]>([]);
   // Temporada de la variación: "" = sin temporada. undefined hasta conocer la del trabajo.
   const [nextSeason, setNextSeason] = useState<string | undefined>(undefined);
+  const [people, setPeople] = useState<Person[]>([]);
+  // Vestuario de la variación, por persona (arranca en el del trabajo).
+  const [nextWardrobe, setNextWardrobe] = useState<Record<string, Wardrobe> | null>(null);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [playhead, setPlayhead] = useState(0);
@@ -42,6 +45,14 @@ export function JobPage() {
 
   useEffect(() => {
     if (job?.status === "done") api.choreography(job.id).then(setMoments).catch(() => setMoments([]));
+    if (job?.status === "done" && job.style_kind === "catalog")
+      api
+        .people(job.id)
+        .then((list) => {
+          setPeople(list);
+          setNextWardrobe((current) => current ?? Object.fromEntries(list.map((p) => [p.id, job.wardrobe[p.id] ?? job.wardrobe["*"] ?? "ninguno"])));
+        })
+        .catch(() => setPeople([]));
     if (job) setNextStyle((current) => current || `${job.style_kind}:${job.style_current}`);
     if (job) setNextSeason((current) => (current === undefined ? (job.season ?? "") : current));
   }, [job?.status, job?.id]);
@@ -58,7 +69,8 @@ export function JobPage() {
     setBusy(true);
     setActionError(null);
     try {
-      const next = await api.variation(job.id, kind, name, null, (nextSeason ?? job.season ?? "") || null);
+      const wear = kind === "catalog" && nextWardrobe ? nextWardrobe : null;
+      const next = await api.variation(job.id, kind, name, null, (nextSeason ?? job.season ?? "") || null, wear);
       navigate(`/jobs/${next.id}`);
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : String(cause));
@@ -169,6 +181,31 @@ export function JobPage() {
                       ))}
                   </select>
                 </label>
+              )}
+              {people.length > 0 && nextWardrobe && nextStyle.startsWith("catalog:") && (
+                <div className={styles.pick}>
+                  <span>Vestuario</span>
+                  <ul className={styles.people}>
+                    {people.map((person) => (
+                      <li key={person.id}>
+                        <img src={person.image_url} alt={person.label} loading="lazy" />
+                        <label>
+                          <span>{person.label}</span>
+                          <select
+                            value={nextWardrobe[person.id] ?? "ninguno"}
+                            onChange={(event) => setNextWardrobe((current) => ({ ...(current ?? {}), [person.id]: event.target.value as Wardrobe }))}
+                          >
+                            {WARDROBES.map((w) => (
+                              <option key={w.id} value={w.id}>
+                                {w.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
               <Button variant="ghost" icon="spark" disabled={busy} onClick={vary}>
                 Probar otra versión

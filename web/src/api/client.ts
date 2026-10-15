@@ -1,5 +1,5 @@
 import { idToken } from "../auth/firebase";
-import type { Season, Job, Moment, Style, StyleKind } from "./types";
+import type { Season, Job, Moment, Person, Style, StyleKind, Wardrobe } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -37,10 +37,19 @@ export const api = {
   jobs: () => request<Job[]>("/api/jobs"),
   job: (id: string) => request<Job>(`/api/jobs/${id}`),
   choreography: (id: string) => request<Moment[]>(`/api/jobs/${id}/choreography`),
+  people: (id: string) => request<Person[]>(`/api/jobs/${id}/people`),
   remove: (id: string) => request<void>(`/api/jobs/${id}`, { method: "DELETE" }),
 
   /** Sube el video con progreso real (fetch no informa del envío; XHR sí). */
-  async create(video: File, kind: StyleKind, style: string, seed: number | null, onUpload?: (fraction: number) => void, season: string | null = null): Promise<Job> {
+  async create(
+    video: File,
+    kind: StyleKind,
+    style: string,
+    seed: number | null,
+    onUpload?: (fraction: number) => void,
+    season: string | null = null,
+    wardrobe: Record<string, Wardrobe> = {},
+  ): Promise<Job> {
     const headers = await authHeaders();
     const form = new FormData();
     form.append("video", video);
@@ -48,6 +57,7 @@ export const api = {
     form.append("style", style);
     if (seed !== null) form.append("seed", String(seed));
     if (season) form.append("season", season);
+    if (Object.keys(wardrobe).length) form.append("wardrobe", JSON.stringify(wardrobe));
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open("POST", "/api/jobs");
@@ -63,10 +73,10 @@ export const api = {
     });
   },
 
-  variation: (id: string, kind: StyleKind, style: string, seed: number | null, season: string | null = null) =>
+  variation: (id: string, kind: StyleKind, style: string, seed: number | null, season: string | null = null, wardrobe: Record<string, Wardrobe> | null = null) =>
     request<Job>(`/api/jobs/${id}/variations`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ style_kind: kind, style, seed, season }),
+      body: JSON.stringify({ style_kind: kind, style, seed, season, wardrobe }),
     }),
 };

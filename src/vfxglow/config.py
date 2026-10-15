@@ -169,6 +169,9 @@ class DirectorConfig(_Strict):
     season: str | None = None
     # Guion de prueba (director/pins.py): momentos fijados a mano que mandan sobre el sorteo.
     pins: str | None = None
+    # Vestuario por persona (chaqueta, vestido, ambos, ninguno), que elige el usuario:
+    # {"person_0": "vestido", "*": "chaqueta"}. Ver director/choreography.py: wardrobe_allows.
+    wardrobe: dict[str, str] = Field(default_factory=dict)
     model: str = "gpt-5"
     api_key_env: str = "OPENAI_API_KEY"
     temperature: float = 0.4

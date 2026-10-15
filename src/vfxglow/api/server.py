@@ -214,6 +214,7 @@ def create_job(
     style: str = Form(...),
     seed: int | None = Form(None),
     season: str | None = Form(None),
+    wardrobe: str | None = Form(None),
     user: User = Depends(current_user),
 ) -> JobView:
     if Path(video.filename or "").suffix.lower() not in VIDEO_TYPES:
@@ -222,7 +223,8 @@ def create_job(
         raise HTTPException(413, f"El video supera {MAX_UPLOAD_MB} MB")
     style = _check_style(style_kind, style)
     _check_season(season or None)
-    return view(jobs().create(video.filename or "video.mp4", video.file, style_kind, style, seed, season or None, owner=user.uid))
+    wear = _check_wardrobe(json.loads(wardrobe) if wardrobe and wardrobe.strip().startswith("{") else ({"*": wardrobe} if wardrobe else {}))
+    return view(jobs().create(video.filename or "video.mp4", video.file, style_kind, style, seed, season or None, owner=user.uid, wardrobe=wear))
 
 
 class VariationRequest(BaseModel):
@@ -230,13 +232,25 @@ class VariationRequest(BaseModel):
     style: str
     seed: int | None = None
     season: str | None = None
+    # Vestuario por persona; sin él, el del trabajo de origen.
+    wardrobe: dict[str, str] | None = None
+
+
+def _check_wardrobe(wardrobe: dict[str, str]) -> dict[str, str]:
+    from vfxglow.director.choreography import WARDROBE_CHOICES
+
+    for person, choice in wardrobe.items():
+        if choice not in WARDROBE_CHOICES or not (person == "*" or person.startswith("person_")):
+            raise HTTPException(422, f"Vestuario no válido: {person}={choice}")
+    return wardrobe
 
 
 @app.post("/api/jobs/{job_id}/variations", response_model=JobView, status_code=201)
 def create_variation(job_id: str, body: VariationRequest, user: User = Depends(current_user)) -> JobView:
     style = _check_style(body.style_kind, body.style)
     _check_season(body.season)
-    return view(jobs().variation(_job(job_id, user), body.style_kind, style, body.seed, body.season))
+    wear = _check_wardrobe(body.wardrobe) if body.wardrobe is not None else None
+    return view(jobs().variation(_job(job_id, user), body.style_kind, style, body.seed, body.season, wear))
 
 
 @app.get("/api/jobs/{job_id}", response_model=JobView)
@@ -314,6 +328,81 @@ class Moment(BaseModel):
     action: str
     target: str
     choice: str
+
+
+class PersonView(BaseModel):
+    id: str
+    label: str
+    image_url: str
+
+
+def _people_frames(job: Job) -> dict[str, tuple[int, tuple[float, float, float, float]]]:
+    """Por persona, el fotograma donde se ve entera y más grande (y su caja). Se guarda junto al
+    video."""
+    cache = Path(job.video_path).parent / f"people-{Path(job.run_dir or '').name}.json"
+    if cache.exists():
+        return {k: (v[0], tuple(v[1])) for k, v in json.loads(cache.read_text()).items()}
+    tracks = Path(job.run_dir or "") / "analysis" / "tracks.jsonl"
+    best: dict[str, tuple[float, int, tuple]] = {}
+    cap = cv2.VideoCapture(job.video_path)
+    aspect = (cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 1.0) / (cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 1.0)
+    cap.release()
+    records = [json.loads(line) for line in tracks.open(encoding="utf-8")] if tracks.exists() else []
+    # Cuántas personas tiene el video: con dos, "sola" exige ver a las dos (si una tapa a la otra,
+    # el detector ve una sola y el recorte las mostraría juntas).
+    crowd = max((len(r.get("people") or []) for r in records), default=1)
+    if records:
+        for record in records:
+                boxes = [(person["person_id"], person.get("box")) for person in record.get("people") or [] if person.get("box")]
+                for pid, box in boxes:
+                    # De pie, entera y sola: la más alta con un ancho de persona (no los brazos
+                    # abiertos) y sin la otra persona encima (el recorte la mostraría).
+                    tall = box[3] - box[1]
+                    wide = (box[2] - box[0]) * aspect
+                    alone = len(boxes) >= crowd and all(min(box[2], other[2]) - max(box[0], other[0]) <= -0.03 for oid, other in boxes if oid != pid)
+                    score = tall if wide <= 0.7 * tall and box[0] >= 0 and box[2] <= 1 else tall * 0.3
+                    score *= 1.0 if alone else 0.2
+                    person = {"person_id": pid}
+                    if score > best.get(person["person_id"], (0.0,))[0]:
+                        best[person["person_id"]] = (score, record["frame"], tuple(box))
+    found = {pid: (frame, box) for pid, (_, frame, box) in sorted(best.items())}
+    cache.write_text(json.dumps(found))
+    return found
+
+
+@app.get("/api/jobs/{job_id}/people", response_model=list[PersonView])
+def job_people(job_id: str, user: User = Depends(current_user)) -> list[PersonView]:
+    """Las personas del video, con un recorte de cada una (para elegir su vestuario)."""
+    job = _job(job_id, user)
+    key = f"?k={media_key(job.id, job.owner or 'local')}"
+    return [
+        PersonView(id=pid, label=f"Persona {int(pid.rsplit('_', 1)[-1]) + 1}", image_url=f"/api/jobs/{job.id}/people/{pid}.jpg{key}")
+        for pid in _people_frames(job)
+    ]
+
+
+@app.get("/api/jobs/{job_id}/people/{person_id}.jpg")
+def job_person_image(job_id: str, person_id: str, k: str | None = Query(None)) -> Response:
+    job = _media_job(job_id, k)
+    found = _people_frames(job)
+    if person_id not in found:
+        raise HTTPException(404, "Persona no encontrada")
+    cache = Path(job.video_path).parent / f"person-{Path(job.run_dir or '').name}-{person_id}.jpg"
+    if not cache.exists():
+        frame_index, (x0, y0, x1, y1) = found[person_id]
+        cap = cv2.VideoCapture(job.video_path)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+        ok, frame = cap.read()
+        cap.release()
+        if not ok:
+            raise HTTPException(404, "No se pudo leer el video")
+        h, w = frame.shape[:2]
+        pad_x, pad_y = (x1 - x0) * 0.15, (y1 - y0) * 0.08
+        crop = frame[int(max(y0 - pad_y, 0) * h) : int(min(y1 + pad_y, 1) * h), int(max(x0 - pad_x, 0) * w) : int(min(x1 + pad_x, 1) * w)]
+        scale = 360 / max(crop.shape[0], 1)
+        crop = cv2.resize(crop, (max(int(crop.shape[1] * scale), 1), 360))
+        cv2.imwrite(str(cache), crop, [cv2.IMWRITE_JPEG_QUALITY, 85])
+    return FileResponse(cache, media_type="image/jpeg")
 
 
 @app.get("/api/jobs/{job_id}/choreography", response_model=list[Moment])

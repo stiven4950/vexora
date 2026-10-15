@@ -62,6 +62,7 @@ class Pipeline:
         take: int = 0,
         season: str | None = None,
         pins: Path | None = None,
+        wardrobe: dict[str, str] | None = None,
     ) -> None:
         self.config_path = config_path
         self.config = load_config(config_path)
@@ -85,6 +86,8 @@ class Pipeline:
             self.config.director.catalog = catalog_name(catalog)
         if seed is not None:
             self.config.director.seed = seed
+        if wardrobe:
+            self.config.director.wardrobe = dict(wardrobe)
         # Sin semilla, la coreografía es la del puesto `take` entre varias candidatas (0 = la mejor).
         self.config.director.take = max(int(take), 0)
         if season:

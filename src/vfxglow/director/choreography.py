@@ -62,6 +62,9 @@ class Option(_Strict):
     # baile) solo cuando el movimiento lo pide.
     min_speed: float = 0.0
     min_duration_s: float = 0.0
+    # Prenda de cuerpo entero ("chaqueta", "vestido"): solo sale en las personas cuyo vestuario
+    # (Catalog.wardrobe, que elige el usuario) la permite.
+    wardrobe: str = ""
     effects: list[dict] = Field(default_factory=list)
 
 
@@ -101,6 +104,9 @@ class Catalog(_Strict):
     # Ningún tramo sin efecto: un hueco más largo que esto (s) se rellena con un efecto del foco de
     # ese momento (0 = no se rellena). Ver fill_gaps.
     max_gap_s: float = 0.0
+    # Vestuario por persona, que elige el usuario: {"person_0": "vestido", "*": "chaqueta"}.
+    # Valores: chaqueta, vestido, ambos, ninguno. Sin dato para una persona, "*"; sin "*", ninguno.
+    wardrobe: dict[str, str] = Field(default_factory=dict)
     # Pareja (analysis/duet.py): al unísono, el efecto elegido para uno se copia al otro (cada
     # uno con su color); en un solo, solo se enciende quien lleva el turno.
     duet: bool = False
@@ -247,7 +253,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 )
                 continue
             resting = {name for name, frame in memo["used"].items() if event.start_frame - frame < _option(reaction, name).cooldown}
-            option = _draw(reaction, event, seed, resting, brief)
+            option = _draw(reaction, event, seed, resting, brief, catalog.wardrobe)
             if option.yields_to and _yields(option, event, brief, seed, fps):
                 option = Option(name=f"nada (cede a {', '.join(option.yields_to)})")
             if option.effects and event.start_frame - memo["last"] < reaction.cooldown:
@@ -305,10 +311,16 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                     if span is not None and span.mode == "unison" and not whole_scene
                     else None
                 )
+                twin_option = option
+                if twin is not None and not wardrobe_allows(option, partner, catalog.wardrobe):
+                    # La pareja lleva otro vestuario: su propia prenda (vestido en vez de chaqueta).
+                    twin_option = next((o for o in reaction.options if o.wardrobe and o.effects and wardrobe_allows(o, partner, catalog.wardrobe)), None)
+                    if twin_option is None:
+                        twin = None
                 if twin is not None:
                     if twin not in events:
                         extra.append(twin)
-                    mirrored.setdefault((reaction.action, option.name), []).append((twin.start_frame, twin.target))
+                    mirrored.setdefault((reaction.action, twin_option.name), []).append((twin.start_frame, twin.target))
                     busy[(partner, group)] = max(busy.get((partner, group), -1), end)
                     decisions.append(
                         Decision(
@@ -316,7 +328,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                             second=round(twin.start_frame / fps, 2),
                             action=reaction.action,
                             target=twin.target,
-                            choice=f"{option.name} (espejo)",
+                            choice=f"{twin_option.name} (espejo)",
                             until=end,
                         )
                     )
@@ -440,10 +452,10 @@ def fill_gaps(catalog: Catalog, brief: MotionBrief, events, extra, chosen, decis
             events.append(event)
             extra.append(event)
         pool = Reaction(action="spotlight", options=[o for o in spot.options if o.effects and not o.exclusive])
-        option = _draw(pool, event, seed + 7919 * (attempt + 1), frozenset(), brief)
+        option = _draw(pool, event, seed + 7919 * (attempt + 1), frozenset(), brief, catalog.wardrobe)
         if not option.effects:
             # Sin opción para esa región: el cuerpo entero sí admite casi todas.
-            option = _draw(pool, event.model_copy(update={"kind": ""}), seed + 7919 * (attempt + 1), frozenset(), brief)
+            option = _draw(pool, event.model_copy(update={"kind": ""}), seed + 7919 * (attempt + 1), frozenset(), brief, catalog.wardrobe)
         if not option.effects:
             covered[start : end + 1] = True  # nada que poner aquí: no insistir
             continue
@@ -709,7 +721,18 @@ def _yields(option: Option, event: MotionEvent, brief: MotionBrief, seed: int, f
     return bool(rng.random() < option.yield_chance)
 
 
-def _draw(reaction: Reaction, event: MotionEvent, seed: int, resting: set[str] = frozenset(), brief: MotionBrief | None = None) -> Option:
+WARDROBE_CHOICES = ("chaqueta", "vestido", "ambos", "ninguno")
+
+
+def wardrobe_allows(option: Option, person: str | None, wardrobe: dict[str, str]) -> bool:
+    """La prenda de la opción cabe en el vestuario que el usuario eligió para esa persona."""
+    if not option.wardrobe:
+        return True
+    choice = wardrobe.get(person or "", "") or wardrobe.get("*", "") or "ninguno"
+    return choice == "ambos" or choice == option.wardrobe
+
+
+def _draw(reaction: Reaction, event: MotionEvent, seed: int, resting: set[str] = frozenset(), brief: MotionBrief | None = None, wardrobe: dict[str, str] | None = None) -> Option:
     limb = event.target.rsplit(":", 1)[-1]
     options = [
         o
@@ -718,6 +741,7 @@ def _draw(reaction: Reaction, event: MotionEvent, seed: int, resting: set[str] =
         and (not o.limbs or limb in o.limbs)
         and (not o.kinds or event.kind in o.kinds)
         and (not o.accessories or _wears(brief, event, o.accessories))
+        and wardrobe_allows(o, _person(event), wardrobe or {})
         and event.peak_speed >= o.min_speed
         and (event.end_frame - event.start_frame + 1) >= o.min_duration_s * (brief.video.fps if brief else 30.0)
         and o.name not in resting

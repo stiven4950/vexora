@@ -222,3 +222,17 @@ def test_no_stretch_of_the_video_without_an_effect() -> None:
         run = 0 if lit else run + 1
         longest = max(longest, run)
     assert longest <= 30
+
+
+def test_garments_follow_the_wardrobe_each_person_chose() -> None:
+    from vfxglow.director.choreography import Option, wardrobe_allows
+
+    jacket, dress = Option(name="chaqueta", wardrobe="chaqueta"), Option(name="vestido", wardrobe="vestido")
+    plain = Option(name="collar")
+    choice = {"person_0": "chaqueta", "person_1": "vestido"}
+    assert wardrobe_allows(jacket, "person_0", choice) and not wardrobe_allows(jacket, "person_1", choice)
+    assert wardrobe_allows(dress, "person_1", choice) and not wardrobe_allows(dress, "person_0", choice)
+    # Sin elegir, ninguna prenda; "ambos", las dos; lo que no es prenda sale siempre.
+    assert not wardrobe_allows(jacket, "person_0", {}) and not wardrobe_allows(dress, "person_0", {})
+    assert wardrobe_allows(jacket, "person_0", {"*": "ambos"}) and wardrobe_allows(dress, "person_0", {"*": "ambos"})
+    assert wardrobe_allows(plain, "person_0", {})

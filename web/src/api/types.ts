@@ -58,6 +58,25 @@ export interface Job {
   events_url: string | null;
   /** El estilo con su nombre de hoy (los trabajos viejos pueden tener un nombre anterior). */
   style_current: string;
+  /** Vestuario por persona ({"*": "vestido", "person_1": "chaqueta"}). */
+  wardrobe: Record<string, Wardrobe>;
+}
+
+/** Prendas de cuerpo entero que puede llevar una persona. */
+export type Wardrobe = "chaqueta" | "vestido" | "ambos" | "ninguno";
+
+export const WARDROBES: { id: Wardrobe; label: string }[] = [
+  { id: "ninguno", label: "Sin prendas" },
+  { id: "chaqueta", label: "Chaquetas metaleras" },
+  { id: "vestido", label: "Vestidos" },
+  { id: "ambos", label: "Ambos" },
+];
+
+/** Una persona del video, con un recorte para reconocerla. */
+export interface Person {
+  id: string;
+  label: string;
+  image_url: string;
 }
 
 export interface Moment {

@@ -24,6 +24,22 @@ def load_env_file(path: Path) -> None:
         os.environ.setdefault(key, value.strip().strip('"').strip("'"))
 
 
+def parse_wardrobe(text: str | None) -> dict[str, str] | None:
+    """"vestido" (para todos) o "person_0=vestido,person_1=chaqueta"."""
+    if not text:
+        return None
+    from vfxglow.director.choreography import WARDROBE_CHOICES
+
+    out: dict[str, str] = {}
+    for part in text.split(","):
+        person, _, choice = part.strip().rpartition("=")
+        choice = choice.strip().lower()
+        if choice not in WARDROBE_CHOICES:
+            raise SystemExit(f"Vestuario desconocido: {choice} (usa {', '.join(WARDROBE_CHOICES)})")
+        out[person.strip() or "*"] = choice
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="vfxglow",
@@ -52,6 +68,12 @@ def main(argv: list[str] | None = None) -> int:
             type=Path,
             default=None,
             help="Guion de prueba (YAML): momentos fijados a mano que mandan sobre el sorteo",
+        )
+        command.add_argument(
+            "--wardrobe",
+            type=str,
+            default=None,
+            help="Vestuario: chaqueta, vestido, ambos o ninguno, para todos o por persona (person_0=vestido,person_1=chaqueta)",
         )
         command.add_argument("--level", choices=["fast", "hq", "masks"], default=None)
         command.add_argument("--force", action="store_true", help="Ignora la caché de etapas")
@@ -97,6 +119,7 @@ def main(argv: list[str] | None = None) -> int:
         take=args.take,
         season=args.season,
         pins=args.pin,
+        wardrobe=parse_wardrobe(args.wardrobe),
     )
     getattr(pipeline, args.command if args.command != "run" else "run")()
     return 0

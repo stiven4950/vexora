@@ -307,6 +307,23 @@ Las partes del cuerpo encendidas usan **dos pasadas**, como haría un editor: un
 | 27.2 | Barrido del brazo | Estela blanca gruesa | ✅ `fast_swing → estela` (modo pintura) |
 | 28.1–28.7 | Cadera | **Sombrero vaquero** y cinturón dibujados | ✅ sombrero; cinturón 🔜 |
 
+### Vestuario: chaquetas y vestidos que elige el usuario
+
+Las prendas de cuerpo entero llevan `wardrobe` en su opción (`chaqueta`, `vestido`) y solo salen en
+las personas cuyo vestuario las permite. El vestuario lo elige el usuario: al subir el video, uno
+para todos (Estudio → Vestuario), y en la página del video, uno por persona, con un recorte de cada
+una para reconocerla. Valores: `chaqueta`, `vestido`, `ambos`, `ninguno`; sin elegir, `ninguno`.
+No se intenta adivinar nada sobre las personas.
+
+- `chaqueta`: la chaqueta metalera (`engine/jacket.py`), poco frecuente (peso 0,15, como mucho
+  cada 15 s).
+- `vestido`: vestido largo de gala, de cóctel o de volantes (`engine/dresses.py`): corpiño, falda
+  que sigue a las piernas, pliegues o volantes y destellos.
+- En pareja, cuando bailan igual, la copia respeta el vestuario de cada uno: si a uno le sale la
+  chaqueta, a la otra persona le sale su vestido.
+
+En la línea de comandos: `--wardrobe vestido` o `--wardrobe person_0=chaqueta,person_1=vestido`.
+
 ### Disfraces de cara y cabeza, y prendas del cuello (`engine/costumes.py`)
 
 Adornos anclados a la cara (ojos, nariz, boca), que giran con la cabeza. En `baile` salen al empezar

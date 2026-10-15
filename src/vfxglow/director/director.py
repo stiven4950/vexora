@@ -60,6 +60,8 @@ class CreativeDirector:
             if not path.exists():
                 raise FileNotFoundError(f"No existe el catálogo {path}")
             catalog = load_catalog(path)
+            if self.config.wardrobe:
+                catalog = catalog.model_copy(update={"wardrobe": dict(self.config.wardrobe)})
             season = self._season()
             if season is not None:
                 from vfxglow.director.seasons import apply_to_catalog

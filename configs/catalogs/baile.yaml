@@ -179,14 +179,28 @@ reactions:
       trigger: {hold: 8, fade_in: 2, fade_out: 6}
   # De vez en cuando, disfraces de cuerpo entero: chaqueta metalera con púas (engine/jacket.py) o
   # rayos X.
+  # Prendas de cuerpo entero: solo en quien el usuario eligió ese vestuario (wardrobe), y poco.
   - name: chaqueta
+    wardrobe: chaqueta
     exclusive: true
-    weight: 0.3
+    weight: 0.15
+    cooldown: 450
     kinds: [torso, left_arm, right_arm]
     yields_to: [prop_worn, face_touch]
     effects:
     - type: adornment
       style: {thickness: 0.012, shapes: [metal_jacket], focus: false}
+      trigger: {hold: 20, fade_in: 4, fade_out: 8}
+  - name: vestido
+    wardrobe: vestido
+    exclusive: true
+    weight: 0.15
+    cooldown: 450
+    kinds: [torso, left_arm, right_arm, legs]
+    yields_to: [prop_worn, face_touch]
+    effects:
+    - type: adornment
+      style: {thickness: 0.009, shapes: [gown, cocktail, ruffle], focus: false}
       trigger: {hold: 20, fade_in: 4, fade_out: 8}
   - name: rayos_x
     exclusive: true

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 import { api } from "../api/client";
 import { rgb } from "../api/format";
-import type { Season, Style } from "../api/types";
+import { WARDROBES, type Season, type Style, type Wardrobe } from "../api/types";
 import { Button } from "../components/Button";
 import { Dropzone } from "../components/Dropzone";
 import { Icon } from "../components/Icon";
@@ -19,6 +19,7 @@ export function Studio() {
   const [chosen, setChosen] = useState<Style | null>(null);
   const [seasonList, setSeasonList] = useState<Season[]>([]);
   const [season, setSeason] = useState<string | null>(null);
+  const [wardrobe, setWardrobe] = useState<Wardrobe>("ninguno");
   const [showPresets, setShowPresets] = useState(false);
   const [upload, setUpload] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +49,8 @@ export function Studio() {
     setUpload(0);
     try {
       // Sin semilla: el servidor prueba varias coreografías y se queda con la mejor.
-      const job = await api.create(file, chosen.kind, chosen.name, null, setUpload, season);
+      const wear: Record<string, Wardrobe> = chosen.kind === "catalog" && wardrobe !== "ninguno" ? { "*": wardrobe } : {};
+      const job = await api.create(file, chosen.kind, chosen.name, null, setUpload, season, wear);
       navigate(`/jobs/${job.id}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -128,7 +130,7 @@ export function Studio() {
       </section>
 
       {seasonList.length > 0 && (
-        <section className={`${styles.step} ${styles.last}`}>
+        <section className={`${styles.step} ${chosen?.kind === "catalog" ? "" : styles.last}`}>
           <header>
             <span className={styles.num}>03</span>
             <div>
@@ -163,6 +165,25 @@ export function Studio() {
                   </span>
                 </button>
               ))}
+          </div>
+        </section>
+      )}
+
+      {chosen?.kind === "catalog" && (
+        <section className={`${styles.step} ${styles.last}`}>
+          <header>
+            <span className={styles.num}>{seasonList.length > 0 ? "04" : "03"}</span>
+            <div>
+              <h2>Vestuario</h2>
+              <p>Opcional: de vez en cuando se dibuja una prenda de cuerpo entero sobre las personas. Después, en la página del video, puedes elegirla para cada persona por separado.</p>
+            </div>
+          </header>
+          <div className={styles.seasons}>
+            {WARDROBES.map((w) => (
+              <button key={w.id} type="button" className={`${styles.season} ${wardrobe === w.id ? styles.on : ""}`} onClick={() => setWardrobe(w.id)}>
+                {w.label}
+              </button>
+            ))}
           </div>
         </section>
       )}
