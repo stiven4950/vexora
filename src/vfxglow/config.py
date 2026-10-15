@@ -15,7 +15,7 @@ class _Strict(BaseModel):
 
 class OneEuroConfig(_Strict):
     min_cutoff: float = 1.2
-    beta: float = 0.04
+    beta: float = 1.0
     d_cutoff: float = 1.0
 
 

@@ -124,14 +124,22 @@ def smooth_series(
     valid = reject_jumps(values, valid, max_jump, max_gap)
     filled, valid = fill_short_gaps(values, valid, max_gap)
     out = np.full(len(values), np.nan, dtype=np.float64)
-    filt = OneEuroFilter(fps, euro.min_cutoff, euro.beta, euro.d_cutoff)
-    was_valid = False
-    for i in range(len(filled)):
-        if not valid[i] or not np.isfinite(filled[i]):
-            was_valid = False
+    usable = valid & np.isfinite(filled)
+    # El análisis no es en vivo: cada tramo se filtra hacia adelante y hacia atrás y se promedia,
+    # así el retardo de una pasada se cancela con el adelanto de la otra (la cabeza de video_35
+    # quedaba hasta 170 px detrás con una sola pasada).
+    i = 0
+    while i < len(filled):
+        if not usable[i]:
+            i += 1
             continue
-        if not was_valid:
-            filt.reset()
-        out[i] = filt(float(filled[i]))
-        was_valid = True
+        start = i
+        while i < len(filled) and usable[i]:
+            i += 1
+        segment = filled[start:i]
+        ahead = OneEuroFilter(fps, euro.min_cutoff, euro.beta, euro.d_cutoff)
+        behind = OneEuroFilter(fps, euro.min_cutoff, euro.beta, euro.d_cutoff)
+        forward = np.array([ahead(float(v)) for v in segment])
+        backward = np.array([behind(float(v)) for v in segment[::-1]])[::-1]
+        out[start:i] = (forward + backward) / 2.0
     return out, valid
