@@ -193,7 +193,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
     # gesto): mientras dura, esa persona no enciende otro (lleva el mismo momento que su pareja).
     busy: dict[tuple[str, str], int] = {}
     forced: dict[tuple[int, int], tuple[Option, object]] = {}
-    pinned_out: list[tuple[Reaction, Option, list[tuple[int, str]]]] = []
+    pinned_out: list[tuple[Reaction, Option, list[tuple[int, str]], object]] = []
     pinned: list[tuple[MotionEvent, Reaction]] = []
     if pins is not None:
         from vfxglow.director.pins import resolve_pins
@@ -224,7 +224,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 group = "motion" if reaction.action in TURN_ACTIONS else reaction.action
                 # Cada momento fijado es su propio efecto: dos que coinciden (la entrada de cada
                 # uno, el pie de los dos) se dibujan a la vez.
-                pinned_out.append((reaction, option, [(event.start_frame, event.target)]))
+                pinned_out.append((reaction, option, [(event.start_frame, event.target)], pin))
                 memo["last"] = event.start_frame
                 memo["used"][option.name] = event.start_frame
                 if option.exclusive:
@@ -243,7 +243,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 if twin is not None:
                     if twin not in events:
                         extra.append(twin)
-                    pinned_out.append((reaction, option, [(twin.start_frame, twin.target)]))
+                    pinned_out.append((reaction, option, [(twin.start_frame, twin.target)], pin))
                     busy[(partner, group)] = max(busy.get((partner, group), -1), end)
                     decisions.append(
                         Decision(frame=twin.start_frame, second=round(twin.start_frame / fps, 2), action=reaction.action, target=twin.target, choice=f"{option.name} (espejo)", until=end)
@@ -346,9 +346,11 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
         fill_gaps(catalog, brief, events, extra, chosen, decisions, seed, fps)
     always = [] if pins is not None and pins.solo_estos else catalog.always
     effects: list[dict] = [_effect(catalog, raw, f"always_{index}") for index, raw in enumerate(always)]
-    for number, (reaction, option, picked) in enumerate(pinned_out):
+    for number, (reaction, option, picked, pin) in enumerate(pinned_out):
         for index, raw in enumerate(option.effects):
             effect = _effect(catalog, raw, f"{reaction.action}_{option.name}_{index}_fijado_{number}")
+            if pin.figura and pin.figura in effect["style"].get("shapes", []):
+                effect["style"]["shapes"] = [pin.figura]
             # Lo fijado se ve aunque la línea de atención mire a otro lado, lo que dura su momento
             # (`dur`), sin la retención ni el enfriamiento del catálogo.
             effect["style"]["focus"] = False

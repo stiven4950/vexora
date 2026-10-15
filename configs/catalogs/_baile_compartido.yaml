@@ -297,6 +297,31 @@ reactions:
     - type: adornment
       style: {shapes: [punk_hair], thickness: 0.011}
       trigger: {hold: 20, fade_in: 1, fade_out: 10}
+  # video_35: personajes de cabeza y la serpiente que recorre los brazos.
+  - name: iron_man
+    weight: 0.1
+    kinds: [head]
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [iron_man], thickness: 0.009}
+      trigger: {hold: 20, fade_in: 2, fade_out: 6}
+  - name: cresta
+    weight: 0.12
+    kinds: [head]
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [punk_crest], thickness: 0.009, palette_every: 30}
+      trigger: {hold: 40, fade_in: 2, fade_out: 6}
+  - name: serpiente
+    weight: 0.08
+    kinds: [left_arm, right_arm]
+    cooldown: 600
+    effects:
+    - type: adornment
+      style: {shapes: [snake], thickness: 0.008, focus: false}
+      trigger: {hold: 45, fade_in: 1, fade_out: 4}
   - name: luna
     weight: 0.15
     kinds: [head]
@@ -361,3 +386,113 @@ reactions:
     - type: adornment
       style: {shapes: [floor_arc], thickness: 0.014}
       trigger: {hold: 10, fade_in: 1, fade_out: 8}
+# ----- video_35: personajes, gestos dibujados y aventuras sobre el cuerpo -----
+- action: rock_hands
+  options:
+  - name: rock
+    weight: 0.8
+    effects:
+    - type: adornment
+      style: {shapes: [rock_hands], thickness: 0.009, focus: false}
+      trigger: {hold: 14, fade_in: 2, fade_out: 6}
+    - type: adornment
+      style: {shapes: [headphones], thickness: 0.01, focus: false}
+      trigger: {hold: 14, fade_in: 2, fade_out: 6}
+  - name: nada
+    weight: 0.2
+- action: hands_on_head
+  options:
+  - name: diablo
+    weight: 0.35
+    effects:
+    - type: adornment
+      style: {shapes: [devil_eyes], thickness: 0.009, focus: false}
+      trigger: {hold: 14, fade_in: 2, fade_out: 6}
+  - name: aro_manos
+    weight: 0.3
+    effects:
+    - type: adornment
+      style: {shapes: [head_ring], thickness: 0.012, focus: false}
+      trigger: {hold: 12, fade_in: 2, fade_out: 6}
+  - name: ovni
+    weight: 0.25
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [ufo], thickness: 0.009, focus: false}
+      trigger: {hold: 60, fade_in: 2, fade_out: 6}
+  - name: nada
+    weight: 0.1
+- action: arms_x
+  options:
+  - name: exclamacion
+    weight: 0.8
+    effects:
+    - type: adornment
+      style: {shapes: [exclaim], thickness: 0.012, focus: false}
+      trigger: {hold: 10, fade_in: 1, fade_out: 6}
+  - name: nada
+    weight: 0.2
+- action: lunge
+  options:
+  - name: venom
+    weight: 0.7
+    effects:
+    - type: adornment
+      style: {shapes: [venom], thickness: 0.008, focus: false}
+      trigger: {hold: 14, fade_in: 1, fade_out: 6}
+  - name: nada
+    weight: 0.3
+- action: point
+  options:
+  # La aventura del muñequito: camina por el brazo extendido, cae, la otra mano lo atrapa.
+  - name: munequito
+    weight: 0.4
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [stick_man], thickness: 0.008, focus: false}
+      trigger: {hold: 45, fade_in: 1, fade_out: 4}
+- action: fast_swing
+  options:
+  - name: manos_fuego
+    weight: 0.25
+    min_speed: 0.35
+    cooldown: 150
+    effects:
+    - type: adornment
+      style: {shapes: [hand_flames], thickness: 0.007, focus: false}
+      trigger: {hold: 18, fade_in: 1, fade_out: 6}
+  - name: garras
+    weight: 0.15
+    min_speed: 0.42
+    cooldown: 150
+    limbs: [left_wrist, right_wrist]
+    effects:
+    - type: adornment
+      style: {shapes: [claws], thickness: 0.008, focus: false}
+      trigger: {hold: 10, fade_in: 1, fade_out: 6}
+  - name: globo_agua
+    weight: 0.15
+    min_speed: 0.4
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [water_balloon], thickness: 0.009, focus: false}
+      trigger: {hold: 45, fade_in: 1, fade_out: 4}
+- action: arms_open
+  options:
+  - name: bateria
+    weight: 0.3
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [battery], thickness: 0.01, focus: false}
+      trigger: {hold: 40, fade_in: 2, fade_out: 8}
+  - name: heroe
+    weight: 0.2
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [hero_text], thickness: 0.008, focus: false}
+      trigger: {hold: 14, fade_in: 2, fade_out: 6}

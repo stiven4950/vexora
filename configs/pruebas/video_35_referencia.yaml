@@ -1,0 +1,35 @@
+# La coreografía de la referencia glowing/video_35.mp4, momento a momento (lectura en
+# docs/referencias/video_35.md). Un solista con público: los efectos solo van en él.
+#   vfxglow run --video ../glowing/data/original/video_35.mp4 --pin configs/pruebas/video_35_referencia.yaml
+catalogo: baile
+solo_estos: true
+momentos:
+- {seg: 0.0, accion: spotlight, opcion: ocurrencia, figura: horns, exacto: true, dur: 0.28}
+# Cresta de tres puntas con gafas (morada), según el giro de la cabeza.
+- {seg: 0.3, accion: spotlight, opcion: cresta, exacto: true, dur: 0.35}
+- {seg: 0.7, accion: rock_hands, opcion: rock, exacto: true, dur: 0.75}
+- {seg: 1.5, accion: rock_hands, opcion: rock, exacto: true, dur: 0.7}
+# La cresta punk: tres puntas de perfil, una de frente; las gafas suben y la cresta se vuelve arcos.
+- {seg: 2.4, accion: spotlight, opcion: cresta, exacto: true, dur: 1.7}
+- {seg: 4.3, accion: point, opcion: munequito, exacto: true, dur: 1.6}
+- {seg: 6.1, accion: hands_on_head, opcion: ovni, exacto: true, dur: 3.0}
+- {seg: 10.5, accion: fast_swing, opcion: manos_fuego, exacto: true, dur: 0.85}
+- {seg: 12.0, accion: arms_x, opcion: exclamacion, exacto: true, dur: 0.65}
+- {seg: 12.8, accion: hands_on_head, opcion: diablo, exacto: true, dur: 0.9}
+- {seg: 14.2, accion: lunge, opcion: venom, exacto: true, dur: 0.7}
+- {seg: 15.3, accion: spotlight, opcion: cabeza_gafas, figura: visor, exacto: true, dur: 0.35}
+- {seg: 16.0, accion: fast_swing, opcion: garras, exacto: true, dur: 0.85}
+- {seg: 17.2, accion: spotlight, opcion: brazo, exacto: true, dur: 1.1}
+- {seg: 18.9, accion: spotlight, opcion: iron_man, exacto: true, dur: 0.95}
+- {seg: 20.1, accion: spotlight, opcion: aureola, exacto: true, dur: 0.35}
+- {seg: 20.6, accion: hands_on_head, opcion: diablo, exacto: true, dur: 1.55}
+- {seg: 22.35, accion: spotlight, opcion: rayos_brazos, exacto: true, dur: 0.25}
+- {seg: 22.6, accion: arms_open, opcion: heroe, exacto: true, dur: 0.4}
+- {seg: 23.0, accion: spin_body, opcion: arcos, exacto: true, dur: 0.65}
+- {seg: 24.1, accion: spotlight, opcion: cabeza_accesorio, figura: crown, exacto: true, dur: 0.5}
+# El lanzamiento de béisbol con un globo de agua.
+- {seg: 25.4, accion: fast_swing, opcion: globo_agua, exacto: true, dur: 1.65}
+- {seg: 27.2, accion: arms_open, opcion: bateria, exacto: true, dur: 1.7}
+- {seg: 29.6, accion: spotlight, opcion: cresta, exacto: true, dur: 0.55}
+- {seg: 30.2, accion: spotlight, opcion: brazo_onda, exacto: true, dur: 1.7}
+- {seg: 32.0, accion: spotlight, opcion: cabeza_accesorio, figura: cap, exacto: true, dur: 0.4}

@@ -62,6 +62,8 @@ class Pin(_Strict):
     # Mano o pie del momento creado ("left"/"right", lados de la persona): qué mano sostiene el
     # corazón, qué pierna lleva la línea.
     lado: str | None = None
+    # Figura exacta de un adorno que sortea entre varias (horns dentro de "ocurrencia").
+    figura: str | None = None
 
 
 class PinFile(_Strict):
