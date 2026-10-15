@@ -1,0 +1,43 @@
+# Guion propuesto por Gemini (Argon) para video_35 con el prompt de animador (docs/metaforas.md).
+# Sus 4 efectos NUEVO_ aún no existen: van sustituidos por el más parecido del catálogo.
+#   vfxglow run --video ../glowing/data/original/video_35.mp4 --catalog baile --pin configs/pruebas/video_35_gemini.yaml
+catalogo: baile
+solo_estos: true
+momentos:
+- {seg: 0.0, accion: entrance, opcion: aureola, exacto: true, dur: 0.5}
+- {seg: 0.5, accion: rock_hands, opcion: rock, exacto: true, dur: 0.9}
+- {seg: 1.4, accion: spotlight, opcion: corazon_pecho, exacto: true, dur: 1.0}
+- {seg: 2.4, accion: spotlight, opcion: rayos_brazos, exacto: true, dur: 0.8}
+- {seg: 3.2, accion: hands_on_head, opcion: diablo, exacto: true, dur: 0.9}
+- {seg: 4.1, accion: point, opcion: munequito, exacto: true, dur: 1.1}
+- {seg: 5.2, accion: spotlight, opcion: cabeza_gafas, figura: visor, exacto: true, dur: 0.8}
+- {seg: 6.0, accion: hands_on_head, opcion: ovni, exacto: true, dur: 1.6}
+- {seg: 7.6, accion: spotlight, opcion: onda_rayos, exacto: true, dur: 1.3}
+# NUEVO_trampa_chispa (atrapa una chispa viva con el puño) → aro_mano
+- {seg: 8.9, accion: spotlight, opcion: aro_mano, exacto: true, dur: 1.2}
+- {seg: 10.1, accion: spotlight, opcion: aro_mano, exacto: true, dur: 1.3}
+- {seg: 11.4, accion: point, opcion: senal, exacto: true, dur: 0.9}
+- {seg: 12.3, accion: arms_x, opcion: exclamacion, exacto: true, dur: 0.4}
+- {seg: 12.7, accion: spotlight, opcion: iron_man, exacto: true, dur: 0.4}
+- {seg: 13.1, accion: spotlight, opcion: rayos_cabeza, exacto: true, dur: 1.0}
+- {seg: 14.1, accion: lunge, opcion: venom, exacto: true, dur: 0.9}
+- {seg: 15.0, accion: fast_swing, opcion: manos_fuego, exacto: true, dur: 0.5}
+- {seg: 15.5, accion: fast_swing, opcion: estela_energia, exacto: true, dur: 0.8}
+# NUEVO_cuerda_tiempo (jala una soga de luz y se arrastra hacia atrás) → brazo_onda
+- {seg: 16.3, accion: spotlight, opcion: brazo_onda, exacto: true, dur: 0.9}
+- {seg: 17.2, accion: spotlight, opcion: energia, exacto: true, dur: 0.6}
+- {seg: 17.8, accion: arms_open, opcion: heroe, exacto: true, dur: 0.8}
+- {seg: 18.6, accion: spotlight, opcion: ocurrencia, exacto: true, dur: 1.3}
+# NUEVO_armadura_pecho ("I don't need no supersuit": se acomoda un traje de luz) → torso_lineas
+- {seg: 19.9, accion: spotlight, opcion: torso_lineas, exacto: true, dur: 1.0}
+- {seg: 20.9, accion: spotlight, opcion: piernas_onda, exacto: true, dur: 1.4}
+- {seg: 22.3, accion: spotlight, opcion: brazo_onda, exacto: true, dur: 1.0}
+- {seg: 23.3, accion: arms_open, opcion: alas, exacto: true, dur: 1.7}
+- {seg: 25.0, accion: spotlight, opcion: cinta, exacto: true, dur: 1.3}
+- {seg: 26.3, accion: cover_eyes, opcion: antifaz, figura: hero_mask, exacto: true, dur: 0.8}
+- {seg: 27.1, accion: arms_up, opcion: fiesta, exacto: true, dur: 0.5}
+- {seg: 27.6, accion: stomp, opcion: arco_piso, exacto: true, dur: 1.2}
+# NUEVO_planeador_sirena (alas de planeador con la sirena del beat) → alas
+- {seg: 28.8, accion: arms_open, opcion: alas, exacto: true, dur: 2.0}
+- {seg: 30.8, accion: spotlight, opcion: rayos_cuerpo, exacto: true, dur: 0.7}
+- {seg: 31.5, accion: spotlight, opcion: estallido, exacto: true, dur: 0.5}
