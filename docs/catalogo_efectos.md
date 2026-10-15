@@ -322,6 +322,19 @@ Adornos anclados a la cara (ojos, nariz, boca), que giran con la cabeza. En `bai
 De espaldas no se dibuja lo que va sobre la cara ni la corbata; sí orejas, cuernos, antenas y
 bandana.
 
+### Ningún tramo sin efecto y efectos de pelea con movimiento fuerte
+
+- **`max_gap_s`** (catálogo): después del sorteo, un hueco sin ningún efecto más largo que esto se
+  rellena con un efecto del foco de ese momento (`fill_gaps` en `director/choreography.py`); si no
+  hay foco, se crea uno con la región de la línea de atención. En `baile`, 1 s: en video_33 y
+  video_34 el hueco más largo queda en 1 s o menos y se cubre el 91-96% del video.
+- **`min_speed`** y **`min_duration_s`** (opción): la opción solo entra en el sorteo si el
+  movimiento es lo bastante fuerte (velocidad pico) o largo. Esas opciones mandan: no ceden ante
+  el tope de focos ni ante un efecto de escena encendido. Así `baile` toma de `pelea` la estela de
+  energía, el brazo musculoso, la llamarada y las estrellas en golpes muy rápidos (velocidad pico
+  ≥ 0,42-0,48) y la **furia** (estelas en manos y pies, brazos musculosos, hilos de energía y
+  chispas) en el baile intenso que dura 0,9 s o más.
+
 ### Efectos compartidos entre solista y pareja
 
 Los dibujos leídos de video_34 (rosas, cintas, alma, rayos, discos de DJ, arcos 3D, cresta punk,

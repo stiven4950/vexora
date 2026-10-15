@@ -176,3 +176,49 @@ def test_pair_gets_one_color_per_person_and_solo_gets_color_chapters() -> None:
     pair_script, _ = choreograph(dance, pair, 3)
     assert not pair_script.chapters
     assert all(e.style.by_person and not e.style.palette and e.style.colors[:2] == [tuple(c) for c in dance.colors] for e in pair_script.effects)
+
+
+def test_options_for_strong_or_long_moves_only() -> None:
+    catalog = Catalog.model_validate(
+        {
+            "name": "t",
+            "defaults": {"type": "swoosh", "target": {"kind": "joint", "id": "right_wrist"}},
+            "reactions": [
+                {"action": "fast_swing", "options": [{"name": "fuerte", "min_speed": 0.4, "effects": [{"trigger": {"hold": 4}}]}]},
+                {"action": "frenzy", "options": [{"name": "furia", "min_duration_s": 1.0, "effects": [{"trigger": {"hold": 4}}]}]},
+            ],
+        }
+    )
+    events = [
+        MotionEvent(name="fast_swing", target="person_0:right_wrist", start_frame=10, end_frame=12, confidence=1.0, peak_speed=0.2),
+        MotionEvent(name="fast_swing", target="person_0:right_wrist", start_frame=100, end_frame=102, confidence=1.0, peak_speed=0.5),
+        MotionEvent(name="frenzy", target="person_0", start_frame=200, end_frame=215, confidence=1.0),
+        MotionEvent(name="frenzy", target="person_0", start_frame=400, end_frame=440, confidence=1.0),
+    ]
+    _, choreo = choreograph(catalog, _brief(events), 1)
+    lit = {(d.action, d.frame) for d in choreo.decisions if not d.choice.startswith("nada")}
+    assert lit == {("fast_swing", 100), ("frenzy", 400)}
+
+
+def test_no_stretch_of_the_video_without_an_effect() -> None:
+    import numpy as np
+
+    catalog = Catalog.model_validate(
+        {
+            "name": "t",
+            "max_gap_s": 1.0,
+            "defaults": {"type": "swoosh", "target": {"kind": "joint", "id": "right_wrist"}},
+            "reactions": [{"action": "spotlight", "options": [{"name": "brillo", "effects": [{"trigger": {"hold": 10}}]}, {"name": "nada", "weight": 50}]}],
+        }
+    )
+    spots = [MotionEvent(name="spotlight", target="person_0", start_frame=f, end_frame=f + 30, confidence=1.0, kind="legs") for f in range(0, 870, 36)]
+    _, choreo = choreograph(catalog, _brief(spots), 1)
+    covered = np.zeros(901, dtype=bool)
+    for d in choreo.decisions:
+        if not d.choice.startswith("nada"):
+            covered[d.frame : d.until + 1] = True
+    run = longest = 0
+    for lit in covered[:900]:
+        run = 0 if lit else run + 1
+        longest = max(longest, run)
+    assert longest <= 30

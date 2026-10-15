@@ -157,7 +157,11 @@ def pins_from_choreography(choreography) -> PinFile:
             continue
         name = d.choice.removesuffix(" (fijado)")
         person = d.target.split(":", 1)[0] if d.target.startswith("person_") else None
+        fps = d.frame / d.second if d.second > 0 else 30.0
+        side = next((s for s in ("left", "right") if f":{s}_" in d.target), None)
+        # Exacto, con lo que duró encendido: se reproduce igual aunque el análisis cambie.
         moments.append(
-            Pin(seg=d.second, opcion=name, accion=d.action, persona=person, espejo=(d.action, name, d.until) in mirrors)
+            Pin(seg=d.second, opcion=name, accion=d.action, persona=person, espejo=(d.action, name, d.until) in mirrors,
+                exacto=True, dur=round(max((d.until - d.frame) / fps, 0.1), 2), lado=side)
         )
     return PinFile(catalogo=choreography.catalog, solo_estos=True, momentos=moments)

@@ -57,6 +57,11 @@ class Option(_Strict):
     # La persona de la acción debe llevar uno de estos accesorios (gafas, máscara...). Si la
     # acción no es de una persona (una pausa), el efecto se dibuja en todos los que lo lleven.
     accessories: list[str] = Field(default_factory=list)
+    # Solo con movimiento fuerte o largo: velocidad pico mínima del evento (fracción del cuadro
+    # por fotograma) y duración mínima (s). Así un estilo toma efectos de otro (de pelea en un
+    # baile) solo cuando el movimiento lo pide.
+    min_speed: float = 0.0
+    min_duration_s: float = 0.0
     effects: list[dict] = Field(default_factory=list)
 
 
@@ -93,6 +98,9 @@ class Catalog(_Strict):
     # atención del análisis (engine/focus.py).
     attention: bool = False
     chapter_min_s: float = 0.8
+    # Ningún tramo sin efecto: un hueco más largo que esto (s) se rellena con un efecto del foco de
+    # ese momento (0 = no se rellena). Ver fill_gaps.
+    max_gap_s: float = 0.0
     # Pareja (analysis/duet.py): al unísono, el efecto elegido para uno se copia al otro (cada
     # uno con su color); en un solo, solo se enciende quien lleva el turno.
     duet: bool = False
@@ -250,7 +258,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 # que puede estar en juego mucho tiempo).
                 if start <= exclusive_until or any(fs <= end and start <= fe for fs, fe in face_windows):
                     option = Option(name="nada (cede: ya hay un efecto de escena o un momento clave)")
-            elif option.effects and reaction.action in YIELD_TO_EXCLUSIVE and start <= exclusive_until:
+            elif option.effects and reaction.action in YIELD_TO_EXCLUSIVE and start <= exclusive_until and not _earned(option):
                 option = Option(name="nada (cede al efecto de escena)")
             elif (
                 option.effects
@@ -274,6 +282,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 option.effects
                 and reaction.action not in KEY_ACTIONS
                 and reaction.action not in AMBIENT_ACTIONS
+                and not _earned(option)
                 and sum(1 for ls, le in lit if ls <= start <= le) + sum(1 for ks, ke in key_windows if ks <= end and start <= ke) >= MAX_TOGETHER
             ):
                 option = Option(name="nada (ya hay dos focos encendidos)")
@@ -321,6 +330,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                     until=end if option.effects else event.start_frame,
                 )
             )
+    if catalog.max_gap_s > 0 and not (pins is not None and pins.solo_estos):
+        fill_gaps(catalog, brief, events, extra, chosen, decisions, seed, fps)
     always = [] if pins is not None and pins.solo_estos else catalog.always
     effects: list[dict] = [_effect(catalog, raw, f"always_{index}") for index, raw in enumerate(always)]
     for number, (reaction, option, picked) in enumerate(pinned_out):
@@ -390,6 +401,71 @@ def _partner(person: str | None, span, brief: MotionBrief) -> str | None:
         return span.partner if person == span.leader else span.leader
     others = [p for p in brief.people if p != person]
     return others[0] if person and others else None
+
+
+def _earned(option: Option) -> bool:
+    """La opción exige movimiento fuerte o largo: ese movimiento manda, no cede ante el tope de
+    focos ni ante un efecto de escena ya encendido (sí ante otro exclusivo y la cara)."""
+    return option.min_speed > 0 or option.min_duration_s > 0
+
+
+def fill_gaps(catalog: Catalog, brief: MotionBrief, events, extra, chosen, decisions, seed: int, fps: float) -> None:
+    """Rellena los tramos sin ningún efecto más largos que `catalog.max_gap_s`: en cada hueco, un
+    efecto del foco de ese momento (un `spotlight`), sorteado entre las opciones que dibujan algo y
+    no son de escena. Si en el hueco no hay foco, se crea uno con la región de la línea de
+    atención (o el cuerpo entero). Se repite hasta que no queden huecos o no haya qué poner."""
+    spot = next((r for r in catalog.reactions if r.action == "spotlight"), None)
+    if spot is None:
+        return
+    total = brief.video.frame_count
+    longest = int(round(catalog.max_gap_s * fps))
+    covered = np.zeros(total + 1, dtype=bool)
+    for d in decisions:
+        if not d.choice.startswith("nada") and d.action not in AMBIENT_ACTIONS and d.until >= d.frame:
+            covered[max(d.frame, 0) : min(d.until, total) + 1] = True
+    people = brief.people or [brief.person_id]
+    for attempt in range(200):
+        gap = _first_gap(covered, longest)
+        if gap is None:
+            return
+        start, end = gap
+        # Un foco que empiece justo al abrirse el hueco (si empieza más tarde, el tramo de antes
+        # quedaría vacío): si no lo hay, se crea uno ahí mismo.
+        candidates = [e for e in events if e.name == "spotlight" and start <= e.start_frame <= start + 3]
+        event = min(candidates, key=lambda e: (e.start_frame, -e.confidence)) if candidates else None
+        if event is None:
+            region = next((a.primary for a in brief.attention if a.start_frame <= start <= a.end_frame and a.primary != "prop"), "")
+            event = MotionEvent(name="spotlight", target=people[attempt % len(people)], start_frame=start, end_frame=min(start + int(fps), total - 1),
+                                confidence=1.0, detail="Relleno: ningún tramo sin efecto.", kind=region)
+            events.append(event)
+            extra.append(event)
+        pool = Reaction(action="spotlight", options=[o for o in spot.options if o.effects and not o.exclusive])
+        option = _draw(pool, event, seed + 7919 * (attempt + 1), frozenset(), brief)
+        if not option.effects:
+            # Sin opción para esa región: el cuerpo entero sí admite casi todas.
+            option = _draw(pool, event.model_copy(update={"kind": ""}), seed + 7919 * (attempt + 1), frozenset(), brief)
+        if not option.effects:
+            covered[start : end + 1] = True  # nada que poner aquí: no insistir
+            continue
+        first, last = _window(option, event)
+        chosen.setdefault(("spotlight", option.name), []).append((event.start_frame, event.target))
+        decisions.append(
+            Decision(frame=event.start_frame, second=round(event.start_frame / fps, 2), action="spotlight", target=event.target, choice=option.name, until=last)
+        )
+        covered[max(first, 0) : min(last, total) + 1] = True
+
+
+def _first_gap(covered: np.ndarray, longest: int) -> tuple[int, int] | None:
+    run = 0
+    for index, lit in enumerate(covered):
+        run = 0 if lit else run + 1
+        if run > longest:
+            begin = index - run + 1
+            stop = begin
+            while stop + 1 < len(covered) and not covered[stop + 1]:
+                stop += 1
+            return begin, stop
+    return None
 
 
 def _person(event: MotionEvent) -> str | None:
@@ -642,6 +718,8 @@ def _draw(reaction: Reaction, event: MotionEvent, seed: int, resting: set[str] =
         and (not o.limbs or limb in o.limbs)
         and (not o.kinds or event.kind in o.kinds)
         and (not o.accessories or _wears(brief, event, o.accessories))
+        and event.peak_speed >= o.min_speed
+        and (event.end_frame - event.start_frame + 1) >= o.min_duration_s * (brief.video.fps if brief else 30.0)
         and o.name not in resting
     ]
     if not options:

@@ -145,6 +145,9 @@ class EffectEngine:
                     [event.position[0] * width, event.position[1] * height],
                     dtype=np.float64,
                 )
+            elif event is not None and gain > 0 and event.target in points:
+                # Evento sin posición (fijado a mano, copia para la pareja): la articulación que nombra.
+                runtime.anchor_point = np.array(points[event.target], dtype=np.float64)
             # Un efecto disparado conserva el color del capítulo en que se encendió.
             if runtime.active_frames == 1:
                 runtime.chapter_frame = frame_index

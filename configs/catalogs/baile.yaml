@@ -18,6 +18,8 @@ colors:
 - [1.0, 0.35, 0.7]
 # Pareja (analysis/duet.py): espejo al unísono, turnos en los solos. Con una persona no hace nada.
 duet: true
+# Ningún tramo de más de 1 s sin efecto (director/choreography.py: fill_gaps).
+max_gap_s: 1.0
 seed: 33
 # La gorra que pasa de mano en mano (seg. 0-9 de la referencia) es el objeto protagonista: se
 # sigue con Grounding DINO + SAM 2 (lento: ~1,2 s por fotograma en MPS, queda en caché).
@@ -517,6 +519,28 @@ reactions:
     effects: []
 - action: frenzy
   options:
+  # Baile intenso y sostenido (más de 1 s): la furia del estilo de pelea, estelas de energía en
+  # manos y pies y los brazos musculosos.
+  - name: furia
+    weight: 0.6
+    min_duration_s: 0.9
+    effects:
+    - type: swoosh
+      target: {kind: joint, id: 'left_wrist,right_wrist,left_ankle,right_ankle'}
+      style: {strands: 3, rings: 2, trail_frames: 12, min_speed: 0.05, paint_chance: 0.4, paint_width: 0.22, paint_min_length: 0.8, hdr_gain: 1.8, focus: false}
+      trigger: {hold: 10, fade_in: 2, fade_out: 6}
+    - type: arm_outline
+      target: {kind: joint, id: 'left_wrist,right_wrist'}
+      style: {thickness: 0.01, hdr_gain: 1.5, size: 0.5, min_speed: 0.06, chance: 1.0, boil_frames: 3, focus: false}
+      trigger: {hold: 10, fade_in: 2, fade_out: 6}
+    # Hilos de energía que saltan por el cuerpo y chispas desde manos y pies.
+    - type: adornment
+      style: {shapes: [energy_sparks], thickness: 0.006, focus: false}
+      trigger: {hold: 10, fade_in: 2, fade_out: 6}
+    - type: droplets
+      target: {kind: joint, id: 'left_wrist,right_wrist,left_ankle,right_ankle'}
+      style: {thickness: 0.008, hdr_gain: 1.9, size: 0.5, min_speed: 0.03, chance: 1.0, shapes: [dash, drop], focus: false}
+      trigger: {hold: 10, fade_in: 1, fade_out: 8}
   # Mucho movimiento de todo el cuerpo: modo discoteca (destellos disparados y haces de luz) o
   # un ecualizador en el piso que salta con la música.
   - name: discoteca
@@ -639,6 +663,48 @@ reactions:
       target: {kind: joint, id: 'left_wrist,right_wrist'}
       style: {strands: 1, trail_frames: 10, min_speed: 0.18, thickness: 0.03, paint_chance: 0.6, paint_width: 0.25}
       trigger: {hold: 8, fade_in: 1, fade_out: 5}
+  # Golpes muy rápidos: efectos del estilo de pelea (pelea.yaml), solo con movimiento fuerte.
+  - name: estela_energia
+    weight: 0.35
+    min_speed: 0.42
+    effects:
+    - type: swoosh
+      target: {kind: joint, id: 'left_wrist,right_wrist,left_ankle,right_ankle'}
+      style: {strands: 3, rings: 2, trail_frames: 10, min_speed: 0.12, paint_chance: 0.35, paint_width: 0.22, paint_min_length: 0.8, hdr_gain: 1.8}
+      trigger: {hold: 8, fade_in: 1, fade_out: 4}
+  - name: brazo_musculoso
+    weight: 0.2
+    min_speed: 0.42
+    cooldown: 60
+    requires_person: true
+    limbs: [left_wrist, right_wrist]
+    effects:
+    - type: arm_outline
+      target: {kind: joint, id: 'left_wrist,right_wrist'}
+      style: {thickness: 0.01, hdr_gain: 1.5, size: 0.5, min_speed: 0.18, chance: 1.0, boil_frames: 3}
+      trigger: {hold: 12, fade_in: 1, fade_out: 5}
+  - name: llamarada
+    weight: 0.2
+    min_speed: 0.48
+    cooldown: 120
+    effects:
+    - type: flame_burst
+      target: {kind: event_point, id: contact}
+      style: {micro_sparks: 45, size: 0.4, hdr_gain: 1.3}
+      trigger: {hold: 14, fade_in: 1, fade_out: 6}
+    - type: spark_dashes
+      target: {kind: event_point, id: contact}
+      style: {size: 0.45, thickness: 0.01, hdr_gain: 1.5}
+      trigger: {hold: 16, fade_in: 1, fade_out: 6}
+  - name: estrellas_golpe
+    weight: 0.15
+    min_speed: 0.48
+    cooldown: 120
+    effects:
+    - type: stars
+      target: {kind: event_point, id: contact}
+      style: {micro_sparks: 45, size: 0.45, hdr_gain: 1.6}
+      trigger: {hold: 12, fade_in: 1, fade_out: 5}
   - name: nada
     weight: 0.7
     effects: []
