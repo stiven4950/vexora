@@ -75,6 +75,11 @@ def main(argv: list[str] | None = None) -> int:
             default=None,
             help="Vestuario: chaqueta, vestido, ambos o ninguno, para todos o por persona (person_0=vestido,person_1=chaqueta)",
         )
+        command.add_argument(
+            "--deep",
+            action="store_true",
+            help="Análisis profundo: un modelo (Gemini) ve el video completo con audio y escribe la coreografía. Más lento y de pago",
+        )
         command.add_argument("--level", choices=["fast", "hq", "masks"], default=None)
         command.add_argument("--force", action="store_true", help="Ignora la caché de etapas")
         command.add_argument(
@@ -120,6 +125,7 @@ def main(argv: list[str] | None = None) -> int:
         season=args.season,
         pins=args.pin,
         wardrobe=parse_wardrobe(args.wardrobe),
+        deep=True if args.deep else None,
     )
     getattr(pipeline, args.command if args.command != "run" else "run")()
     return 0

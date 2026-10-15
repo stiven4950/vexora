@@ -63,9 +63,13 @@ class Pipeline:
         season: str | None = None,
         pins: Path | None = None,
         wardrobe: dict[str, str] | None = None,
+        deep: bool | None = None,
     ) -> None:
         self.config_path = config_path
         self.config = load_config(config_path)
+        if deep is not None:
+            # Análisis profundo (director/deep.py): opcional, más lento y de pago.
+            self.config.director.deep.enabled = bool(deep)
         if director:
             self.config.director.provider = director  # type: ignore[assignment]
         if preset:
@@ -203,6 +207,7 @@ class Pipeline:
     def direct(self) -> None:
         brief_path = self.run_dir / "analysis" / "motion_brief.json"
         self._ensure_derived(brief_path)
+        self._deep_script()
         preset_path = preset_file(self.config_path, self.config.director.preset)
         preset_hash = sha256_file(preset_path) if self.config.director.provider == "preset" and preset_path.exists() else ""
         catalog_path = catalog_file(self.config_path, self.config.director.catalog)
@@ -251,6 +256,25 @@ class Pipeline:
             script=sha256_file(dest)[:12],
             code=_code("direct")[:12],
         )
+
+    def _deep_script(self) -> None:
+        """Con el análisis profundo activo (y sin un guion fijado a mano), el modelo ve el video
+        completo y escribe la coreografía como guion de prueba; desde ahí el flujo es el de
+        siempre. Sus efectos nuevos se anotan en la lista común de efectos pedidos."""
+        director = self.config.director
+        if not director.deep.enabled or director.provider != "catalog" or director.pins:
+            return
+        from vfxglow.director.choreography import load_catalog
+        from vfxglow.director.deep import deep_pins, record_proposals
+
+        meta = self._meta()
+        catalog = load_catalog(catalog_file(self.config_path, director.catalog))
+        out = self.run_dir / "scripts"
+        guion = deep_pins(self.video, self.manifest.video_sha256, catalog, meta.frame_count / (meta.fps or 30.0), director.deep, out)
+        added = record_proposals(out / "deep_lectura.json", self.run_dir.parent / "efectos_propuestos.jsonl", self.video.name)
+        if added:
+            log.info("%d efectos nuevos anotados en %s", added, self.run_dir.parent / "efectos_propuestos.jsonl")
+        director.pins = str(guion.resolve())
 
     def _render_key(self) -> str:
         analysis = self.run_dir / "analysis"

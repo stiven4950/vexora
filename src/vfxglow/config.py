@@ -156,6 +156,18 @@ class AnalysisConfig(_Strict):
     body_contour: bool = True
 
 
+class DeepConfig(_Strict):
+    """Análisis profundo (director/deep.py): un modelo ve el video completo con audio, como un
+    animador, y escribe la coreografía. Es opcional y cuesta más: por defecto, apagado."""
+
+    enabled: bool = False
+    model: str = "gemini-4-argon"
+    api_key_env: str = "GEMINI_API_KEY"
+    # Fotogramas por segundo que mira el modelo (Gemini usa 1 si no se dice: se pierde los gestos).
+    fps: float = 5.0
+    timeout_s: float = 600.0
+
+
 class DirectorConfig(_Strict):
     provider: Literal["preset", "catalog", "openai", "anthropic"] = "preset"
     preset: str = "avatar_fire"
@@ -180,6 +192,7 @@ class DirectorConfig(_Strict):
     style: Literal["artist", "script"] = "artist"
     images: int = 4
     reasoning_effort: Literal["minimal", "low", "medium", "high"] = "low"
+    deep: DeepConfig = Field(default_factory=DeepConfig)
 
 
 class EngineConfig(_Strict):
