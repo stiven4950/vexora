@@ -164,7 +164,12 @@ class DeepConfig(_Strict):
     model: str = "gemini-4-argon"
     api_key_env: str = "GEMINI_API_KEY"
     # Fotogramas por segundo que mira el modelo (Gemini usa 1 si no se dice: se pierde los gestos).
-    fps: float = 5.0
+    # Sin valor, automático según lo rápido que es el baile (director/deep.py: choose_fps), entre
+    # fps_min y fps_max y sin pasar de frame_budget fotogramas en todo el video (el costo).
+    fps: float | None = None
+    fps_min: float = 5.0
+    fps_max: float = 10.0
+    frame_budget: int = 450
     timeout_s: float = 600.0
     # Reintentos si el modelo está saturado (503) o se pasa la cuota por minuto (429).
     retries: int = 4

@@ -272,7 +272,10 @@ class Pipeline:
         out = self.run_dir / "scripts"
         tracks_path = self.run_dir / "analysis" / "tracks.jsonl"
         who = sides_from_tracks(load_tracks(tracks_path), meta.fps or 30.0) if tracks_path.exists() else None
-        guion = deep_pins(self.video, self.manifest.video_sha256, catalog, meta.frame_count / (meta.fps or 30.0), director.deep, out, who)
+        from vfxglow.analysis.schema import MotionBrief
+
+        brief = read_model(self.run_dir / "analysis" / "motion_brief.json", MotionBrief)
+        guion = deep_pins(self.video, self.manifest.video_sha256, catalog, meta.frame_count / (meta.fps or 30.0), director.deep, out, who, brief)
         added = record_proposals(out / "deep_lectura.json", self.run_dir.parent / "efectos_propuestos.jsonl", self.video.name)
         if added:
             log.info("%d efectos nuevos anotados en %s", added, self.run_dir.parent / "efectos_propuestos.jsonl")

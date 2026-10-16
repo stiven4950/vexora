@@ -295,13 +295,21 @@ def _match(catalog, accion: str | None, opcion: str | None):
     return found[0] if len(found) == 1 else None
 
 
-def to_pins(answer: dict, catalog, duration: float, fill: bool = True, who: Callable[[float, str], tuple[str | None, bool]] | None = None) -> tuple[PinFile, list[str]]:
+def to_pins(
+    answer: dict,
+    catalog,
+    duration: float,
+    fill: bool = True,
+    who: Callable[[float, str], tuple[str | None, bool]] | None = None,
+    snap: Callable[[float, str], float] | None = None,
+) -> tuple[PinFile, list[str]]:
     """El guion de prueba de la respuesta y los avisos de lo que se corrigió o descartó.
 
     fill: el coreógrafo económico rellena alrededor de lo fijado (acentos, golpes de la música,
     la otra persona); sin él, solo lo que dijo el modelo (un efecto cada uno o dos segundos, que
     en un dúo deja casi sin nada a una persona: dance_two_mens).
-    who(seg, quien) → (persona, ambos): la persona de "izquierda"/"derecha" en ese segundo."""
+    who(seg, quien) → (persona, ambos): la persona de "izquierda"/"derecha" en ese segundo.
+    snap(seg, acción) → el segundo exacto del gesto que vio nuestro análisis cerca (snapper)."""
     warnings: list[str] = []
     pins: list[Pin] = []
     for raw in answer.get("momentos", []):
@@ -321,6 +329,8 @@ def to_pins(answer: dict, catalog, duration: float, fill: bool = True, who: Call
             warnings.append(f"{seg} s: {raw.get('accion')}:{raw.get('opcion')} no existe en el catálogo; se omite")
             continue
         reaction, option = match
+        if snap is not None:
+            seg = round(snap(seg, reaction.action), 2)
         if reaction.action != raw.get("accion"):
             warnings.append(f"{seg} s: {option.name} es de {reaction.action}, no de {raw.get('accion')}")
         shapes = figures(option)
@@ -373,23 +383,74 @@ def sides_from_tracks(frames, fps: float) -> Callable[[float, str], tuple[str | 
     return who
 
 
+# Un momento del modelo se corre al gesto que detectó nuestro análisis (que mira todos los
+# fotogramas) si está a menos de esto; si no hay gesto, al golpe de la música más cercano.
+SNAP_S = 0.3
+SNAP_BEAT_S = 0.15
+# Gestos rápidos por segundo y por persona (del análisis económico) que piden más fotogramas:
+# video_34 y michael_jackson_dance ~2,4 → 5 fps; dance_two_mens 4,3 y video_35 4,6 → 8; las
+# peleas y el ninja acróbata (5 a 7,8) → 10.
+FAST_EVENTS = {"fast_swing", "impact", "stomp", "step", "foot_strike", "spin_body", "turn", "jump", "frenzy", "lunge", "throw", "landing"}
+FPS_STEPS = ((2.5, 5.0), (5.0, 8.0))
+
+
+def choose_fps(brief, cfg: DeepConfig) -> float:
+    """Fotogramas por segundo para el modelo: los de la configuración o, sin ellos, según lo
+    rápido que es el baile; nunca más de frame_budget en todo el video."""
+    duration = brief.video.frame_count / (brief.video.fps or 30.0)
+    if cfg.fps:
+        fps = cfg.fps
+    else:
+        people = max(len(brief.people or [brief.person_id]), 1)
+        rate = sum(1 for e in brief.events if e.name in FAST_EVENTS) / max(duration, 1e-6) / people
+        fps = next((value for limit, value in FPS_STEPS if rate < limit), cfg.fps_max)
+        fps = min(max(fps, cfg.fps_min), cfg.fps_max)
+    if duration > 0 and fps * duration > cfg.frame_budget:
+        fps = max(cfg.frame_budget / duration, 1.0)
+    return round(fps, 1)
+
+
+def snapper(brief) -> Callable[[float, str], float]:
+    """snap(seg, acción): el instante exacto del gesto de esa acción que detectó el análisis cerca
+    (mira todos los fotogramas, el modelo solo unos pocos por segundo); si no hay, el golpe de la
+    música más cercano; si tampoco, el mismo segundo."""
+    fps = brief.video.fps or 30.0
+    starts: dict[str, list[float]] = {}
+    for event in brief.events:
+        starts.setdefault(event.name, []).append(event.start_frame / fps)
+    beats = [frame / fps for frame in brief.audio_onsets]
+
+    def snap(seg: float, action: str) -> float:
+        near = [s for s in starts.get(action, []) if abs(s - seg) <= SNAP_S]
+        if near:
+            return min(near, key=lambda s: abs(s - seg))
+        near = [s for s in beats if abs(s - seg) <= SNAP_BEAT_S]
+        return min(near, key=lambda s: abs(s - seg)) if near else seg
+
+    return snap
+
+
 def answer_key(video_sha: str, prompt: str, cfg: DeepConfig) -> str:
     return hashlib.sha256(f"{video_sha}|{cfg.model}|{cfg.fps}|{prompt}".encode()).hexdigest()[:20]
 
 
-def deep_pins(video: Path, video_sha: str, catalog, duration: float, cfg: DeepConfig, out_dir: Path, who=None) -> Path:
+def deep_pins(video: Path, video_sha: str, catalog, duration: float, cfg: DeepConfig, out_dir: Path, who=None, brief=None) -> Path:
     """Guion del análisis profundo en `out_dir` (deep_guion.yaml), con la lectura completa al
     lado (deep_lectura.json). La respuesta del modelo se guarda en caché por video y prompt."""
     from vfxglow.director.pins import save_pins
 
     prompt = build_prompt(catalog, duration)
+    if brief is not None:
+        cfg = cfg.model_copy(update={"fps": choose_fps(brief, cfg)})
+    elif not cfg.fps:
+        cfg = cfg.model_copy(update={"fps": cfg.fps_min})
     key = answer_key(video_sha, prompt, cfg)
     cache = out_dir / "deep_cache" / f"{key}.json"
     if cache.exists():
         answer = json.loads(cache.read_text(encoding="utf-8"))
         log.info("Análisis profundo en caché (%s)", cfg.model)
     else:
-        log.info("Análisis profundo con %s: subiendo el video completo (puede tardar unos minutos)", cfg.model)
+        log.info("Análisis profundo con %s a %s fotogramas por segundo: subiendo el video completo (puede tardar unos minutos)", cfg.model, cfg.fps)
         answer, usage = ask_gemini(video, prompt, cfg)
         log.info(
             "Análisis profundo listo: %s tokens de entrada, %s de salida",
@@ -398,7 +459,7 @@ def deep_pins(video: Path, video_sha: str, catalog, duration: float, cfg: DeepCo
         )
         cache.parent.mkdir(parents=True, exist_ok=True)
         cache.write_text(json.dumps(answer, ensure_ascii=False, indent=1), encoding="utf-8")
-    pins, warnings = to_pins(answer, catalog, duration, fill=cfg.fill, who=who)
+    pins, warnings = to_pins(answer, catalog, duration, fill=cfg.fill, who=who, snap=snapper(brief) if brief is not None else None)
     for warning in warnings:
         log.warning("Análisis profundo: %s", warning)
     if not pins.momentos:

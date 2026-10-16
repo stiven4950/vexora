@@ -144,3 +144,37 @@ def test_who_maps_left_right_and_both() -> None:
     pins, _ = to_pins(answer, CATALOG, 2.0, who=who)
     assert (pins.momentos[0].persona, pins.momentos[0].espejo) == ("person_0", None)
     assert (pins.momentos[1].persona, pins.momentos[1].espejo) == ("person_1", True)
+
+
+def _brief_with(events, seconds: float = 20.0, people=("person_0",), onsets=()):
+    from vfxglow.analysis.schema import MotionEvent
+
+    meta = VideoMeta(path="x", fps=25.0, width=400, height=600, frame_count=int(seconds * 25), duration_s=seconds)
+    evs = [MotionEvent(name=n, target="person_0", start_frame=f, end_frame=f + 5, confidence=1.0) for n, f in events]
+    return MotionBrief(video=meta, person_id="person_0", anchors=[], limbs=[], events=evs, summary="", people=list(people), audio_onsets=list(onsets))
+
+
+def test_fps_follows_how_fast_the_dance_is() -> None:
+    from vfxglow.config import DeepConfig
+    from vfxglow.director.deep import choose_fps
+
+    calm = _brief_with([("step", f) for f in range(0, 500, 25)])  # 1 gesto rápido por segundo
+    busy = _brief_with([("fast_swing", f) for f in range(0, 500, 6)])  # ~4 por segundo
+    wild = _brief_with([("impact", f) for f in range(0, 500, 3)])  # ~8 por segundo
+    assert choose_fps(calm, DeepConfig()) == 5.0
+    assert choose_fps(busy, DeepConfig()) == 8.0
+    assert choose_fps(wild, DeepConfig()) == 10.0
+    # Un video largo no pasa del presupuesto de fotogramas (el costo).
+    long_wild = _brief_with([("impact", f) for f in range(0, 2500, 3)], seconds=100.0)
+    assert choose_fps(long_wild, DeepConfig()) == 4.5
+    assert choose_fps(calm, DeepConfig(fps=12.0)) == 12.0
+
+
+def test_moments_snap_to_the_detected_gesture_or_beat() -> None:
+    from vfxglow.director.deep import snapper
+
+    snap = snapper(_brief_with([("point", 105)], onsets=[202]))  # gesto en 4,2 s; golpe en 8,08 s
+    assert snap(4.0, "point") == 4.2
+    assert snap(4.0, "lunge") == 4.0  # otra acción y sin golpe cerca: se queda
+    assert snap(8.0, "spotlight") == 8.08
+    assert snap(5.0, "point") == 5.0  # el gesto está a 0,8 s: demasiado lejos

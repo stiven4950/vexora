@@ -37,12 +37,32 @@ Con dos o más personas, el modelo dice a quién va cada momento (`quien`: izqui
 ambos, como se ve en pantalla). Se traduce a cada bailarín por la posición de su caja en ese
 segundo. "Ambos" lo copia en la pareja.
 
+## Precisión y fotogramas por segundo
+
+El modelo no necesita ver todos los fotogramas: su trabajo es entender la intención. La precisión
+la pone nuestro análisis, que sí los mira todos:
+
+- **Cada momento se ajusta al gesto detectado.** Si nuestro análisis vio ese gesto (la misma
+  acción) a menos de 0,3 s, el momento empieza justo ahí; si no, en el golpe de la música a menos
+  de 0,15 s. En dance_two_mens se ajustaron 17 de 20 momentos, todos menos de 0,3 s.
+- **Fotogramas por segundo automáticos** (`director.deep.fps` sin valor), según los gestos rápidos
+  por segundo y por persona que encontró el análisis económico:
+
+  | Gestos rápidos por segundo | Ejemplos | Fotogramas por segundo |
+  | --- | --- | --- |
+  | Menos de 2,5 | michael_jackson_dance, video_34 | 5 |
+  | De 2,5 a 5 | dance_two_mens, video_35 | 8 |
+  | Más de 5 | peleas, ninja acróbata | 10 |
+
+  Nunca más de 450 fotogramas en todo el video (`frame_budget`): uno largo baja los fotogramas
+  por segundo para cuidar el costo. Con `fps: 12` (por ejemplo) se fija a mano.
+
 ## Qué pasa por dentro (`src/vfxglow/director/deep.py`)
 
 1. Arma el prompt de animador con el catálogo real: acciones, opciones y figuras, y qué hacen las
    figuras con historia.
-2. Sube el video a la API de archivos de Gemini, pide la respuesta en JSON mirando 5 fotogramas
-   por segundo y borra el video subido.
+2. Sube el video a la API de archivos de Gemini, pide la respuesta en JSON (a 5, 8 o 10 fotogramas
+   por segundo según el baile) y borra el video subido.
 3. Revisa la respuesta:
    - corrige la acción si la opción es de otra;
    - descarta lo que no existe en el catálogo o cae fuera del video;
