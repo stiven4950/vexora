@@ -1,0 +1,307 @@
+# Avatar: maestro fuego (referencia glowing/video_18.mp4; lectura en docs/referencias/video_18.md).
+# Une los presets avatar_fire (fuego) y avatar_storm (rayos, chispas, grietas) en un solo estilo
+# de coreografía: el fuego sale de lo que hace el cuerpo (látigos con la forma del golpe, llamas en
+# las manos, fuego a ras del piso, el cuerpo que arde), la pantalla se tiñe de naranja con el fuego
+# grande, el estado Avatar (flecha en la frente, ojos encendidos) enmarca el video, y el rayo de
+# avatar_storm queda como el rayo de los maestros fuego en algunos golpes y al señalar.
+name: avatar
+title: Avatar
+description: 'Maestro fuego: látigos de fuego con la forma de cada golpe, llamas en las manos, fuego a ras del piso, la calavera y el cuerpo en llamas, rayos al señalar, y el estado Avatar con una pared de fuego al final.'
+tags: [avatar, fuego, artes marciales, acrobacia, rayos]
+colors:
+  - [1.0, 0.36, 0.03]   # borde del fuego: naranja profundo (el cuerpo y el núcleo los pone firebend.py)
+  - [1.0, 0.36, 0.03]
+seed: 18
+# Ningún tramo de más de 1,2 s sin fuego (en la referencia siempre hay algo, aunque sean brasas).
+max_gap_s: 1.2
+attention: true
+# Los golpes, saltos y giros se reparten primero los dos focos; las pisadas y el foco del cuerpo,
+# después (si no, el fuego del piso de cada paso tapaba los látigos: seg. 0,8-1,6).
+priority: [jump, arms_open, frenzy, flip, fast_swing, lunge, spin_body, landing, heart_hands, hands_on_head]
+
+defaults:
+  type: adornment
+  target: {kind: joint, id: nose}
+  time: {start_frame: 0, end_frame: -1, fade_in: 1, fade_out: 4}
+  style: {thickness: 0.008, hdr_gain: 1.6, focus: false}
+  render: {blend: add, motion_blur: 0.0, persistence: 0.0, group: glow}
+
+always:
+  # Brasas que se desprenden de las extremidades rápidas.
+  - type: droplets
+    target: {kind: joint, id: "left_wrist,right_wrist,left_ankle,right_ankle"}
+    style: {thickness: 0.008, hdr_gain: 1.9, size: 0.3, min_speed: 0.25, chance: 0.3, shapes: [dash, leaf]}
+  # Cierre (seg. 14,4-16): la pared de fuego sube del piso; la flecha y los ojos se encienden.
+  - type: adornment
+    style: {shapes: [fire_wall], size: 1.8, focus: false}
+
+reactions:
+  # Seg. 0: el estado Avatar.
+  - action: entrance
+    options:
+      - name: estado_avatar
+        weight: 1.0
+        effects:
+          - type: adornment
+            style: {shapes: [avatar_mark]}
+            trigger: {hold: 16, fade_in: 2, fade_out: 8}
+
+  # Seg. 0,8 y 14: brazos abiertos en el salto o al caer: dos látigos y la pantalla naranja.
+  - action: arms_open
+    options:
+      - name: latigos
+        weight: 0.8
+        effects:
+          - &whip {type: adornment, style: {shapes: [fire_whip]}, trigger: {hold: 10, fade_in: 1, fade_out: 5}}
+          - &heat {type: grade, style: {colors: [[1.0, 0.45, 0.08]], intensity: 0.55, focus: false}, render: {blend: add, group: glow}, trigger: {hold: 6, fade_in: 2, fade_out: 8}}
+      - name: alas
+        weight: 0.2
+        effects:
+          - type: adornment
+            style: {shapes: [body_blaze]}
+            trigger: {hold: 14, fade_in: 2, fade_out: 6}
+          - *heat
+
+  # Seg. 1,6: salto: remolinos de fuego y pantalla naranja.
+  - action: jump
+    options:
+      - name: remolinos
+        weight: 1.0
+        effects: [*whip, *heat]
+
+  # Seg. 1,2: brazos arriba: llamas que suben de las manos.
+  - action: arms_up
+    options:
+      - name: llamas_arriba
+        weight: 1.0
+        effects:
+          - &hands {type: adornment, style: {shapes: [hand_fire]}, trigger: {hold: 14, fade_in: 2, fade_out: 6}}
+
+  # Seg. 2,0 y 12,4: cae al piso o pisa fuerte: fuego a ras del piso.
+  - action: landing
+    options:
+      - name: piso
+        weight: 1.0
+        effects:
+          - &floor {type: adornment, style: {shapes: [floor_fire]}, trigger: {hold: 16, fade_in: 1, fade_out: 8}}
+          - *heat
+  - action: stomp
+    options:
+      - name: piso
+        weight: 0.3
+        effects: [*floor]
+      - name: nada
+        weight: 0.7
+
+  # Seg. 2,8 y 6,0-7,6: manos juntas frente al pecho o la cara: una sola llama que se achica.
+  - action: heart_hands
+    options:
+      - name: vela
+        weight: 1.0
+        effects:
+          - type: adornment
+            style: {shapes: [candle]}
+            trigger: {hold: 30, fade_in: 2, fade_out: 8}
+
+  # Seg. 3,2: manos junto a la cabeza: la calavera de fuego.
+  - action: hands_on_head
+    options:
+      - name: calavera
+        weight: 1.0
+        cooldown: 300
+        effects:
+          - &skull {type: adornment, style: {shapes: [fire_skull], thickness: 0.009}, trigger: {hold: 18, fade_in: 2, fade_out: 6}}
+  - action: lunge
+    options:
+      - name: calavera
+        weight: 0.6
+        cooldown: 300
+        effects: [*skull, *heat]
+      - name: latigo
+        weight: 0.4
+        effects: [*whip]
+
+  # Seg. 3,6-4,8: golpes y barridos: el látigo con la forma del golpe; a veces un aro o el rayo.
+  - action: fast_swing
+    options:
+      - name: latigo
+        weight: 0.65
+        effects: [*whip, *heat]
+      - name: aro
+        weight: 0.15
+        cooldown: 120
+        effects:
+          - type: adornment
+            style: {shapes: [fire_ring]}
+            trigger: {hold: 12, fade_in: 1, fade_out: 5}
+      - name: rayo
+        weight: 0.12
+        cooldown: 150
+        effects:
+          - &bolt
+            type: lightning
+            target: {kind: joint, id: right_wrist}
+            style:
+              colors: [[1.0, 0.95, 0.85], [1.0, 0.55, 0.15], [0.9, 0.2, 0.05]]
+              thickness: 0.016
+              hdr_gain: 3.2
+              lightning: {branches: 3, branch_depth: 2, branch_angle: 28, jitter: 0.24, reseed_every: 3, tail_frames: 5, sparks: 5, reach: 1.5}
+            render: {blend: add, motion_blur: 0.2, group: lightning, persistence: 0.5, glow_layers: 3}
+            trigger: {hold: 8, fade_in: 1, fade_out: 5}
+      - name: nada
+        weight: 0.08
+
+  # Señalar o el revólver con la mano: el rayo de los maestros fuego.
+  - action: point
+    options:
+      - name: rayo
+        weight: 0.7
+        effects: [*bolt]
+      - name: latigo
+        weight: 0.3
+        effects: [*whip]
+  - action: finger_gun
+    options:
+      - name: rayo
+        weight: 1.0
+        effects: [*bolt]
+
+  # Puño en alto: llama en el puño.
+  - action: fist_up
+    options:
+      - name: puño_en_llamas
+        weight: 1.0
+        effects: [*hands]
+
+  # Giros: un aro de fuego o látigos en las dos manos.
+  - action: spin_body
+    options:
+      - name: aro
+        weight: 0.5
+        effects:
+          - type: adornment
+            style: {shapes: [fire_ring]}
+            trigger: {hold: 14, fade_in: 1, fade_out: 5}
+      - name: latigos
+        weight: 0.5
+        effects: [*whip]
+
+  # Seg. 5,2 y 9,2-10,8: pasos y barridos a ras del piso: la raya de fuego crece por donde pasa.
+  - action: step
+    options:
+      - name: raya
+        weight: 0.2
+        cooldown: 60
+        effects: [*floor]
+      - name: nada
+        weight: 0.8
+
+  # Seg. 11,2-11,6: cuerpo entero en tensión: el cuerpo arde.
+  - action: frenzy
+    options:
+      - name: latigos
+        weight: 0.5
+        effects: [*whip, *heat]
+      - name: cuerpo_en_llamas
+        weight: 0.5
+        cooldown: 300
+        effects:
+          - type: adornment
+            style: {shapes: [body_blaze]}
+            trigger: {hold: 16, fade_in: 2, fade_out: 8}
+          - *heat
+
+  # Volteretas y rodadas por el piso: el cuerpo arde o un aro de fuego.
+  - action: flip
+    options:
+      - name: cuerpo_en_llamas
+        weight: 0.6
+        cooldown: 200
+        effects:
+          - {type: adornment, style: {shapes: [body_blaze]}, trigger: {hold: 14, fade_in: 2, fade_out: 8}}
+          - *heat
+      - name: aro
+        weight: 0.4
+        effects:
+          - {type: adornment, style: {shapes: [fire_ring]}, trigger: {hold: 12, fade_in: 1, fade_out: 5}}
+  - action: tumble
+    options:
+      - name: piso
+        weight: 0.6
+        effects: [*floor, *heat]
+      - name: nada
+        weight: 0.4
+
+  # Mano en alto o brazos cruzados: llamas en las manos.
+  - action: raise_hand
+    options:
+      - name: llama
+        weight: 0.5
+        effects: [*hands]
+      - name: nada
+        weight: 0.5
+  - action: arms_crossed
+    options:
+      - name: llamas
+        weight: 1.0
+        cooldown: 150
+        effects: [*hands, *heat]
+
+  # De avatar_storm: chispas en los golpes y grietas al contacto, en tonos de fuego.
+  - action: impact
+    options:
+      - name: chispas
+        weight: 0.4
+        effects:
+          - type: sparks
+            target: {kind: event_point, id: impact}
+            style: {colors: [[1.0, 0.95, 0.7], [1.0, 0.45, 0.08]], thickness: 0.04, hdr_gain: 2.6}
+            render: {blend: add, motion_blur: 0.4, group: particles, persistence: 0.28, glow_layers: 2}
+            trigger: {hold: 8, fade_in: 0, fade_out: 6}
+      - name: nada
+        weight: 0.6
+  - action: hand_contact
+    options:
+      - name: grietas
+        weight: 0.5
+        effects:
+          - type: cracks
+            target: {kind: event_point, id: contact}
+            style: {colors: [[1.0, 0.9, 0.6], [1.0, 0.35, 0.05]], thickness: 0.012, hdr_gain: 2.4}
+            render: {blend: add, group: interaction, persistence: 0.4, glow_layers: 2}
+            trigger: {hold: 14, fade_in: 3, fade_out: 8}
+      - name: nada
+        weight: 0.5
+
+  # Pausas: la mirada se enciende (seg. 7,6 y 8,8) o brasas.
+  - action: still
+    options:
+      - name: mirada
+        weight: 0.5
+        cooldown: 150
+        effects:
+          - type: adornment
+            style: {shapes: [avatar_mark]}
+            trigger: {hold: 14, fade_in: 2, fade_out: 6}
+      - name: nada
+        weight: 0.5
+
+  # Lo que más se mueve, entre gesto y gesto: llamas en las manos, fuego en el piso o la mirada.
+  - action: spotlight
+    options:
+      - name: manos
+        weight: 0.45
+        kinds: [left_arm, right_arm]
+        effects: [*hands]
+      - name: piso
+        weight: 0.3
+        kinds: [legs, feet]
+        effects: [*floor]
+      - name: mirada
+        weight: 0.25
+        kinds: [head]
+        cooldown: 150
+        effects:
+          - type: adornment
+            style: {shapes: [avatar_mark]}
+            trigger: {hold: 12, fade_in: 2, fade_out: 6}

@@ -104,6 +104,9 @@ class Catalog(_Strict):
     # Ningún tramo sin efecto: un hueco más largo que esto (s) se rellena con un efecto del foco de
     # ese momento (0 = no se rellena). Ver fill_gaps.
     max_gap_s: float = 0.0
+    # Acciones que se reparten primero los lugares (antes que el resto, en todo el video), sin
+    # saltarse el tope de focos: en avatar, los golpes y saltos ganan a las pisadas.
+    priority: list[str] = Field(default_factory=list)
     # Vestuario por persona, que elige el usuario: {"person_0": "vestido", "*": "chaqueta"}.
     # Valores: chaqueta, vestido, ambos, ninguno. Sin dato para una persona, "*"; sin "*", ninguno.
     wardrobe: dict[str, str] = Field(default_factory=dict)
@@ -208,7 +211,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
             pinned.append((event, reaction))
     passes = [
         [(e, r) for r in catalog.reactions if r.action in KEY_ACTIONS for e in events if e.name == r.action],
-        [(e, r) for r in catalog.reactions if r.action not in KEY_ACTIONS for e in events if e.name == r.action],
+        [(e, r) for r in catalog.reactions if r.action not in KEY_ACTIONS and r.action in catalog.priority for e in events if e.name == r.action],
+        [(e, r) for r in catalog.reactions if r.action not in KEY_ACTIONS and r.action not in catalog.priority for e in events if e.name == r.action],
     ]
     if pins is not None:
         rest = [] if pins.solo_estos else [[pair for pair in pairs if (id(pair[0]), id(pair[1])) not in forced] for pairs in passes]
