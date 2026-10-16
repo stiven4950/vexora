@@ -56,6 +56,15 @@ Las primeras propuestas de la lista de abajo, más el yo-yo que pidió Gemini al
 | Brazos de diosa (`goddess_arms`) | `arms_open: diosa` | Cada brazo se copia en neón (silueta curva con mano abierta) en abanico desde el hombro: seis brazos. Las copias siguen al brazo real con un poco de retraso, no cruzan el cuerpo ni la cara, y al final se pliegan de golpe con un destello |
 | Cables que se rompen (`snap_cables`) | `spotlight: cables` | Una telaraña de cables de las manos de quien jala a la línea de hombros de la otra persona (de donde sale la prenda). Flojos se comban, tensos vibran con chispas, y con el tirón fuerte (o al final) revientan con un latigazo. Sin otra persona, a los propios hombros |
 
+## Sorpresa y susto (implementadas, `engine/stories.py`)
+
+Idea del usuario en dance_two_mens (seg. 26: las manos junto a la cara y la boca muy abierta).
+
+| Metáfora | Opción del catálogo | Historia |
+| --- | --- | --- |
+| La cabeza explota (`mind_blown`) | `hands_on_head: cabeza_explota` | Emoji de sorpresa sobre la cara (ojos enormes, cejas arriba, boca en "O"). Cuando abre las manos de golpe (las muñecas se separan medio ancho de hombros en pocos cuadros; si no, a mitad del momento), la tapa de la cabeza sale disparada sobre un resorte y queda rebotando, y vuelan pedazos de cerebro y resortes con gravedad, como una caja de sorpresas |
+| El león ruge (`lion_roar`) | `spotlight: leon`, `lunge: rugido` | Melena de llamas alrededor de la cara, orejas, hocico y bigotes; el rugido sale de la boca en ondas y un "ROAR!" tiembla arriba. Para asustar a alguien o lanzarse a la cámara |
+
 ## El revólver con la mano (`engine/gun.py`)
 
 Idea del usuario en dance_two_mens (seg. 7,2): índice al frente y pulgar arriba es un revólver, y

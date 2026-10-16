@@ -28,6 +28,14 @@ Propuestos por Gemini al leer dance_two_mens:
   latigazo (seg. 17,5-21,3: le arranca la chaqueta). Sin otra persona, de las manos a los propios
   hombros, como quien se arranca algo.
 
+Idea del usuario en dance_two_mens (seg. 26: manos junto a la cara y la boca muy abierta):
+
+- `mind_blown`: un emoji de sorpresa sobre la cara (ojos enormes, cejas arriba, boca en "O");
+  cuando abre las manos de golpe, la tapa de la cabeza sale disparada sobre un resorte (caja de
+  sorpresas), los pedazos de cerebro y resortes vuelan con gravedad y la tapa queda rebotando.
+- `lion_roar`: melena de llamas alrededor de la cara, hocico y bigotes, y el rugido: ondas que
+  salen de la boca y un "ROAR!" que tiembla (asustar a alguien).
+
 El estado entre cuadros se guarda en `runtime.swoosh["_critters"]`, por activación.
 """
 
@@ -36,9 +44,10 @@ from __future__ import annotations
 import numpy as np
 
 from vfxglow.engine.critters import TAU, WHITE, _activation, _ease, _phase, _seg
+from vfxglow.engine.gun import _rotate
 from vfxglow.engine.raster import fill_polygon, splat
 
-STORIES = ("yoyo", "bee", "energy_ball", "rocket", "bird", "bubble", "goddess_arms", "snap_cables")
+STORIES = ("yoyo", "bee", "energy_ball", "rocket", "bird", "bubble", "goddess_arms", "snap_cables", "mind_blown", "lion_roar")
 # Rapidez de una articulación (en anchos de hombros por segundo) que cuenta como sacudida.
 SHAKE = 2.5
 
@@ -519,6 +528,134 @@ def _snap_cables(body, frame, scale, frame_index, runtime, layer, color, alpha, 
     return lines
 
 
+# ----- la cabeza que explota y el león -----
+
+
+def _face(body, frame, scale, head):
+    """(centro de la cara, radio, eje hacia arriba, eje a la derecha de la imagen)."""
+    center, across, down = frame
+    nose = body.get("nose")
+    c = nose if nose is not None else (head if head is not None else center - down * 0.6 * scale)
+    ears = [body.get("left_ear"), body.get("right_ear")]
+    width = float(np.linalg.norm(ears[0] - ears[1])) if all(e is not None for e in ears) else 0.0
+    return c, max(width * 0.75, 0.3 * scale), -down, across
+
+
+def _coil(a: np.ndarray, b: np.ndarray, width: float, turns: int = 7) -> np.ndarray:
+    """Resorte en zigzag de `a` a `b`."""
+    axis = b - a
+    n = np.array([-axis[1], axis[0]]) / max(float(np.linalg.norm(axis)), 1e-6)
+    q = np.linspace(0, 1, turns * 2 + 1)
+    wave = np.where(np.arange(len(q)) % 2 == 0, 0.0, 1.0) * np.where((np.arange(len(q)) // 2) % 2 == 0, 1, -1)
+    wave[0] = wave[-1] = 0.0
+    return a + np.outer(q, axis) + np.outer(wave * width, n)
+
+
+def _mind_blown(body, frame, scale, frame_index, runtime, layer, color, alpha, event, head) -> list[np.ndarray]:
+    c, r, up, across = _face(body, frame, scale, head)
+    st = _activation(runtime, event, "blown", body)
+    u = _phase(runtime, event)
+    wrists = [body.get("left_wrist"), body.get("right_wrist")]
+    if all(w is not None for w in wrists):  # explota cuando abre las manos de golpe
+        gap = float(np.linalg.norm(wrists[0] - wrists[1]))
+        history = st.setdefault("gaps", [])
+        history.append(gap)
+        del history[:-5]
+        if "boom" not in st and u > 0.15 and gap - min(history) > 0.5 * scale:
+            st["boom"] = frame_index
+    if "boom" not in st and u >= 0.5:
+        st["boom"] = frame_index
+    t = np.linspace(0, TAU, 32)
+
+    def ring(at, rx, ry):
+        return at + np.outer(np.cos(t) * rx, across) + np.outer(np.sin(t) * ry, up)
+
+    lines = []
+    eyes = [c + up * 0.25 * r + across * s * 0.38 * r for s in (-1, 1)]
+    for eye in eyes:  # ojos enormes con la pupila chiquita
+        lines.append(ring(eye, 0.2 * r, 0.24 * r))
+        splat(layer, float(eye[0]), float(eye[1]), 0.05 * r, WHITE * 1.6, alpha, runtime.kernels)
+        brow = np.array([eye + up * 0.38 * r + across * k * 0.18 * r - up * abs(k) * 0.06 * r for k in (-1, 0, 1)])
+        lines.append(brow)
+    mouth = ring(c - up * 0.5 * r, 0.2 * r, 0.28 * r)
+    fill_polygon(layer, mouth, np.asarray(color, np.float32), alpha * 0.35, 0.9, feather=1.0)
+    lines.append(mouth)
+    top = c + up * 0.7 * r  # la coronilla
+    if "boom" not in st:
+        lines.append(np.array([top + across * k * 0.6 * r + up * (0.25 * r) * np.cos(k * np.pi / 2) for k in np.linspace(-1, 1, 12)]))
+        return lines
+    age = frame_index - st["boom"]
+    # La tapa sale disparada sobre un resorte y queda rebotando (amortiguado).
+    lift = r * (2.0 - 2.0 * np.exp(-age / 4.0) * np.cos(age * 0.9)) if age > 0 else 0.0
+    wobble = 0.25 * np.exp(-age / 6.0) * np.sin(age * 1.3)
+    cap_at = top + up * lift
+    cap = np.array([cap_at + _rotate(across * k * 0.65 * r + up * 0.3 * r * np.cos(k * np.pi / 2), wobble) for k in np.linspace(-1, 1, 14)])
+    lines += [cap, np.array([cap[0], cap[-1]])]
+    if lift > 0.1 * r:
+        lines.append(_coil(top, cap_at, 0.18 * r, 6))
+    if age < 4:  # estallido: rayos alrededor de la cabeza
+        for k in range(10):
+            a = k * TAU / 10
+            d = np.array([np.cos(a), np.sin(a)])
+            lines.append(np.array([top + d * (0.7 + 0.35 * age) * r, top + d * (1.2 + 0.6 * age) * r]))
+        splat(layer, float(top[0]), float(top[1]), 0.5 * r, WHITE * 1.8, alpha, runtime.kernels)
+    rng = np.random.default_rng(int(st["boom"]))
+    gravity = 0.012 * scale
+    for k in range(9):  # pedazos de cerebro (y algunos resortes) que vuelan con gravedad
+        angle = -np.pi / 2 + rng.uniform(-1.2, 1.2)
+        speed = rng.uniform(0.1, 0.2) * scale
+        v = np.array([np.cos(angle), np.sin(angle)]) * speed
+        pos = top + v * age + np.array([0.0, gravity]) * age * age / 2
+        if pos[1] > layer.shape[0] or age > 30:
+            continue
+        size = rng.uniform(0.2, 0.32) * r
+        if k % 3 == 2:
+            spin = _rotate(np.array([1.0, 0.0]), age * 0.5 + k)
+            lines.append(_coil(pos - spin * size, pos + spin * size, size * 0.6, 4))
+            continue
+        bumps = 1 + 0.25 * np.sin(t * 5 + k)
+        blob = pos + np.stack([np.cos(t) * size * bumps, np.sin(t) * size * 0.8 * bumps], axis=1)
+        fill_polygon(layer, blob, np.asarray(color, np.float32), alpha * 0.4, 0.9, feather=1.0)
+        squiggle = np.array([pos + np.array([q * size * 0.7, np.sin(q * 6) * size * 0.25]) for q in np.linspace(-1, 1, 8)])
+        lines += [blob, squiggle]
+    return lines
+
+
+def _lion_roar(body, frame, scale, frame_index, runtime, layer, color, alpha, event, head) -> list[np.ndarray]:
+    from vfxglow.engine.characters import text_outline
+
+    c, r, up, across = _face(body, frame, scale, head)
+    u = _phase(runtime, event)
+    grow = _ease(_seg(u, 0.0, 0.2))
+    spikes = 16
+    a = np.linspace(0, TAU, spikes * 2 + 1)
+    flicker = 1 + 0.08 * np.sin(frame_index * 1.7 + np.arange(len(a)))
+    radius = np.where(np.arange(len(a)) % 2 == 0, 1.85, 1.3) * r * flicker * (0.6 + 0.4 * grow)
+    mane = c + np.outer(np.cos(a) * radius, across) + np.outer(np.sin(a) * radius, up)
+    fill_polygon(layer, mane, np.asarray(color, np.float32), alpha * 0.25, 0.9, feather=2.0)
+    lines = [mane]
+    for s in (-1, 1):  # orejas redondas y bigotes
+        ear = c + up * 1.05 * r + across * s * 0.75 * r
+        t = np.linspace(0, np.pi, 12)
+        lines.append(ear + np.outer(np.cos(t) * 0.22 * r, across) + np.outer(np.sin(t) * 0.22 * r, up))
+        for k in (-1, 0, 1):
+            root = c - up * 0.15 * r + across * s * 0.25 * r
+            lines.append(np.array([root, root + across * s * 0.55 * r + up * k * 0.15 * r]))
+    nose = c + up * 0.05 * r
+    lines.append(np.array([nose - across * 0.12 * r, nose + across * 0.12 * r, nose - up * 0.14 * r, nose - across * 0.12 * r]))
+    mouth = c - up * 0.5 * r
+    roar = _seg(u, 0.25, 0.9)
+    if roar > 0:  # el rugido: ondas que salen de la boca y el texto que tiembla
+        for k in range(3):
+            age = (frame_index * 0.06 + k / 3) % 1.0
+            rr = (0.4 + 2.2 * age) * r
+            arc = np.linspace(-np.pi * 0.75, -np.pi * 0.25, 18)
+            lines.append(mouth + np.outer(np.cos(arc) * rr, across) + np.outer(np.sin(arc) * rr, up))
+        shake = across * np.sin(frame_index * 2.9) * 0.05 * r + up * np.cos(frame_index * 3.3) * 0.05 * r
+        lines += text_outline("ROAR!", c + up * 2.4 * r + shake, 0.55 * r)
+    return lines
+
+
 def story(shape, body, frame, scale, frame_index, seed, runtime, layer, color, alpha, head, event=None) -> list[np.ndarray]:
     if shape == "yoyo":
         return _yoyo(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
@@ -536,4 +673,8 @@ def story(shape, body, frame, scale, frame_index, seed, runtime, layer, color, a
         return _goddess_arms(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape == "snap_cables":
         return _snap_cables(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape == "mind_blown":
+        return _mind_blown(body, frame, scale, frame_index, runtime, layer, color, alpha, event, head)
+    if shape == "lion_roar":
+        return _lion_roar(body, frame, scale, frame_index, runtime, layer, color, alpha, event, head)
     return []

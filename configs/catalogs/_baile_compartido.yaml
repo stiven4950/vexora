@@ -380,6 +380,14 @@ reactions:
     - type: adornment
       style: {shapes: [snap_cables], thickness: 0.006, focus: false}
       trigger: {hold: 45, fade_in: 1, fade_out: 4}
+  - name: leon
+    weight: 0.2
+    kinds: [head]
+    cooldown: 900
+    effects:
+    - type: adornment
+      style: {shapes: [lion_roar], thickness: 0.007, focus: false}
+      trigger: {hold: 35, fade_in: 2, fade_out: 6}
   - name: luna
     weight: 0.15
     kinds: [head]
@@ -472,6 +480,13 @@ reactions:
     - type: adornment
       style: {shapes: [head_ring], thickness: 0.012, focus: false}
       trigger: {hold: 12, fade_in: 2, fade_out: 6}
+  - name: cabeza_explota
+    weight: 0.2
+    cooldown: 900
+    effects:
+    - type: adornment
+      style: {shapes: [mind_blown], thickness: 0.007, focus: false}
+      trigger: {hold: 40, fade_in: 1, fade_out: 6}
   - name: ovni
     weight: 0.25
     cooldown: 450
@@ -493,6 +508,13 @@ reactions:
     weight: 0.2
 - action: lunge
   options:
+  - name: rugido
+    weight: 0.3
+    cooldown: 900
+    effects:
+    - type: adornment
+      style: {shapes: [lion_roar], thickness: 0.007, focus: false}
+      trigger: {hold: 30, fade_in: 1, fade_out: 6}
   - name: venom
     weight: 0.7
     effects:
