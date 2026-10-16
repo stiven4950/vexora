@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 import shutil
 import subprocess
 from pathlib import Path
@@ -48,7 +50,9 @@ class FrameEncoder:
         frames: int | None = None,
     ) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        self.partial = path.with_name(f"{path.stem}.partial{path.suffix}")
+        # Un temporal por proceso: dos renders del mismo video y guion a la vez (la web y la consola)
+        # escribían el mismo archivo y lo dejaban ilegible; ahora gana el último en terminar.
+        self.partial = path.with_name(f"{path.stem}.partial-{os.getpid()}{path.suffix}")
         ffmpeg = find_ffmpeg(required=True)
         assert ffmpeg is not None
         cmd = [
