@@ -168,6 +168,9 @@ class DeepConfig(_Strict):
     timeout_s: float = 600.0
     # Reintentos si el modelo está saturado (503) o se pasa la cuota por minuto (429).
     retries: int = 4
+    # Mixto: el modelo pone la historia (momentos principales) y el coreógrafo económico rellena
+    # alrededor (acentos, golpes de la música, la otra persona). false: solo lo del modelo.
+    fill: bool = True
 
 
 class DirectorConfig(_Strict):

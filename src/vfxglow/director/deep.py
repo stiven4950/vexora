@@ -24,6 +24,7 @@ import os
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
 
 from vfxglow.config import DeepConfig
@@ -112,7 +113,12 @@ Trabaja en este orden:
    un efecto nuevo: descríbelo y usa en ese momento el efecto del catálogo más parecido.
 
 Reglas:
-- Ningún segundo sin efecto; un efecto principal por momento; dibujos simples y legibles.
+- Tú pones la historia: los momentos principales, sin huecos, con dibujos simples y legibles.
+  El sistema agrega por su cuenta los acentos pequeños (golpes de la música, chispas, toques en
+  la otra persona), así que no hace falta que los pidas.
+- Si bailan dos o más personas, di a quién va cada momento ("quien") mirando el video tal como se
+  ve: izquierda o derecha en ese segundo, o ambos si hacen lo mismo. Reparte la historia entre
+  las dos personas según quién tiene la atención; no la cargues toda en una.
 - Las figuras con historia (lista de abajo) llaman mucho la atención: úsalas en los 2 a 4
   momentos más fuertes del video, solo donde la metáfora encaje de verdad con el gesto, y nunca
   la misma dos veces. No las fuerces: el resto del video lo cuentan los demás efectos.
@@ -132,7 +138,7 @@ Responde SOLO este JSON (sin texto fuera de él):
   "lectura": [{{"inicio": 0.0, "fin": 0.5, "cuerpo": "qué hace exacto", "intencion": "qué transmite", "camara": "qué hace la cámara"}}],
   "historia": {{"arco": "", "motivo": "", "contrastes": "", "colores": ""}},
   "momentos": [{{"seg": 4.1, "dur": 1.1, "accion": "point", "opcion": "munequito", "figura": null,
-                 "color": "#39ff14", "intencion": "por qué este efecto aquí", "nuevo": null}}],
+                 "color": "#39ff14", "quien": "protagonista", "intencion": "por qué este efecto aquí", "nuevo": null}}],
   "efectos_nuevos": [{{"nombre": "trampa_chispa", "segundos": "8.9-10.1", "escenario": "", "nace": "",
                        "recorrido": "", "conflicto": "", "final": "", "fisica": "", "porque": ""}}]
 }}
@@ -140,6 +146,8 @@ Responde SOLO este JSON (sin texto fuera de él):
 - figura: opcional y SOLO una de las que aparecen entre corchetes en esa opción; si la que
   imaginas no está en la lista, usa null (no inventes nombres de figuras).
 - color: hexadecimal, el del acto o el momento.
+- quien: "protagonista" si baila una sola persona; con dos o más, "izquierda", "derecha" o
+  "ambos" (como se ve en pantalla en ese segundo).
 - nuevo: el nombre del efecto nuevo que ese momento debería tener (descrito en efectos_nuevos),
   o null. En ese caso accion/opcion son el sustituto más parecido del catálogo.
 """
@@ -287,8 +295,13 @@ def _match(catalog, accion: str | None, opcion: str | None):
     return found[0] if len(found) == 1 else None
 
 
-def to_pins(answer: dict, catalog, duration: float) -> tuple[PinFile, list[str]]:
-    """El guion de prueba de la respuesta y los avisos de lo que se corrigió o descartó."""
+def to_pins(answer: dict, catalog, duration: float, fill: bool = True, who: Callable[[float, str], tuple[str | None, bool]] | None = None) -> tuple[PinFile, list[str]]:
+    """El guion de prueba de la respuesta y los avisos de lo que se corrigió o descartó.
+
+    fill: el coreógrafo económico rellena alrededor de lo fijado (acentos, golpes de la música,
+    la otra persona); sin él, solo lo que dijo el modelo (un efecto cada uno o dos segundos, que
+    en un dúo deja casi sin nada a una persona: dance_two_mens).
+    who(seg, quien) → (persona, ambos): la persona de "izquierda"/"derecha" en ese segundo."""
     warnings: list[str] = []
     pins: list[Pin] = []
     for raw in answer.get("momentos", []):
@@ -318,6 +331,7 @@ def to_pins(answer: dict, catalog, duration: float) -> tuple[PinFile, list[str]]
         nota = str(raw.get("intencion") or "").strip()[:200] or None
         if raw.get("nuevo"):
             nota = f"[nuevo: {raw['nuevo']}] {nota or ''}".strip()
+        persona, both = who(seg, str(raw.get("quien") or "").strip().lower()) if who is not None else (None, False)
         pins.append(Pin(
             seg=seg,
             dur=round(min(max(dur, MIN_DUR), MAX_DUR, duration - seg), 2),
@@ -327,16 +341,43 @@ def to_pins(answer: dict, catalog, duration: float) -> tuple[PinFile, list[str]]
             exacto=True,
             color=color,
             nota=nota,
+            persona=persona,
+            espejo=True if both else None,
         ))
     pins.sort(key=lambda pin: pin.seg)
-    return PinFile(catalogo=catalog.name, solo_estos=True, momentos=pins), warnings
+    return PinFile(catalogo=catalog.name, solo_estos=not fill, momentos=pins), warnings
+
+
+def sides_from_tracks(frames, fps: float) -> Callable[[float, str], tuple[str | None, bool]]:
+    """who(seg, quien) para to_pins: con dos personas en pantalla, "izquierda" es la de la caja
+    más a la izquierda en ese instante (o en el cuadro más cercano que las vea a las dos)."""
+    seen: dict[int, list[tuple[float, str]]] = {}
+    for record in frames:
+        people = [((p.box[0] + p.box[2]) / 2, p.person_id) for p in record.people if p.box is not None]
+        if len(people) >= 2:
+            seen[record.frame] = sorted(people)
+    known = sorted(seen)
+
+    def who(seg: float, quien: str) -> tuple[str | None, bool]:
+        if not known or quien not in ("izquierda", "derecha", "ambos"):
+            return None, False
+        frame = int(round(seg * fps))
+        nearest = min(known, key=lambda f: abs(f - frame))
+        if abs(nearest - frame) > 2 * fps:
+            return None, quien == "ambos"
+        row = seen[nearest]
+        if quien == "derecha":
+            return row[-1][1], False
+        return row[0][1], quien == "ambos"
+
+    return who
 
 
 def answer_key(video_sha: str, prompt: str, cfg: DeepConfig) -> str:
     return hashlib.sha256(f"{video_sha}|{cfg.model}|{cfg.fps}|{prompt}".encode()).hexdigest()[:20]
 
 
-def deep_pins(video: Path, video_sha: str, catalog, duration: float, cfg: DeepConfig, out_dir: Path) -> Path:
+def deep_pins(video: Path, video_sha: str, catalog, duration: float, cfg: DeepConfig, out_dir: Path, who=None) -> Path:
     """Guion del análisis profundo en `out_dir` (deep_guion.yaml), con la lectura completa al
     lado (deep_lectura.json). La respuesta del modelo se guarda en caché por video y prompt."""
     from vfxglow.director.pins import save_pins
@@ -357,7 +398,7 @@ def deep_pins(video: Path, video_sha: str, catalog, duration: float, cfg: DeepCo
         )
         cache.parent.mkdir(parents=True, exist_ok=True)
         cache.write_text(json.dumps(answer, ensure_ascii=False, indent=1), encoding="utf-8")
-    pins, warnings = to_pins(answer, catalog, duration)
+    pins, warnings = to_pins(answer, catalog, duration, fill=cfg.fill, who=who)
     for warning in warnings:
         log.warning("Análisis profundo: %s", warning)
     if not pins.momentos:

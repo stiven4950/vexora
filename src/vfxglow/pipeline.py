@@ -265,12 +265,14 @@ class Pipeline:
         if not director.deep.enabled or director.provider != "catalog" or director.pins:
             return
         from vfxglow.director.choreography import load_catalog
-        from vfxglow.director.deep import deep_pins, record_proposals
+        from vfxglow.director.deep import deep_pins, record_proposals, sides_from_tracks
 
         meta = self._meta()
         catalog = load_catalog(catalog_file(self.config_path, director.catalog))
         out = self.run_dir / "scripts"
-        guion = deep_pins(self.video, self.manifest.video_sha256, catalog, meta.frame_count / (meta.fps or 30.0), director.deep, out)
+        tracks_path = self.run_dir / "analysis" / "tracks.jsonl"
+        who = sides_from_tracks(load_tracks(tracks_path), meta.fps or 30.0) if tracks_path.exists() else None
+        guion = deep_pins(self.video, self.manifest.video_sha256, catalog, meta.frame_count / (meta.fps or 30.0), director.deep, out, who)
         added = record_proposals(out / "deep_lectura.json", self.run_dir.parent / "efectos_propuestos.jsonl", self.video.name)
         if added:
             log.info("%d efectos nuevos anotados en %s", added, self.run_dir.parent / "efectos_propuestos.jsonl")

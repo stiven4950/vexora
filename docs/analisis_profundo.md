@@ -25,6 +25,18 @@ reintenta solo 4 veces, esperando 15, 45, 90 y 180 s, sin volver a subir el vide
 saturado, el error lo dice; el análisis de movimiento ya quedó guardado y reintentar más tarde es
 rápido.
 
+## Mixto: la historia de la IA y el relleno del económico
+
+Por defecto (`director.deep.fill: true`), lo que dice el modelo son los momentos principales: van
+fijados, con su color e intención. Alrededor, el coreógrafo económico agrega lo de siempre:
+acentos, golpes de la música, la otra persona. Sin eso, el modelo pone un efecto cada uno o dos
+segundos y en un dúo deja casi sin nada a una persona (`historial/dance_two_mens/`: 24 momentos,
+19 en un bailarín y 4 en el otro; mixto: 66, repartidos 38 y 24).
+
+Con dos o más personas, el modelo dice a quién va cada momento (`quien`: izquierda, derecha o
+ambos, como se ve en pantalla). Se traduce a cada bailarín por la posición de su caja en ese
+segundo. "Ambos" lo copia en la pareja.
+
 ## Qué pasa por dentro (`src/vfxglow/director/deep.py`)
 
 1. Arma el prompt de animador con el catálogo real: acciones, opciones y figuras, y qué hacen las

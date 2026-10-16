@@ -43,7 +43,9 @@ def test_answer_becomes_checked_pins() -> None:
     pins, warnings = to_pins(answer, CATALOG, 32.4)
     by_seg = {pin.seg: pin for pin in pins.momentos}
     assert sorted(by_seg) == [4.1, 6.0, 8.9, 20.0]
-    assert pins.solo_estos and all(pin.exacto for pin in pins.momentos)
+    # Mixto por defecto: el coreógrafo económico rellena alrededor de lo fijado.
+    assert not pins.solo_estos and all(pin.exacto for pin in pins.momentos)
+    assert to_pins(answer, CATALOG, 32.4, fill=False)[0].solo_estos
     assert by_seg[6.0].color == "#39ff14" and by_seg[6.0].nota == "la letra dice UFO"
     assert by_seg[4.1].accion == "point"
     assert by_seg[8.9].nota.startswith("[nuevo: trampa_chispa]")
@@ -119,3 +121,26 @@ def test_prompt_lists_figures_not_style_flags() -> None:
     assert "burbuja [bubble]" in prompt and "cohete [rocket]" in prompt
     assert "no_outline" not in prompt and "lines_only" not in prompt
     assert "nunca\n  la misma dos veces" in prompt
+
+
+def test_who_maps_left_right_and_both() -> None:
+    from vfxglow.analysis.schema import FrameRecord, PersonPose
+    from vfxglow.director.deep import sides_from_tracks
+
+    frames = [
+        FrameRecord(frame=i, time_s=i / 25.0, people=[
+            PersonPose(person_id="person_0", box=(0.6, 0.1, 0.9, 0.9)),
+            PersonPose(person_id="person_1", box=(0.1, 0.1, 0.4, 0.9)),
+        ])
+        for i in range(50)
+    ]
+    who = sides_from_tracks(frames, 25.0)
+    assert who(1.0, "izquierda") == ("person_1", False)
+    assert who(1.0, "derecha") == ("person_0", False)
+    assert who(1.0, "ambos") == ("person_1", True)
+    assert who(1.0, "protagonista") == (None, False)
+    answer = {"momentos": [{"seg": 1.0, "accion": "point", "opcion": "munequito", "quien": "derecha"},
+                           {"seg": 1.5, "accion": "spin_body", "opcion": "arcos", "quien": "ambos"}]}
+    pins, _ = to_pins(answer, CATALOG, 2.0, who=who)
+    assert (pins.momentos[0].persona, pins.momentos[0].espejo) == ("person_0", None)
+    assert (pins.momentos[1].persona, pins.momentos[1].espejo) == ("person_1", True)
