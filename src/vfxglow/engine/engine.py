@@ -152,6 +152,7 @@ class EffectEngine:
             if runtime.active_frames == 1:
                 runtime.chapter_frame = frame_index
             runtime.chapter_colors = self._chapter_colors(runtime.chapter_frame if effect.triggers and gain > 0 else frame_index)
+            runtime.frame_count = frame_count  # los efectos de cierre saben cuánto falta (firebend.fire_wall)
             runtime.contour_px = None
             runtime.tool_tip = None
             runtime.appearance = self.appearance

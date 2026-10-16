@@ -38,6 +38,7 @@ class EffectRuntime:
         self.crack_lines: list[np.ndarray] = []
         self.active_frames = 0
         self.fps = 30.0
+        self.frame_count = 0
         self.swoosh: dict[str, deque] = {}
         self.swoosh_activity: dict[str, float] = {}
         self.swoosh_stroke: dict[str, int] = {}
