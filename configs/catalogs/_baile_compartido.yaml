@@ -372,6 +372,14 @@ reactions:
     - type: adornment
       style: {shapes: [bubble], thickness: 0.007, focus: false}
       trigger: {hold: 50, fade_in: 2, fade_out: 4}
+  - name: cables
+    weight: 0.2
+    kinds: [left_arm, right_arm]
+    cooldown: 900
+    effects:
+    - type: adornment
+      style: {shapes: [snap_cables], thickness: 0.006, focus: false}
+      trigger: {hold: 45, fade_in: 1, fade_out: 4}
   - name: luna
     weight: 0.15
     kinds: [head]
@@ -546,6 +554,13 @@ reactions:
     - type: adornment
       style: {shapes: [battery], thickness: 0.01, focus: false}
       trigger: {hold: 40, fade_in: 2, fade_out: 8}
+  - name: diosa
+    weight: 0.25
+    cooldown: 900
+    effects:
+    - type: adornment
+      style: {shapes: [goddess_arms], thickness: 0.007, focus: false}
+      trigger: {hold: 45, fade_in: 2, fade_out: 6}
   - name: pajaro
     weight: 0.25
     cooldown: 900

@@ -83,6 +83,8 @@ STORIES = {
     "bubble": "una burbuja envuelve a la persona, tiembla con lo pequeño y revienta con un movimiento fuerte",
     "finger_gun": "un revólver de neón sobre la mano que dispara cuando baja el pulgar: fogonazo, retroceso, bala, casquillo y humo",
     "bullet": "solo la bala que sale del dedo con su estela y el fogonazo",
+    "goddess_arms": "los brazos se copian en neón y se abren en abanico (seis brazos, como una diosa); al final se pliegan de golpe",
+    "snap_cables": "cables de energía entre las manos de una persona y los hombros de la otra; se tensan con el tirón y revientan con un latigazo",
     "battery": "una batería se carga en el pecho hasta 100%",
     "hero_text": "la palabra HERO en el pecho",
     "punk_crest": "cresta punk que gira con la cabeza; las gafas suben y se vuelve arcos",

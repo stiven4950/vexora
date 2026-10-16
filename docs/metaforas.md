@@ -49,6 +49,13 @@ Las primeras propuestas de la lista de abajo, más el yo-yo que pidió Gemini al
 | Pájaro (`bird`) | `arms_open: pajaro` | Llega volando, se posa en el antebrazo, salta y picotea; sale volando al final o si el brazo se sacude |
 | Burbuja (`bubble`) | `still: burbuja_quieta`, `spotlight: burbuja` | Envuelve a la persona, tiembla más cuanto más se mueve y revienta con un movimiento fuerte |
 
+## Las que propuso Gemini en dance_two_mens (implementadas, `engine/stories.py`)
+
+| Metáfora | Opción del catálogo | Historia |
+| --- | --- | --- |
+| Brazos de diosa (`goddess_arms`) | `arms_open: diosa` | Cada brazo se copia en neón (silueta curva con mano abierta) en abanico desde el hombro: seis brazos. Las copias siguen al brazo real con un poco de retraso, no cruzan el cuerpo ni la cara, y al final se pliegan de golpe con un destello |
+| Cables que se rompen (`snap_cables`) | `spotlight: cables` | Una telaraña de cables de las manos de quien jala a la línea de hombros de la otra persona (de donde sale la prenda). Flojos se comban, tensos vibran con chispas, y con el tirón fuerte (o al final) revientan con un latigazo. Sin otra persona, a los propios hombros |
+
 ## El revólver con la mano (`engine/gun.py`)
 
 Idea del usuario en dance_two_mens (seg. 7,2): índice al frente y pulgar arriba es un revólver, y

@@ -18,6 +18,16 @@ volando si el brazo se sacude).
 - `bubble`: una burbuja envuelve a la persona, tiembla con los movimientos pequeños y revienta con
   uno fuerte (o al final).
 
+Propuestos por Gemini al leer dance_two_mens:
+
+- `goddess_arms`: los brazos se copian en neón y se abren en abanico desde el hombro (seis brazos,
+  como una diosa); las copias siguen al brazo real con un poco de retraso y al final se pliegan de
+  golpe sobre él (seg. 25,8: el de atrás asoma brazos como si fueran del de adelante).
+- `snap_cables`: cables de energía entre las manos de quien jala y los hombros o la espalda de la
+  otra persona: flojos se comban, tensos vibran, y con el tirón (o al final) revientan con un
+  latigazo (seg. 17,5-21,3: le arranca la chaqueta). Sin otra persona, de las manos a los propios
+  hombros, como quien se arranca algo.
+
 El estado entre cuadros se guarda en `runtime.swoosh["_critters"]`, por activación.
 """
 
@@ -28,7 +38,7 @@ import numpy as np
 from vfxglow.engine.critters import TAU, WHITE, _activation, _ease, _phase, _seg
 from vfxglow.engine.raster import fill_polygon, splat
 
-STORIES = ("yoyo", "bee", "energy_ball", "rocket", "bird", "bubble")
+STORIES = ("yoyo", "bee", "energy_ball", "rocket", "bird", "bubble", "goddess_arms", "snap_cables")
 # Rapidez de una articulación (en anchos de hombros por segundo) que cuenta como sacudida.
 SHAKE = 2.5
 
@@ -361,6 +371,154 @@ def _bubble(body, frame, scale, frame_index, runtime, layer, color, alpha, event
     return [shell, shine]
 
 
+# ----- los brazos de diosa -----
+
+
+def _turn(points: np.ndarray, pivot: np.ndarray, angle: float) -> np.ndarray:
+    c, s = np.cos(angle), np.sin(angle)
+    rel = points - pivot
+    return pivot + np.stack([rel[:, 0] * c - rel[:, 1] * s, rel[:, 0] * s + rel[:, 1] * c], axis=1)
+
+
+def _limb(shoulder, elbow, wrist, n: int = 18) -> np.ndarray:
+    """Curva suave del hombro a la muñeca que pasa por el codo (cuadrática)."""
+    control = 2 * elbow - (shoulder + wrist) / 2
+    q = np.linspace(0, 1, n)[:, None]
+    return (1 - q) ** 2 * shoulder + 2 * (1 - q) * q * control + q ** 2 * wrist
+
+
+def _goddess_arms(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list[np.ndarray]:
+    from vfxglow.engine.duo_fx import fill_band, taper
+
+    center = frame[0]
+    st = _activation(runtime, event, "goddess", body)
+    u = _phase(runtime, event)
+    if u < 0.2:  # se abren en abanico
+        spread = _ease(_seg(u, 0.0, 0.2))
+    elif u < 0.85:
+        spread = 1.0 + 0.08 * np.sin(frame_index * 0.35)  # respiran
+    else:  # se pliegan de golpe sobre el brazo real
+        spread = 1.0 - _ease(_seg(u, 0.85, 0.95))
+    lines: list[np.ndarray] = []
+    for side in ("left", "right"):
+        joints = [body.get(f"{side}_{j}") for j in ("shoulder", "elbow", "wrist")]
+        if any(j is None for j in joints):
+            continue
+        arm = np.array(joints)
+        outward = 1.0 if arm[0][0] >= center[0] else -1.0  # hacia qué lado de la imagen queda este brazo
+        history = st.setdefault(side, [])
+        history.append(arm.copy())
+        del history[:-9]
+        for k, turn in enumerate((0.5, -0.5)):  # una copia arriba y otra abajo: seis brazos en total
+            echo = history[max(len(history) - 1 - 3 * (k + 1), 0)]  # cada copia va un poco atrasada
+            echo = echo - echo[0] + arm[0]  # pero sale del hombro de ahora
+            copy = _turn(echo, arm[0], turn * spread * outward)
+            if (copy[2][0] - center[0]) * outward < (arm[0][0] - center[0]) * outward * 0.8:
+                continue  # cruzaría el cuerpo (o la cara): esa copia no se dibuja
+            curve = _limb(*copy)
+            width = 0.05 * scale * (1.0 - 0.25 * k) * (0.55 + 0.45 * np.linspace(1.0, 0.6, len(curve)))
+            fill_band(layer, curve, width * max(spread, 0.0), alpha * (0.5 - 0.12 * k))
+            tangent = np.gradient(curve, axis=0)
+            normal = np.stack([-tangent[:, 1], tangent[:, 0]], axis=1)
+            normal /= np.maximum(np.linalg.norm(normal, axis=1, keepdims=True), 1e-6)
+            for s in (-1, 1):  # el contorno del brazo, no una línea por el centro
+                lines.append(curve + normal * width[:, None] * s * 1.3)
+            d = (copy[2] - copy[1]) / max(float(np.linalg.norm(copy[2] - copy[1])), 1e-6)
+            palm = copy[2] + d * 0.06 * scale
+            ring = np.linspace(0, TAU, 14)
+            lines.append(palm + np.stack([np.cos(ring), np.sin(ring)], axis=1) * 0.045 * scale)
+            side_n = np.array([-d[1], d[0]])
+            for f in (-1.2, -0.4, 0.4, 1.2):  # dedos abiertos en abanico
+                ray = d + side_n * f * 0.45
+                ray /= float(np.linalg.norm(ray))
+                lines.append(np.array([palm + ray * 0.045 * scale, palm + ray * 0.12 * scale]))
+    if 0.85 <= u < 0.97:  # destello al plegarse
+        for side in ("left", "right"):
+            wrist = body.get(f"{side}_wrist")
+            if wrist is not None:
+                splat(layer, float(wrist[0]), float(wrist[1]), 0.12 * scale, WHITE * 1.6, alpha, runtime.kernels)
+    return lines
+
+
+# ----- los cables que se rompen -----
+
+
+def _partner_points(body) -> dict[str, np.ndarray]:
+    """Hombros y nuca de la otra persona más cercana a las manos de esta (de donde sale la prenda
+    que le arrancan), o los propios."""
+    own = body.prefix
+    wrists = [p for p in (body.get("left_wrist"), body.get("right_wrist")) if p is not None]
+    best, best_d = {}, float("inf")
+    people = {key.split(":", 1)[0] for key in body.points if key.startswith("person_") and ":" in key}
+    for person in people:
+        if f"{person}:" == own:
+            continue
+        pts = {j: body.points.get(f"{person}:{j}") for j in ("left_shoulder", "right_shoulder", "neck", "mid_shoulder")}
+        pts = {j: p for j, p in pts.items() if p is not None}
+        if len(pts) < 2 or not wrists:
+            continue
+        d = min(float(np.linalg.norm(w - p)) for w in wrists for p in pts.values())
+        if d < best_d:
+            best, best_d = pts, d
+    if not best:  # sin pareja: de las manos a los propios hombros
+        best = {j: body.get(j) for j in ("left_shoulder", "right_shoulder") if body.get(j) is not None}
+    return best
+
+
+def _snap_cables(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list[np.ndarray]:
+    center, across, down = frame
+    wrists = [p for p in (body.get("left_wrist"), body.get("right_wrist")) if p is not None]
+    anchors = _partner_points(body)
+    if not wrists or not anchors:
+        return []
+    st = _activation(runtime, event, "cables", body)
+    u = _phase(runtime, event)
+    pairs = []
+    shoulders = list(anchors.values())
+    line = (min(shoulders, key=lambda p: p[0]), max(shoulders, key=lambda p: p[0]))
+    for w in wrists:  # cada mano, a tres puntos repartidos por la línea de hombros: una telaraña
+        pairs += [(w, line[0] + (line[1] - line[0]) * f) for f in (0.1, 0.5, 0.9)]
+    spans = [float(np.linalg.norm(a - w)) for w, a in pairs]
+    mean = float(np.mean(spans))
+    st.setdefault("rest", mean)
+    stretch = mean / max(st["rest"], 1e-6)
+    if "snap" not in st and u > 0.3 and (stretch > 2.2 or u > 0.85):  # el tirón fuerte, o el final
+        st["snap"] = frame_index
+    lines: list[np.ndarray] = []
+    rng = np.random.default_rng(frame_index)
+    if "snap" in st:  # revientan: cada mitad vuelve a su extremo con un latigazo
+        age = frame_index - st["snap"]
+        if age > 10:
+            return []
+        s = age / 10.0
+        for k, (w, a) in enumerate(pairs):
+            mid = (w + a) / 2
+            for end in (w, a):
+                tip = mid + (end - mid) * _ease(min(s * 1.4, 1.0))
+                axis = end - tip
+                n = np.array([-axis[1], axis[0]]) / max(float(np.linalg.norm(axis)), 1e-6)
+                whip = np.array([tip + axis * q + n * np.sin(q * np.pi * 3 + k) * 0.06 * scale * (1 - s) for q in np.linspace(0, 1, 12)])
+                lines.append(whip)
+            if age < 3:
+                splat(layer, float(mid[0]), float(mid[1]), 0.12 * scale, WHITE * 1.8, alpha, runtime.kernels)
+        return lines
+    tension = float(np.clip((stretch - 1.0) / 0.6, 0.0, 1.0))
+    grow = _ease(_seg(u, 0.0, 0.15))  # los cables brotan de las manos
+    for k, (w, a) in enumerate(pairs):
+        end = w + (a - w) * grow
+        axis = end - w
+        n = np.array([-axis[1], axis[0]]) / max(float(np.linalg.norm(axis)), 1e-6)
+        q = np.linspace(0, 1, 18)
+        sag = (1 - tension) * 0.12 * scale * np.sin(q * np.pi)  # flojos se comban
+        buzz = tension * 0.025 * scale * np.sin(q * np.pi * 4 + frame_index * 2.1 + k)  # tensos vibran
+        cable = w + np.outer(q, axis) + np.outer(sag, down) + np.outer(buzz, n)
+        lines.append(cable)
+        if tension > 0.4:  # chispas que corren por el cable
+            spot = cable[int(rng.integers(2, 16))]
+            splat(layer, float(spot[0]), float(spot[1]), 0.02 * scale + 1, WHITE * 1.5, alpha, runtime.kernels)
+    return lines
+
+
 def story(shape, body, frame, scale, frame_index, seed, runtime, layer, color, alpha, head, event=None) -> list[np.ndarray]:
     if shape == "yoyo":
         return _yoyo(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
@@ -374,4 +532,8 @@ def story(shape, body, frame, scale, frame_index, seed, runtime, layer, color, a
         return _bird(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape == "bubble":
         return _bubble(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape == "goddess_arms":
+        return _goddess_arms(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape == "snap_cables":
+        return _snap_cables(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     return []
