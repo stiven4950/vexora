@@ -119,23 +119,18 @@ reactions:
     - type: body_glow
       trigger: *id002
       style: {fill: 0.0}
+  # Solo las líneas internas de los abdominales, sin el relleno ni el contorno del torso: la caja
+  # completa se leía como una figura geométrica (dance_two_mens, seg. 30).
   - name: torso_abdominales
     weight: 0.3
     kinds: [torso, left_arm, right_arm]
     effects:
     - type: body_glow
       target: &id003 {kind: joint, id: torso}
-      trigger: &id004 {hold: 4, fade_in: 3, fade_out: 6}
       style:
-        shapes: [no_outline]
-        fill: 0.85
-      render: {blend: tint}
-    - type: body_glow
-      target: *id003
-      style:
-        shapes: [abs]
+        shapes: [abs, lines_only]
         fill: 0.0
-      trigger: *id004
+      trigger: &id004 {hold: 4, fade_in: 3, fade_out: 6}
   # Seg. 14.6: no siempre la caja completa; a veces unas pocas líneas sueltas del pecho. De
   # espaldas, músculos de la espalda o una figura de relleno (seg. 18.6: símbolo radiactivo).
   - name: torso_lineas
