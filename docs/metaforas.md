@@ -79,6 +79,21 @@ la altura del hombro, codo doblado; la mano que se ve abierta no cuenta).
 | Arena (`sand`) y escarcha (`glitter`) | `arena`, `escarcha` | Un chorro que cae del puño y hace un montoncito; la escarcha destella |
 | Reloj de arena (`hourglass`) | `reloj_arena` | La mitad de abajo entera en el piso y la de arriba cortada en lo más ancho, abierta hasta el puño, que vierte la arena; el montón de abajo crece. Él controla el tiempo |
 
+## Mano en el mentón (implementadas, `engine/hand_props.py`)
+
+Idea del usuario en dance_two_mens (seg. 11,8-12,7): agachado, una mano plana bajo el mentón y la
+otra arriba, abierta. El análisis lo marca como `hand_chin` (la mano del mentón debajo de la nariz
+y la otra lejos).
+
+| Efecto | Opción (`hand_chin:`) | Qué se ve |
+| --- | --- | --- |
+| Cuerno de guerra (`shofar`) | `cuerno` | Sale de la boca y se curva hasta la otra mano: angosto en la boquilla, ancho en la campana, con anillos; de la campana salen las ondas del llamado |
+| Bocado (`snack`) | `bocado` | Pastel con cereza (o una pieza de carne) en la mano del mentón y cuchara, tenedor o cuchillo en la otra. Cuando las manos bajan de golpe al piso se le caen: giran, rebotan y el pastel deja migajas |
+
+Límite visto en ese mismo momento del video: los dos bailarines están encimados y el detector de
+pose ve un solo cuerpo con partes de los dos (la nariz de uno, las manos del otro), así que el
+cuerno salía de la cara equivocada. Con una pose limpia (video_35, seg. 8) funcionan bien.
+
 ## El revólver con la mano (`engine/gun.py`)
 
 Idea del usuario en dance_two_mens (seg. 7,2): índice al frente y pulgar arriba es un revólver, y

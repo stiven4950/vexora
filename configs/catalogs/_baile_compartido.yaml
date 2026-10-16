@@ -689,3 +689,20 @@ reactions:
     - type: adornment
       style: {shapes: [hourglass], thickness: 0.007, focus: false}
       trigger: {hold: 45, fade_in: 2, fade_out: 8}
+# Mano en el mentón y la otra extendida (dance_two_mens, seg. 11,8).
+- action: hand_chin
+  options:
+  - name: cuerno
+    weight: 0.5
+    cooldown: 900
+    effects:
+    - type: adornment
+      style: {shapes: [shofar], thickness: 0.007, focus: false}
+      trigger: {hold: 30, fade_in: 2, fade_out: 6}
+  - name: bocado
+    weight: 0.5
+    cooldown: 900
+    effects:
+    - type: adornment
+      style: {shapes: [snack], thickness: 0.007, focus: false}
+      trigger: {hold: 30, fade_in: 2, fade_out: 6}
