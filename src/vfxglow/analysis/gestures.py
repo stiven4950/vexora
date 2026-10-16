@@ -678,6 +678,35 @@ def fist_up_events(frames, fps, width, height):
     return _pose_events(frames, fps, width, height, "fist_up", "Puño en alto.", flag)
 
 
+# Mano en el mentón con la otra extendida (dance_two_mens, seg. 11,8-12,7: agachado, una mano
+# plana bajo el mentón y la otra arriba, abierta). La muñeca cerca de la boca (en torsos) y la otra
+# lejos de ella.
+CHIN_NEAR = 0.45
+CHIN_FAR = 0.8
+
+
+def hand_chin_events(frames, fps, width, height):
+    """Una mano en el mentón y la otra extendida: el lado del evento es la mano del mentón."""
+
+    def flag(record, owner, pts):
+        nose = pts.get("nose")
+        if nose is None:
+            return None
+        torso = _torso(pts)
+        mouth = nose + np.array([0.0, 0.12 * torso])
+        for side, other in (("left", "right"), ("right", "left")):
+            near, far = pts.get(f"{side}_wrist"), pts.get(f"{other}_wrist")
+            if near is None or far is None:
+                continue
+            if near[1] < nose[1]:
+                continue  # encima de la nariz es la frente o el ala del sombrero, no el mentón
+            if float(np.linalg.norm(near - mouth)) / torso <= CHIN_NEAR and float(np.linalg.norm(far - mouth)) / torso >= CHIN_FAR:
+                return side, near
+        return None
+
+    return _pose_events(frames, fps, width, height, "hand_chin", "Mano en el mentón y la otra extendida.", flag)
+
+
 GESTURE_DETECTORS = (
     throw_events,
     neck_slash_events,
@@ -697,5 +726,6 @@ GESTURE_DETECTORS = (
     lunge_events,
     finger_gun_events,
     fist_up_events,
+    hand_chin_events,
 )
-GESTURE_NAMES = {"fist_up", "finger_gun", "rock_hands", "hands_on_head", "arms_x", "lunge", "throw", "neck_slash", "stomp", "frenzy", "heart_hands", "arms_up", "arms_open", "point", "hand_ear", "cover_eyes", "spin_body", "step"}
+GESTURE_NAMES = {"hand_chin", "fist_up", "finger_gun", "rock_hands", "hands_on_head", "arms_x", "lunge", "throw", "neck_slash", "stomp", "frenzy", "heart_hands", "arms_up", "arms_open", "point", "hand_ear", "cover_eyes", "spin_body", "step"}

@@ -134,6 +134,7 @@ EVENT_NAMES: tuple[str, ...] = (
     "lunge",
     "finger_gun",
     "fist_up",
+    "hand_chin",
     "spin_body",
     "step",
 )
