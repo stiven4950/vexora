@@ -42,6 +42,7 @@ import numpy as np
 from vfxglow.engine.characters import CHARACTERS, character
 from vfxglow.engine.costumes import COSTUMES, costume
 from vfxglow.engine.critters import CRITTERS, critter
+from vfxglow.engine.gun import GUNS, gun
 from vfxglow.engine.stories import STORIES, story
 from vfxglow.engine.dresses import DRESSES, dress
 from vfxglow.engine.shoes import SHOES, shoe
@@ -55,7 +56,7 @@ DOODLES = (
     "shoulder_bolts", "head_bolts", "hand_ring", "moon", "chest_burst", "body_bolts", "foot_spark",
     "floor_arc", "leg_line", "leg_string", "side_edges", "shoulder_arcs", "heart_eyes", "spin_arcs", "glow_eyes",
     "foot_ring", "foot_bolts",
-) + DUO_FX + COSTUMES + SHOES + DRESSES + CRITTERS + STORIES + CHARACTERS
+) + DUO_FX + COSTUMES + SHOES + DRESSES + CRITTERS + STORIES + GUNS + CHARACTERS
 WHITE = np.array([1.0, 1.0, 1.0], np.float32)
 
 
@@ -154,6 +155,8 @@ def doodle(shape, body, frame, scale, frame_index, seed, runtime, layer, color, 
         return critter(shape, body, frame, scale, frame_index, seed, runtime, layer, color, alpha, head, event)
     if shape in STORIES:
         return story(shape, body, frame, scale, frame_index, seed, runtime, layer, color, alpha, head, event)
+    if shape in GUNS:
+        return gun(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape in CHARACTERS:
         return character(shape, body, frame, scale, frame_index, seed, runtime, layer, color, alpha, head, event)
     if shape in DRESSES:

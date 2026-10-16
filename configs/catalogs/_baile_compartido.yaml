@@ -496,6 +496,13 @@ reactions:
 - action: point
   options:
   # La aventura del muñequito: camina por el brazo extendido, cae, la otra mano lo atrapa.
+  - name: disparo
+    weight: 0.15
+    cooldown: 600
+    effects:
+    - type: adornment
+      style: {shapes: [bullet], thickness: 0.007, focus: false}
+      trigger: {hold: 22, fade_in: 1, fade_out: 6}
   - name: munequito
     weight: 0.4
     cooldown: 450
@@ -587,3 +594,18 @@ reactions:
     - type: adornment
       style: {shapes: [bubble], thickness: 0.007, focus: false}
       trigger: {hold: 50, fade_in: 2, fade_out: 4}
+# Revólver con la mano (dance_two_mens, seg. 7,2): el pulgar que baja es el disparo.
+- action: finger_gun
+  options:
+  - name: revolver
+    weight: 0.7
+    effects:
+    - type: adornment
+      style: {shapes: [finger_gun], thickness: 0.007, focus: false}
+      trigger: {hold: 22, fade_in: 1, fade_out: 6}
+  - name: bala
+    weight: 0.3
+    effects:
+    - type: adornment
+      style: {shapes: [bullet], thickness: 0.007, focus: false}
+      trigger: {hold: 22, fade_in: 1, fade_out: 6}

@@ -49,6 +49,19 @@ Las primeras propuestas de la lista de abajo, más el yo-yo que pidió Gemini al
 | Pájaro (`bird`) | `arms_open: pajaro` | Llega volando, se posa en el antebrazo, salta y picotea; sale volando al final o si el brazo se sacude |
 | Burbuja (`bubble`) | `still: burbuja_quieta`, `spotlight: burbuja` | Envuelve a la persona, tiembla más cuanto más se mueve y revienta con un movimiento fuerte |
 
+## El revólver con la mano (`engine/gun.py`)
+
+Idea del usuario en dance_two_mens (seg. 7,2): índice al frente y pulgar arriba es un revólver, y
+el pulgar que baja es el disparo (con un pequeño retroceso de la mano). El análisis lo detecta
+con los puntos de los dedos (`gestures.finger_gun_events`): la pose de señalar con el pulgar
+levantado, y cada caída del pulgar de al menos 15° es un disparo (allí: 7,55 y 8,01 s). Si no hay
+caída, dispara una vez en un instante al azar de la pose.
+
+| Efecto | Opción del catálogo | Qué se ve |
+| --- | --- | --- |
+| Revólver (`finger_gun`) | `finger_gun: revolver` | Un revólver de neón sobre la mano (cañón por el índice, tambor que gira un tiro, martillo, guardamonte, cacha). En cada disparo: fogonazo, el cañón patea hacia arriba, la bala con su estela, ondas en la boca, el casquillo que salta y humo que sube |
+| Bala (`bullet`) | `finger_gun: bala`, `point: disparo` | Solo el disparo desde el dedo |
+
 ## Que se alternen
 
 Todas las metáforas con historia tienen un enfriamiento de 900 cuadros, más que cualquier clip:
