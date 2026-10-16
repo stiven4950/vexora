@@ -65,6 +65,20 @@ Idea del usuario en dance_two_mens (seg. 26: las manos junto a la cara y la boca
 | La cabeza explota (`mind_blown`) | `hands_on_head: cabeza_explota` | Emoji de sorpresa sobre la cara (ojos enormes, cejas arriba, boca en "O"). Cuando abre las manos de golpe (las muñecas se separan medio ancho de hombros en pocos cuadros; si no, a mitad del momento), la tapa de la cabeza sale disparada sobre un resorte y queda rebotando, y vuelan pedazos de cerebro y resortes con gravedad, como una caja de sorpresas |
 | El león ruge (`lion_roar`) | `spotlight: leon`, `lunge: rugido` | Melena de llamas alrededor de la cara, orejas, hocico y bigotes; el rugido sale de la boca en ondas y un "ROAR!" tiembla arriba. Para asustar a alguien o lanzarse a la cámara |
 
+## El puño en alto (implementadas, `engine/fist.py`)
+
+Idea del usuario en dance_two_mens (seg. 28-29,9): los dos levantan el puño a la altura del
+hombro y uno se queda mirándolo. El análisis lo marca como `fist_up` (muñeca encima del codo, a
+la altura del hombro, codo doblado; la mano que se ve abierta no cuenta).
+
+| Efecto | Opción (`fist_up:`) | Qué se ve |
+| --- | --- | --- |
+| Bola brillante (`fist_orb`) | `puno_brillante` | Una bola pequeña en el puño con rayos que chisporrotean |
+| Rayitos de colores (`fist_rays`) | `rayitos` | Rayos cortos, cada uno de un color, girando alrededor del puño |
+| Monedas (`coins`) | `monedas` | Caen del puño girando (de canto se ven finas) y rebotan en el piso |
+| Arena (`sand`) y escarcha (`glitter`) | `arena`, `escarcha` | Un chorro que cae del puño y hace un montoncito; la escarcha destella |
+| Reloj de arena (`hourglass`) | `reloj_arena` | La mitad de abajo entera en el piso y la de arriba cortada en lo más ancho, abierta hasta el puño, que vierte la arena; el montón de abajo crece. Él controla el tiempo |
+
 ## El revólver con la mano (`engine/gun.py`)
 
 Idea del usuario en dance_two_mens (seg. 7,2): índice al frente y pulgar arriba es un revólver, y

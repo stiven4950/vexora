@@ -646,3 +646,46 @@ reactions:
     - type: adornment
       style: {shapes: [bullet], thickness: 0.007, focus: false}
       trigger: {hold: 22, fade_in: 1, fade_out: 6}
+# Puño en alto (dance_two_mens, seg. 28): la atención está en el puño.
+- action: fist_up
+  options:
+  - name: puno_brillante
+    weight: 0.35
+    effects:
+    - type: adornment
+      style: {shapes: [fist_orb], thickness: 0.006, focus: false}
+      trigger: {hold: 25, fade_in: 2, fade_out: 6}
+  - name: rayitos
+    weight: 0.3
+    effects:
+    - type: adornment
+      style: {shapes: [fist_rays], thickness: 0.006, focus: false}
+      trigger: {hold: 25, fade_in: 2, fade_out: 6}
+  - name: monedas
+    weight: 0.2
+    cooldown: 900
+    effects:
+    - type: adornment
+      style: {shapes: [coins], thickness: 0.006, focus: false}
+      trigger: {hold: 35, fade_in: 1, fade_out: 6}
+  - name: arena
+    weight: 0.15
+    cooldown: 900
+    effects:
+    - type: adornment
+      style: {shapes: [sand], thickness: 0.006, focus: false}
+      trigger: {hold: 35, fade_in: 1, fade_out: 6}
+  - name: escarcha
+    weight: 0.15
+    cooldown: 900
+    effects:
+    - type: adornment
+      style: {shapes: [glitter], thickness: 0.006, focus: false}
+      trigger: {hold: 35, fade_in: 1, fade_out: 6}
+  - name: reloj_arena
+    weight: 0.15
+    cooldown: 900
+    effects:
+    - type: adornment
+      style: {shapes: [hourglass], thickness: 0.007, focus: false}
+      trigger: {hold: 45, fade_in: 2, fade_out: 8}
