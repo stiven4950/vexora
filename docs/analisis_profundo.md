@@ -45,6 +45,9 @@ la pone nuestro análisis, que sí los mira todos:
 - **Cada momento se ajusta al gesto detectado.** Si nuestro análisis vio ese gesto (la misma
   acción) a menos de 0,3 s, el momento empieza justo ahí; si no, en el golpe de la música a menos
   de 0,15 s. En dance_two_mens se ajustaron 17 de 20 momentos, todos menos de 0,3 s.
+- **Lo concreto manda sobre lo general.** Si el modelo pide "señalar" y el análisis vio en ese
+  instante el revólver con la mano, va el revólver, enganchado al gesto para que sus disparos
+  caigan donde bajó el pulgar (dance_two_mens, seg. 7). Tabla `UPGRADES` en `deep.py`.
 - **Fotogramas por segundo automáticos** (`director.deep.fps` sin valor), según los gestos rápidos
   por segundo y por persona que encontró el análisis económico:
 

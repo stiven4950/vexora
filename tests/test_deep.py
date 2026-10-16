@@ -178,3 +178,16 @@ def test_moments_snap_to_the_detected_gesture_or_beat() -> None:
     assert snap(4.0, "lunge") == 4.0  # otra acción y sin golpe cerca: se queda
     assert snap(8.0, "spotlight") == 8.08
     assert snap(5.0, "point") == 5.0  # el gesto está a 0,8 s: demasiado lejos
+
+
+def test_point_becomes_the_detected_finger_gun() -> None:
+    from vfxglow.director.deep import upgrader
+
+    brief = _brief_with([("finger_gun", 105)])  # 4,2 s; termina en 4,4 s
+    answer = {"momentos": [{"seg": 4.0, "dur": 1.0, "accion": "point", "opcion": "munequito"},
+                           {"seg": 9.0, "dur": 1.0, "accion": "point", "opcion": "munequito"}]}
+    pins, warnings = to_pins(answer, CATALOG, 20.0, upgrade=upgrader(brief))
+    gun, plain = pins.momentos
+    assert (gun.accion, gun.opcion, gun.exacto) == ("finger_gun", "revolver", False)
+    assert (plain.accion, plain.opcion, plain.exacto) == ("point", "munequito", True)
+    assert any("revolver" in w for w in warnings)

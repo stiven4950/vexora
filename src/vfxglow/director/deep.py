@@ -309,6 +309,7 @@ def to_pins(
     fill: bool = True,
     who: Callable[[float, str], tuple[str | None, bool]] | None = None,
     snap: Callable[[float, str], float] | None = None,
+    upgrade: Callable[[float, str], tuple[str, str] | None] | None = None,
 ) -> tuple[PinFile, list[str]]:
     """El guion de prueba de la respuesta y los avisos de lo que se corrigió o descartó.
 
@@ -316,7 +317,8 @@ def to_pins(
     la otra persona); sin él, solo lo que dijo el modelo (un efecto cada uno o dos segundos, que
     en un dúo deja casi sin nada a una persona: dance_two_mens).
     who(seg, quien) → (persona, ambos): la persona de "izquierda"/"derecha" en ese segundo.
-    snap(seg, acción) → el segundo exacto del gesto que vio nuestro análisis cerca (snapper)."""
+    snap(seg, acción) → el segundo exacto del gesto que vio nuestro análisis cerca (snapper).
+    upgrade(seg, acción) → (acción, opción) más específica que vio el análisis ahí (upgrader)."""
     warnings: list[str] = []
     pins: list[Pin] = []
     for raw in answer.get("momentos", []):
@@ -336,7 +338,16 @@ def to_pins(
             warnings.append(f"{seg} s: {raw.get('accion')}:{raw.get('opcion')} no existe en el catálogo; se omite")
             continue
         reaction, option = match
-        if snap is not None:
+        exacto = True
+        better = upgrade(seg, reaction.action) if upgrade is not None else None
+        found = _match(catalog, *better) if better is not None else None
+        if found is not None:
+            # El análisis vio la seña concreta (el revólver con la mano): manda, y el momento se
+            # engancha a ese gesto (exacto=False) para que sus disparos caigan donde fueron.
+            warnings.append(f"{seg} s: {option.name} → {found[1].name} (el análisis vio {found[0].action})")
+            reaction, option = found
+            exacto = False
+        elif snap is not None:
             seg = round(snap(seg, reaction.action), 2)
         if reaction.action != raw.get("accion"):
             warnings.append(f"{seg} s: {option.name} es de {reaction.action}, no de {raw.get('accion')}")
@@ -355,7 +366,7 @@ def to_pins(
             accion=reaction.action,
             opcion=option.name,
             figura=figura,
-            exacto=True,
+            exacto=exacto,
             color=color,
             nota=nota,
             persona=persona,
@@ -437,6 +448,28 @@ def snapper(brief) -> Callable[[float, str], float]:
     return snap
 
 
+# Gestos que nuestro análisis distingue mejor que el modelo (mira los dedos en todos los
+# fotogramas): si el modelo pide la acción general y el análisis vio la concreta en ese instante,
+# va la concreta (dance_two_mens, seg. 7: Argon puso "señalar" donde la mano hace un revólver).
+UPGRADES = {"point": ("finger_gun", "revolver")}
+
+
+def upgrader(brief) -> Callable[[float, str], tuple[str, str] | None]:
+    fps = brief.video.fps or 30.0
+    spans: dict[str, list[tuple[float, float]]] = {}
+    for event in brief.events:
+        spans.setdefault(event.name, []).append((event.start_frame / fps, event.end_frame / fps))
+
+    def upgrade(seg: float, action: str) -> tuple[str, str] | None:
+        if action not in UPGRADES:
+            return None
+        name, option = UPGRADES[action]
+        hit = any(start - SNAP_S <= seg <= end for start, end in spans.get(name, []))
+        return (name, option) if hit else None
+
+    return upgrade
+
+
 def answer_key(video_sha: str, prompt: str, cfg: DeepConfig) -> str:
     return hashlib.sha256(f"{video_sha}|{cfg.model}|{cfg.fps}|{prompt}".encode()).hexdigest()[:20]
 
@@ -466,7 +499,15 @@ def deep_pins(video: Path, video_sha: str, catalog, duration: float, cfg: DeepCo
         )
         cache.parent.mkdir(parents=True, exist_ok=True)
         cache.write_text(json.dumps(answer, ensure_ascii=False, indent=1), encoding="utf-8")
-    pins, warnings = to_pins(answer, catalog, duration, fill=cfg.fill, who=who, snap=snapper(brief) if brief is not None else None)
+    pins, warnings = to_pins(
+        answer,
+        catalog,
+        duration,
+        fill=cfg.fill,
+        who=who,
+        snap=snapper(brief) if brief is not None else None,
+        upgrade=upgrader(brief) if brief is not None else None,
+    )
     for warning in warnings:
         log.warning("Análisis profundo: %s", warning)
     if not pins.momentos:
