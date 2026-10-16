@@ -7,7 +7,7 @@ from pathlib import Path
 
 from vfxglow.analysis.analyzer import analyze_video
 from vfxglow.analysis.schema import AnalysisHeader, VideoMeta
-from vfxglow.config import LAYER_GROUPS, catalog_file, catalog_name, load_config, preset_file
+from vfxglow.config import LAYER_GROUPS, PRESET_ALIASES, catalog_file, catalog_name, load_config, preset_file
 from vfxglow.device import require_cuda, resolve_device
 from vfxglow.director.director import CreativeDirector
 from vfxglow.director.schema import EffectScript, effect_group
@@ -78,6 +78,8 @@ class Pipeline:
             self.config.director.deep.enabled = bool(deep)
         if director:
             self.config.director.provider = director  # type: ignore[assignment]
+        if preset in PRESET_ALIASES:
+            catalog, preset = catalog or PRESET_ALIASES[preset], None
         if preset:
             self.config.director.provider = "preset"
             self.config.director.preset = preset

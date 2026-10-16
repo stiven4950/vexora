@@ -58,6 +58,8 @@ export interface Job {
   events_url: string | null;
   /** El estilo con su nombre de hoy (los trabajos viejos pueden tener un nombre anterior). */
   style_current: string;
+  /** El tipo de estilo de hoy (un preset viejo como avatar_fire hoy es el catálogo avatar). */
+  style_kind_current: StyleKind;
   /** Vestuario por persona ({"*": "vestido", "person_1": "chaqueta"}). */
   wardrobe: Record<string, Wardrobe>;
   /** Análisis profundo: un modelo vio el video completo y escribió la coreografía. */

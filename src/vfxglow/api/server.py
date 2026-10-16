@@ -25,7 +25,7 @@ from pydantic import BaseModel
 
 from vfxglow.api.auth import User, auth_enabled, check_bind, current_user, media_key, media_owner
 from vfxglow.api.jobs import Job, JobStore, owns
-from vfxglow.config import catalog_name
+from vfxglow.config import PRESET_ALIASES, catalog_name
 
 ROOT = Path(os.environ.get("VFXGLOW_ROOT", Path.cwd()))
 CONFIG = ROOT / "configs" / "default.yaml"
@@ -86,6 +86,8 @@ def styles() -> list[Style]:
             )
         )
     for path in sorted((ROOT / "configs" / "presets").glob("*.yaml")):
+        if path.stem in PRESET_ALIASES:
+            continue  # ya es un estilo de catálogo (avatar_fire y avatar_storm → avatar)
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
         colors = [tuple(c) for e in raw.get("effects", []) for c in e.get("style", {}).get("colors", [])][:4]
         out.append(Style(kind="preset", name=path.stem, title=raw.get("title", path.stem), description="Preset fijo: siempre los mismos efectos.", palette=colors, actions=[], needs=[]))
@@ -136,8 +138,10 @@ class JobView(Job):
     original_url: str | None = None
     thumbnail_url: str | None = None
     events_url: str | None = None
-    # El estilo con su nombre de hoy (un trabajo viejo puede decir baile_duo: hoy es baile).
+    # El estilo con su nombre de hoy (un trabajo viejo puede decir baile_duo: hoy es baile; o el
+    # preset avatar_fire: hoy es el catálogo avatar) y su tipo de hoy.
     style_current: str = ""
+    style_kind_current: str = ""
 
 
 def view(job: Job) -> JobView:
@@ -153,7 +157,8 @@ def view(job: Job) -> JobView:
         original_url=f"/api/jobs/{job.id}/original{key}",
         thumbnail_url=f"/api/jobs/{job.id}/thumbnail{key}",
         events_url=f"/api/jobs/{job.id}/events{key}",
-        style_current=catalog_name(job.style) if job.style_kind == "catalog" else job.style,
+        style_current=catalog_name(job.style) if job.style_kind == "catalog" else PRESET_ALIASES.get(job.style, job.style),
+        style_kind_current="catalog" if job.style_kind == "catalog" or job.style in PRESET_ALIASES else job.style_kind,
     )
 
 

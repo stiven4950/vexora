@@ -208,3 +208,13 @@ def test_wardrobe_is_chosen_by_the_user_and_kept_in_versions(client: TestClient)
     assert per_person["wardrobe"] == {"person_0": "chaqueta", "person_1": "vestido"}
     bad = client.post(f"/api/jobs/{job['id']}/variations", json={"style": "pelea", "wardrobe": {"person_0": "armadura"}})
     assert bad.status_code == 422
+
+
+def test_avatar_presets_are_one_catalog() -> None:
+    from vfxglow.api.server import styles
+    from vfxglow.config import PRESET_ALIASES
+
+    listed = {(s.kind, s.name) for s in styles()}
+    assert ("catalog", "avatar") in listed
+    assert not any(name in PRESET_ALIASES for _kind, name in listed)
+    assert PRESET_ALIASES["avatar_fire"] == PRESET_ALIASES["avatar_storm"] == "avatar"

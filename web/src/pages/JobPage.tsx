@@ -54,7 +54,7 @@ export function JobPage() {
           setNextWardrobe((current) => current ?? Object.fromEntries(list.map((p) => [p.id, job.wardrobe[p.id] ?? job.wardrobe["*"] ?? "ninguno"])));
         })
         .catch(() => setPeople([]));
-    if (job) setNextStyle((current) => current || `${job.style_kind}:${job.style_current}`);
+    if (job) setNextStyle((current) => current || `${job.style_kind_current}:${job.style_current}`);
     if (job) setNextSeason((current) => (current === undefined ? (job.season ?? "") : current));
   }, [job?.status, job?.id]);
 

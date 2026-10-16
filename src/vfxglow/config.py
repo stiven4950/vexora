@@ -265,6 +265,9 @@ def preset_file(config_path: Path, name: str) -> Path:
 
 # Nombres anteriores de catálogos: siguen funcionando (comandos, guiones de prueba, trabajos viejos).
 CATALOG_ALIASES = {"baile_neon": "baile", "baile_duo": "baile"}
+# Presets que se volvieron un estilo de catálogo: avatar_fire y avatar_storm son el catálogo
+# avatar (docs/referencias/video_18.md). Los trabajos viejos con esos presets se rehacen con él.
+PRESET_ALIASES = {"avatar_fire": "avatar", "avatar_storm": "avatar"}
 
 
 def catalog_name(name: str) -> str:
