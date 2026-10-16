@@ -637,6 +637,47 @@ def finger_gun_events(frames, fps, width, height):
     return out
 
 
+# Puño en alto (dance_two_mens, seg. 28-29,9: los dos levantan el puño a la altura del hombro y
+# uno se queda mirándolo). La muñeca por encima del codo, entre un poco debajo del hombro y un
+# poco encima (en largos de brazo), y el codo doblado. Los dedos solo descartan la mano que se ve
+# abierta: allí los puños medían 0,9-1,15 y los datos de los dedos tienen saltos.
+FIST_LOW, FIST_HIGH = -0.7, 0.8
+FIST_OPEN = 1.4
+
+
+def fist_up_events(frames, fps, width, height):
+    """Puño en alto: brazo doblado con la mano cerrada a la altura del hombro."""
+
+    def flag(record, owner, pts):
+        sides = []
+        for side in ("left", "right"):
+            wrist, elbow, shoulder = (pts.get(f"{side}_{j}") for j in ("wrist", "elbow", "shoulder"))
+            if wrist is None or elbow is None or shoulder is None or wrist[1] >= elbow[1]:
+                continue
+            upper = max(float(np.linalg.norm(shoulder - elbow)), 1.0)
+            height_ = (shoulder[1] - wrist[1]) / upper
+            a, b = shoulder - elbow, wrist - elbow
+            cos = float(np.dot(a, b) / max(np.linalg.norm(a) * np.linalg.norm(b), 1e-6))
+            if not (FIST_LOW <= height_ <= FIST_HIGH) or cos < -0.5:
+                continue
+            hand = owner.left_hand if side == "left" else owner.right_hand
+            if hand is not None:
+                lm = {l.name.replace(f"{side}_", ""): np.array([l.x * width, l.y * height]) for l in hand.landmarks}
+                tips = [(lm.get(f"{k}_tip"), lm.get(f"{k}_mcp")) for k in ("middle", "ring", "pinky")]
+                if "wrist" in lm and all(t_ is not None and m is not None for t_, m in tips):
+                    curl = float(np.mean([np.linalg.norm(t_ - lm["wrist"]) / max(np.linalg.norm(m - lm["wrist"]), 1e-6) for t_, m in tips]))
+                    if curl > FIST_OPEN:
+                        continue  # se ve abierta: no es un puño
+            sides.append((side, wrist))
+        if not sides:
+            return None
+        if len(sides) == 2:
+            return "both", (sides[0][1] + sides[1][1]) / 2
+        return sides[0]
+
+    return _pose_events(frames, fps, width, height, "fist_up", "Puño en alto.", flag)
+
+
 GESTURE_DETECTORS = (
     throw_events,
     neck_slash_events,
@@ -655,5 +696,6 @@ GESTURE_DETECTORS = (
     arms_x_events,
     lunge_events,
     finger_gun_events,
+    fist_up_events,
 )
-GESTURE_NAMES = {"finger_gun", "rock_hands", "hands_on_head", "arms_x", "lunge", "throw", "neck_slash", "stomp", "frenzy", "heart_hands", "arms_up", "arms_open", "point", "hand_ear", "cover_eyes", "spin_body", "step"}
+GESTURE_NAMES = {"fist_up", "finger_gun", "rock_hands", "hands_on_head", "arms_x", "lunge", "throw", "neck_slash", "stomp", "frenzy", "heart_hands", "arms_up", "arms_open", "point", "hand_ear", "cover_eyes", "spin_body", "step"}
