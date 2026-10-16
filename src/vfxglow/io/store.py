@@ -34,16 +34,20 @@ def stage_key(*parts: str) -> str:
 _PACKAGE = Path(__file__).resolve().parent.parent
 
 
-def code_fingerprint(*parts: str) -> str:
+def code_fingerprint(*parts: str, exclude: tuple[str, ...] = ()) -> str:
     """Huella del código fuente de los subpaquetes o módulos de vfxglow indicados.
 
     Cambiar la lógica de una etapa invalida su caché sin tener que subir a mano la etiqueta de la clave.
+    `exclude`: módulos que no cuentan (rutas como "analysis/gestures.py").
     """
     digest = hashlib.sha256()
+    skip = {(_PACKAGE / part).resolve() for part in exclude}
     for part in parts:
         target = _PACKAGE / part
         files = sorted(target.rglob("*.py")) if target.is_dir() else [target]
         for path in files:
+            if path.resolve() in skip:
+                continue
             digest.update(str(path.relative_to(_PACKAGE)).encode("utf-8"))
             digest.update(b"\0")
             digest.update(path.read_bytes())

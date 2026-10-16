@@ -38,8 +38,14 @@ _STAGE_CODE: dict[str, tuple[str, ...]] = {
 }
 
 
+# Los gestos son señales derivadas: con una etiqueta nueva en analyzer.DERIVED se recalculan sobre
+# el análisis guardado (Pipeline._ensure_derived) en segundos. Que su código no invalide el
+# análisis entero (un detector nuevo costaba rehacer ~15 min de pose por video).
+_STAGE_SKIP: dict[str, tuple[str, ...]] = {"analyze": ("analysis/gestures.py",)}
+
+
 def _code(stage: str) -> str:
-    return code_fingerprint(*_STAGE_CODE[stage])
+    return code_fingerprint(*_STAGE_CODE[stage], exclude=_STAGE_SKIP.get(stage, ()))
 
 
 class _LayerIndex(BaseModel):
