@@ -1,0 +1,165 @@
+catalogo: baile
+momentos:
+- seg: 0.0
+  opcion: aureola
+  accion: entrance
+  dur: 2.0
+  exacto: true
+  figura: head_ring
+  color: '#bf00ff'
+  nota: Presentar la aparición del compañero detrás del rubio y el inicio del ritual.
+- seg: 2.0
+  opcion: serpiente
+  accion: spotlight
+  dur: 4.0
+  exacto: true
+  color: '#bf00ff'
+  nota: '[nuevo: gorra_telequinesis] La gorra recorre el brazo, pecho y espalda como
+    un ser vivo deslizándose por el cuerpo.'
+- seg: 6.3
+  opcion: gorra_puesta
+  accion: prop_worn
+  dur: 1.0
+  exacto: true
+  figura: worn
+  color: '#bf00ff'
+  nota: Destacar el instante exacto en que la gorra encaja en la cabeza y activa al
+    bailarín.
+- seg: 7.0
+  opcion: revolver
+  accion: finger_gun
+  dur: 1.9
+  color: '#bf00ff'
+  nota: Aprovechar el brazo totalmente recto y estático apuntando en 'look you dead
+    in the eye' como plataforma.
+- seg: 9.01
+  opcion: aro_orbita
+  accion: spotlight
+  dur: 1.2
+  exacto: true
+  color: '#bf00ff'
+  nota: Acompañar el giro de muñeca del brazo extendido manteniendo la tensión.
+- seg: 10.18
+  opcion: brazo_onda
+  accion: spotlight
+  dur: 1.3
+  exacto: true
+  color: '#00ffff'
+  nota: Seguir la onda fluida de brazos con la que ambos conectan el movimiento.
+- seg: 11.51
+  opcion: ovni
+  accion: hands_on_head
+  dur: 1.6
+  exacto: true
+  color: '#00ffff'
+  nota: 'En ''why I''m fly'', el rubio sostiene la gorra con ambas manos mientras
+    el otro posa abajo: el ovni orbita la cabeza.'
+- seg: 13.14
+  opcion: torbellino
+  accion: spin_body
+  dur: 2.0
+  exacto: true
+  color: '#00ffff'
+  nota: Envolver el giro en el suelo del bailarín de chaqueta morada.
+- seg: 15.02
+  opcion: hombros
+  accion: spotlight
+  dur: 2.5
+  exacto: true
+  color: '#00ffff'
+  nota: Marcar el rebote conjunto cuando el rubio apoya el brazo en el hombro de su
+    compañero.
+- seg: 17.48
+  opcion: cables
+  accion: spotlight
+  persona: person_0
+  dur: 3.8
+  exacto: true
+  color: '#00ffff'
+  nota: '[nuevo: desgarro_energia] Visualizar la tensión física cuando el rubio tira
+    de la chaqueta hacia atrás hasta arrancarla.'
+- seg: 21.02
+  opcion: collar_estrellas
+  accion: spotlight
+  dur: 2.5
+  exacto: true
+  figura: chest_stars
+  color: '#00ffff'
+  nota: Brillo de 'supermodel' en el torso y cadena del bailarín que queda solo al
+    frente.
+- seg: 23.69
+  opcion: beso
+  accion: face_touch
+  dur: 2.0
+  exacto: true
+  figura: tint
+  color: '#00ffff'
+  nota: Acentuar el gesto coqueto en la cara durante la línea 'mami, sí mami'.
+- seg: 26.0
+  opcion: cabeza_explota
+  accion: hands_on_head
+  persona: person_1
+  dur: 1.6
+  exacto: true
+  nota: Se sorprende con las manos en la cara y al abrirlas le explota la cabeza
+- seg: 27.4
+  opcion: diosa
+  accion: arms_open
+  persona: person_1
+  dur: 1.1
+  exacto: true
+  color: '#00ffff'
+  nota: '[nuevo: diosa_brazos] Convertir los brazos y pierna que asoman por detrás
+    en un despliegue de múltiples extremidades luminosas.'
+- seg: 28.53
+  opcion: aro_muneca
+  accion: spotlight
+  dur: 1.6
+  exacto: true
+  color: '#39ff14'
+  nota: Marcar el rebote rítmico de los puños cerrados preparando el estribillo.
+- seg: 30.03
+  opcion: torso_abdominales
+  accion: spotlight
+  dur: 2.9
+  exacto: true
+  color: '#39ff14'
+  nota: Iluminar el torso literalmente con la letra 'love my tits and my abs' mientras
+    se tocan el cuerpo.
+- seg: 33.04
+  opcion: estela_energia
+  accion: fast_swing
+  dur: 1.8
+  exacto: true
+  color: '#39ff14'
+  nota: Trazar el barrido de manos y la patada hacia atrás al girar de perfil.
+- seg: 34.54
+  opcion: rodillas
+  accion: spotlight
+  dur: 2.0
+  exacto: true
+  color: '#39ff14'
+  nota: Destacar el equilibrio sobre un pie con la rodilla levantada al máximo.
+- seg: 36.75
+  opcion: ecualizador
+  accion: frenzy
+  dur: 3.2
+  exacto: true
+  color: '#39ff14'
+  nota: Acompañar el rebote pesado y rítmico en sentadilla durante 'switching lanes'.
+- seg: 40.0
+  opcion: cabeza_gafas
+  accion: spotlight
+  dur: 1.2
+  exacto: true
+  figura: visor
+  color: '#ff007f'
+  nota: Conectar los dedos en V pasando frente a los ojos con la letra 'see us in
+    the club'.
+- seg: 41.09
+  opcion: energia
+  accion: spotlight
+  dur: 1.9
+  exacto: true
+  color: '#ff007f'
+  nota: Chispas finales que se disipan con el último deslizamiento de brazos.
