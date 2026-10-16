@@ -1,0 +1,389 @@
+{
+ "protagonista": "Dos bailarines en una sala con sofá amarillo: Izquierda (rubio, camiseta blanca manga larga, jeans grises anchos, gorra azul a partir del seg 6) y Derecha (trenzas, gafas, chaqueta morada que se quita en el seg 21 dejando camiseta negra, pantalón negro ancho).",
+ "publico": "Ninguno; ambos son protagonistas y bailan en dúo todo el video.",
+ "lectura": [
+  {
+   "inicio": 0.0,
+   "fin": 2.0,
+   "cuerpo": "Rubio de perfil; el de chaqueta morada sale detrás presentando una gorra azul en la mano.",
+   "intencion": "Misterio e introducción del objeto mágico (la gorra).",
+   "camara": "Estática, plano entero."
+  },
+  {
+   "inicio": 2.0,
+   "fin": 6.0,
+   "cuerpo": "Hacen deslizar la gorra por el brazo extendido del rubio, pasa por su pecho y espalda mientras él gira.",
+   "intencion": "Control, fluidez, el objeto cobra vida propia.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 6.0,
+   "fin": 7.0,
+   "cuerpo": "La gorra sube y se posa en la cabeza del rubio; él la ajusta.",
+   "intencion": "Transformación, adquisición de poder.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 7.0,
+   "fin": 8.9,
+   "cuerpo": "Rubio apunta hacia la izquierda con el brazo recto; el otro se ajusta las gafas.",
+   "intencion": "Desafío, enfoque visual ('look you dead in the eye').",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 8.9,
+   "fin": 10.1,
+   "cuerpo": "Rubio mantiene el brazo extendido y gira la muñeca; el otro mira a los lados con toques de hombros.",
+   "intencion": "Actitud relajada y control.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 10.1,
+   "fin": 11.4,
+   "cuerpo": "Ambos hacen ondas de brazos y bajan el centro de gravedad.",
+   "intencion": "Fluidez conjunta.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 11.4,
+   "fin": 13.0,
+   "cuerpo": "El de gafas se agacha al frente abriendo la mano ('fly'); el rubio detrás se agarra la gorra con ambas manos.",
+   "intencion": "Impacto vocal y pose de foto.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 13.0,
+   "fin": 15.0,
+   "cuerpo": "El de gafas rueda por el suelo; el rubio da pasos con energía detrás.",
+   "intencion": "Cambio de nivel, acrobacia suave.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 15.0,
+   "fin": 17.5,
+   "cuerpo": "Se juntan; rubio apoya el brazo en el hombro del otro y rebotan al ritmo.",
+   "intencion": "Camaradería, groove compartido.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 17.5,
+   "fin": 21.3,
+   "cuerpo": "El de gafas se abre la chaqueta; el rubio se la agarra por detrás y tira mientras caminan en cámara lenta hasta quitársela de un tirón.",
+   "intencion": "Despojo, preparación para la acción ('get my robe').",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 21.3,
+   "fin": 23.8,
+   "cuerpo": "El de gafas (ahora de negro) queda solo al frente haciendo poses de modelo y pasos grandes; rubio sale brevemente a dejar la chaqueta y vuelve.",
+   "intencion": "Presumir ('supermodel').",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 23.8,
+   "fin": 25.8,
+   "cuerpo": "Rubio se une; ambos hacen gestos suaves a la cara y hombros ('mami, sí mami').",
+   "intencion": "Coqueteo y estilo.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 25.8,
+   "fin": 28.5,
+   "cuerpo": "El de negro al frente abre las manos junto a la cara ('international'); rubio detrás asoma brazos y pierna como múltiples extremidades.",
+   "intencion": "Expansión, espectáculo visual.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 28.5,
+   "fin": 30.1,
+   "cuerpo": "Se ponen lado a lado rebotando con los puños cerrados a media altura.",
+   "intencion": "Recarga de ritmo antes del coro.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 30.1,
+   "fin": 33.0,
+   "cuerpo": "Coreografía rápida sincronizada: tocan pecho y abdominales ('tits and my abs') saltando de lado a lado.",
+   "intencion": "Energía alta, presumir físico.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 33.0,
+   "fin": 34.8,
+   "cuerpo": "Giran de perfil, deslizan las manos por el cuerpo y dan una patada hacia atrás.",
+   "intencion": "Corte elegante y desprecio ('promiscuous').",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 34.8,
+   "fin": 36.8,
+   "cuerpo": "Levantan una rodilla muy alto manteniéndola en equilibrio mientras hacen gestos con las manos.",
+   "intencion": "Equilibrio y precisión en el beat.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 36.8,
+   "fin": 40.0,
+   "cuerpo": "Bajan en sentadilla amplia (sumo) rebotando al ritmo de 'switching lanes', cruzando manos al pecho.",
+   "intencion": "Fuerza, base pesada, dominio del piso.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 40.0,
+   "fin": 41.2,
+   "cuerpo": "En sentadilla, pasan dos dedos en V por delante de los ojos ('see us in the club').",
+   "intencion": "Conexión visual, actitud cool.",
+   "camara": "Estática."
+  },
+  {
+   "inicio": 41.2,
+   "fin": 43.1,
+   "cuerpo": "Deslizan los brazos hacia afuera con fluidez y terminan relajando la postura con una sonrisa.",
+   "intencion": "Cierre suave y satisfactorio.",
+   "camara": "Estática."
+  }
+ ],
+ "historia": {
+  "arco": "Inicia como un truco de magia lento con la gorra (0-10s), sube de intensidad con el juego en pareja y el tirón de la chaqueta (10-28s), explota en un clímax de baile sincronizado y potente (28-40s) y cierra con actitud relajada (40-43s).",
+  "motivo": "La transferencia de energía a través de la ropa (primero la gorra que recorre el cuerpo, luego la chaqueta arrancada).",
+  "contrastes": "El inicio líquido y teatral en cámara lenta frente al ataque percusivo y atlético del coro a partir del segundo 30.",
+  "colores": "Acto 1 (Magia): #bf00ff (púrpura neón). Acto 2 (Transformación): #00ffff (cian eléctrico). Acto 3 (Clímax): #39ff14 (verde ácido). Cierre: #ff007f (rosa)."
+ },
+ "momentos": [
+  {
+   "seg": 0.0,
+   "dur": 2.0,
+   "accion": "entrance",
+   "opcion": "aureola",
+   "figura": "head_ring",
+   "color": "#bf00ff",
+   "intencion": "Presentar la aparición del compañero detrás del rubio y el inicio del ritual.",
+   "nuevo": null
+  },
+  {
+   "seg": 2.0,
+   "dur": 4.0,
+   "accion": "spotlight",
+   "opcion": "serpiente",
+   "figura": "snake",
+   "color": "#bf00ff",
+   "intencion": "La gorra recorre el brazo, pecho y espalda como un ser vivo deslizándose por el cuerpo.",
+   "nuevo": "gorra_telequinesis"
+  },
+  {
+   "seg": 6.0,
+   "dur": 1.0,
+   "accion": "prop_worn",
+   "opcion": "gorra_puesta",
+   "figura": "worn",
+   "color": "#bf00ff",
+   "intencion": "Destacar el instante exacto en que la gorra encaja en la cabeza y activa al bailarín.",
+   "nuevo": null
+  },
+  {
+   "seg": 7.0,
+   "dur": 1.9,
+   "accion": "point",
+   "opcion": "munequito",
+   "figura": "stick_man",
+   "color": "#bf00ff",
+   "intencion": "Aprovechar el brazo totalmente recto y estático apuntando en 'look you dead in the eye' como plataforma.",
+   "nuevo": null
+  },
+  {
+   "seg": 8.9,
+   "dur": 1.2,
+   "accion": "spotlight",
+   "opcion": "aro_orbita",
+   "figura": "hand_orbit",
+   "color": "#bf00ff",
+   "intencion": "Acompañar el giro de muñeca del brazo extendido manteniendo la tensión.",
+   "nuevo": null
+  },
+  {
+   "seg": 10.1,
+   "dur": 1.3,
+   "accion": "spotlight",
+   "opcion": "brazo_onda",
+   "figura": null,
+   "color": "#00ffff",
+   "intencion": "Seguir la onda fluida de brazos con la que ambos conectan el movimiento.",
+   "nuevo": null
+  },
+  {
+   "seg": 11.4,
+   "dur": 1.6,
+   "accion": "hands_on_head",
+   "opcion": "ovni",
+   "figura": "ufo",
+   "color": "#00ffff",
+   "intencion": "En 'why I'm fly', el rubio sostiene la gorra con ambas manos mientras el otro posa abajo: el ovni orbita la cabeza.",
+   "nuevo": null
+  },
+  {
+   "seg": 13.0,
+   "dur": 2.0,
+   "accion": "spin_body",
+   "opcion": "torbellino",
+   "figura": null,
+   "color": "#00ffff",
+   "intencion": "Envolver el giro en el suelo del bailarín de chaqueta morada.",
+   "nuevo": null
+  },
+  {
+   "seg": 15.0,
+   "dur": 2.5,
+   "accion": "spotlight",
+   "opcion": "hombros",
+   "figura": "shoulder_arcs",
+   "color": "#00ffff",
+   "intencion": "Marcar el rebote conjunto cuando el rubio apoya el brazo en el hombro de su compañero.",
+   "nuevo": null
+  },
+  {
+   "seg": 17.5,
+   "dur": 3.8,
+   "accion": "spotlight",
+   "opcion": "cuerda",
+   "figura": "time_rope",
+   "color": "#00ffff",
+   "intencion": "Visualizar la tensión física cuando el rubio tira de la chaqueta hacia atrás hasta arrancarla.",
+   "nuevo": "desgarro_energia"
+  },
+  {
+   "seg": 21.3,
+   "dur": 2.5,
+   "accion": "spotlight",
+   "opcion": "collar_estrellas",
+   "figura": "chest_stars",
+   "color": "#00ffff",
+   "intencion": "Brillo de 'supermodel' en el torso y cadena del bailarín que queda solo al frente.",
+   "nuevo": null
+  },
+  {
+   "seg": 23.8,
+   "dur": 2.0,
+   "accion": "face_touch",
+   "opcion": "beso",
+   "figura": "tint",
+   "color": "#00ffff",
+   "intencion": "Acentuar el gesto coqueto en la cara durante la línea 'mami, sí mami'.",
+   "nuevo": null
+  },
+  {
+   "seg": 25.8,
+   "dur": 2.7,
+   "accion": "arms_open",
+   "opcion": "alas",
+   "figura": null,
+   "color": "#00ffff",
+   "intencion": "Convertir los brazos y pierna que asoman por detrás en un despliegue de múltiples extremidades luminosas.",
+   "nuevo": "diosa_brazos"
+  },
+  {
+   "seg": 28.5,
+   "dur": 1.6,
+   "accion": "spotlight",
+   "opcion": "aro_muneca",
+   "figura": "wrist_ring",
+   "color": "#39ff14",
+   "intencion": "Marcar el rebote rítmico de los puños cerrados preparando el estribillo.",
+   "nuevo": null
+  },
+  {
+   "seg": 30.1,
+   "dur": 2.9,
+   "accion": "spotlight",
+   "opcion": "torso_abdominales",
+   "figura": null,
+   "color": "#39ff14",
+   "intencion": "Iluminar el torso literalmente con la letra 'love my tits and my abs' mientras se tocan el cuerpo.",
+   "nuevo": null
+  },
+  {
+   "seg": 33.0,
+   "dur": 1.8,
+   "accion": "fast_swing",
+   "opcion": "estela_energia",
+   "figura": null,
+   "color": "#39ff14",
+   "intencion": "Trazar el barrido de manos y la patada hacia atrás al girar de perfil.",
+   "nuevo": null
+  },
+  {
+   "seg": 34.8,
+   "dur": 2.0,
+   "accion": "spotlight",
+   "opcion": "rodillas",
+   "figura": "knee_dots",
+   "color": "#39ff14",
+   "intencion": "Destacar el equilibrio sobre un pie con la rodilla levantada al máximo.",
+   "nuevo": null
+  },
+  {
+   "seg": 36.8,
+   "dur": 3.2,
+   "accion": "frenzy",
+   "opcion": "ecualizador",
+   "figura": null,
+   "color": "#39ff14",
+   "intencion": "Acompañar el rebote pesado y rítmico en sentadilla durante 'switching lanes'.",
+   "nuevo": null
+  },
+  {
+   "seg": 40.0,
+   "dur": 1.2,
+   "accion": "spotlight",
+   "opcion": "cabeza_gafas",
+   "figura": "visor",
+   "color": "#ff007f",
+   "intencion": "Conectar los dedos en V pasando frente a los ojos con la letra 'see us in the club'.",
+   "nuevo": null
+  },
+  {
+   "seg": 41.2,
+   "dur": 1.9,
+   "accion": "spotlight",
+   "opcion": "energia",
+   "figura": "energy_sparks",
+   "color": "#ff007f",
+   "intencion": "Chispas finales que se disipan con el último deslizamiento de brazos.",
+   "nuevo": null
+  }
+ ],
+ "efectos_nuevos": [
+  {
+   "nombre": "gorra_telequinesis",
+   "segundos": "2.0-6.0",
+   "escenario": "El brazo extendido, el pecho y los hombros del bailarín rubio.",
+   "nace": "En la mano del compañero como un aura de neón que envuelve la gorra real.",
+   "recorrido": "Deja una pista de riel luminoso por donde la gorra rueda por el brazo, cruza la espalda y sube al cuello.",
+   "conflicto": "En cada giro del cuerpo la gorra parece que va a caer, soltando chispas de fricción contra la ropa.",
+   "final": "Al llegar a la cabeza en el seg 6.0, el riel se absorbe en una onda expansiva craneal.",
+   "fisica": "Deslizamiento magnético con inercia suave y chispas en las curvas.",
+   "porque": "El catálogo tiene prop_transfer pero no un contorno vivo que siga un objeto rodando por todo el cuerpo durante 4 segundos."
+  },
+  {
+   "nombre": "desgarro_energia",
+   "segundos": "17.5-21.3",
+   "escenario": "El espacio entre la espalda del bailarín de gafas y las manos del rubio.",
+   "nace": "En las costuras de los hombros de la chaqueta morada cuando empieza a abrirla.",
+   "recorrido": "Cables de plasma elásticos se estiran entre la espalda y la chaqueta a medida que el rubio tira de ella hacia atrás.",
+   "conflicto": "La tensión aumenta paso a paso mientras caminan; los cables vibran a punto de romperse.",
+   "final": "En el tirón final (21.0s), los cables se parten con un latigazo de luz que impulsa al bailarín hacia adelante.",
+   "fisica": "Tensión elástica progresiva y ruptura explosiva.",
+   "porque": "time_rope dibuja una soga detrás, pero aquí la acción exacta es arrancar una prenda real entre las dos personas."
+  },
+  {
+   "nombre": "diosa_brazos",
+   "segundos": "25.8-28.5",
+   "escenario": "El contorno del bailarín de camiseta negra visto de frente.",
+   "nace": "Detrás de su torso cuando el rubio se esconde y saca brazos y pierna.",
+   "recorrido": "Las extremidades del rubio se calcan en neón y se multiplican en abanico simétrico (6 brazos espectrales).",
+   "conflicto": "Los brazos se abren y cierran al ritmo de 'international' creando una mandala cinética.",
+   "final": "Se pliegan de golpe hacia el centro cuando el rubio sale de detrás en el seg 28.5.",
+   "fisica": "Simetría caleidoscópica con estelas de retardo.",
+   "porque": "El catálogo tiene alas estáticas, pero la coreografía juega específicamente a crear la ilusión óptica de un cuerpo con múltiples extremidades reales."
+  }
+ ]
+}
