@@ -555,6 +555,88 @@ def lunge_events(frames, fps, width, height):
     return events
 
 
+# Revólver con la mano (dance_two_mens, seg. 7,1-8,2): índice estirado, los otros dedos recogidos
+# y el pulgar levantado como el martillo. Medido allí (largo del índice sobre la palma; punta de
+# los otros dedos sobre su nudillo, desde la muñeca): índice 0,75-0,9 y dedos recogidos 1,1-1,35;
+# con la mano abierta 0,65 y 1,5-1,7. El pulgar levantado forma 50-60° con el índice; al
+# "disparar" cae a ~33° (dos veces: 7,5 y 8,0 s).
+GUN_INDEX = 0.7
+GUN_CURL = 1.4
+GUN_COCKED_DEG = 45.0
+GUN_DROP_DEG = 15.0
+GUN_SHOT_GAP_S = 0.3
+# El brazo del revólver suele apuntar hacia la cámara y se ve más corto que al señalar (0,7 allí).
+GUN_REACH = 0.6
+
+
+def _gun_hand(owner, side: str, width: int, height: int):
+    """(índice estirado, dedos recogidos, ángulo del pulgar, punta del índice, dirección) o None."""
+    hand = owner.left_hand if side == "left" else owner.right_hand
+    if hand is None:
+        return None
+    lm = {l.name.replace(f"{side}_", ""): np.array([l.x * width, l.y * height]) for l in hand.landmarks}
+    need = ("wrist", "index_mcp", "index_tip", "middle_mcp", "middle_tip", "ring_mcp", "ring_tip", "pinky_mcp", "pinky_tip", "thumb_mcp", "thumb_tip")
+    if not all(k in lm for k in need):
+        return None
+    palm = max(float(np.linalg.norm(lm["middle_mcp"] - lm["wrist"])), 1e-6)
+    index = float(np.linalg.norm(lm["index_tip"] - lm["index_mcp"])) / palm
+    curl = float(np.mean([np.linalg.norm(lm[f"{k}_tip"] - lm["wrist"]) / max(np.linalg.norm(lm[f"{k}_mcp"] - lm["wrist"]), 1e-6) for k in ("middle", "ring", "pinky")]))
+    barrel = lm["index_tip"] - lm["index_mcp"]
+    thumb = lm["thumb_tip"] - lm["thumb_mcp"]
+    cos = float(np.dot(barrel, thumb) / max(np.linalg.norm(barrel) * np.linalg.norm(thumb), 1e-6))
+    return index, curl, float(np.degrees(np.arccos(np.clip(cos, -1.0, 1.0)))), lm["index_tip"], barrel
+
+
+def finger_gun_events(frames, fps, width, height):
+    """Revólver con la mano: la pose (brazo extendido, índice estirado, dedos recogidos) con el
+    pulgar levantado en algún momento. Cada caída del pulgar es un disparo; se anotan en `detail`
+    ("disparos=180,192"). Sin caída, el efecto dispara en un instante al azar de la pose."""
+
+    def flag(record, owner, pts):
+        for side in ("right", "left"):
+            if f"{side}_wrist" not in pts or f"{side}_shoulder" not in pts:
+                continue
+            shape = _gun_hand(owner, side, width, height)
+            reach = float(np.linalg.norm(pts[f"{side}_wrist"] - pts[f"{side}_shoulder"])) / _torso(pts)
+            if shape is not None and reach >= GUN_REACH and shape[0] >= GUN_INDEX and shape[1] <= GUN_CURL:
+                return side, shape[3]
+        return None
+
+    events = _pose_events(frames, fps, width, height, "finger_gun", "Revólver con la mano.", flag)
+    by_frame = {record.frame: record for record in frames}
+    out = []
+    for event in events:
+        person, side = event.target.split(":")[0], event.kind
+        angles, barrels = [], {}
+        for frame in range(event.start_frame, event.end_frame + 1):
+            record = by_frame.get(frame)
+            owner = next((p for p in _people(record) if p.person_id == person), None) if record else None
+            shape = _gun_hand(owner, side, width, height) if owner is not None else None
+            angles.append((frame, shape[2] if shape else None))
+            if shape is not None:
+                barrels[frame] = shape[4]
+        values = [a for _, a in angles if a is not None]
+        if sum(1 for a in values if a >= GUN_COCKED_DEG) < 3:
+            continue  # nunca levantó el pulgar: es señalar, no un revólver
+        smooth = []
+        for k, (frame, _) in enumerate(angles):  # mediana de 3 contra el temblor de los dedos
+            near = [a for _, a in angles[max(k - 1, 0):k + 2] if a is not None]
+            smooth.append((frame, float(np.median(near)) if near else None))
+        shots: list[int] = []
+        for k, (frame, angle) in enumerate(smooth):
+            recent = [a for _, a in smooth[max(k - 6, 0):k] if a is not None]
+            if angle is None or not recent or max(recent) < GUN_COCKED_DEG:
+                continue
+            if angle <= max(recent) - GUN_DROP_DEG and (not shots or frame - shots[-1] >= GUN_SHOT_GAP_S * fps):
+                shots.append(frame)
+        event.detail = "disparos=" + ",".join(str(f) for f in shots)
+        barrel = barrels.get(event.start_frame) if event.start_frame in barrels else next(iter(barrels.values()), None)
+        if barrel is not None:
+            event.direction_deg = float(np.degrees(np.arctan2(barrel[1], barrel[0])))
+        out.append(event)
+    return out
+
+
 GESTURE_DETECTORS = (
     throw_events,
     neck_slash_events,
@@ -572,5 +654,6 @@ GESTURE_DETECTORS = (
     hands_on_head_events,
     arms_x_events,
     lunge_events,
+    finger_gun_events,
 )
-GESTURE_NAMES = {"rock_hands", "hands_on_head", "arms_x", "lunge", "throw", "neck_slash", "stomp", "frenzy", "heart_hands", "arms_up", "arms_open", "point", "hand_ear", "cover_eyes", "spin_body", "step"}
+GESTURE_NAMES = {"finger_gun", "rock_hands", "hands_on_head", "arms_x", "lunge", "throw", "neck_slash", "stomp", "frenzy", "heart_hands", "arms_up", "arms_open", "point", "hand_ear", "cover_eyes", "spin_body", "step"}

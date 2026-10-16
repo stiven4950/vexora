@@ -72,6 +72,12 @@ def collect_points(track: FrameRecord | None, width: int, height: int) -> PointS
             if lm.c <= 0:
                 continue
             points[f"{person.person_id}:{lm.name}"] = np.array([lm.x * width, lm.y * height], dtype=np.float64)
+        # Los dedos de cada persona (el revólver con la mano necesita el índice y el pulgar de quien
+        # lo hace, no solo los de la persona principal).
+        for hand in (person.left_hand, person.right_hand):
+            for lm in hand.landmarks if hand is not None else []:
+                if lm.c > 0:
+                    points[f"{person.person_id}:{lm.name}"] = np.array([lm.x * width, lm.y * height], dtype=np.float64)
         if f"{person.person_id}:left_shoulder" in points and f"{person.person_id}:right_shoulder" in points:
             points[f"{person.person_id}:mid_shoulder"] = (
                 points[f"{person.person_id}:left_shoulder"] + points[f"{person.person_id}:right_shoulder"]

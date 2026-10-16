@@ -26,7 +26,7 @@ log = logging.getLogger("vfxglow.analysis")
 MIN_FACE_POINTS = 60
 # Señales derivadas del análisis que un brief puede traer; el pipeline calcula las que falten
 # en análisis anteriores (Pipeline._ensure_derived) sin rehacer el análisis.
-DERIVED = ("skin", "gestures", "gestures-6", "gestures-7", "attention", "duet")
+DERIVED = ("skin", "gestures", "gestures-6", "gestures-7", "gestures-8", "attention", "duet")
 
 
 def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: str) -> VideoMeta:
