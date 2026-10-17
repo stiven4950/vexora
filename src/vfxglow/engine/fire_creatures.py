@@ -23,7 +23,7 @@ import cv2
 import numpy as np
 
 from vfxglow.engine.critters import TAU, WHITE, _activation, _ease, _phase, _seg
-from vfxglow.engine.firebend import CORE, MID, _floor, cel, ribbon, rim, shed, teardrop, warm
+from vfxglow.engine.firebend import CORE, MID, _floor, cel, note_frame, ribbon, rim, shed, teardrop, warm
 from vfxglow.engine.raster import fill_polygon, splat
 
 FIRE_CREATURES = ("fire_skull", "fire_bird", "fire_serpent", "fire_splash", "fire_breath", "fire_dragon")
@@ -395,6 +395,7 @@ def _fire_dragon(body, frame, scale, frame_index, runtime, layer, color, alpha, 
 
 
 def fire_creature(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
+    note_frame(frame_index)
     if shape == "fire_skull":
         return _fire_skull(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape in ("fire_bird", "fire_serpent"):

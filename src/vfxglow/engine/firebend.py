@@ -26,7 +26,7 @@ import numpy as np
 from vfxglow.engine.critters import TAU, WHITE, _activation, _ease, _phase, _seg
 from vfxglow.engine.raster import fill_polygon, splat
 
-FIREBEND = ("fire_whip", "hand_fire", "candle", "floor_fire", "fire_ring", "avatar_mark", "body_blaze", "fire_wall")
+FIREBEND = ("fire_whip", "hand_fire", "candle", "floor_fire", "fire_ring", "avatar_mark", "body_blaze", "fire_wall", "fire_light")
 MID = np.array([1.0, 0.66, 0.1], np.float32)
 # La luz que el fuego echa sobre el escenario: naranja profundo (con más verde, al sumarse sobre el
 # cuadro y el bloom, se iba al amarillo).
@@ -62,28 +62,107 @@ def warm(layer, center: np.ndarray, radius: float, color: np.ndarray, alpha: flo
     dst[..., 3] = 1.0 - (1.0 - dst[..., 3]) * (1.0 - weight)
 
 
+# ----- el fuego como campo (metaballs) -----
+#
+# Las llamas no se pintan como polígonos: cada una suma a un campo suave (más alto hacia su
+# centro: borde, cuerpo y núcleo). Al final del efecto, por cuadro (flush_fire), el campo se
+# desenfoca, se deforma con ruido que sube y se corta con tres umbrales: naranja, amarillo y núcleo
+# casi blanco. Así los bordes salen como líquido viscoso, dos llamas que se tocan se funden, el
+# borde se corroe y lo que se apaga se encoge en vez de volverse transparente.
+
+_FIELDS: dict[int, dict] = {}
+# Luces de fuego del cuadro (para fire_light, que tiñe el plano): las del cuadro anterior y las de este.
+_LIGHTS: dict = {"frame": -1, "now": [], "prev": []}
+LEVELS = ((0.5, 0.62), (1.4, 1.55), (2.15, 2.3))  # umbrales (borde, cuerpo, núcleo) con su rampa
+
+
+def note_frame(frame_index: int) -> None:
+    """El primer efecto de fuego de cada cuadro rota la lista de luces."""
+    if frame_index != _LIGHTS["frame"]:
+        if frame_index < _LIGHTS["frame"]:  # otro video o se volvió atrás
+            _LIGHTS["now"] = []
+        _LIGHTS["prev"], _LIGHTS["now"], _LIGHTS["frame"] = _LIGHTS["now"], [], frame_index
+
+
 def cel(layer, make, color, alpha: float, runtime=None, heat: float = 1.0, core: bool = True) -> None:
-    """Fuego plano en tres capas: make(k) da el contorno con el grosor multiplicado por k. Con
-    `runtime`, además un resplandor naranja amplio alrededor (el aire caliente). Sin `core`, sin
-    la capa casi blanca (para fuego que llena medio cuadro: si no, el bloom lo quema en blanco)."""
-    outer = np.asarray(color, np.float32)
-    passes = ((1.0, outer, 0.85, 1.0), (0.62, MID, 0.95, 1.3), (0.3, CORE, 1.0, 1.7))
-    for k, tint, a, gain in passes if core else passes[:2]:
+    """Suma una llama al campo de fuego del efecto: make(k) da el contorno con el grosor
+    multiplicado por k (1 = borde naranja, 0,62 = cuerpo, 0,3 = núcleo). Con `runtime`, además un
+    resplandor naranja tenue alrededor y la llama cuenta como luz para fire_light."""
+    if alpha <= 0:
+        return
+    height, width = layer.shape[:2]
+    entry = _FIELDS.get(id(layer))
+    if entry is None:
+        entry = _FIELDS[id(layer)] = {"field": np.zeros((height, width), np.float32), "color": np.asarray(color, np.float32), "alpha": 0.0}
+    entry["alpha"] = max(entry["alpha"], float(alpha))
+    for k in (1.0, 0.62, 0.3) if core else (1.0, 0.62):
         poly = make(k)
-        if poly is not None and len(poly) >= 3:
-            fill_polygon(layer, poly, tint, alpha * a, gain, feather=1.2)
-            if k == 1.0 and runtime is not None and heat > 0:
-                lo, hi = poly.min(axis=0), poly.max(axis=0)
-                size = float(np.linalg.norm(hi - lo))
-                mid = (lo + hi) / 2
-                frame_h = layer.shape[0]
-                # La luz del fuego baña el escenario (en la referencia ilumina buena parte del
-                # cuadro y el piso, no solo el aire junto a la llama).
-                warm(layer, mid, max(size * 2.4, 0.45 * frame_h), GLOW * 0.55, alpha * 0.16 * heat)  # ancha pero transparente
-                stage = runtime.swoosh.setdefault("_stage_light", {})
-                if stage.get("frame") != id(layer):  # una vez por cuadro y por efecto
-                    stage["frame"] = id(layer)
-                    warm(layer, mid, 1.3 * frame_h, GLOW * 0.45, alpha * 0.08 * heat * min(size / (0.2 * frame_h), 1.0))
+        if poly is None or len(poly) < 3:
+            continue
+        mask = np.zeros((height, width), np.uint8)
+        cv2.fillPoly(mask, [np.round(poly).astype(np.int32)], 255, lineType=cv2.LINE_AA)
+        entry["field"] += mask.astype(np.float32) * np.float32(min(alpha, 1.0) / 255.0)
+        if k == 1.0 and runtime is not None and heat > 0:
+            lo, hi = poly.min(axis=0), poly.max(axis=0)
+            size = float(np.linalg.norm(hi - lo))
+            mid = (lo + hi) / 2
+            warm(layer, mid, max(size * 2.4, 0.45 * height), GLOW * 0.55, alpha * 0.16 * heat)  # ancha pero transparente
+            _LIGHTS["now"].append((mid, size, float(alpha) * heat))
+
+
+_NOISE: dict = {}
+
+
+def _noise(height: int, width: int, frame_index: int, seed: int) -> np.ndarray:
+    """Ruido suave en [-1, 1] del tamaño del cuadro que sube con el tiempo (el fuego asciende)."""
+    key = (height, width, seed)
+    tex = _NOISE.get(key)
+    if tex is None:
+        rng = np.random.default_rng(seed)
+        tall = height * 2
+        tex = np.zeros((tall, width), np.float32)
+        for cell, weight in ((max(height // 14, 8), 0.65), (max(height // 40, 4), 0.35)):  # dos octavas
+            small = rng.uniform(-1, 1, (tall // cell + 2, width // cell + 2)).astype(np.float32)
+            tex += cv2.resize(small, (width, tall), interpolation=cv2.INTER_CUBIC) * weight
+        _NOISE[key] = tex
+    shift = int(frame_index * height * 0.012) % height  # sube ~1,2% del cuadro por fotograma
+    return tex[height - shift : 2 * height - shift]
+
+
+def flush_fire(layer, frame_index: int) -> None:
+    """Convierte el campo de fuego acumulado del efecto en las tres capas planas."""
+    entry = _FIELDS.pop(id(layer), None)
+    if entry is None:
+        return
+    field = entry["field"]
+    ys, xs = np.nonzero(field > 0.02)
+    if len(xs) == 0:
+        return
+    height, width = field.shape
+    pad = int(0.06 * height)
+    x0, x1 = max(xs.min() - pad, 0), min(xs.max() + pad + 1, width)
+    y0, y1 = max(ys.min() - pad, 0), min(ys.max() + pad + 1, height)
+    crop = cv2.GaussianBlur(field[y0:y1, x0:x1], (0, 0), max(0.006 * height, 1.0))
+    # Ruido que sube: deforma el borde (lenguas caóticas, no el patrón de un seno) y lo corroe.
+    nx = _noise(height, width, frame_index, 7)[y0:y1, x0:x1]
+    ny = _noise(height, width, frame_index, 11)[y0:y1, x0:x1]
+    amp = 0.014 * height
+    gx, gy = np.meshgrid(np.arange(x1 - x0, dtype=np.float32), np.arange(y1 - y0, dtype=np.float32))
+    crop = cv2.remap(crop, gx + nx * amp, gy + ny * amp + np.abs(ny) * amp * 0.6, cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+    crop = crop - _noise(height, width, frame_index, 23)[y0:y1, x0:x1] * 0.22  # huecos y bordes comidos
+
+    def step(level):
+        lo, hi = level
+        x = np.clip((crop - lo) / (hi - lo), 0.0, 1.0)
+        return x * x * (3 - 2 * x)
+
+    outer, body, core = (step(level) for level in LEVELS)
+    color = entry["color"]
+    rgb = color[None, None, :] * (outer - body)[..., None] + MID * 1.3 * (body - core)[..., None] + CORE * 1.7 * core[..., None]
+    a = np.float32(min(entry["alpha"], 1.0))
+    dst = layer[y0:y1, x0:x1]
+    dst[..., :3] += rgb * a
+    dst[..., 3] = 1.0 - (1.0 - dst[..., 3]) * (1.0 - outer * a)
 
 
 def _normals(spine: np.ndarray) -> np.ndarray:
@@ -438,7 +517,45 @@ def _fire_wall(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
     return _avatar_mark(body, frame, scale, frame_index, runtime, layer, color, alpha * min(s * 3, 1.0), event)
 
 
+# Luz del fuego sobre el plano (se mezcla multiplicando, antes del fuego): cerca de las llamas
+# sube el rojo y baja el azul conservando la textura (la ropa y el piso se tiñen de naranja con
+# sus arrugas y sombras); lejos, con mucho fuego en pantalla, el cuadro se oscurece un poco para
+# que el fuego resalte (lo que el animador hace al subexponer el plano).
+LIGHT_TINT = np.array([1.55, 0.82, 0.42], np.float32)
+LIGHT_DARK = 0.74
+
+
+def _fire_light(runtime, layer, frame_index: int, alpha: float) -> list:
+    st = runtime.swoosh.setdefault("_firelight", {})
+    if st.get("frame") == frame_index:  # una vez por cuadro aunque haya dos personas
+        return []
+    st["frame"] = frame_index
+    note_frame(frame_index)
+    lights = _LIGHTS["prev"] + _LIGHTS["now"]
+    if not lights:
+        return []
+    height, width = layer.shape[:2]
+    step = 8  # la luz es suave: se calcula a 1/8 y se agranda
+    gy, gx = np.mgrid[0:height:step, 0:width:step].astype(np.float32)
+    light = np.zeros(gx.shape, np.float32)
+    amount = 0.0
+    for mid, size, a in lights:
+        r = max(size * 2.0, 0.5 * height)
+        d2 = ((gx - mid[0]) ** 2 + (gy - mid[1]) ** 2) / (r * r)
+        light += np.clip(1.0 - d2, 0.0, 1.0) ** 2 * np.float32(a)
+        amount += size * a
+    light = cv2.resize(np.clip(light, 0.0, 1.0), (width, height), interpolation=cv2.INTER_LINEAR)
+    cover = np.float32(min(amount / (0.8 * height), 1.0) * 0.6 * alpha)
+    straight = LIGHT_DARK * (1.0 - light)[..., None] + LIGHT_TINT * light[..., None]
+    layer[..., :3] = straight * cover
+    layer[..., 3] = cover
+    return []
+
+
 def firebend(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
+    note_frame(frame_index)
+    if shape == "fire_light":
+        return _fire_light(runtime, layer, frame_index, alpha)
     if shape == "fire_whip":
         return _fire_whip(body, scale, frame_index, runtime, layer, color, alpha, event)
     if shape == "hand_fire":

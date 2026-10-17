@@ -598,6 +598,9 @@ def draw_adornment(runtime, track, points, frame_index: int, height: int, envelo
         line = max(1.4, style.thickness * scale)
         for curve in adornment(shape, body, frame, scale, frame_index, seed, runtime, layer, color, envelope * grow, event):
             strokes += neon_layers(curve, color, line, envelope * grow)
+    from vfxglow.engine.firebend import flush_fire
+
+    flush_fire(layer, frame_index)  # el fuego acumulado como campo se vuelve sus tres capas
     stroke_batch(layer, strokes, style.hdr_gain)
 
 
