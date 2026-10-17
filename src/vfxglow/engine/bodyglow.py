@@ -585,6 +585,9 @@ def draw_adornment(runtime, track, points, frame_index: int, height: int, envelo
     shape = names[int(np.random.default_rng(seed).integers(0, len(names)))]
     grow = float(np.clip(runtime.active_frames / 5.0, 0.0, 1.0))
     strokes = []
+    # La silueta real (segmentador) en píxeles: el fuego ilumina el borde del cuerpo cercano.
+    outlines = (track.body_contours or ([track.body_contour] if track.body_contour else [])) if track is not None else []
+    runtime.silhouettes = [np.array(o, dtype=np.float64) * [layer.shape[1], height] for o in outlines if len(o) >= 3]
     for person in _people(track, event, style):
         body = Body(points, person)
         scale = body.scale

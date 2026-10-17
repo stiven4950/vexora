@@ -10,7 +10,7 @@ blanco) con lenguas definidas, no como un brillo difuso.
 - `floor_fire`: fuego a ras del piso: charco bajo la mano o el pie apoyado, o una raya que crece
   por donde barre (seg. 2, 5,2, 9,2-10,8).
 - `fire_ring`: un aro de fuego que gira alrededor de la mano (seg. 8).
-- `fire_skull`: calavera con melena de llamas sobre la cara (seg. 3,2).
+- la calavera, el ave, el dragón y la cara que echa fuego están en engine/fire_creatures.py.
 - `avatar_mark`: la flecha de Avatar en la frente y los ojos encendidos (seg. 0 y 15).
 - `body_blaze`: el cuerpo arde: llamas que trepan por brazos y piernas y alas de fuego (seg. 11,2).
 - `fire_wall`: cierre: en el último tramo una pared de fuego sube desde el piso hasta llenar el
@@ -20,13 +20,17 @@ blanco) con lenguas definidas, no como un brillo difuso.
 
 from __future__ import annotations
 
+import cv2
 import numpy as np
 
 from vfxglow.engine.critters import TAU, WHITE, _activation, _ease, _phase, _seg
 from vfxglow.engine.raster import fill_polygon, splat
 
-FIREBEND = ("fire_whip", "hand_fire", "candle", "floor_fire", "fire_ring", "fire_skull", "avatar_mark", "body_blaze", "fire_wall")
+FIREBEND = ("fire_whip", "hand_fire", "candle", "floor_fire", "fire_ring", "avatar_mark", "body_blaze", "fire_wall")
 MID = np.array([1.0, 0.66, 0.1], np.float32)
+# La luz que el fuego echa sobre el escenario: naranja profundo (con más verde, al sumarse sobre el
+# cuadro y el bloom, se iba al amarillo).
+GLOW = np.array([1.0, 0.27, 0.0], np.float32)
 CORE = np.array([1.0, 0.97, 0.78], np.float32)
 
 
@@ -37,8 +41,11 @@ def warm(layer, center: np.ndarray, radius: float, color: np.ndarray, alpha: flo
     """Resplandor radial que llega a cero en el borde (el de `splat` corta en ~8% y, grande, se
     veía como un recuadro naranja)."""
     r = int(min(max(radius, 2.0), 1600))
+    r = max(8, r // 24 * 24) if r > 32 else r  # radios redondeados: pocos núcleos en memoria
     kernel = _WARM.get(r)
     if kernel is None:
+        if len(_WARM) > 48:
+            _WARM.clear()
         axis = np.arange(-r, r + 1, dtype=np.float32) / r
         xx, yy = np.meshgrid(axis, axis)
         kernel = np.clip(1.0 - (xx * xx + yy * yy), 0.0, 1.0) ** 2
@@ -69,7 +76,14 @@ def cel(layer, make, color, alpha: float, runtime=None, heat: float = 1.0, core:
                 lo, hi = poly.min(axis=0), poly.max(axis=0)
                 size = float(np.linalg.norm(hi - lo))
                 mid = (lo + hi) / 2
-                warm(layer, mid, size * 1.1, outer * 0.6, alpha * 0.3 * heat)
+                frame_h = layer.shape[0]
+                # La luz del fuego baña el escenario (en la referencia ilumina buena parte del
+                # cuadro y el piso, no solo el aire junto a la llama).
+                warm(layer, mid, max(size * 2.4, 0.45 * frame_h), GLOW * 0.55, alpha * 0.16 * heat)  # ancha pero transparente
+                stage = runtime.swoosh.setdefault("_stage_light", {})
+                if stage.get("frame") != id(layer):  # una vez por cuadro y por efecto
+                    stage["frame"] = id(layer)
+                    warm(layer, mid, 1.3 * frame_h, GLOW * 0.45, alpha * 0.08 * heat * min(size / (0.2 * frame_h), 1.0))
 
 
 def _normals(spine: np.ndarray) -> np.ndarray:
@@ -104,6 +118,82 @@ def teardrop(base: np.ndarray, up: np.ndarray, length: float, width: float, fram
     spine = base + np.outer(s * length, up) + np.outer(sway, side)
     widths = width * np.sin(np.pi * (0.12 + 0.88 * s)) ** 0.8 * (1 - s) ** 0.35 + 0.5
     return ribbon(spine, widths, frame_index, 2.0, seed)
+
+
+# ----- lo que tienen todos los fuegos: escamas, tramos cortados y el borde del cuerpo iluminado -----
+
+
+def pieces(spine: np.ndarray, widths: np.ndarray, seed: int, gap: float = 0.05) -> list[tuple[np.ndarray, np.ndarray]]:
+    """La cinta partida en 2-3 tramos con huecos (el fuego de la referencia se corta), cada uno
+    con su propio grosor que se afina en las puntas del corte."""
+    rng = np.random.default_rng(seed)
+    cuts = sorted(rng.uniform(0.25, 0.75, size=int(rng.integers(1, 3))))
+    n = len(spine)
+    out, start = [], 0
+    for c in [*cuts, 1.0 + gap]:
+        end = min(int((c - gap / 2) * n), n)
+        if end - start >= 3:
+            seg_w = widths[start:end] * np.sin(np.linspace(0.15, np.pi - 0.15, end - start)) ** 0.25
+            out.append((spine[start:end], seg_w))
+        start = int((c + gap / 2) * n)
+    return out
+
+
+def shed(layer, spine: np.ndarray, widths: np.ndarray, st: dict, frame_index: int, scale: float, color, alpha: float, rate: float = 1.0) -> None:
+    """Escamas de fuego que se desprenden del borde de la llama: medialunas que salen, giran y
+    se apagan en ~10 cuadros."""
+    flakes = st.setdefault("flakes", [])
+    rng = np.random.default_rng(frame_index * 31 + len(flakes))
+    if len(spine) >= 3 and rng.random() < 0.8 * rate:
+        normal = _normals(spine)
+        for _ in range(1 + int(rng.random() < 0.5 * rate)):
+            i = int(rng.integers(len(spine) // 3, len(spine)))
+            side = rng.choice([-1.0, 1.0])
+            pos = spine[i] + normal[i] * widths[i] * side
+            vel = normal[i] * side * rng.uniform(0.02, 0.05) * scale + np.array([0.0, -0.015 * scale])
+            flakes.append([pos.copy(), vel, frame_index, rng.uniform(0.04, 0.08) * scale, rng.uniform(0, TAU)])
+    keep = []
+    for flake in flakes:
+        pos, vel, born, size, spin = flake
+        age = frame_index - born
+        if age > 10:
+            continue
+        keep.append(flake)
+        at = pos + vel * age
+        fade = 1.0 - age / 10.0
+        a = spin + age * 0.4
+        arc = np.linspace(a, a + 2.4, 10)  # una medialuna: dos arcos de distinto radio
+        outer = at + np.stack([np.cos(arc), np.sin(arc)], axis=1) * size * fade
+        inner = at + np.stack([np.cos(arc[::-1]), np.sin(arc[::-1])], axis=1) * size * fade * 0.6 + np.array([np.cos(a + 1.2), np.sin(a + 1.2)]) * size * 0.25
+        crescent = np.vstack([outer, inner])
+        fill_polygon(layer, crescent, MID, alpha * fade, 1.4, feather=0.8)
+    st["flakes"] = keep
+
+
+def rim(layer, runtime, sources: list[np.ndarray], scale: float, color, alpha: float, reach: float = 1.3) -> None:
+    """El borde del cuerpo cercano al fuego, iluminado con una línea muy fina que se apaga con la
+    distancia (sobre la silueta real del segmentador)."""
+    outlines = getattr(runtime, "silhouettes", None) or []
+    if not outlines or not sources:
+        return
+    src = np.array(sources, dtype=np.float64)
+    radius = reach * scale
+    height, width = layer.shape[:2]
+    glow = np.zeros((height, width), np.float32)
+    for outline in outlines:
+        d = np.min(np.linalg.norm(outline[:, None, :] - src[None, :, :], axis=2), axis=1)
+        weight = np.clip(1.0 - d / radius, 0.0, 1.0) ** 1.5
+        pts = np.round(outline).astype(np.int32)
+        for i in range(len(pts)):
+            w = (weight[i] + weight[(i + 1) % len(pts)]) / 2
+            if w > 0.05:
+                cv2.line(glow, tuple(pts[i]), tuple(pts[(i + 1) % len(pts)]), float(w), 1, cv2.LINE_AA)
+    if glow.max() <= 0:
+        return
+    glow *= np.float32(alpha)
+    tint = np.asarray(color, np.float32) * 0.5 + MID * 0.5
+    layer[..., :3] += tint * 1.6 * glow[..., None]
+    layer[..., 3] = 1.0 - (1.0 - layer[..., 3]) * (1.0 - glow)
 
 
 def _floor(body, scale: float) -> float | None:
@@ -160,8 +250,19 @@ def _fire_whip(body, scale, frame_index, runtime, layer, color, alpha, event) ->
         ahead = spine[-1] - spine[-3]
         spine = np.vstack([spine, spine[-1] + ahead * 0.8])
         q = np.linspace(0, 1, len(spine))
+        # Más curvo que el recorrido real: se arquea hacia el lado en que gira el golpe.
+        chord = spine[-1] - spine[0]
+        length = float(np.linalg.norm(chord))
+        side = np.array([-chord[1], chord[0]]) / max(length, 1e-6)
+        turn = float(np.sign(np.dot(spine[len(spine) // 2] - (spine[0] + spine[-1]) / 2, side)) or 1.0)
+        spine = spine + np.outer(np.sin(np.pi * q) * 0.22 * length * turn, side)
+        smooth = np.array([spine[max(i - 1, 0)] * 0.25 + spine[i] * 0.5 + spine[min(i + 1, len(spine) - 1)] * 0.25 for i in range(len(spine))])
         widths = (0.04 + 0.4 * np.sin(np.pi * np.clip(q * 1.05, 0, 1)) ** 0.7 * q ** 0.8) * scale  # medialuna gruesa
-        cel(layer, ribbon(spine, widths, frame_index, 3.0), color, alpha, runtime)
+        seed = (event.start_frame if event is not None else 0) * 7 + len(name)
+        for part, part_w in pieces(smooth, widths, seed):
+            cel(layer, ribbon(part, part_w, frame_index, 3.0), color, alpha, runtime)
+        shed(layer, smooth, widths, st, frame_index, scale, color, alpha)
+        rim(layer, runtime, [point, smooth[len(smooth) // 2]], scale, color, alpha)
         splat(layer, float(point[0]), float(point[1]), 0.12 * scale, CORE * 1.4, alpha * 0.6, runtime.kernels)
     return []
 
@@ -177,6 +278,10 @@ def _hand_fire(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
         if wrist is None:
             continue
         cel(layer, teardrop(wrist, up, 0.85 * scale * grow, 0.2 * scale, frame_index, k * 1.7), color, alpha, runtime)
+        st = _activation(runtime, event, f"hand:{side}", body)
+        flame_spine = np.array([wrist + up * 0.85 * scale * grow * s for s in np.linspace(0, 1, 8)])
+        shed(layer, flame_spine, np.full(8, 0.12 * scale), st, frame_index, scale, color, alpha, 0.6)
+        rim(layer, runtime, [wrist], scale, color, alpha, 1.0)
     return []
 
 
@@ -278,35 +383,6 @@ def _avatar_mark(body, frame, scale, frame_index, runtime, layer, color, alpha, 
     return [shaft, head]
 
 
-def _fire_skull(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
-    face = _face(body, frame, scale)
-    if face is None:
-        return []
-    nose, r, up, across = face
-    t = np.linspace(0, TAU, 32)
-    c = nose + up * 0.15 * r
-    skull = c + np.outer(np.cos(t) * 0.95 * r, across) + np.outer(np.sin(t) * 1.05 * r, up)
-    sockets = [nose + up * 0.35 * r + across * s * 0.38 * r for s in (-1, 1)]
-    lines = [skull]
-    for socket in sockets:
-        hole = socket + np.outer(np.cos(t) * 0.24 * r, across) + np.outer(np.sin(t) * 0.2 * r, up)
-        lines.append(hole)
-        splat(layer, float(socket[0]), float(socket[1]), 0.1 * r, CORE * 2.0, alpha, runtime.kernels)
-    lines.append(np.array([nose + across * 0.1 * r, nose + up * 0.12 * r, nose - across * 0.1 * r, nose + across * 0.1 * r]))
-    jaw = nose - up * 0.45 * r
-    lines.append(np.array([jaw - across * 0.45 * r, jaw + across * 0.45 * r]))
-    for k in np.linspace(-0.36, 0.36, 6):  # dientes
-        lines.append(np.array([jaw + across * k * r + up * 0.12 * r, jaw + across * k * r - up * 0.12 * r]))
-    u = _phase(runtime, event)
-    grow = _ease(_seg(u, 0.0, 0.2))
-    for k, tilt in enumerate((-0.5, 0.0, 0.5)):  # melena de llamas
-        d = up + across * tilt
-        d = d / float(np.linalg.norm(d))
-        base = c + up * 0.85 * r + across * tilt * 0.6 * r
-        cel(layer, teardrop(base, d, (1.0 - 0.25 * abs(tilt)) * 1.4 * r * grow, 0.35 * r, frame_index, k), color, alpha)
-    return lines
-
-
 # ----- el cuerpo arde, y el cierre -----
 
 
@@ -373,8 +449,6 @@ def firebend(shape, body, frame, scale, frame_index, runtime, layer, color, alph
         return _floor_fire(body, scale, frame_index, runtime, layer, color, alpha, event)
     if shape == "fire_ring":
         return _fire_ring(body, scale, frame_index, runtime, layer, color, alpha, event)
-    if shape == "fire_skull":
-        return _fire_skull(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape == "avatar_mark":
         return _avatar_mark(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape == "body_blaze":
