@@ -64,7 +64,8 @@ def composite_frame(
             acc = _blend(acc, layer[..., :3], layer[..., 3], "multiply")
             coverage = np.maximum(coverage, np.clip(layer[..., 3], 0.0, 1.0))
             continue
-        glowed = bloom(
+        # Un tinte de pantalla completa (type grade) no tiene núcleo que irradie: sin bloom.
+        glowed = layer.astype(np.float32) if effect.type == "grade" else bloom(
             layer.astype(np.float32),
             grade.bloom_radius,
             grade.bloom_threshold,

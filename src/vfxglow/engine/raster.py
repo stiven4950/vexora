@@ -218,13 +218,24 @@ def fill_polygon(
     if alpha <= 0 or len(points) < 3:
         return
     height, width = layer.shape[:2]
-    mask = np.zeros((height, width), dtype=np.uint8)
-    cv2.fillPoly(mask, [np.round(points).astype(np.int32)], 255, lineType=cv2.LINE_AA)
+    # Solo el recuadro del polígono (más el margen del desenfoque): pintar una escama diminuta con
+    # una máscara del cuadro entero costaba ~27 ms (video_18: el 40% del render).
+    pad = int(np.ceil(max(feather, 0.0) * 3)) + 2
+    lo = np.floor(points.min(axis=0)).astype(int) - pad
+    hi = np.ceil(points.max(axis=0)).astype(int) + pad + 1
+    x0, y0 = max(lo[0], 0), max(lo[1], 0)
+    x1, y1 = min(hi[0], width), min(hi[1], height)
+    if x0 >= x1 or y0 >= y1:
+        return
+    offset = np.array([x0, y0], dtype=np.float64)
+    mask = np.zeros((y1 - y0, x1 - x0), dtype=np.uint8)
+    cv2.fillPoly(mask, [np.round(points - offset).astype(np.int32)], 255, lineType=cv2.LINE_AA)
     for hole in holes or []:
-        cv2.fillPoly(mask, [np.round(hole).astype(np.int32)], 0, lineType=cv2.LINE_AA)
+        cv2.fillPoly(mask, [np.round(hole - offset).astype(np.int32)], 0, lineType=cv2.LINE_AA)
     weight = mask.astype(np.float32) / 255.0
     if feather > 0:
         weight = cv2.GaussianBlur(weight, (0, 0), feather)
     weight *= np.float32(alpha)
-    layer[..., :3] += np.asarray(color, dtype=np.float32) * np.float32(gain) * weight[..., None]
-    layer[..., 3] = 1.0 - (1.0 - layer[..., 3]) * (1.0 - weight)
+    dst = layer[y0:y1, x0:x1]
+    dst[..., :3] += np.asarray(color, dtype=np.float32) * np.float32(gain) * weight[..., None]
+    dst[..., 3] = 1.0 - (1.0 - dst[..., 3]) * (1.0 - weight)
