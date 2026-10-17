@@ -24,9 +24,15 @@ defaults:
   target: {kind: joint, id: nose}
   time: {start_frame: 0, end_frame: -1, fade_in: 1, fade_out: 4}
   style: {thickness: 0.008, hdr_gain: 1.6, focus: false}
-  render: {blend: add, motion_blur: 0.0, persistence: 0.0, group: glow}
+  # Prueba: brillo de caída larga (5 pasadas, hasta 24x el radio), como el Deep Glow.
+  render: {blend: add, motion_blur: 0.0, persistence: 0.0, group: glow, glow_layers: 5}
 
 always:
+  # La luz del fuego sobre el plano: tiñe ropa, piel y piso de naranja conservando su textura y
+  # oscurece un poco el resto cuando hay mucho fuego (se mezcla multiplicando, antes del fuego).
+  - type: adornment
+    style: {shapes: [fire_light], focus: false}
+    render: {blend: multiply, group: grade}
   # Brasas que se desprenden de las extremidades rápidas.
   - type: droplets
     target: {kind: joint, id: "left_wrist,right_wrist,left_ankle,right_ankle"}
