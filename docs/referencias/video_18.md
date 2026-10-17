@@ -75,3 +75,16 @@ Diferencias que quedan con la referencia:
   referencia, que la tiñe casi siempre que hay fuego.
 - La flecha de Avatar del inicio sale chica (la cara es chica en el plano) y en el cierre la tapa
   a veces la llama de las manos.
+
+## Segunda versión (lectura del usuario)
+
+| Seg. | Lo que pidió | Implementación |
+| --- | --- | --- |
+| Todo | Fuego bien curvo, con chispas que se liberan y tramos que se cortan | `firebend`: el látigo se arquea más que el recorrido real, se parte en 2-3 tramos (`pieces`) y suelta escamas en medialuna que vuelan y se apagan (`shed`) |
+| Todo | El borde de las partes del cuerpo cercanas al fuego, iluminado con una línea muy fina | `rim`: línea de 1 px sobre la silueta real del segmentador, que se apaga con la distancia al fuego |
+| Todo | La luz del fuego cubre gran parte del escenario, ancha pero transparente y naranja | Halo de al menos el 45% del alto del cuadro y un tinte muy amplio y tenue, en naranja profundo (`GLOW`) |
+| 3,1-3,6 | Calavera real con melena de fuego ondulada; luego el fuego viaja a la mano | `fire_skull` (engine/fire_creatures.py) |
+| 4,2-4,8 | Ave de fuego que sale de la mano levantada, vuela y vuelve | `fire_bird` (y la variante `fire_serpent`, dragón serpiente) |
+| 5,0 | El fuego choca contra el piso y se expande como gelatina | `fire_splash` |
+| 7,8-8,6 | El fuego sube a la cabeza, sale por la boca y queda la cara de demonio; luego rodea el cuerpo hasta la mano | `fire_breath` |
+| 11,0-11,9 | Un dragón con grandes alas | `fire_dragon` |

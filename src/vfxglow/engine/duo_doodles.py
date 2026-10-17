@@ -42,6 +42,7 @@ import numpy as np
 from vfxglow.engine.characters import CHARACTERS, character
 from vfxglow.engine.costumes import COSTUMES, costume
 from vfxglow.engine.critters import CRITTERS, critter
+from vfxglow.engine.fire_creatures import FIRE_CREATURES, fire_creature
 from vfxglow.engine.firebend import FIREBEND, firebend
 from vfxglow.engine.fist import FISTS, fist_effect
 from vfxglow.engine.gun import GUNS, gun
@@ -59,7 +60,7 @@ DOODLES = (
     "shoulder_bolts", "head_bolts", "hand_ring", "moon", "chest_burst", "body_bolts", "foot_spark",
     "floor_arc", "leg_line", "leg_string", "side_edges", "shoulder_arcs", "heart_eyes", "spin_arcs", "glow_eyes",
     "foot_ring", "foot_bolts",
-) + DUO_FX + COSTUMES + SHOES + DRESSES + CRITTERS + STORIES + GUNS + FISTS + HAND_PROPS + FIREBEND + CHARACTERS
+) + DUO_FX + COSTUMES + SHOES + DRESSES + CRITTERS + STORIES + GUNS + FISTS + HAND_PROPS + FIREBEND + FIRE_CREATURES + CHARACTERS
 WHITE = np.array([1.0, 1.0, 1.0], np.float32)
 
 
@@ -166,6 +167,8 @@ def doodle(shape, body, frame, scale, frame_index, seed, runtime, layer, color, 
         return hand_prop(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape in FIREBEND:
         return firebend(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape in FIRE_CREATURES:
+        return fire_creature(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape in CHARACTERS:
         return character(shape, body, frame, scale, frame_index, seed, runtime, layer, color, alpha, head, event)
     if shape in DRESSES:

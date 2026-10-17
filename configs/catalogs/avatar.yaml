@@ -66,22 +66,47 @@ reactions:
   - action: jump
     options:
       - name: remolinos
-        weight: 1.0
+        weight: 0.7
         effects: [*whip, *heat]
+      - name: aliento
+        weight: 0.3
+        cooldown: 450
+        effects:
+          - &breath {type: adornment, style: {shapes: [fire_breath]}, trigger: {hold: 26, fade_in: 1, fade_out: 6}}
+          - &heat2 {type: grade, style: {colors: [[1.0, 0.45, 0.08]], intensity: 0.45, focus: false}, render: {blend: add, group: glow}, trigger: {hold: 14, fade_in: 2, fade_out: 8}}
 
   # Seg. 1,2: brazos arriba: llamas que suben de las manos.
   - action: arms_up
     options:
       - name: llamas_arriba
-        weight: 1.0
+        weight: 0.5
         effects:
           - &hands {type: adornment, style: {shapes: [hand_fire]}, trigger: {hold: 14, fade_in: 2, fade_out: 6}}
+      # Seg. 4,2: de la mano levantada sale un ave de fuego (o un dragón serpiente) que vuela y vuelve.
+      - name: ave
+        weight: 0.3
+        cooldown: 300
+        effects:
+          - &bird {type: adornment, style: {shapes: [fire_bird, fire_serpent]}, trigger: {hold: 22, fade_in: 1, fade_out: 6}}
+          - *heat2
+      - name: dragon
+        weight: 0.2
+        cooldown: 450
+        effects:
+          - &dragon {type: adornment, style: {shapes: [fire_dragon]}, trigger: {hold: 22, fade_in: 2, fade_out: 6}}
+          - *heat2
 
   # Seg. 2,0 y 12,4: cae al piso o pisa fuerte: fuego a ras del piso.
   - action: landing
     options:
+      # Seg. 5,0: el fuego choca contra el piso y se expande en olas que tiemblan como gelatina.
+      - name: golpe_piso
+        weight: 0.5
+        effects:
+          - &splash {type: adornment, style: {shapes: [fire_splash]}, trigger: {hold: 16, fade_in: 1, fade_out: 6}}
+          - *heat2
       - name: piso
-        weight: 1.0
+        weight: 0.5
         effects:
           - &floor {type: adornment, style: {shapes: [floor_fire]}, trigger: {hold: 16, fade_in: 1, fade_out: 8}}
           - *heat
@@ -202,8 +227,20 @@ reactions:
       - name: latigos
         weight: 0.5
         effects: [*whip, *heat]
+      # Seg. 8,0: el fuego sube a la cabeza y sale por la boca; queda la cara de demonio.
+      - name: aliento
+        weight: 0.3
+        cooldown: 450
+        effects:
+          - *breath
+          - *heat2
+      # Seg. 11,2: las llamas suben por los brazos y forman un dragón de alas.
+      - name: dragon
+        weight: 0.25
+        cooldown: 450
+        effects: [*dragon, *heat2]
       - name: cuerpo_en_llamas
-        weight: 0.5
+        weight: 0.25
         cooldown: 300
         effects:
           - type: adornment
@@ -214,21 +251,28 @@ reactions:
   # Volteretas y rodadas por el piso: el cuerpo arde o un aro de fuego.
   - action: flip
     options:
+      - name: dragon
+        weight: 0.4
+        cooldown: 450
+        effects: [*dragon, *heat2]
       - name: cuerpo_en_llamas
-        weight: 0.6
+        weight: 0.3
         cooldown: 200
         effects:
           - {type: adornment, style: {shapes: [body_blaze]}, trigger: {hold: 14, fade_in: 2, fade_out: 8}}
           - *heat
       - name: aro
-        weight: 0.4
+        weight: 0.3
         effects:
           - {type: adornment, style: {shapes: [fire_ring]}, trigger: {hold: 12, fade_in: 1, fade_out: 5}}
   - action: tumble
     options:
       - name: piso
-        weight: 0.6
+        weight: 0.3
         effects: [*floor, *heat]
+      - name: golpe_piso
+        weight: 0.3
+        effects: [*splash]
       - name: nada
         weight: 0.4
 
@@ -236,8 +280,12 @@ reactions:
   - action: raise_hand
     options:
       - name: llama
-        weight: 0.5
+        weight: 0.3
         effects: [*hands]
+      - name: ave
+        weight: 0.25
+        cooldown: 300
+        effects: [*bird, *heat2]
       - name: nada
         weight: 0.5
   - action: arms_crossed
