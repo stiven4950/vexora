@@ -641,7 +641,16 @@ def _fire_whip(body, scale, frame_index, runtime, layer, color, alpha, event) ->
         if len(trail) < 3:
             continue
         spine = np.array(trail)
-        if float(np.linalg.norm(spine[-1] - spine[0])) < 0.25 * scale:  # casi quieta: sin látigo
+        # Solo el tramo desde el último giro brusco (más de 100°): si la mano cambia de dirección
+        # en medio del golpe, el látigo dibujaba un zigzag como una letra (seg. 10,4).
+        steps_d = np.diff(spine, axis=0)
+        norms = np.linalg.norm(steps_d, axis=1)
+        for i in range(len(steps_d) - 1, 0, -1):
+            a_, b_ = steps_d[i - 1], steps_d[i]
+            if norms[i - 1] > 1 and norms[i] > 1 and float(np.dot(a_, b_)) / (norms[i - 1] * norms[i]) < -0.17:
+                spine = spine[i:]
+                break
+        if len(spine) < 3 or float(np.linalg.norm(spine[-1] - spine[0])) < 0.25 * scale:  # casi quieta: sin látigo
             continue
         # Exagerado como en la referencia: el látigo dobla el recorrido real (desde la mano hacia
         # atrás) y la llama se adelanta a la mano, como si la lanzara.
@@ -654,20 +663,17 @@ def _fire_whip(body, scale, frame_index, runtime, layer, color, alpha, event) ->
         length = float(np.linalg.norm(chord))
         side = np.array([-chord[1], chord[0]]) / max(length, 1e-6)
         turn = st.setdefault("turn", float(np.sign(np.dot(spine[len(spine) // 2] - (spine[0] + spine[-1]) / 2, side)) or 1.0))  # fijo por golpe
-        q0 = np.linspace(0, 1, len(spine))
-        spine = spine + np.outer(np.sin(np.pi * q0) * 0.38 * length * turn, side)
-        for _ in range(3):  # suavizado 1-2-1 que conserva los extremos
-            spine[1:-1] = spine[:-2] * 0.25 + spine[1:-1] * 0.5 + spine[2:] * 0.25
-        q = np.linspace(0, 1, 40)
-        steps = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(spine, axis=0), axis=1))])
-        # Tope de largo: un golpe muy rápido (patada) estiraba el látigo en una barra recta enorme.
-        cap = (2.4 if len(limbs) == 2 else 1.8) * scale
-        if steps[-1] > cap:
-            keep = steps >= steps[-1] - cap
-            first = max(int(np.argmax(keep)) - 1, 0)
-            spine, steps = spine[first:], steps[first:] - steps[first]
-        steps /= max(steps[-1], 1e-6)
-        smooth = np.stack([np.interp(q, steps, spine[:, 0]), np.interp(q, steps, spine[:, 1])], axis=1)
+        # Siempre una medialuna suave: curva de Bézier del inicio al fin del tramo, arqueada hacia el
+        # lado del golpe. Con pocos puntos de recorrido, la curva anterior salía con esquinas ("A").
+        cap = (2.4 if len(limbs) == 2 else 1.8) * scale  # tope de largo (las patadas hacían barras)
+        start, end = spine[0], spine[-1]
+        if length > cap:
+            start = end + (start - end) * (cap / length)
+            length = cap
+        control = (start + end) / 2 + side * 0.75 * length * turn
+        q = np.linspace(0, 1, 40)[:, None]
+        smooth = (1 - q) ** 2 * start + 2 * (1 - q) * q * control + q ** 2 * end
+        q = q[:, 0]
         # Fina y en punta en la cola, ancha cerca de la mano y otra vez afilada en la cabeza.
         big = 1.5 if len(limbs) == 2 else 1.0  # con las dos manos, medialunas grandes (seg. 0,8)
         widths = (0.006 + 0.24 * big * np.sin(np.pi * q) ** 0.9 * q ** 0.9) * scale

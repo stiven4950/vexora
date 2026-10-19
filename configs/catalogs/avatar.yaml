@@ -244,13 +244,8 @@ reactions:
         effects:
           - *breath
           - *heat2
-      # Seg. 11,2: las llamas suben por los brazos y forman un dragón de alas.
-      - name: dragon
-        weight: 0.25
-        cooldown: 450
-        effects: [*dragon, *heat2]
       - name: cuerpo_en_llamas
-        weight: 0.25
+        weight: 0.5
         cooldown: 300
         effects:
           - type: adornment
