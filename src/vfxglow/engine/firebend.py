@@ -189,7 +189,7 @@ def emit_embers(pool: dict, mask: np.ndarray, box: tuple[int, int], frame_index:
     out = pos - center
     out /= np.maximum(np.linalg.norm(out, axis=1, keepdims=True), 1e-3)
     speed = rng.uniform(0.004, 0.012, count)[:, None] * height
-    vel = out * speed + np.array([0.0, -0.006 * height], np.float32)  # afuera y arriba
+    vel = out * speed + np.array([0.0, -0.006 * height], np.float32) + pool.get("inherit", np.zeros(2, np.float32))  # afuera, arriba y con el fuego
     new = {
         "pos": pos,
         "vel": vel.astype(np.float32),
@@ -226,7 +226,10 @@ def draw_embers(layer, pool: dict, frame_index: int, alpha: float) -> None:
             _smooth_noise(pos[:, 1] / (0.05 * height) + frame_index * 0.15, 1.0),
             _smooth_noise(pos[:, 0] / (0.05 * height) - frame_index * 0.15, 2.0) * 0.5,
         ], axis=1).astype(np.float32)
-        pool["vel"] = vel * 0.9 + wobble * (0.0025 * height) + np.array([0.0, -0.0012 * height], np.float32)
+        # Las livianas flotan; las más grandes (trozos pesados) caen con gravedad.
+        heavy = (pool["size"] > 0.0078 * height)[:, None]
+        lift = np.where(heavy, np.array([0.0, 0.0016 * height], np.float32), np.array([0.0, -0.0012 * height], np.float32))
+        pool["vel"] = vel * 0.9 + wobble * (0.0025 * height) + lift
         pool["pos"] = pos + pool["vel"]
     pos, vel = pool["pos"], pool["vel"]
     age = (frame_index - pool["born"]) / pool["life"]
@@ -298,6 +301,13 @@ def flush_fire(layer, frame_index: int, u: float | None = None, st: dict | None 
     dst[..., :3] += rgb * a
     dst[..., 3] = 1.0 - (1.0 - dst[..., 3]) * (1.0 - cover * a)
     if embers is not None:
+        # Heredan la mitad del movimiento del fuego que las suelta (el centro de la llama).
+        ys_, xs_ = np.nonzero(m > 0.5)
+        if len(xs_):
+            center_now = np.array([xs_.mean() + x0, ys_.mean() + y0], np.float32)
+            prev_c = embers.get("center")
+            embers["center"] = center_now
+            embers["inherit"] = (center_now - prev_c) * 0.5 if prev_c is not None and np.linalg.norm(center_now - prev_c) < 0.15 * height else np.zeros(2, np.float32)
         # Pocas: una brasa cada ~14.000 px de fuego por cuadro; al morir, tres veces más (se deshace).
         dying = u is not None and u > DIE_START
         rate = min(float(m.sum()) / 22000.0 * (3.0 if dying else 1.0), 4.0)
@@ -380,6 +390,57 @@ def ribbon(spine: np.ndarray, widths: np.ndarray, frame_index: int, tongues: flo
         return np.vstack([upper, lower[::-1]])
 
     return make
+
+
+# ----- física de la llama (docs/fisica_del_fuego.md) -----
+#
+# Cada llama anclada (a una mano, la cabeza, un hueso) tiene un estado: su dirección es un ángulo
+# que sigue con un resorte amortiguado a la dirección que piden las fuerzas:
+#   flotación (sube) + viento relativo (el aire que corta el ancla empuja la llama en contra de su
+#   movimiento) + viento del ambiente (opcional).
+# El resorte da inercia: al arrancar la llama se queda atrás, al frenar se pasa de largo, oscila y
+# se asienta. La velocidad la estira y la afina; al frenar en seco se recoge (más corta y ancha).
+
+BUOYANCY = 1.0      # cuánto tira hacia arriba
+WIND_DRAG = 5.0     # cuánto la empuja el aire relativo (por ancho de hombros por cuadro)
+SPRING = 0.32       # rigidez del resorte del ángulo
+DAMPING = 0.7       # cuánto conserva de su giro por cuadro (menos = se asienta antes)
+MAX_LEAN = 1.45     # inclinación máxima respecto de la vertical (rad, ~83°)
+STRETCH = 2.5       # cuánto se estira con la velocidad
+MAX_STRETCH = 1.7
+
+
+def flame_physics(st: dict, key: str, anchor: np.ndarray, scale: float, up: np.ndarray | None = None, wind: np.ndarray | None = None) -> tuple[np.ndarray, float]:
+    """(dirección unitaria de la llama, factor de estiramiento) para la llama anclada en `anchor`.
+
+    `st` guarda el estado entre cuadros; `key` distingue cada llama del efecto."""
+    up = np.array([0.0, -1.0]) if up is None else up
+    s = st.setdefault(key, {})
+    prev = s.get("p")
+    s["p"] = np.asarray(anchor, float).copy()
+    vel = (s["p"] - prev) / max(scale, 1e-6) if prev is not None else np.zeros(2)
+    if float(np.linalg.norm(vel)) > 1.5:  # salto del detector (no un movimiento real): se ignora
+        vel = np.zeros(2)
+    s["v"] = s.get("v", vel) * 0.5 + vel * 0.5  # velocidad suavizada
+    force = up * BUOYANCY - s["v"] * WIND_DRAG
+    if wind is not None:
+        force = force + wind
+    rest = float(np.arctan2(up[1], up[0]))
+    target = float(np.arctan2(force[1], force[0]))
+    target = rest + float(np.clip(np.angle(np.exp(1j * (target - rest))), -MAX_LEAN, MAX_LEAN))
+    angle = s.get("a", target)
+    spin = s.get("w", 0.0)
+    spin = spin * DAMPING + float(np.angle(np.exp(1j * (target - angle)))) * SPRING
+    angle += spin
+    s["a"], s["w"] = angle, spin
+    speed = float(np.linalg.norm(s["v"]))
+    goal = 1.0 + min(speed * STRETCH, MAX_STRETCH - 1.0)
+    # Frenada brusca: se recoge un instante (más corta) antes de volver a su largo.
+    braking = max(s.get("speed", 0.0) - speed, 0.0)
+    goal -= min(braking * 3.0, 0.35)
+    s["speed"] = speed
+    s["s"] = s.get("s", 1.0) * 0.6 + goal * 0.4
+    return np.array([np.cos(angle), np.sin(angle)]), float(s["s"])
 
 
 ROUND_BASE = 0.3  # fracción del largo que ocupa la base redonda
@@ -702,7 +763,10 @@ def _hand_fire(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
         # suelto arriba (proporción ~2:1, no una aguja).
         tall, half = 1.45 * scale, 0.2 * scale
         base = wrist - up * half * 0.6  # la base redonda envuelve el puño
-        for j, (spine, widths) in enumerate(flame_parts(base, up, tall, half, frame_index, k * 1.7 + 0.3)):
+        # Física: se inclina contra el movimiento de la mano, con inercia, y se estira con la velocidad.
+        lean, stretch = flame_physics(st, "phys", wrist, scale, up)
+        tall, half = tall * stretch, half / np.sqrt(stretch)
+        for j, (spine, widths) in enumerate(flame_parts(base, lean, tall, half, frame_index, k * 1.7 + 0.3)):
             living_ribbon(layer, spine, widths, u, st.setdefault(f"part{j}", {}), frame_index, color, alpha, runtime if j == 0 else None, grow_from_end=False, tongues=3.0, phase=k * 1.7 + j)
         del flame
         flame_spine = np.array([wrist + up * 0.85 * scale * grow * s for s in np.linspace(0, 1, 8)])
@@ -720,7 +784,8 @@ def _candle(body, frame, scale, frame_index, runtime, layer, color, alpha, event
     base = (wrists[0] + wrists[1]) / 2
     u = _phase(runtime, event)
     size = _ease(_seg(u, 0.0, 0.15)) * (1.0 - 0.65 * _seg(u, 0.15, 1.0))  # nace grande y se achica
-    cel(layer, teardrop(base, up, 1.1 * scale * size, 0.2 * scale * size + 1, frame_index), color, alpha, runtime)
+    lean, stretch = flame_physics(_activation(runtime, event, "candle", body), "phys", base, scale, up)
+    cel(layer, teardrop(base, lean, 1.1 * scale * size * stretch, 0.2 * scale * size / np.sqrt(stretch) + 1, frame_index), color, alpha, runtime)
     return []
 
 
@@ -828,7 +893,8 @@ def _body_blaze(body, frame, scale, frame_index, runtime, layer, color, alpha, e
                 k += 1
                 base = a_ + (b_ - a_) * q
                 size = (0.45 + 0.35 * np.sin(k * 2.3) ** 2) * scale * grow
-                cel(layer, teardrop(base, up, size, 0.13 * scale, frame_index, k * 0.9), color, alpha, runtime, 0.5)
+                lean, stretch = flame_physics(_activation(runtime, event, "blaze", body), f"bone{k}", base, scale, up)
+                cel(layer, teardrop(base, lean, size * stretch, 0.13 * scale / np.sqrt(stretch), frame_index, k * 0.9), color, alpha, runtime, 0.5)
     for s in (-1, 1):  # alas de fuego sobre los hombros
         shoulder = body.get("left_shoulder" if (s < 0) == (across[0] > 0) else "right_shoulder")
         if shoulder is None:
