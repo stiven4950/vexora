@@ -144,3 +144,48 @@ def test_fire_halo_surrounds_the_body() -> None:
     ys, xs = np.nonzero(mask)
     assert count - 1 >= 1 and ys.min() < 160 and ys.max() > 400  # pasa sobre la cabeza y baja a los pies
     assert mask[300, 200] == 0  # el centro (el cuerpo) queda libre: es un aro
+
+
+def _event(name: str, start: int, end: int):
+    from vfxglow.analysis.schema import MotionEvent
+
+    return MotionEvent.model_validate({"name": name, "target": "person_0", "start_frame": start, "end_frame": end, "confidence": 0.8, "detail": ""})
+
+
+def test_fire_wall_only_when_the_person_ends_still() -> None:
+    from vfxglow.director.choreography import ends_still
+
+    quiet = [_event("fast_swing", 100, 120), _event("lull", 420, 483)]
+    assert ends_still(quiet, 484, 30.0, 1.8)  # video_18: termina arrodillado, en pausa
+    walking = [_event("lull", 530, 585), _event("step", 620, 630)]
+    assert not ends_still(walking, 639, 30.0, 1.8)  # video_51: la pausa terminó y camina
+    jumping = [_event("lull", 420, 483), _event("jump", 470, 475)]
+    assert not ends_still(jumping, 484, 30.0, 1.8)  # un salto al final: no hay pared
+
+
+def _head_body(shoulders: tuple, nose=(200.0, 140.0)) -> object:
+    from vfxglow.engine.bodyglow import Body
+
+    left, right = shoulders
+    pts = {
+        "nose": np.array(nose), "left_eye": np.array([212.0, 130.0]), "right_eye": np.array([188.0, 130.0]),
+        "left_ear": np.array([225.0, 135.0]), "right_ear": np.array([175.0, 135.0]),
+        "left_shoulder": np.array(left), "right_shoulder": np.array(right),
+        "left_hip": np.array([220.0, 380.0]), "right_hip": np.array([180.0, 380.0]),
+    }
+    return Body(pts, None)
+
+
+def test_avatar_arrow_points_at_the_face_from_the_front() -> None:
+    body = _head_body(((250.0, 200.0), (150.0, 200.0)))  # de frente: el hombro izquierdo a la derecha
+    path, tip, _ = firebend._arrow_path(body, body.frame(), body.scale)
+    assert tip  # la punta de la frente se ve
+    assert abs(path[0][0] - 200.0) < 6 and path[0][1] < 130.0  # centrada, arriba de los ojos
+    assert path[-1][1] < path[0][1] - 30  # la banda sube hacia la coronilla
+
+
+def test_avatar_arrow_runs_down_the_spine_from_the_back() -> None:
+    body = _head_body(((150.0, 200.0), (250.0, 200.0)))  # de espaldas: el hombro izquierdo a la izquierda
+    path, tip, _ = firebend._arrow_path(body, body.frame(), body.scale)
+    assert not tip  # la frente no se ve
+    assert path[0][1] < 120.0 and path[-1][1] > 300.0  # de la coronilla a la parte baja de la espalda

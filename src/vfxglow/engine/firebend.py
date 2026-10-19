@@ -1102,21 +1102,93 @@ def _glowing_eyes(body, layer, r, alpha, runtime) -> None:
             splat(layer, float(eye[0]), float(eye[1]), 0.16 * r, WHITE * 2.2, alpha, runtime.kernels)
 
 
-def _avatar_mark(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
+def _arrow_path(body, frame, scale) -> tuple[np.ndarray, bool, float] | None:
+    """La línea de la flecha de Aang sobre el cuerpo, de la frente hacia atrás: sube por la frente,
+    pasa por la coronilla, baja por la nuca y sigue por la columna. Devuelve (puntos, si la punta
+    de la frente se ve, ancho de la cabeza). De frente se ve el tramo de la frente a la coronilla;
+    de perfil, el arco sobre la cabeza hasta la nuca; de espaldas, de la coronilla a la columna."""
+    from vfxglow.engine.bodyglow import facing
+
     face = _face(body, frame, scale)
     if face is None:
-        return []
+        return None
     nose, r, up, across = face
-    forehead = nose + up * 0.55 * r
-    top = nose + up * 1.25 * r
-    # La flecha de Aang: una banda que baja por la cabeza y termina en punta sobre la frente.
-    shaft = np.array([top + across * 0.07 * r, forehead + up * 0.18 * r + across * 0.07 * r, forehead + up * 0.18 * r - across * 0.07 * r, top - across * 0.07 * r])
-    head = np.array([forehead + up * 0.2 * r + across * 0.2 * r, forehead, forehead + up * 0.2 * r - across * 0.2 * r])
-    fill_polygon(layer, shaft, CORE, alpha, 1.6, feather=1.0)
-    fill_polygon(layer, head, CORE, alpha, 1.6, feather=1.0)
-    warm(layer, forehead, 1.6 * r, np.asarray(color, np.float32), alpha * 0.45)
-    _glowing_eyes(body, layer, r, alpha, runtime)
-    return [shaft, head]
+    center, _across, down = frame
+    ears = [e for e in (body.get("left_ear"), body.get("right_ear")) if e is not None]
+    head = np.mean(ears, axis=0) if ears else nose - up * 0.1 * r
+    hips = body.mid("left_hip", "right_hip")
+    back = [center + down * 0.1 * scale]
+    if hips is not None:
+        back.append(center + (hips - center) * 0.8)  # hasta la parte baja de la espalda
+    neck = center - down * 0.12 * scale
+    crown = head + up * 0.95 * r
+    side = facing(body)
+    eyes = [body.get("left_eye"), body.get("right_eye")]
+    if side == "front" and all(e is not None for e in eyes):
+        # El eje de la cara sale de los ojos (no del torso, que se inclina): la punta, centrada
+        # justo arriba de los ojos; la banda sube hasta la coronilla.
+        mid, gap = (eyes[0] + eyes[1]) / 2, float(np.linalg.norm(eyes[0] - eyes[1]))
+        face_up = np.array([eyes[1][1] - eyes[0][1], eyes[0][0] - eyes[1][0]]) / max(gap, 1e-6)
+        if float(np.dot(face_up, mid - nose)) < 0:
+            face_up = -face_up
+        gap = max(gap, 0.3 * r)
+        forehead = mid + face_up * 0.3 * gap
+        q = np.linspace(0, 1, 12)[:, None]
+        return forehead + face_up * 1.9 * gap * q, True, gap * 1.6
+    if side == "front":
+        forehead = nose + up * 0.55 * r
+        q = np.linspace(0, 1, 12)[:, None]
+        return forehead + (crown - forehead) * q, True, r
+    if side == "back":
+        nape = head - up * 0.35 * r
+        pts = [crown, head + up * 0.4 * r, nape, neck] + back
+        return _resample(np.array(pts), 40), False, r
+    # De perfil: un arco desde la frente sobre el cráneo hasta la nuca, y la columna.
+    ahead = nose - head
+    ahead = ahead - up * float(np.dot(ahead, up))
+    ahead = ahead / max(float(np.linalg.norm(ahead)), 1e-6)
+    a = np.linspace(0.25, np.pi - 0.15, 16)  # de adelante (frente) a atrás (nuca), por arriba
+    arc = head + np.outer(np.cos(a), ahead) * 0.9 * r + np.outer(np.sin(a), up) * 0.95 * r
+    # La columna no: de perfil queda sobre el borde de la espalda y, dibujada por el centro del
+    # torso, cruzaba el cuerpo. Termina en la nuca.
+    pts = np.vstack([arc, [head - ahead * 0.75 * r - up * 0.45 * r]])
+    return _resample(pts, 24), True, r
+
+
+def _resample(pts: np.ndarray, n: int) -> np.ndarray:
+    """La polilínea con `n` puntos a distancias iguales (curva suave para la banda)."""
+    seg = np.linalg.norm(np.diff(pts, axis=0), axis=1)
+    d = np.concatenate([[0.0], np.cumsum(seg)])
+    t = np.linspace(0, d[-1], n)
+    return np.stack([np.interp(t, d, pts[:, 0]), np.interp(t, d, pts[:, 1])], axis=1)
+
+
+def _avatar_mark(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
+    found = _arrow_path(body, frame, scale)
+    if found is None:
+        return []
+    path, tip, r = found
+    # La flecha de Aang: una banda angosta que corre por el centro de la cabeza y la espalda y, en
+    # la frente, termina en punta hacia la cara.
+    normal = _normals(path)
+    w = 0.1 * r
+    band = np.vstack([path + normal * w, (path - normal * w)[::-1]])
+    fill_polygon(layer, band, CORE, alpha, 1.6, feather=1.0)
+    shapes = [band]
+    if tip:
+        forehead = path[0]
+        ahead = path[1] - path[0]
+        ahead = ahead / max(float(np.linalg.norm(ahead)), 1e-6)  # de la frente hacia la coronilla
+        side = np.array([-ahead[1], ahead[0]])
+        # Punta ancha (casi el ancho de la frente) apuntando a la cara, como en la referencia.
+        head = np.array([forehead + ahead * 0.36 * r + side * 0.36 * r, forehead, forehead + ahead * 0.36 * r - side * 0.36 * r])
+        fill_polygon(layer, head, CORE, alpha, 1.6, feather=1.0)
+        shapes.append(head)
+        warm(layer, forehead, 1.2 * r, np.asarray(color, np.float32), alpha * 0.25)
+        _glowing_eyes(body, layer, r, alpha, runtime)
+    else:
+        warm(layer, path[len(path) // 3], 1.6 * r, np.asarray(color, np.float32), alpha * 0.35)
+    return shapes
 
 
 # ----- el cuerpo arde, y el cierre -----
