@@ -30,7 +30,7 @@ FIREBEND = ("fire_whip", "hand_fire", "candle", "floor_fire", "fire_ring", "avat
 MID = np.array([1.0, 0.66, 0.1], np.float32)
 # La luz que el fuego echa sobre el escenario: naranja profundo (con más verde, al sumarse sobre el
 # cuadro y el bloom, se iba al amarillo).
-GLOW = np.array([1.0, 0.27, 0.0], np.float32)
+GLOW = np.array([1.0, 0.22, 0.0], np.float32)
 CORE = np.array([1.0, 0.97, 0.78], np.float32)
 
 
@@ -78,8 +78,8 @@ _FIELDS: dict[int, dict] = {}
 _LIGHTS: dict = {"frame": -1, "now": [], "prev": []}
 WHITE_HOT = np.array([1.0, 0.98, 0.9], np.float32) * 1.35  # apenas sobre 1: con más, el bloom engorda la forma
 RIM = np.array([1.0, 0.78, 0.2], np.float32) * 1.6
-NEAR_GLOW = np.array([1.0, 0.55, 0.08], np.float32)
-FAR_GLOW = np.array([1.0, 0.32, 0.02], np.float32)
+NEAR_GLOW = np.array([1.0, 0.48, 0.04], np.float32)
+FAR_GLOW = np.array([1.0, 0.26, 0.0], np.float32)
 
 
 def note_frame(frame_index: int) -> None:
@@ -223,11 +223,21 @@ def ribbon(spine: np.ndarray, widths: np.ndarray, frame_index: int, tongues: flo
     return make
 
 
-def teardrop(base: np.ndarray, up: np.ndarray, length: float, width: float, frame_index: int, seed: float = 0.0):
-    """make(k) de una llama que sube desde `base` en la dirección `up` y se mece."""
+def teardrop(base: np.ndarray, up: np.ndarray, length: float, width: float, frame_index: int, seed: float = 0.0, curl: float = 0.0):
+    """make(k) de una llama que sube desde `base` en la dirección `up` y se mece. `curl` (en
+    vueltas, con signo para el lado) enrosca la punta en un gancho, como las llamas de anime."""
     side = np.array([-up[1], up[0]])
-    s = np.linspace(0, 1, 18)
+    s = np.linspace(0, 1, 26 if curl else 18)
     sway = _smooth_noise(s * 2.5 - frame_index * 0.08, seed) * 0.2 * length * s  # se mece sin patrón
+    if curl:
+        # El rumbo gira cada vez más hacia la punta: la llama sube y se enrosca sobre sí misma.
+        angle = curl * TAU * np.clip((s - 0.45) / 0.55, 0.0, 1.0) ** 1.6
+        step = np.stack([np.cos(angle), np.sin(angle)], axis=1)  # (adelante, de lado)
+        ds = np.gradient(s) * length
+        local = np.cumsum(step * ds[:, None], axis=0)
+        spine = base + np.outer(local[:, 0], up) + np.outer(local[:, 1] + sway * 0.5, side)
+        widths = width * np.sin(np.pi * (0.12 + 0.88 * s)) ** 0.8 * (1 - s) ** 0.5 + 0.5
+        return ribbon(spine, widths, frame_index, 2.0, seed)
     spine = base + np.outer(s * length, up) + np.outer(sway, side)
     widths = width * np.sin(np.pi * (0.12 + 0.88 * s)) ** 0.8 * (1 - s) ** 0.35 + 0.5
     return ribbon(spine, widths, frame_index, 2.0, seed)
@@ -554,8 +564,10 @@ def _fire_wall(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
         x = width * (j + 0.5 + rng.uniform(-0.15, 0.15)) / 7
         tall = rise * rng.uniform(0.55, 1.0) * (0.85 + 0.2 * _smooth_noise(np.array([frame_index * 0.06 + j]), 3.0)[0])
         lean = np.array([_smooth_noise(np.array([frame_index * 0.05 + j * 1.7]), 5.0)[0] * 0.4, -1.0])
-        thin = min(tall * rng.uniform(0.1, 0.14), width / 7 * 0.32)
-        cel(layer, teardrop(np.array([x, base_y - rise * 0.06]), lean / float(np.linalg.norm(lean)), tall, thin, frame_index, j * 1.3), color, alpha * 0.85, runtime, 1.5)
+        thin = min(tall * rng.uniform(0.14, 0.2), width / 7 * 0.42)
+        # Se enroscan en la punta, alternando el lado y con distinta vuelta (no pasto recto).
+        curl = (0.35 + 0.2 * rng.random() + 0.08 * _smooth_noise(np.array([frame_index * 0.05 + j]), 9.0)[0]) * (1 if j % 2 else -1)
+        cel(layer, teardrop(np.array([x, base_y - rise * 0.06]), lean / float(np.linalg.norm(lean)), tall, thin, frame_index, j * 1.3, curl), color, alpha * 0.85, runtime, 1.5)
     return _avatar_mark(body, frame, scale, frame_index, runtime, layer, color, alpha * min(s * 3, 1.0), event)
 
 
@@ -563,7 +575,7 @@ def _fire_wall(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
 # sube el rojo y baja el azul conservando la textura (la ropa y el piso se tiñen de naranja con
 # sus arrugas y sombras); lejos, con mucho fuego en pantalla, el cuadro se oscurece un poco para
 # que el fuego resalte (lo que el animador hace al subexponer el plano).
-LIGHT_TINT = np.array([1.55, 0.82, 0.42], np.float32)
+LIGHT_TINT = np.array([1.6, 0.74, 0.32], np.float32)
 LIGHT_DARK = 0.74
 
 
