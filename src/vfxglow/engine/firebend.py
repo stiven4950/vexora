@@ -285,7 +285,7 @@ def flush_fire(layer, frame_index: int, u: float | None = None, st: dict | None 
         m = erode(m, (m > 0.5).astype(np.uint8), die, int(st.setdefault("seed", frame_index % 97)), (x0, y0, x1, y1), (height, width))
     # Borde amarillo corto y bien difuminado (seg. 3,17): una caída suave justo afuera del blanco.
     rim_blur = cv2.GaussianBlur(m, (0, 0), max(0.005 * height, 1.0))
-    band = np.clip(rim_blur * (1.0 - m) * 1.6, 0.0, 1.0)
+    band = np.clip(rim_blur * (1.0 - m) * 1.6, 0.0, 1.0) * 0.85  # 15% más suave que al principio
     near = cv2.GaussianBlur(m, (0, 0), max(0.014 * height, 1.0)) * (1.0 - m)
     small = cv2.resize(m, (max((x1 - x0) // 4, 1), max((y1 - y0) // 4, 1)), interpolation=cv2.INTER_AREA)
     far = cv2.resize(cv2.GaussianBlur(small, (0, 0), max(0.045 * height / 4, 1.0)), (x1 - x0, y1 - y0), interpolation=cv2.INTER_LINEAR)
