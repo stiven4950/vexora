@@ -193,8 +193,31 @@ def catalog_text(catalog) -> str:
     return "\n".join(lines)
 
 
+# Las figuras de fuego del estilo Avatar (engine/firebend.py, engine/fire_creatures.py): no son
+# metáforas raras sino el lenguaje del estilo, y el modelo debe saber qué dibuja cada una.
+FIRE_FIGURES = {
+    "fire_whip": "látigo de fuego en medialuna con la forma del golpe (con las dos manos, dos medialunas espejadas grandes)",
+    "hand_fire": "llamas de base redonda que suben de las manos",
+    "candle": "una sola llama entre las manos juntas que se achica",
+    "floor_fire": "fuego a ras del piso bajo la mano o el pie",
+    "fire_splash": "el fuego choca contra el piso y se expande en olas",
+    "fire_ring": "un aro de fuego que gira alrededor de la mano",
+    "fire_skull": "calavera con melena de fuego en la cabeza; luego el fuego viaja a la mano",
+    "fire_bird": "ave de fuego que sale de la mano levantada, vuela y vuelve",
+    "fire_serpent": "dragón serpiente de fuego que sale de la mano",
+    "fire_breath": "el fuego sube a la cabeza, sale por la boca y queda una cara de demonio",
+    "fire_dragon": "las llamas suben por los brazos y forman un dragón de alas enormes",
+    "body_blaze": "el cuerpo arde: llamas en brazos y piernas y alas de fuego",
+    "avatar_mark": "estado Avatar: flecha en la frente y ojos encendidos",
+}
+
+
 def build_prompt(catalog, duration: float) -> str:
     stories = "\n".join(f"- {name}: {text}" for name, text in STORIES.items())
+    shapes = {s for r in catalog.reactions for o in r.options for e in o.effects for s in e.get("style", {}).get("shapes", [])}
+    fire = [f"- {name}: {text}" for name, text in FIRE_FIGURES.items() if name in shapes]
+    if fire:  # el estilo Avatar: el fuego es el lenguaje principal, no un acento
+        stories += "\n\nFiguras de fuego de este estilo (úsalas en casi todos los momentos; las de criatura, como la calavera, el ave, el aliento o el dragón, en los 3 a 5 momentos más fuertes):\n" + "\n".join(fire)
     return PROMPT.format(duration=duration, catalog=catalog_text(catalog), stories=stories)
 
 
