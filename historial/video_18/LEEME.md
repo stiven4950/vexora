@@ -17,3 +17,4 @@ Lectura de la referencia en `docs/referencias/video_18.md`. Los `.mp4` no van a 
 | `2026-10-19_avatar_v11_borde_suave.mp4` | Como la v10, con el borde amarillo alrededor del núcleo blanco un 15% menos intenso |
 | `2026-10-19_avatar_v12_menos_amarillo.mp4` | Como la v11, con el borde y el resplandor amarillo alrededor del núcleo un 25% menos intensos |
 | `2026-10-19_avatar_v13_pared_baja.mp4` | Intensidad general del fuego un 15% más baja; pared final más baja y entera hasta el último cuadro (sin fundido que deje ver las piezas) |
+| `2026-10-19_avatar_v14_revision.mp4` | Pared al 40%. Revisión contra la referencia: látigos con tope de largo (las patadas hacían barras rectas), aliento con duración propia y bola más chica, olas del piso más bajas, una llama por hueso en el cuerpo en llamas, sin rayo en los golpes rápidos y menos brasas |
