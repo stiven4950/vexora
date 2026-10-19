@@ -252,7 +252,7 @@ def _fire_splash(body, frame, scale, frame_index, runtime, layer, color, alpha, 
     spread = _ease(min(age / 8.0, 1.0)) * 2.6 * scale
     jelly = 1.0 + 0.4 * np.sin(age * 0.9) * np.exp(-age / 7.0)  # tiembla como gelatina y se asienta
     flatten = 1.0 - 0.8 * _seg(u, 0.5, 1.0)
-    height = 1.6 * scale * jelly * flatten
+    height = 0.9 * scale * jelly * flatten
     for side in (-1.0, 1.0):
         crest_x = x0 + side * spread
         xs = np.linspace(x0, crest_x, 24)
@@ -287,6 +287,9 @@ def _fire_breath(body, frame, scale, frame_index, runtime, layer, color, alpha, 
     u = _phase(runtime, event)
     st = _activation(runtime, event, "breath", body)
     mouth = nose - up * 0.35 * r
+    # Duración propia (~1,4 s): disparado por un movimiento frenético largo, la bola de fuego
+    # crecía hasta tapar todo (seg. 11,2).
+    u = min(runtime.active_frames / max(1.4 * runtime.fps, 1.0), 1.0)
     if u < 0.3:  # sube por el costado hasta la cabeza
         st.setdefault("start", hand.copy())
         start = st["start"]
@@ -304,8 +307,8 @@ def _fire_breath(body, frame, scale, frame_index, runtime, layer, color, alpha, 
         s = _seg(u, 0.45, 0.65)
         rng = np.random.default_rng(int(event.start_frame) if event is not None else 3)
         for k in range(9):  # una nube de fuego que llena medio cuadro (seg. 8,13-8,2)
-            off = np.array([rng.uniform(-1.3, 1.3), -abs(rng.uniform(0.4, 2.4))]) * scale * (0.3 + 1.0 * s)
-            rad = rng.uniform(0.5, 1.0) * scale * (0.5 + 0.9 * s) * (1 - 0.35 * s)
+            off = np.array([rng.uniform(-1.0, 1.0), -abs(rng.uniform(0.4, 1.8))]) * scale * (0.3 + 0.8 * s)
+            rad = rng.uniform(0.28, 0.55) * scale * (0.5 + 0.7 * s) * (1 - 0.35 * s)
             blob = lambda kk, at=mouth + off, rad=rad: np.array([at + np.array([np.cos(a), np.sin(a)]) * rad * (0.6 + 0.4 * kk) * (1 + 0.08 * np.sin(a * 5 + frame_index)) for a in np.linspace(0, TAU, 22)])
             cel(layer, blob, color, alpha, runtime, 0.6, mass=True)
         warm(layer, mouth - up * scale * s, 2.2 * scale, np.asarray(color, np.float32), alpha * 0.4)

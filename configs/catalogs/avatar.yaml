@@ -168,8 +168,9 @@ reactions:
           - type: adornment
             style: {shapes: [fire_ring]}
             trigger: {hold: 12, fade_in: 1, fade_out: 5}
+      # El rayo en los golpes rápidos salía como una barra blanca recta: solo al señalar.
       - name: rayo
-        weight: 0.12
+        weight: 0.0
         cooldown: 150
         effects:
           - &bolt

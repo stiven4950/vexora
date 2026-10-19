@@ -77,7 +77,7 @@ _FIELDS: dict[int, dict] = {}
 # Luces de fuego del cuadro (para fire_light, que tiñe el plano): las del cuadro anterior y las de este.
 _LIGHTS: dict = {"frame": -1, "now": [], "prev": []}
 # Intensidad general del fuego pintado (núcleo, borde y resplandor): 0,85 = un 15% menos.
-FIRE_INTENSITY = 0.85
+FIRE_INTENSITY = 0.80
 WHITE_HOT = np.array([1.0, 0.98, 0.9], np.float32) * 1.35  # apenas sobre 1: con más, el bloom engorda la forma
 RIM = np.array([1.0, 0.78, 0.2], np.float32) * 1.6
 NEAR_GLOW = np.array([1.0, 0.48, 0.04], np.float32)
@@ -300,7 +300,7 @@ def flush_fire(layer, frame_index: int, u: float | None = None, st: dict | None 
     if embers is not None:
         # Pocas: una brasa cada ~14.000 px de fuego por cuadro; al morir, tres veces más (se deshace).
         dying = u is not None and u > DIE_START
-        rate = min(float(m.sum()) / 14000.0 * (3.0 if dying else 1.0), 6.0)
+        rate = min(float(m.sum()) / 22000.0 * (3.0 if dying else 1.0), 4.0)
         emit_embers(embers, m, (x0, y0), frame_index, rate, height)
         draw_embers(layer, embers, frame_index, 1.0)
 
@@ -660,6 +660,12 @@ def _fire_whip(body, scale, frame_index, runtime, layer, color, alpha, event) ->
             spine[1:-1] = spine[:-2] * 0.25 + spine[1:-1] * 0.5 + spine[2:] * 0.25
         q = np.linspace(0, 1, 40)
         steps = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(spine, axis=0), axis=1))])
+        # Tope de largo: un golpe muy rápido (patada) estiraba el látigo en una barra recta enorme.
+        cap = (2.4 if len(limbs) == 2 else 1.8) * scale
+        if steps[-1] > cap:
+            keep = steps >= steps[-1] - cap
+            first = max(int(np.argmax(keep)) - 1, 0)
+            spine, steps = spine[first:], steps[first:] - steps[first]
         steps /= max(steps[-1], 1e-6)
         smooth = np.stack([np.interp(q, steps, spine[:, 0]), np.interp(q, steps, spine[:, 1])], axis=1)
         # Fina y en punta en la cola, ancha cerca de la mano y otra vez afilada en la cabeza.
@@ -812,7 +818,7 @@ def _body_blaze(body, frame, scale, frame_index, runtime, layer, color, alpha, e
         if any(p is None for p in pts):
             continue
         for a_, b_ in ((pts[0], pts[1]), (pts[1], pts[2])):
-            for q in (0.2, 0.6, 0.95):  # tres llamas por hueso, de distinto tamaño
+            for q in (0.6,):  # una llama por hueso (con tres se volvía una maraña)
                 k += 1
                 base = a_ + (b_ - a_) * q
                 size = (0.45 + 0.35 * np.sin(k * 2.3) ** 2) * scale * grow
@@ -837,7 +843,7 @@ def _fire_wall(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
         return []
     s = _ease((frame_index - (total - length)) / max(length - 1, 1))
     height, width = layer.shape[:2]
-    rise = height * (0.08 + 0.3 * s)  # más baja: no tapa a la persona
+    rise = height * (0.08 + 0.32 * s)  # hasta el 40% del cuadro: no tapa a la persona
     base_y = height + 2
     alpha = max(float(alpha), st.get("peak", 0.0))  # sin fundido al final: se notaban las piezas
     st["peak"] = alpha
