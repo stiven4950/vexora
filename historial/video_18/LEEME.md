@@ -16,3 +16,4 @@ Lectura de la referencia en `docs/referencias/video_18.md`. Los `.mp4` no van a 
 | `2026-10-19_avatar_v10_llama_redonda.mp4` | Forma de llama del SVG "flame animation": base ancha y redonda, cuerpo que se angosta con bultos, lenguas laterales y un trocito suelto arriba; llamas de las manos más redondeadas (proporción ~3:1 en vez de 12:1) y pared con base ancha |
 | `2026-10-19_avatar_v11_borde_suave.mp4` | Como la v10, con el borde amarillo alrededor del núcleo blanco un 15% menos intenso |
 | `2026-10-19_avatar_v12_menos_amarillo.mp4` | Como la v11, con el borde y el resplandor amarillo alrededor del núcleo un 25% menos intensos |
+| `2026-10-19_avatar_v13_pared_baja.mp4` | Intensidad general del fuego un 15% más baja; pared final más baja y entera hasta el último cuadro (sin fundido que deje ver las piezas) |
