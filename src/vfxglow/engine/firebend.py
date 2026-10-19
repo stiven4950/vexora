@@ -1230,6 +1230,14 @@ def _fire_wall(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
     length = int(max(runtime.effect.style.size, 0.5) * runtime.fps)
     if total <= 0 or frame_index < total - length:
         return []
+    if "front" not in st:
+        # Solo si la persona mira de frente al empezar el cierre (la pared enmarca a quien mira a
+        # cámara; de espaldas o de perfil no). Se decide una vez y se mantiene.
+        from vfxglow.engine.bodyglow import facing
+
+        st["front"] = facing(body) == "front"
+    if not st["front"]:
+        return []
     s = _ease((frame_index - (total - length)) / max(length - 1, 1))
     height, width = layer.shape[:2]
     rise = height * (0.08 + 0.32 * s)  # hasta el 40% del cuadro: no tapa a la persona

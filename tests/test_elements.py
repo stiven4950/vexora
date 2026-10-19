@@ -189,3 +189,17 @@ def test_avatar_arrow_runs_down_the_spine_from_the_back() -> None:
     path, tip, _ = firebend._arrow_path(body, body.frame(), body.scale)
     assert not tip  # la frente no se ve
     assert path[0][1] < 120.0 and path[-1][1] > 300.0  # de la coronilla a la parte baja de la espalda
+
+
+def test_fire_wall_needs_the_person_facing_front() -> None:
+    def wall(shoulders) -> float:
+        body = _head_body(shoulders)
+        runtime = SimpleNamespace(swoosh={}, frame_count=100, fps=30.0, effect=SimpleNamespace(style=SimpleNamespace(size=1.8)), silhouettes=[], kernels={})
+        layer = np.zeros((H, W, 4), np.float32)
+        for f in range(60, 100):
+            firebend._fire_wall(body, body.frame(), body.scale, f, runtime, layer, (1.0, 0.4, 0.05), 1.0, None)
+        firebend.flush_fire(layer, 99)
+        return float(layer[..., 3].mean())
+
+    assert wall(((250.0, 200.0), (150.0, 200.0))) > 0.05  # de frente: hay pared
+    assert wall(((150.0, 200.0), (250.0, 200.0))) == 0.0  # de espaldas: no
