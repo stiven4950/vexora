@@ -126,23 +126,20 @@ def stroke_gradient(
 ) -> None:
     if len(points) < 2 or width <= 0.5 or alpha <= 0:
         return
-    import skia
-
-    height, width_px = layer.shape[:2]
-    surface = skia.Surface(width_px, height)
-    canvas = surface.getCanvas()
-    canvas.clear(skia.Color4f(0, 0, 0, 0))
+    # Hasta 12 tramos, cada uno con su color del degradado, en un solo volcado del recuadro que
+    # tocan (antes, una superficie del cuadro entero por trazo: el rayo tardaba 5 s por cuadro).
+    points = np.asarray(points, dtype=np.float64)
     chunks = min(12, max(1, len(points) - 1))
     span = len(points) - 1
+    strokes = []
     for index in range(chunks):
         start = int(index * span / chunks)
         end = int((index + 1) * span / chunks) + 1
         segment = points[start:end]
         if len(segment) < 2:
             continue
-        color = sample_gradient(style.colors, index / max(chunks - 1, 1))
-        canvas.drawPath(_path(segment), _paint(color, width, alpha))
-    _stamp(layer, _pixels(surface), style.hdr_gain)
+        strokes.append((segment, sample_gradient(style.colors, index / max(chunks - 1, 1)), width, alpha))
+    stroke_batch(layer, strokes, style.hdr_gain)
 
 
 def splat(layer: np.ndarray, x: float, y: float, radius: float, color: np.ndarray, alpha: float, kernels: dict[int, np.ndarray]) -> None:
