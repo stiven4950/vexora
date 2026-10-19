@@ -168,20 +168,21 @@ reactions:
           - type: adornment
             style: {shapes: [fire_ring]}
             trigger: {hold: 12, fade_in: 1, fade_out: 5}
-      # El rayo en los golpes rápidos salía como una barra blanca recta: solo al señalar.
+      # El rayo de los maestros fuego (de avatar_storm), de vez en cuando: fino, quebrado y con
+      # ramas, color fuego (antes salía grueso y blanco como una barra).
       - name: rayo
-        weight: 0.0
+        weight: 0.12
         cooldown: 150
         effects:
           - &bolt
             type: lightning
             target: {kind: joint, id: right_wrist}
             style:
-              colors: [[1.0, 0.95, 0.85], [1.0, 0.55, 0.15], [0.9, 0.2, 0.05]]
-              thickness: 0.016
-              hdr_gain: 3.2
-              lightning: {branches: 3, branch_depth: 2, branch_angle: 28, jitter: 0.24, reseed_every: 3, tail_frames: 5, sparks: 5, reach: 1.5}
-            render: {blend: add, motion_blur: 0.2, group: lightning, persistence: 0.5, glow_layers: 3}
+              colors: [[1.0, 0.9, 0.7], [1.0, 0.5, 0.1], [0.9, 0.2, 0.05]]
+              thickness: 0.007
+              hdr_gain: 2.2
+              lightning: {branches: 4, branch_depth: 2, branch_angle: 34, jitter: 0.42, reseed_every: 2, tail_frames: 3, sparks: 6, reach: 2.2}
+            render: {blend: add, motion_blur: 0.0, group: lightning, persistence: 0.3, glow_layers: 2}
             trigger: {hold: 8, fade_in: 1, fade_out: 5}
       - name: nada
         weight: 0.08
