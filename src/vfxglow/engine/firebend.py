@@ -176,6 +176,19 @@ def flush_fire(layer, frame_index: int) -> None:
     dst[..., 3] = 1.0 - (1.0 - dst[..., 3]) * (1.0 - cover * a)
 
 
+def _fine_noise(height: int, width: int, seed: int) -> np.ndarray:
+    """Ruido fijo de grano mediano en [-1, 1] (celdas de ~1,5% del alto): corta los bordes en tramos."""
+    key = ("fine", height, width, seed)
+    tex = _NOISE.get(key)
+    if tex is None:
+        rng = np.random.default_rng(seed)
+        cell = max(height // 65, 4)
+        small = rng.uniform(-1, 1, (height // cell + 2, width // cell + 2)).astype(np.float32)
+        tex = cv2.resize(small, (width, height), interpolation=cv2.INTER_CUBIC)
+        _NOISE[key] = tex
+    return tex
+
+
 def _smooth_noise(x: np.ndarray, seed: float) -> np.ndarray:
     """Ruido 1D suave y coherente en [-1, 1] (valores al azar en una grilla, interpolados con
     curva suave): reemplaza al seno, cuyo patrón el ojo detecta."""
@@ -241,6 +254,90 @@ def teardrop(base: np.ndarray, up: np.ndarray, length: float, width: float, fram
     spine = base + np.outer(s * length, up) + np.outer(sway, side)
     widths = width * np.sin(np.pi * (0.12 + 0.88 * s)) ** 0.8 * (1 - s) ** 0.35 + 0.5
     return ribbon(spine, widths, frame_index, 2.0, seed)
+
+
+# ----- la vida de una llama: nacer, sostenerse y morir (docs/referencias/video_18_fuego.md) -----
+#
+# Medido en la referencia: nace en 2-3 cuadros (la punta adelante, el cuerpo detrás), se sostiene
+# 3-6 y muere en 3-5 sin volverse transparente: se vacía por dentro, el centro desaparece primero y
+# quedan tramos finos del borde que se afinan y se apagan.
+
+GROW_END = 0.2   # fracción de la vida en que termina de nacer
+DIE_START = 0.6  # desde aquí se congela y se erosiona
+
+
+def _ease_out(x: float) -> float:
+    x = float(np.clip(x, 0.0, 1.0))
+    return 1.0 - (1.0 - x) ** 3
+
+
+def living_ribbon(layer, spine: np.ndarray, widths: np.ndarray, u: float, st: dict, frame_index: int, color, alpha: float, runtime=None, grow_from_end: bool = True, tongues: float = 3.0, phase: float = 0.0) -> None:
+    """Dibuja una cinta de fuego según su momento de vida `u` (0 al nacer, 1 al apagarse).
+
+    `spine` va de la cola a la cabeza. Con `grow_from_end`, nace en la cabeza (la mano) y la punta
+    avanza hacia la cola; si no, nace en la cola. Al empezar a morir, la forma se congela en `st`."""
+    if len(spine) < 3 or alpha <= 0:
+        return
+    # Al morir no se vuelve transparente: se erosiona con la opacidad que tuvo (el fundido de
+    # salida del motor no cuenta).
+    st["peak"] = max(st.get("peak", 0.0), float(alpha))
+    if u >= DIE_START:
+        alpha = st["peak"]
+    if u >= DIE_START and "frozen" in st:
+        spine, widths = st["frozen"]
+    elif u >= DIE_START:
+        st["frozen"] = (spine.copy(), widths.copy())
+    grow = _ease_out(u / GROW_END)
+    n = len(spine)
+    keep = max(int(np.ceil(n * max(grow, 0.08))), 3)
+    if grow_from_end:
+        part, part_w = spine[n - keep :], widths[n - keep :]
+        # El cuerpo crece detrás de la punta que avanza: la punta (el inicio del tramo) es fina.
+        taper_in = np.clip(np.linspace(0.0, 1.0, keep) * 3.0, 0.15, 1.0) if grow < 1 else 1.0
+    else:
+        part, part_w = spine[:keep], widths[:keep]
+        taper_in = np.clip(np.linspace(1.0, 0.0, keep) * 3.0, 0.15, 1.0) if grow < 1 else 1.0
+    part_w = part_w * (0.55 + 0.45 * grow) * taper_in
+    poly = ribbon(part, part_w, frame_index, tongues, phase)(1.0)
+    if poly is None or len(poly) < 3:
+        return
+    height, width = layer.shape[:2]
+    pad = 4
+    lo = np.floor(poly.min(axis=0)).astype(int) - pad
+    hi = np.ceil(poly.max(axis=0)).astype(int) + pad
+    x0, y0 = max(lo[0], 0), max(lo[1], 0)
+    x1, y1 = min(hi[0], width), min(hi[1], height)
+    if x0 >= x1 or y0 >= y1:
+        return
+    mask = np.zeros((y1 - y0, x1 - x0), np.uint8)
+    cv2.fillPoly(mask, [np.round(poly - [x0, y0]).astype(np.int32)], 255, lineType=cv2.LINE_AA)
+    shape = mask.astype(np.float32) / 255.0
+    die = float(np.clip((u - DIE_START) / (1.0 - DIE_START), 0.0, 1.0))
+    if die > 0:
+        # Cercanía al centro de la cinta (1 en la línea central, 0 en el borde), relativa al grosor
+        # del lugar: así un tramo fino y uno grueso se vacían al mismo ritmo.
+        dist = cv2.distanceTransform(mask, cv2.DIST_L2, 5)
+        local = cv2.dilate(dist, np.ones((25, 25), np.uint8))
+        center = dist / np.maximum(local, 1.0)
+        # Ruido fijo en el lugar (la forma ya está congelada): parte el borde en tramos.
+        seed = int(st.setdefault("seed", frame_index % 97))
+        coarse = _noise(height, width, 0, 31 + seed)[y0:y1, x0:x1]
+        fine = _fine_noise(height, width, 57 + seed)[y0:y1, x0:x1]
+        field = center + 0.35 * coarse + 0.55 * fine  # el ruido fino parte el borde en tramos
+        limit = 1.3 - 1.9 * die  # sube el umbral: primero cae el centro, al final el borde
+        keep_mask = np.clip((limit - field) / 0.08, 0.0, 1.0)
+        shape = shape * keep_mask
+    entry = _FIELDS.get(id(layer))
+    if entry is None:
+        entry = _FIELDS[id(layer)] = {"mask": np.zeros((height, width), np.float32), "field": None, "alpha": 0.0}
+    entry["alpha"] = max(entry["alpha"], float(alpha))
+    np.maximum(entry["mask"][y0:y1, x0:x1], shape, out=entry["mask"][y0:y1, x0:x1])
+    if runtime is not None and die < 0.8:
+        size = float(np.linalg.norm(hi - lo))
+        mid = (lo + hi) / 2
+        fade = 1.0 - die
+        warm(layer, mid, max(size * 2.4, 0.45 * height), GLOW * 0.55, alpha * 0.1 * fade)
+        _LIGHTS["now"].append((mid, size, float(alpha) * fade))
 
 
 # ----- lo que tienen todos los fuegos: escamas, tramos cortados y el borde del cuerpo iluminado -----
@@ -362,6 +459,10 @@ def _fire_whip(body, scale, frame_index, runtime, layer, color, alpha, event) ->
         trail = st.setdefault("trail", [])
         trail.append(point.copy())
         del trail[:-16]
+        u = _phase(runtime, event)
+        if u >= DIE_START and "frozen" in st:  # muriendo: se deshace donde quedó
+            living_ribbon(layer, st["frozen"][0], st["frozen"][1], u, st, frame_index, color, alpha, runtime)
+            continue
         if len(trail) < 3:
             continue
         spine = np.array(trail)
@@ -388,10 +489,9 @@ def _fire_whip(body, scale, frame_index, runtime, layer, color, alpha, event) ->
         smooth = np.stack([np.interp(q, steps, spine[:, 0]), np.interp(q, steps, spine[:, 1])], axis=1)
         # Fina y en punta en la cola, ancha cerca de la mano y otra vez afilada en la cabeza.
         widths = (0.006 + 0.24 * np.sin(np.pi * q) ** 0.9 * q ** 0.9) * scale
-        seed = (event.start_frame if event is not None else 0) * 7 + len(name)
-        for part, part_w in pieces(smooth, widths, seed):
-            cel(layer, ribbon(part, part_w, frame_index, 3.0), color, alpha, runtime)
-        shed(layer, smooth, widths, st, frame_index, scale, color, alpha)
+        living_ribbon(layer, smooth, widths, u, st, frame_index, color, alpha, runtime)
+        if u < DIE_START:
+            shed(layer, smooth, widths, st, frame_index, scale, color, alpha)
         rim(layer, runtime, [point, smooth[len(smooth) // 2]], scale, color, alpha)
         splat(layer, float(point[0]), float(point[1]), 0.12 * scale, CORE * 1.4, alpha * 0.6, runtime.kernels)
     return []
@@ -407,8 +507,18 @@ def _hand_fire(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
         wrist = body.get(f"{side}_wrist")
         if wrist is None:
             continue
-        cel(layer, teardrop(wrist, up, 0.85 * scale * grow, 0.2 * scale, frame_index, k * 1.7), color, alpha, runtime)
         st = _activation(runtime, event, f"hand:{side}", body)
+        u = _phase(runtime, event)
+        flame = teardrop(wrist, up, 0.85 * scale, 0.2 * scale, frame_index, k * 1.7)
+        # Altas, finas y onduladas como en la referencia (seg. 2,5: ~2 veces el ancho de hombros).
+        tall = 1.6 * scale
+        s = np.linspace(0, 1, 28)
+        sway = _smooth_noise(s * 4.0 - frame_index * 0.12, k * 1.7) * 0.18 * tall * s
+        side_n = np.array([-up[1], up[0]])
+        spine = wrist + np.outer(s * tall, up) + np.outer(sway, side_n)
+        widths = 0.13 * scale * np.sin(np.pi * (0.1 + 0.9 * s)) ** 0.7 * (1 - s) ** 0.6 + 0.5
+        living_ribbon(layer, spine, widths, u, st, frame_index, color, alpha, runtime, grow_from_end=False, tongues=5.0, phase=k * 1.7)
+        del flame
         flame_spine = np.array([wrist + up * 0.85 * scale * grow * s for s in np.linspace(0, 1, 8)])
         shed(layer, flame_spine, np.full(8, 0.12 * scale), st, frame_index, scale, color, alpha, 0.6)
         rim(layer, runtime, [wrist], scale, color, alpha, 1.0)
