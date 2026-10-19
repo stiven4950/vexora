@@ -174,6 +174,15 @@ class LightningParams(_Strict):
     tail_frames: int = 6
     sparks: int = 6
     reach: float = 1.4
+    # Estilo de glowing/video_51 (docs/referencias/video_51.md), apagado por defecto:
+    # ribbon: ancho (en torsos) de la cinta quebrada y plana, más gruesa en los quiebres (0 = solo
+    # el trazo); to_edge: el rayo va de la mano al borde del cuadro en la dirección del antebrazo;
+    # trail: cuadros del recorrido de la mano que dibujan un lazo de rayo (0 = sin lazo);
+    # crackle: chispazos cortos que envuelven brazos y cabeza (cantidad).
+    ribbon: float = 0.0
+    to_edge: bool = False
+    trail: int = 0
+    crackle: int = 0
 
 
 class Drawing(_Strict):
@@ -230,6 +239,10 @@ class EffectStyle(_Strict):
     chance: float = 1.0
     # droplets / eyewear / intent_mark: figuras entre las que se sortea por activación.
     shapes: list[str] = Field(default_factory=lambda: ["drop"])
+    # Fuego de maestro fuego (engine/firebend.py): hot = cuerpo blanco con borde amarillo y
+    # resplandor (video_18); cel = amarillo plano y opaco con huecos y lenguas en gancho (video_51);
+    # mix = la combinación (amarillo plano con el núcleo blanco en lo más grueso).
+    look: Literal["hot", "cel", "mix"] = "hot"
     # Si no está vacío, el efecto solo se dibuja en estas personas (p. ej. quienes llevan gafas).
     people: list[str] = Field(default_factory=list)
     # Pareja: cada persona con su color (el color N de `colors` para person_N), también en los

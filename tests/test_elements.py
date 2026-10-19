@@ -1,0 +1,146 @@
+"""Elementos del modo Avatar (glowing/video_51): estilos del fuego, tinte de capítulo y rayo cian."""
+
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+import cv2
+import numpy as np
+
+from vfxglow.director.schema import Effect
+from vfxglow.engine import firebend
+from vfxglow.engine.lightning import _edge_tip, _shard, build_bolt
+from vfxglow.engine.noise import ValueNoise
+
+H, W = 600, 400
+
+
+def _painted(look: str, width: float) -> np.ndarray:
+    """Pinta una cinta recta de medio ancho `width` con el estilo `look` y devuelve la capa."""
+    firebend.set_look(look)
+    layer = np.zeros((H, W, 4), np.float32)
+    spine = np.stack([np.full(40, 200.0), np.linspace(500, 100, 40)], axis=1)
+    poly = np.vstack([spine + [width, 0], (spine - [width, 0])[::-1]])
+    firebend.cel(layer, lambda k: poly, None, 1.0)
+    firebend.flush_fire(layer, 0)
+    firebend.set_look("hot")
+    return layer
+
+
+def _straight(layer: np.ndarray, y: int, x: int) -> np.ndarray:
+    return layer[y, x, :3] / max(float(layer[y, x, 3]), 1e-4)
+
+
+def test_cel_fire_is_flat_yellow_without_white() -> None:
+    layer = _painted("cel", 6.0)
+    color = _straight(layer, 300, 200)
+    assert color[0] > 0.8 and color[1] > 0.8 and color[2] < 0.1  # amarillo, sin azul: nada de blanco
+    assert layer[300, 200, 3] > 0.95  # opaco
+
+
+def test_wide_cel_fire_has_holes() -> None:
+    inside = _painted("cel", 40.0)[120:480, 175:226, 3]
+    assert 0.02 < float((inside < 0.5).mean()) < 0.6  # huecos por donde se ve el fondo, no un colador
+
+
+def test_mix_fire_has_white_core_only_along_thick_parts() -> None:
+    thick = _painted("mix", 14.0)
+    assert _straight(thick, 300, 200)[2] > 0.5  # centro de una cinta gruesa: núcleo blanco
+    assert _straight(thick, 300, 211)[2] < 0.3  # cerca del borde: amarillo
+    thin = _painted("mix", 3.0)
+    assert _straight(thin, 300, 200)[2] < 0.3  # cinta fina: toda amarilla
+
+
+def test_chapter_tint_follows_the_element_and_fades() -> None:
+    st: dict = {}
+    firebend._LIGHTS["bolt"] = -99
+    for i in range(10):
+        fire = firebend._chapter_tint(st, i, True, 1.0)
+    assert fire is not None and fire[0] > fire[2] * 2  # fuego: naranja
+    firebend.note_bolt(10)
+    for i in range(10, 20):
+        firebend.note_bolt(i)
+        both = firebend._chapter_tint(st, i, False, 1.0)
+    assert both is not None and both[2] > both[0] * 2  # rayo: azul
+    for i in range(20, 60):
+        gone = firebend._chapter_tint(st, i, False, 1.0)
+    assert gone is None  # sin elementos, sin tinte
+
+
+def _bolt_effect(**lightning) -> Effect:
+    return Effect.model_validate({
+        "id": "rayo",
+        "type": "lightning",
+        "target": {"kind": "joint", "id": "right_wrist"},
+        "style": {"colors": [[0.35, 0.92, 1.0], [0.1, 0.62, 0.85], [0.0, 0.3, 0.75]], "lightning": lightning},
+    })
+
+
+def test_bolt_ribbon_is_wider_at_the_bends() -> None:
+    effect = _bolt_effect(jitter=0.38)
+    tree = build_bolt(np.array([50.0, 300.0]), np.array([350.0, 300.0]), ValueNoise(3), 2, effect)
+    layer = np.zeros((H, W, 4), np.float32)
+    _shard(layer, tree.segments[0], 30.0, effect, 1.0, 0.0)
+    columns = (layer[..., 3] > 0.5).sum(axis=0)[60:340]
+    assert columns.max() > 2.0 * max(np.median(columns), 1)  # tramos anchos y finos, no un tubo
+    rgb = _straight(layer, *np.unravel_index(np.argmax(layer[..., 3]), layer.shape[:2]))
+    assert rgb[2] > rgb[0]  # cian, no blanco
+
+
+def test_bolt_reaches_the_frame_edge_along_the_forearm() -> None:
+    effect = _bolt_effect(to_edge=True)
+    points = {"right_elbow": np.array([300.0, 300.0]), "right_wrist": np.array([250.0, 300.0])}
+    tip = _edge_tip(points["right_wrist"], effect, points, None, (H, W))
+    assert tip is not None and abs(tip[0]) < 1.0 and abs(tip[1] - 300.0) < 1.0  # borde izquierdo
+
+
+class _Body(dict):
+    prefix = "p0"
+
+
+def _runtime(frames: int = 6) -> SimpleNamespace:
+    return SimpleNamespace(effect=SimpleNamespace(triggers=[]), active_frames=frames, swoosh={}, silhouettes=[], kernels={})
+
+
+def _body() -> _Body:
+    return _Body(
+        nose=np.array([200.0, 160.0]), left_shoulder=np.array([170.0, 200.0]), right_shoulder=np.array([230.0, 200.0]),
+        left_elbow=np.array([150.0, 250.0]), right_elbow=np.array([250.0, 250.0]),
+        left_wrist=np.array([130.0, 300.0]), right_wrist=np.array([300.0, 260.0]),
+        left_hip=np.array([180.0, 320.0]), right_hip=np.array([220.0, 320.0]),
+        left_ankle=np.array([170.0, 480.0]), right_ankle=np.array([230.0, 480.0]),
+    )
+
+
+def _shape_mask(shape: str) -> np.ndarray:
+    firebend.set_look("mix")
+    layer = np.zeros((H, W, 4), np.float32)
+    body = _body()
+    frame = (np.array([200.0, 200.0]), np.array([1.0, 0.0]), np.array([0.0, 1.0]))
+    event = SimpleNamespace(start_frame=0, end_frame=10, kind="right", target="p0:right_wrist", name="fast_swing")
+    firebend.firebend(shape, body, frame, 60.0, 5, _runtime(), layer, None, 1.0, event)
+    firebend.flush_fire(layer, 5)
+    firebend.set_look("hot")
+    return (layer[..., 3] > 0.5).astype(np.uint8)
+
+
+def test_fire_blast_leaves_the_fist_along_the_forearm() -> None:
+    mask = _shape_mask("fire_blast")
+    ys, xs = np.nonzero(mask)
+    assert len(xs) > 2000 and xs.max() > 300 + 60  # sale del puño hacia la derecha (codo → muñeca)
+
+
+def test_fire_carpet_spreads_on_the_floor_around_the_feet() -> None:
+    mask = _shape_mask("fire_carpet")
+    ys, xs = np.nonzero(mask)
+    assert len(xs) > 4000
+    assert xs.max() - xs.min() > 0.6 * W  # ancha: casi todo el cuadro
+    assert ys.max() > 470  # nace en el piso, junto a los pies
+
+
+def test_fire_halo_surrounds_the_body() -> None:
+    mask = _shape_mask("fire_halo")
+    count, _ = cv2.connectedComponents(mask)
+    ys, xs = np.nonzero(mask)
+    assert count - 1 >= 1 and ys.min() < 160 and ys.max() > 400  # pasa sobre la cabeza y baja a los pies
+    assert mask[300, 200] == 0  # el centro (el cuerpo) queda libre: es un aro

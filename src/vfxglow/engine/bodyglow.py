@@ -580,6 +580,9 @@ def draw_adornment(runtime, track, points, frame_index: int, height: int, envelo
     if envelope <= 0:
         return
     names = [n for n in style.shapes if n in ADORNMENTS] or ["necklace"]
+    from vfxglow.engine.firebend import set_look
+
+    set_look(style.look)
     key = event.start_frame if event is not None else frame_index // max(style.palette_every, 1)
     seed = zlib.crc32(f"{style.seed_offset}:adorn:{key}".encode()) & 0xFFFFFFFF
     shape = names[int(np.random.default_rng(seed).integers(0, len(names)))]

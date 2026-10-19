@@ -13,6 +13,8 @@ blanco) con lenguas definidas, no como un brillo difuso.
 - la calavera, el ave, el dragón y la cara que echa fuego están en engine/fire_creatures.py.
 - `avatar_mark`: la flecha de Avatar en la frente y los ojos encendidos (seg. 0 y 15).
 - `body_blaze`: el cuerpo arde: llamas que trepan por brazos y piernas y alas de fuego (seg. 11,2).
+- `fire_blast`, `fire_carpet`, `fire_halo` (glowing/video_51, docs/referencias/video_51.md): chorro
+  de fuego desde el puño, alfombra de lenguas en el piso y aro grande alrededor del cuerpo.
 - `fire_wall`: cierre: en el último tramo una pared de fuego sube desde el piso hasta llenar el
   cuadro, con la flecha y los ojos encendidos (seg. 14,4-16). Se usa en `always`: se cronometra
   sola con `runtime.frame_count` (`style.size` = segundos del cierre).
@@ -26,7 +28,7 @@ import numpy as np
 from vfxglow.engine.critters import TAU, WHITE, _activation, _ease, _phase, _seg
 from vfxglow.engine.raster import fill_polygon, splat
 
-FIREBEND = ("fire_whip", "hand_fire", "candle", "floor_fire", "fire_ring", "avatar_mark", "body_blaze", "fire_wall", "fire_light")
+FIREBEND = ("fire_whip", "hand_fire", "candle", "floor_fire", "fire_ring", "avatar_mark", "body_blaze", "fire_wall", "fire_light", "fire_blast", "fire_carpet", "fire_halo")
 MID = np.array([1.0, 0.66, 0.1], np.float32)
 # La luz que el fuego echa sobre el escenario: naranja profundo (con más verde, al sumarse sobre el
 # cuadro y el bloom, se iba al amarillo).
@@ -82,6 +84,15 @@ WHITE_HOT = np.array([1.0, 0.98, 0.9], np.float32) * 1.35  # apenas sobre 1: con
 RIM = np.array([1.0, 0.78, 0.2], np.float32) * 1.6
 NEAR_GLOW = np.array([1.0, 0.48, 0.04], np.float32)
 FAR_GLOW = np.array([1.0, 0.26, 0.0], np.float32)
+# Estilo cel (glowing/video_51): amarillo puro #FAF71C, plano y opaco, sin núcleo blanco.
+CEL_YELLOW = np.array([0.955, 0.93, 0.011], np.float32)
+# El estilo con que se dibuja el efecto en curso (style.look): hot, cel o mix. Lo fija
+# draw_adornment antes de dibujar; cel() lo anota en el fuego del efecto.
+LOOK = {"now": "hot"}
+
+
+def set_look(look: str) -> None:
+    LOOK["now"] = look if look in ("hot", "cel", "mix") else "hot"
 
 
 def note_frame(frame_index: int) -> None:
@@ -102,7 +113,7 @@ def cel(layer, make, color, alpha: float, runtime=None, heat: float = 1.0, core:
     height, width = layer.shape[:2]
     entry = _FIELDS.get(id(layer))
     if entry is None:
-        entry = _FIELDS[id(layer)] = {"mask": np.zeros((height, width), np.float32), "field": None, "alpha": 0.0}
+        entry = _FIELDS[id(layer)] = {"mask": np.zeros((height, width), np.float32), "field": None, "alpha": 0.0, "look": LOOK["now"]}
     entry["alpha"] = max(entry["alpha"], float(alpha))
     poly = make(1.0)
     if poly is None or len(poly) < 3:
@@ -244,7 +255,15 @@ def draw_embers(layer, pool: dict, frame_index: int, alpha: float) -> None:
         return
     canvas = np.zeros((y1 - y0, x1 - x0, 3), np.float32)
     cover = np.zeros((y1 - y0, x1 - x0), np.float32)
+    comma = pool.get("look", "hot") != "hot"
+    if comma:  # estilo cel/mix: comas amarillas planas (video_51) en vez de rayitas
+        colors = np.where((age < 0.6)[:, None], CEL_YELLOW * 1.1, colors)
     for p, v, c, s, a in zip(pos, vel, colors, pool["size"], shrink):
+        if comma:
+            poly = _comma(p - np.array([x0, y0], np.float32), v, max(s * a * 1.6, 1.5))
+            cv2.fillPoly(canvas, [poly], (float(c[0]), float(c[1]), float(c[2])), cv2.LINE_AA)
+            cv2.fillPoly(cover, [poly], float(a), cv2.LINE_AA)
+            continue
         tail = p - v * 1.6  # rayita orientada por la velocidad
         p0 = (int(round(tail[0] - x0)), int(round(tail[1] - y0)))
         p1 = (int(round(p[0] - x0)), int(round(p[1] - y0)))
@@ -256,6 +275,15 @@ def draw_embers(layer, pool: dict, frame_index: int, alpha: float) -> None:
     dst = layer[y0:y1, x0:x1]
     dst[..., :3] += canvas * a
     dst[..., 3] = 1.0 - (1.0 - dst[..., 3]) * (1.0 - np.clip(cover, 0, 1) * a)
+
+
+def _comma(center: np.ndarray, vel: np.ndarray, radius: float) -> np.ndarray:
+    """Una coma (medialuna con punta) que se curva según la velocidad de la brasa."""
+    heading = float(np.arctan2(vel[1], vel[0])) if float(np.linalg.norm(vel)) > 1e-3 else -np.pi / 2
+    a = heading + np.linspace(-1.6, 1.6, 9)
+    outer = np.stack([np.cos(a), np.sin(a)], axis=1) * radius
+    inner = np.stack([np.cos(a), np.sin(a)], axis=1) * radius * np.linspace(0.95, 0.35, 9)[:, None] - np.array([np.cos(heading), np.sin(heading)]) * radius * 0.35
+    return np.round(np.vstack([outer, inner[::-1]]) + center).astype(np.int32)
 
 
 def flush_fire(layer, frame_index: int, u: float | None = None, st: dict | None = None, embers: dict | None = None) -> None:
@@ -295,8 +323,16 @@ def flush_fire(layer, frame_index: int, u: float | None = None, st: dict | None 
     small = cv2.resize(m, (max((x1 - x0) // 4, 1), max((y1 - y0) // 4, 1)), interpolation=cv2.INTER_AREA)
     far = cv2.resize(cv2.GaussianBlur(small, (0, 0), max(0.045 * height / 4, 1.0)), (x1 - x0, y1 - y0), interpolation=cv2.INTER_LINEAR)
     a = np.float32(min(entry["alpha"], 1.0) * FIRE_INTENSITY)
-    rgb = WHITE_HOT * m[..., None] + RIM * band[..., None] + NEAR_GLOW * (near * 0.375)[..., None] + FAR_GLOW * (far * 0.3)[..., None]
-    cover = np.clip(m + band + near * 0.3 + far * 0.2, 0.0, 1.0)
+    look = entry.get("look", "hot")
+    if look == "hot":
+        rgb = WHITE_HOT * m[..., None] + RIM * band[..., None] + NEAR_GLOW * (near * 0.375)[..., None] + FAR_GLOW * (far * 0.3)[..., None]
+        cover = np.clip(m + band + near * 0.3 + far * 0.2, 0.0, 1.0)
+    else:
+        m, body = _cel_body(m, look, frame_index, (x0, y0, x1, y1), (height, width))
+        a = np.float32(min(entry["alpha"], 1.0))  # el plano no se atenúa: es opaco
+        glow = 0.12 if look == "cel" else 0.3  # el cel casi no irradia: el brillo lo pone el tinte del cuadro
+        rgb = body * m[..., None] + NEAR_GLOW * (near * glow)[..., None] + FAR_GLOW * (far * glow * 0.8)[..., None]
+        cover = np.clip(m + near * glow * 0.8 + far * glow * 0.5, 0.0, 1.0)
     dst = layer[y0:y1, x0:x1]
     dst[..., :3] += rgb * a
     dst[..., 3] = 1.0 - (1.0 - dst[..., 3]) * (1.0 - cover * a)
@@ -311,8 +347,31 @@ def flush_fire(layer, frame_index: int, u: float | None = None, st: dict | None 
         # Pocas: una brasa cada ~14.000 px de fuego por cuadro; al morir, tres veces más (se deshace).
         dying = u is not None and u > DIE_START
         rate = min(float(m.sum()) / 22000.0 * (3.0 if dying else 1.0), 4.0)
+        embers["look"] = look
         emit_embers(embers, m, (x0, y0), frame_index, rate, height)
         draw_embers(layer, embers, frame_index, 1.0)
+
+
+def _cel_body(m: np.ndarray, look: str, frame_index: int, box: tuple[int, int, int, int], size: tuple[int, int]) -> tuple[np.ndarray, np.ndarray]:
+    """Máscara y color del fuego plano (cel y mix). Cel: amarillo puro con huecos en lo ancho, por
+    donde se ve el fondo (glowing/video_51). Mix: el mismo amarillo con el núcleo blanco de
+    video_18 solo a lo largo del centro de las partes gruesas."""
+    x0, y0, x1, y1 = box
+    height, width = size
+    dist = cv2.distanceTransform((m > 0.5).astype(np.uint8), cv2.DIST_L2, 3)
+    if look == "cel":
+        # Huecos: manchas del ruido que sube con el fuego, solo donde la llama es ancha.
+        drift = _noise(height, width, frame_index, 41)[y0:y1, x0:x1]
+        wide = np.clip((dist - 0.012 * height) / (0.008 * height), 0.0, 1.0)
+        hole = np.clip((drift - 0.3) / 0.08, 0.0, 1.0) * wide
+        return m * (1.0 - hole), np.broadcast_to(CEL_YELLOW, m.shape + (3,))
+    local = cv2.dilate(dist, np.ones((25, 25), np.uint8))
+    center = dist / np.maximum(local, 1.0)  # 1 sobre la línea central de cada parte
+    # Solo en grosores medios (cintas, chorros, gotas): en las masas muy anchas (alfombra, pared)
+    # un núcleo blanco grande se veía como plastilina.
+    thick = np.clip((dist - 0.008 * height) / (0.008 * height), 0.0, 1.0) * np.clip((0.04 * height - dist) / (0.015 * height), 0.0, 1.0)
+    core = (np.clip((center - 0.75) / 0.2, 0.0, 1.0) * thick)[..., None]  # una franja fina por el centro
+    return m, CEL_YELLOW * (1.0 - core) + WHITE_HOT * core
 
 
 def erode(shape: np.ndarray, binary: np.ndarray, die: float, seed: int, box: tuple[int, int, int, int], size: tuple[int, int]) -> np.ndarray:
@@ -383,9 +442,19 @@ def ribbon(spine: np.ndarray, widths: np.ndarray, frame_index: int, tongues: flo
 
     up_notch, low_notch = notch(phase * 0.37 + 0.2), notch(phase * 0.73 + 0.6)
 
+    hook = LOOK["now"] != "hot"
+    if hook:
+        # Estilo cel/mix (video_51): lenguas más altas y afiladas que se inclinan hacia la cola,
+        # todas hacia el mismo lado, como ganchos.
+        flick = 1.0 + 1.5 * np.maximum(0.0, _smooth_noise(t * tongues * 2.4 - drift, phase + 1.0)) ** 2.5
+        tangent = np.gradient(spine, axis=0)
+        tangent /= np.maximum(np.linalg.norm(tangent, axis=1, keepdims=True), 1e-6)
+
     def make(k: float):
         w = widths * k
         upper = spine + normal * (w * flick * up_notch)[:, None]
+        if hook:
+            upper = upper - tangent * (w * (flick - 1.0) * 0.9)[:, None]
         lower = spine - normal * (w * (0.7 + 0.3 * calm) * low_notch)[:, None]
         return np.vstack([upper, lower[::-1]])
 
@@ -610,7 +679,7 @@ def living_ribbon(layer, spine: np.ndarray, widths: np.ndarray, u: float, st: di
         shape = erode(shape, mask, die, int(st.setdefault("seed", frame_index % 97)), (x0, y0, x1, y1), (height, width))
     entry = _FIELDS.get(id(layer))
     if entry is None:
-        entry = _FIELDS[id(layer)] = {"mask": np.zeros((height, width), np.float32), "field": None, "alpha": 0.0}
+        entry = _FIELDS[id(layer)] = {"mask": np.zeros((height, width), np.float32), "field": None, "alpha": 0.0, "look": LOOK["now"]}
     entry["alpha"] = max(entry["alpha"], float(alpha))
     entry["alive"] = True  # ya trae su propia vida: flush_fire no lo vuelve a erosionar
     np.maximum(entry["mask"][y0:y1, x0:x1], shape, out=entry["mask"][y0:y1, x0:x1])
@@ -847,6 +916,124 @@ def _candle(body, frame, scale, frame_index, runtime, layer, color, alpha, event
     return []
 
 
+# ----- formas de video_51: chorro, alfombra y aro grande -----
+
+
+def _unit(scale: float, layer) -> float:
+    """Unidad de las formas grandes: la escala del cuerpo, pero no menos del 7% del alto del
+    cuadro. En video_51 la persona ocupa poco del cuadro (y agachada o de perfil sus hombros miden
+    casi nada), y el fuego igual cruza la pantalla: se dibuja en proporción al cuadro."""
+    return max(float(scale), 0.07 * layer.shape[0])
+
+
+def _fire_blast(body, scale, frame_index, runtime, layer, color, alpha, event) -> list:
+    """Chorro de fuego desde el puño (video_51, seg. 3,0 y 3,6): sale en la dirección del
+    antebrazo, se abre hacia la punta, sube un poco al final (el aire caliente) y termina en
+    lenguas que se enroscan."""
+    found = _wrist(body, event, scale)
+    if found is None:
+        return []
+    name, wrist = found
+    st = _activation(runtime, event, f"blast:{name}", body)
+    elbow = body.get(name.replace("wrist", "elbow").replace("ankle", "knee"))
+    if elbow is not None and float(np.linalg.norm(wrist - elbow)) > 0.2 * scale:
+        aim = (wrist - elbow) / float(np.linalg.norm(wrist - elbow))
+        old = st.get("aim")
+        aim = aim if old is None else old * 0.7 + aim * 0.3  # el chorro sigue al brazo con inercia
+        st["aim"] = aim / max(float(np.linalg.norm(aim)), 1e-6)
+    aim = st.get("aim")
+    if aim is None:
+        return []
+    u = _phase(runtime, event)
+    scale = _unit(scale, layer)
+    side = np.array([-aim[1], aim[0]])
+    length = 3.8 * scale
+    q = np.linspace(0, 1, 36)
+    wave = _smooth_noise(q * 3.0 - frame_index * 0.2, 3.0) * 0.1 * length * q
+    spine = wrist + np.outer(q * length, aim) + np.outer(wave, side) + np.outer(q ** 2 * 0.22 * length, [0.0, -1.0])
+    widths = (0.04 + 0.7 * q ** 0.9 * (1.0 - 0.45 * q ** 4)) * scale
+    living_ribbon(layer, spine, widths, u, st, frame_index, color, alpha, runtime, grow_from_end=False, tongues=6.0, phase=1.3)
+    if u < DIE_START:
+        grow = _ease_out(u / GROW_END)
+        tip = spine[-1]
+        for j, turn in enumerate((-0.9, -0.45, 0.0, 0.45, 0.9)):  # la punta se abre en abanico de lenguas
+            d = aim * np.cos(turn) + side * np.sin(turn) + np.array([0.0, -0.5])
+            d /= float(np.linalg.norm(d))
+            base = tip - aim * 0.2 * length + side * (j - 2) * 0.28 * scale
+            tall = (1.1 - 0.25 * abs(j - 2)) * scale * grow
+            cel(layer, teardrop(base, d, tall, 0.17 * scale * grow + 0.5, frame_index, j * 2.1, 0.35 * np.sign(turn or 1.0)), color, alpha, runtime)
+        shed(layer, spine, widths, st, frame_index, scale, color, alpha, 1.5)
+    rim(layer, runtime, [wrist, spine[len(spine) // 3]], scale, color, alpha)
+    return []
+
+
+def _fire_carpet(body, scale, frame_index, runtime, layer, color, alpha, event) -> list:
+    """Alfombra de fuego en el piso (video_51, seg. 2,7): gotas gordas en gancho repartidas al azar
+    sobre una elipse del piso alrededor de los pies, todas inclinadas hacia el mismo lado y más
+    grandes cuanto más cerca de la cámara (más abajo en el cuadro). Al encimarse forman una masa
+    irregular, y los espacios entre ellas son los huecos por donde se ve el piso."""
+    floor = _floor(body, scale)
+    feet = [p for p in (body.get(j) for j in ("left_ankle", "right_ankle")) if p is not None]
+    if floor is None or not feet:
+        return []
+    st = _activation(runtime, event, "carpet", body)
+    if "x" not in st:
+        st["x"] = float(np.mean([f[0] for f in feet]))
+        st["lean"] = 1.0 if (st["x"] < layer.shape[1] / 2) else -1.0  # hacia el centro del cuadro
+    u = _phase(runtime, event)
+    scale = _unit(scale, layer)
+    grow = _ease_out(u / GROW_END) if u < DIE_START else 1.0
+    rng = np.random.default_rng(int(st["x"]) * 7 + 3)
+    count = 22
+    # Puntos al azar en la elipse (más densos cerca de los pies), ordenados de atrás hacia adelante.
+    r = np.sqrt(rng.random(count)) * (0.35 + 0.65 * grow)
+    t = rng.uniform(0, TAU, count)
+    xs = st["x"] + np.cos(t) * r * 4.6 * scale
+    ys = floor + np.sin(t) * r * 1.0 * scale + 0.3 * scale
+    for j in np.argsort(ys):
+        depth = 0.75 + 0.45 * float(np.sin(t[j]) * r[j])  # adelante (más abajo), más grande
+        near = 1.0 - float(r[j])
+        tall = (2.6 + 3.8 * near) * depth * scale * grow * (0.6 + 0.6 * rng.random())
+        tall *= 1.0 + 0.15 * _smooth_noise(np.array([frame_index * 0.12 + j * 1.7]), 5.0)[0]
+        d = np.array([0.35 * st["lean"], -1.0])
+        d /= float(np.linalg.norm(d))
+        curl = (0.25 + 0.25 * rng.random()) * st["lean"]
+        cel(layer, teardrop(np.array([xs[j], ys[j]]), d, tall, (0.3 + 0.18 * rng.random()) * depth * scale, frame_index, j * 1.1, curl), color, alpha, runtime, 0.4)
+    return []
+
+
+def _fire_halo(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
+    """Aro grande de fuego alrededor del cuerpo (video_51, seg. 2,4): nace en un pie, sube por un
+    lado, pasa sobre la cabeza y baja por el otro, abierto arriba de un lado; lenguas hacia afuera."""
+    joints = [p for p in (body.get(j) for j in ("nose", "left_wrist", "right_wrist", "left_hip", "right_hip", "left_ankle", "right_ankle")) if p is not None]
+    if len(joints) < 3:
+        return []
+    st = _activation(runtime, event, "halo", body)
+    u = _phase(runtime, event)
+    # El centro del cuerpo, con inercia; el tamaño sale de la escala (en una voltereta la nariz y
+    # los pies no dicen dónde está arriba).
+    now = np.mean(joints, axis=0)
+    st["mid"] = now if "mid" not in st else st["mid"] * 0.8 + now * 0.2
+    mid = st["mid"]
+    scale = _unit(scale, layer)
+    ry = min(3.8 * scale, 0.33 * layer.shape[0])  # en video_51, un tercio del alto del cuadro
+    rx = ry * 0.68
+    turn = st.setdefault("turn", 1.0 if frame_index % 2 else -1.0)
+    a = np.pi / 2 + turn * np.linspace(0.15, 0.15 + 1.7 * np.pi, 48)  # de abajo, 306° de vuelta
+    spine = mid + np.stack([np.cos(a) * rx, np.sin(a) * ry], axis=1)
+    q = np.linspace(0, 1, 48)
+    widths = (0.03 + 0.6 * np.sin(np.pi * q) ** 0.7) * scale
+    if float(np.mean(np.sum(_normals(spine) * (spine - mid), axis=1))) < 0:  # lenguas hacia afuera
+        spine, widths = spine[::-1], widths[::-1]
+        grow_from_end = True
+    else:
+        grow_from_end = False
+    living_ribbon(layer, spine, widths, u, st, frame_index, color, alpha, runtime, grow_from_end=grow_from_end, tongues=8.0, phase=2.7)
+    if u < DIE_START:
+        shed(layer, spine, widths, st, frame_index, scale, color, alpha, 1.5)
+    return []
+
+
 # ----- piso y aro -----
 
 
@@ -999,6 +1186,36 @@ def _fire_wall(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
 # que el fuego resalte (lo que el animador hace al subexponer el plano).
 LIGHT_TINT = np.array([1.6, 0.74, 0.32], np.float32)
 LIGHT_DARK = 0.74
+# Tinte de capítulo (glowing/video_51): mientras hay un elemento en pantalla, todo el cuadro toma
+# su color, como una gelatina sobre la luz. Medido como multiplicador lineal (RGB) de las partes
+# claras del fondo (pared): el fuego deja el rojo y baja verde y azul; el rayo casi apaga el rojo.
+ELEMENT_TINT = {
+    "fire": np.array([1.0, 0.5, 0.26], np.float32),
+    "bolt": np.array([0.18, 0.66, 1.05], np.float32),
+}
+
+
+def note_bolt(frame_index: int) -> None:
+    """Un rayo dibujado en este cuadro: el plano se tiñe de cian (lo lee fire_light)."""
+    _LIGHTS["bolt"] = frame_index
+
+
+def bolt_active(frame_index: int) -> bool:
+    """Si hubo un rayo en este cuadro o en el anterior (el capítulo es de rayo, no de fuego)."""
+    return _LIGHTS.get("bolt", -99) >= frame_index - 1
+
+
+def _chapter_tint(st: dict, frame_index: int, fire: bool, strength: float) -> np.ndarray | None:
+    """Multiplicador uniforme del cuadro según qué elementos hay: entra en ~3 cuadros y sale en
+    ~8 (no parpadea entre un golpe y el siguiente)."""
+    seen = {"fire": fire, "bolt": _LIGHTS.get("bolt", -99) >= frame_index - 1}
+    mult = np.ones(3, np.float32)
+    for kind, on in seen.items():
+        p = st.get(kind, 0.0)
+        p += ((1.0 if on else 0.0) - p) * (0.35 if on else 0.12)
+        st[kind] = p
+        mult *= 1.0 + np.float32(p * strength) * (ELEMENT_TINT[kind] - 1.0)
+    return None if float(np.abs(mult - 1.0).max()) < 0.01 else mult
 
 
 def _fire_light(runtime, layer, frame_index: int, alpha: float) -> list:
@@ -1008,9 +1225,14 @@ def _fire_light(runtime, layer, frame_index: int, alpha: float) -> list:
     st["frame"] = frame_index
     note_frame(frame_index)
     lights = _LIGHTS["prev"] + _LIGHTS["now"]
-    if not lights:
-        return []
+    # style.size: fuerza del tinte de capítulo (0 = solo la luz local, 1 = el de video_51).
+    chapter = _chapter_tint(st, frame_index, bool(lights), float(runtime.effect.style.size))
     height, width = layer.shape[:2]
+    if not lights:
+        if chapter is not None:
+            layer[..., :3] = chapter * np.float32(alpha)
+            layer[..., 3] = np.float32(alpha)
+        return []
     step = 8  # la luz es suave: se calcula a 1/8 y se agranda
     gy, gx = np.mgrid[0:height:step, 0:width:step].astype(np.float32)
     light = np.zeros(gx.shape, np.float32)
@@ -1023,8 +1245,14 @@ def _fire_light(runtime, layer, frame_index: int, alpha: float) -> list:
     light = cv2.resize(np.clip(light, 0.0, 1.0), (width, height), interpolation=cv2.INTER_LINEAR)
     cover = np.float32(min(amount / (0.5 * height), 1.0) * 0.45 * alpha)
     straight = LIGHT_DARK * (1.0 - light)[..., None] + LIGHT_TINT * light[..., None]
-    layer[..., :3] = straight * cover
-    layer[..., 3] = cover
+    if chapter is None:
+        layer[..., :3] = straight * cover
+        layer[..., 3] = cover
+        return []
+    # Con tinte de capítulo la capa cubre todo: luz local (mezclada según su cobertura) por el tinte.
+    a = np.float32(alpha)
+    layer[..., :3] = (1.0 + (straight - 1.0) * cover) * chapter * a
+    layer[..., 3] = a
     return []
 
 
@@ -1048,4 +1276,10 @@ def firebend(shape, body, frame, scale, frame_index, runtime, layer, color, alph
         return _body_blaze(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape == "fire_wall":
         return _fire_wall(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape == "fire_blast":
+        return _fire_blast(body, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape == "fire_carpet":
+        return _fire_carpet(body, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape == "fire_halo":
+        return _fire_halo(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     return []
