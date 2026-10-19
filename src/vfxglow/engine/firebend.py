@@ -121,7 +121,7 @@ def cel(layer, make, color, alpha: float, runtime=None, heat: float = 1.0, core:
         lo, hi = poly.min(axis=0), poly.max(axis=0)
         size = float(np.linalg.norm(hi - lo))
         mid = (lo + hi) / 2
-        warm(layer, mid, max(size * 2.4, 0.45 * height), GLOW * 0.55, alpha * 0.1 * heat)  # ancha pero transparente
+        warm(layer, mid, max(size * 2.4, 0.45 * height), GLOW * 0.55, alpha * 0.07 * heat)  # ancha pero transparente
         _LIGHTS["now"].append((mid, size, float(alpha) * heat))
 
 
@@ -144,11 +144,17 @@ def _noise(height: int, width: int, frame_index: int, seed: int) -> np.ndarray:
     return tex[height - shift : 2 * height - shift]
 
 
-def flush_fire(layer, frame_index: int) -> None:
-    """Pinta el fuego acumulado del efecto: cuerpo blanco, borde amarillo y resplandor de color."""
+def flush_fire(layer, frame_index: int, u: float | None = None, st: dict | None = None) -> None:
+    """Pinta el fuego acumulado del efecto: cuerpo blanco, borde amarillo y resplandor de color.
+    Con `u` (vida del efecto), lo que no trae vida propia muere igual que las cintas: se vacía
+    desde el centro en trozos, con la opacidad que tuvo (no se vuelve transparente)."""
     entry = _FIELDS.pop(id(layer), None)
     if entry is None:
         return
+    if st is not None and u is not None and not entry.get("alive"):
+        st["peak"] = max(st.get("peak", 0.0), entry["alpha"])
+        if u >= DIE_START:
+            entry["alpha"] = st["peak"]
     mask = entry["mask"]
     height, width = mask.shape
     if entry["field"] is not None:  # las masas: campo suave cortado con un umbral, con el borde comido
@@ -163,17 +169,38 @@ def flush_fire(layer, frame_index: int) -> None:
     x0, x1 = max(xs.min() - pad, 0), min(xs.max() + pad + 1, width)
     y0, y1 = max(ys.min() - pad, 0), min(ys.max() + pad + 1, height)
     m = mask[y0:y1, x0:x1]
-    rim_blur = cv2.GaussianBlur(m, (0, 0), max(0.0035 * height, 0.8))
-    band = np.clip((rim_blur - m) * 2.2, 0.0, 1.0)  # borde amarillo: justo afuera del blanco, fino
+    if st is not None and u is not None and not entry.get("alive") and u > DIE_START:
+        die = float(np.clip((u - DIE_START) / (1.0 - DIE_START), 0.0, 1.0))
+        m = erode(m, (m > 0.5).astype(np.uint8), die, int(st.setdefault("seed", frame_index % 97)), (x0, y0, x1, y1), (height, width))
+    # Borde amarillo corto y bien difuminado (seg. 3,17): una caída suave justo afuera del blanco.
+    rim_blur = cv2.GaussianBlur(m, (0, 0), max(0.005 * height, 1.0))
+    band = np.clip(rim_blur * (1.0 - m) * 1.6, 0.0, 1.0)
     near = cv2.GaussianBlur(m, (0, 0), max(0.014 * height, 1.0)) * (1.0 - m)
     small = cv2.resize(m, (max((x1 - x0) // 4, 1), max((y1 - y0) // 4, 1)), interpolation=cv2.INTER_AREA)
     far = cv2.resize(cv2.GaussianBlur(small, (0, 0), max(0.045 * height / 4, 1.0)), (x1 - x0, y1 - y0), interpolation=cv2.INTER_LINEAR)
     a = np.float32(min(entry["alpha"], 1.0))
-    rgb = WHITE_HOT * m[..., None] + RIM * band[..., None] + NEAR_GLOW * (near * 0.7)[..., None] + FAR_GLOW * (far * 0.45)[..., None]
-    cover = np.clip(m + band + near * 0.55 + far * 0.3, 0.0, 1.0)
+    rgb = WHITE_HOT * m[..., None] + RIM * band[..., None] + NEAR_GLOW * (near * 0.5)[..., None] + FAR_GLOW * (far * 0.3)[..., None]
+    cover = np.clip(m + band + near * 0.4 + far * 0.2, 0.0, 1.0)
     dst = layer[y0:y1, x0:x1]
     dst[..., :3] += rgb * a
     dst[..., 3] = 1.0 - (1.0 - dst[..., 3]) * (1.0 - cover * a)
+
+
+def erode(shape: np.ndarray, binary: np.ndarray, die: float, seed: int, box: tuple[int, int, int, int], size: tuple[int, int]) -> np.ndarray:
+    """La muerte de una llama: se vacía desde el centro y el borde que queda se parte en tramos.
+    `shape` es la máscara (0-1) del recuadro `box` (x0, y0, x1, y1) de un cuadro de `size` (alto, ancho)."""
+    if die <= 0:
+        return shape
+    x0, y0, x1, y1 = box
+    height, width = size
+    dist = cv2.distanceTransform(binary, cv2.DIST_L2, 5)
+    local = cv2.dilate(dist, np.ones((25, 25), np.uint8))
+    center = dist / np.maximum(local, 1.0)  # 1 en el centro de cada parte, 0 en su borde
+    coarse = _noise(height, width, 0, 31 + seed)[y0:y1, x0:x1]
+    fine = _fine_noise(height, width, 57 + seed)[y0:y1, x0:x1]
+    field = center + 0.35 * coarse + 0.55 * fine  # el ruido fino parte el borde en tramos
+    limit = 1.3 - 1.9 * die  # sube el umbral: primero cae el centro, al final el borde
+    return shape * np.clip((limit - field) / 0.08, 0.0, 1.0)
 
 
 def _fine_noise(height: int, width: int, seed: int) -> np.ndarray:
@@ -314,29 +341,18 @@ def living_ribbon(layer, spine: np.ndarray, widths: np.ndarray, u: float, st: di
     shape = mask.astype(np.float32) / 255.0
     die = float(np.clip((u - DIE_START) / (1.0 - DIE_START), 0.0, 1.0))
     if die > 0:
-        # Cercanía al centro de la cinta (1 en la línea central, 0 en el borde), relativa al grosor
-        # del lugar: así un tramo fino y uno grueso se vacían al mismo ritmo.
-        dist = cv2.distanceTransform(mask, cv2.DIST_L2, 5)
-        local = cv2.dilate(dist, np.ones((25, 25), np.uint8))
-        center = dist / np.maximum(local, 1.0)
-        # Ruido fijo en el lugar (la forma ya está congelada): parte el borde en tramos.
-        seed = int(st.setdefault("seed", frame_index % 97))
-        coarse = _noise(height, width, 0, 31 + seed)[y0:y1, x0:x1]
-        fine = _fine_noise(height, width, 57 + seed)[y0:y1, x0:x1]
-        field = center + 0.35 * coarse + 0.55 * fine  # el ruido fino parte el borde en tramos
-        limit = 1.3 - 1.9 * die  # sube el umbral: primero cae el centro, al final el borde
-        keep_mask = np.clip((limit - field) / 0.08, 0.0, 1.0)
-        shape = shape * keep_mask
+        shape = erode(shape, mask, die, int(st.setdefault("seed", frame_index % 97)), (x0, y0, x1, y1), (height, width))
     entry = _FIELDS.get(id(layer))
     if entry is None:
         entry = _FIELDS[id(layer)] = {"mask": np.zeros((height, width), np.float32), "field": None, "alpha": 0.0}
     entry["alpha"] = max(entry["alpha"], float(alpha))
+    entry["alive"] = True  # ya trae su propia vida: flush_fire no lo vuelve a erosionar
     np.maximum(entry["mask"][y0:y1, x0:x1], shape, out=entry["mask"][y0:y1, x0:x1])
     if runtime is not None and die < 0.8:
         size = float(np.linalg.norm(hi - lo))
         mid = (lo + hi) / 2
         fade = 1.0 - die
-        warm(layer, mid, max(size * 2.4, 0.45 * height), GLOW * 0.55, alpha * 0.1 * fade)
+        warm(layer, mid, max(size * 2.4, 0.45 * height), GLOW * 0.55, alpha * 0.07 * fade)
         _LIGHTS["now"].append((mid, size, float(alpha) * fade))
 
 
@@ -470,7 +486,7 @@ def _fire_whip(body, scale, frame_index, runtime, layer, color, alpha, event) ->
             continue
         # Exagerado como en la referencia: el látigo dobla el recorrido real (desde la mano hacia
         # atrás) y la llama se adelanta a la mano, como si la lanzara.
-        spine = spine[-1] + (spine - spine[-1]) * WHIP_SCALE
+        spine = spine[-1] + (spine - spine[-1]) * WHIP_SCALE * (1.4 if len(limbs) == 2 else 1.0)
         ahead = spine[-1] - spine[-3]
         spine = np.vstack([spine, spine[-1] + ahead * 0.8])
         # Medialuna como en la referencia: se arquea hacia el lado en que gira el golpe (aunque el
@@ -488,7 +504,8 @@ def _fire_whip(body, scale, frame_index, runtime, layer, color, alpha, event) ->
         steps /= max(steps[-1], 1e-6)
         smooth = np.stack([np.interp(q, steps, spine[:, 0]), np.interp(q, steps, spine[:, 1])], axis=1)
         # Fina y en punta en la cola, ancha cerca de la mano y otra vez afilada en la cabeza.
-        widths = (0.006 + 0.24 * np.sin(np.pi * q) ** 0.9 * q ** 0.9) * scale
+        big = 1.5 if len(limbs) == 2 else 1.0  # con las dos manos, medialunas grandes (seg. 0,8)
+        widths = (0.006 + 0.24 * big * np.sin(np.pi * q) ** 0.9 * q ** 0.9) * scale
         living_ribbon(layer, smooth, widths, u, st, frame_index, color, alpha, runtime)
         if u < DIE_START:
             shed(layer, smooth, widths, st, frame_index, scale, color, alpha)
@@ -709,7 +726,7 @@ def _fire_light(runtime, layer, frame_index: int, alpha: float) -> list:
         light += np.clip(1.0 - d2, 0.0, 1.0) ** 2 * np.float32(a)
         amount += size * a
     light = cv2.resize(np.clip(light, 0.0, 1.0), (width, height), interpolation=cv2.INTER_LINEAR)
-    cover = np.float32(min(amount / (0.5 * height), 1.0) * 0.6 * alpha)
+    cover = np.float32(min(amount / (0.5 * height), 1.0) * 0.45 * alpha)
     straight = LIGHT_DARK * (1.0 - light)[..., None] + LIGHT_TINT * light[..., None]
     layer[..., :3] = straight * cover
     layer[..., 3] = cover

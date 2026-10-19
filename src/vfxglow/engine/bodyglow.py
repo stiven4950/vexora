@@ -600,7 +600,11 @@ def draw_adornment(runtime, track, points, frame_index: int, height: int, envelo
             strokes += neon_layers(curve, color, line, envelope * grow)
     from vfxglow.engine.firebend import flush_fire
 
-    flush_fire(layer, frame_index)  # el fuego acumulado como campo se vuelve sus tres capas
+    from vfxglow.engine.critters import _phase
+
+    # El fuego acumulado se pinta (cuerpo blanco, borde amarillo, resplandor) y muere con la vida
+    # del efecto.
+    flush_fire(layer, frame_index, _phase(runtime, event), runtime.swoosh.setdefault("_firelife", {}))
     stroke_batch(layer, strokes, style.hdr_gain)
 
 
