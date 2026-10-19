@@ -285,13 +285,13 @@ def flush_fire(layer, frame_index: int, u: float | None = None, st: dict | None 
         m = erode(m, (m > 0.5).astype(np.uint8), die, int(st.setdefault("seed", frame_index % 97)), (x0, y0, x1, y1), (height, width))
     # Borde amarillo corto y bien difuminado (seg. 3,17): una caída suave justo afuera del blanco.
     rim_blur = cv2.GaussianBlur(m, (0, 0), max(0.005 * height, 1.0))
-    band = np.clip(rim_blur * (1.0 - m) * 1.6, 0.0, 1.0) * 0.85  # 15% más suave que al principio
+    band = np.clip(rim_blur * (1.0 - m) * 1.6, 0.0, 1.0) * 0.64  # 15% y luego 25% más suave que al principio
     near = cv2.GaussianBlur(m, (0, 0), max(0.014 * height, 1.0)) * (1.0 - m)
     small = cv2.resize(m, (max((x1 - x0) // 4, 1), max((y1 - y0) // 4, 1)), interpolation=cv2.INTER_AREA)
     far = cv2.resize(cv2.GaussianBlur(small, (0, 0), max(0.045 * height / 4, 1.0)), (x1 - x0, y1 - y0), interpolation=cv2.INTER_LINEAR)
     a = np.float32(min(entry["alpha"], 1.0))
-    rgb = WHITE_HOT * m[..., None] + RIM * band[..., None] + NEAR_GLOW * (near * 0.5)[..., None] + FAR_GLOW * (far * 0.3)[..., None]
-    cover = np.clip(m + band + near * 0.4 + far * 0.2, 0.0, 1.0)
+    rgb = WHITE_HOT * m[..., None] + RIM * band[..., None] + NEAR_GLOW * (near * 0.375)[..., None] + FAR_GLOW * (far * 0.3)[..., None]
+    cover = np.clip(m + band + near * 0.3 + far * 0.2, 0.0, 1.0)
     dst = layer[y0:y1, x0:x1]
     dst[..., :3] += rgb * a
     dst[..., 3] = 1.0 - (1.0 - dst[..., 3]) * (1.0 - cover * a)
