@@ -1,0 +1,113 @@
+catalogo: avatar
+momentos:
+- seg: 0.0
+  opcion: manos
+  accion: spotlight
+  dur: 0.7
+  exacto: true
+  color: '#ff6a00'
+  nota: enciende las manos al juntarlas en la penumbra antes de saltar
+- seg: 0.7
+  opcion: latigos
+  accion: arms_open
+  dur: 0.5
+  exacto: true
+  color: '#ff6a00'
+  nota: dos arcos de fuego acompañan el impulso de los brazos
+- seg: 1.2
+  opcion: remolinos
+  accion: jump
+  dur: 0.7
+  exacto: true
+  color: '#ff6a00'
+  nota: estalla en el split aéreo con dos medialunas de fuego bajo las piernas
+- seg: 1.9
+  opcion: golpe_piso
+  accion: landing
+  dur: 0.9
+  exacto: true
+  color: '#ff6a00'
+  nota: el fuego choca contra las tablas y se abre en olas al caer en sentadilla profunda
+- seg: 2.9
+  opcion: latigo
+  accion: fast_swing
+  dur: 0.9
+  exacto: true
+  color: '#ff6a00'
+  nota: corte lateral de fuego con el brazo derecho
+- seg: 4.03
+  opcion: ave
+  accion: raise_hand
+  dur: 1.0
+  exacto: true
+  figura: fire_serpent
+  color: '#ff6a00'
+  nota: al estirar el brazo hacia el reflector sube una serpiente de fuego buscando
+    la luz
+- seg: 4.77
+  opcion: latigo
+  accion: fast_swing
+  dur: 0.8
+  exacto: true
+  color: '#ff6a00'
+  nota: baja el brazo de golpe descargando un látigo de fuego hacia el piso
+- seg: 5.57
+  opcion: llama
+  accion: raise_hand
+  dur: 1.8
+  exacto: true
+  color: '#ff6a00'
+  nota: sostiene una llama viva en los dos dedos que apuntan al frente en guardia
+- seg: 7.4
+  opcion: piso
+  accion: tumble
+  dur: 1.5
+  exacto: true
+  color: '#ff6a00'
+  nota: el fuego corre por el suelo siguiendo el deslizamiento de los pies al abrir
+    el split
+- seg: 8.9
+  opcion: latigo
+  accion: point
+  dur: 1.3
+  exacto: true
+  color: '#ff6a00'
+  nota: el brazo extendido a ras del suelo lanza una lengua de fuego hacia la izquierda
+- seg: 10.17
+  opcion: aro
+  accion: fast_swing
+  dur: 0.9
+  exacto: true
+  color: '#ff6a00'
+  nota: la patada baja que cruza por delante dibuja un aro de fuego
+- seg: 11.13
+  opcion: piso
+  accion: landing
+  dur: 1.0
+  exacto: true
+  color: '#ff6a00'
+  nota: las manos plantadas en el suelo encienden la base antes de despegar a la vertical
+- seg: 12.23
+  opcion: cuerpo_en_llamas
+  accion: flip
+  dur: 1.6
+  exacto: true
+  color: '#ff6a00'
+  nota: al subir las piernas en la vertical todo el cuerpo arde de pies a manos como
+    una antorcha invertida
+- seg: 13.57
+  opcion: llamas
+  accion: arms_crossed
+  dur: 0.7
+  exacto: true
+  color: '#ff6a00'
+  nota: al caer y cruzar los antebrazos en X frente a la cara brotan llamas de las
+    muñecas
+- seg: 14.47
+  opcion: mirada
+  accion: still
+  dur: 1.66
+  exacto: true
+  color: '#00e5ff'
+  nota: mantiene la guardia final en quietud absoluta y se encienden los ojos y la
+    flecha de Avatar en la frente

@@ -1,0 +1,278 @@
+{
+ "protagonista": "hombre con buzo claro holgado, shorts oscuros y descalzo",
+ "publico": "nadie",
+ "lectura": [
+  {
+   "inicio": 0.0,
+   "fin": 0.6,
+   "cuerpo": "arranca agachado en la penumbra, mano derecha cerca del cuello y la izquierda abajo, luego junta las manos frente al pecho",
+   "intencion": "se concentra antes de saltar",
+   "camara": "fija, plano entero"
+  },
+  {
+   "inicio": 0.6,
+   "fin": 1.1,
+   "cuerpo": "abre los brazos hacia atrás tomando impulso, flexiona las rodillas y sube los brazos sobre la cabeza",
+   "intencion": "carga el salto",
+   "camara": "fija"
+  },
+  {
+   "inicio": 1.1,
+   "fin": 1.9,
+   "cuerpo": "salta muy alto abriendo las piernas en split en el aire con los brazos hacia abajo entre las piernas",
+   "intencion": "explota en el aire",
+   "camara": "fija"
+  },
+  {
+   "inicio": 1.9,
+   "fin": 2.9,
+   "cuerpo": "cae con las piernas muy abiertas en sentadilla profunda, baja el torso y luego sube juntando los antebrazos frente a la cara como un escudo",
+   "intencion": "absorbe el impacto y se cubre",
+   "camara": "fija"
+  },
+  {
+   "inicio": 2.9,
+   "fin": 3.8,
+   "cuerpo": "mantiene las piernas abiertas, saca el brazo derecho en un corte lateral y luego lo recoge hacia el pecho",
+   "intencion": "corta el aire con precisión",
+   "camara": "fija"
+  },
+  {
+   "inicio": 3.8,
+   "fin": 4.8,
+   "cuerpo": "estira el brazo derecho bien alto hacia el techo mirando su mano, con el brazo izquierdo cruzado en el pecho",
+   "intencion": "alcanza algo arriba hacia la luz",
+   "camara": "fija"
+  },
+  {
+   "inicio": 4.8,
+   "fin": 5.6,
+   "cuerpo": "baja de golpe el brazo derecho hacia el piso inclinándose sobre la pierna izquierda y vuelve al centro cruzando los brazos",
+   "intencion": "descarga hacia la tierra",
+   "camara": "fija"
+  },
+  {
+   "inicio": 5.6,
+   "fin": 7.4,
+   "cuerpo": "en postura de jinete baja, saca la mano derecha hacia la cámara con dos dedos extendidos mientras la izquierda sostiene el codo, y sostiene la pose",
+   "intencion": "apunta y canaliza la energía hacia el frente",
+   "camara": "fija"
+  },
+  {
+   "inicio": 7.4,
+   "fin": 8.9,
+   "cuerpo": "apoya la mano izquierda en el piso, desliza la pierna derecha abriendo un split lateral casi completo y baja el pecho al suelo",
+   "intencion": "se funde con el piso",
+   "camara": "fija"
+  },
+  {
+   "inicio": 8.9,
+   "fin": 10.2,
+   "cuerpo": "desde el suelo estira el brazo derecho hacia la derecha a ras del piso señalando lejos mientras empieza a recoger el cuerpo",
+   "intencion": "traza una línea en el suelo",
+   "camara": "fija"
+  },
+  {
+   "inicio": 10.2,
+   "fin": 11.1,
+   "cuerpo": "apoyado en la mano izquierda, patea y pasa la pierna derecha por delante en el aire y apoya ambas manos en el piso con piernas abiertas",
+   "intencion": "transición acrobática",
+   "camara": "fija"
+  },
+  {
+   "inicio": 11.1,
+   "fin": 12.1,
+   "cuerpo": "con las manos plantadas en el piso y la cabeza gacha entre los brazos, empuja con los hombros preparando la vertical",
+   "intencion": "hace fuerza contra el suelo",
+   "camara": "fija"
+  },
+  {
+   "inicio": 12.1,
+   "fin": 13.7,
+   "cuerpo": "sube las piernas abiertas por los costados en una vertical de fuerza (press handstand) hasta juntarlas arriba y baja una pierna",
+   "intencion": "control total y levitación",
+   "camara": "fija"
+  },
+  {
+   "inicio": 13.7,
+   "fin": 16.1,
+   "cuerpo": "baja de la vertical, abre los brazos y se agacha en guardia cruzando las muñecas en X frente a la cara mirando fijo a cámara",
+   "intencion": "cierre marcial y mirada intensa",
+   "camara": "fija"
+  }
+ ],
+ "historia": {
+  "arco": "Un maestro del fuego despierta en la oscuridad (0-1.1s), estalla en el aire y domina el espacio con cortes y posturas marciales (1.1-7.4s), baja al suelo para invertir el mundo en una vertical de fuego (7.4-13.7s) y cierra en guardia con el estado Avatar encendido (13.7-16.1s).",
+  "motivo": "Las llamas que nacen de las manos y los pies cada vez que empuja o golpea el aire y el piso.",
+  "contrastes": "Saltos explosivos (1.2s) y barridos a ras del suelo (8.9s) contra poses congeladas de artes marciales (6.2s, 14.5s) y la subida lenta de la vertical (12.1s).",
+  "colores": "#ff6a00 (naranja fuego en todo el ritual, con corazón #ffd24c amarillo brillante y #00e5ff azul eléctrico en el estado Avatar)"
+ },
+ "momentos": [
+  {
+   "seg": 0.0,
+   "dur": 0.7,
+   "accion": "spotlight",
+   "opcion": "manos",
+   "figura": "hand_fire",
+   "color": "#ff6a00",
+   "quien": "protagonista",
+   "intencion": "enciende las manos al juntarlas en la penumbra antes de saltar",
+   "nuevo": null
+  },
+  {
+   "seg": 0.7,
+   "dur": 0.5,
+   "accion": "arms_open",
+   "opcion": "latigos",
+   "figura": "fire_whip",
+   "color": "#ff6a00",
+   "quien": "protagonista",
+   "intencion": "dos arcos de fuego acompañan el impulso de los brazos",
+   "nuevo": null
+  },
+  {
+   "seg": 1.2,
+   "dur": 0.7,
+   "accion": "jump",
+   "opcion": "remolinos",
+   "figura": "fire_whip",
+   "color": "#ff6a00",
+   "quien": "protagonista",
+   "intencion": "estalla en el split aéreo con dos medialunas de fuego bajo las piernas",
+   "nuevo": null
+  },
+  {
+   "seg": 1.9,
+   "dur": 0.9,
+   "accion": "landing",
+   "opcion": "golpe_piso",
+   "figura": "fire_splash",
+   "color": "#ff6a00",
+   "quien": "protagonista",
+   "intencion": "el fuego choca contra las tablas y se abre en olas al caer en sentadilla profunda",
+   "nuevo": null
+  },
+  {
+   "seg": 2.9,
+   "dur": 0.9,
+   "accion": "fast_swing",
+   "opcion": "latigo",
+   "figura": "fire_whip",
+   "color": "#ff6a00",
+   "quien": "protagonista",
+   "intencion": "corte lateral de fuego con el brazo derecho",
+   "nuevo": null
+  },
+  {
+   "seg": 3.8,
+   "dur": 1.0,
+   "accion": "raise_hand",
+   "opcion": "ave",
+   "figura": "fire_serpent",
+   "color": "#ff6a00",
+   "quien": "protagonista",
+   "intencion": "al estirar el brazo hacia el reflector sube una serpiente de fuego buscando la luz",
+   "nuevo": null
+  },
+  {
+   "seg": 4.8,
+   "dur": 0.8,
+   "accion": "fast_swing",
+   "opcion": "latigo",
+   "figura": "fire_whip",
+   "color": "#ff6a00",
+   "quien": "protagonista",
+   "intencion": "baja el brazo de golpe descargando un látigo de fuego hacia el piso",
+   "nuevo": null
+  },
+  {
+   "seg": 5.6,
+   "dur": 1.8,
+   "accion": "raise_hand",
+   "opcion": "llama",
+   "figura": "hand_fire",
+   "color": "#ff6a00",
+   "quien": "protagonista",
+   "intencion": "sostiene una llama viva en los dos dedos que apuntan al frente en guardia",
+   "nuevo": null
+  },
+  {
+   "seg": 7.4,
+   "dur": 1.5,
+   "accion": "tumble",
+   "opcion": "piso",
+   "figura": "floor_fire",
+   "color": "#ff6a00",
+   "quien": "protagonista",
+   "intencion": "el fuego corre por el suelo siguiendo el deslizamiento de los pies al abrir el split",
+   "nuevo": null
+  },
+  {
+   "seg": 8.9,
+   "dur": 1.3,
+   "accion": "point",
+   "opcion": "latigo",
+   "figura": "fire_whip",
+   "color": "#ff6a00",
+   "quien": "protagonista",
+   "intencion": "el brazo extendido a ras del suelo lanza una lengua de fuego hacia la izquierda",
+   "nuevo": null
+  },
+  {
+   "seg": 10.2,
+   "dur": 0.9,
+   "accion": "fast_swing",
+   "opcion": "aro",
+   "figura": "fire_ring",
+   "color": "#ff6a00",
+   "quien": "protagonista",
+   "intencion": "la patada baja que cruza por delante dibuja un aro de fuego",
+   "nuevo": null
+  },
+  {
+   "seg": 11.1,
+   "dur": 1.0,
+   "accion": "landing",
+   "opcion": "piso",
+   "figura": "floor_fire",
+   "color": "#ff6a00",
+   "quien": "protagonista",
+   "intencion": "las manos plantadas en el suelo encienden la base antes de despegar a la vertical",
+   "nuevo": null
+  },
+  {
+   "seg": 12.1,
+   "dur": 1.6,
+   "accion": "flip",
+   "opcion": "cuerpo_en_llamas",
+   "figura": "body_blaze",
+   "color": "#ff6a00",
+   "quien": "protagonista",
+   "intencion": "al subir las piernas en la vertical todo el cuerpo arde de pies a manos como una antorcha invertida",
+   "nuevo": null
+  },
+  {
+   "seg": 13.7,
+   "dur": 0.7,
+   "accion": "arms_crossed",
+   "opcion": "llamas",
+   "figura": "hand_fire",
+   "color": "#ff6a00",
+   "quien": "protagonista",
+   "intencion": "al caer y cruzar los antebrazos en X frente a la cara brotan llamas de las muñecas",
+   "nuevo": null
+  },
+  {
+   "seg": 14.4,
+   "dur": 1.7,
+   "accion": "still",
+   "opcion": "mirada",
+   "figura": "avatar_mark",
+   "color": "#00e5ff",
+   "quien": "protagonista",
+   "intencion": "mantiene la guardia final en quietud absoluta y se encienden los ojos y la flecha de Avatar en la frente",
+   "nuevo": null
+  }
+ ],
+ "efectos_nuevos": []
+}
