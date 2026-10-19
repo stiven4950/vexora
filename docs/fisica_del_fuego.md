@@ -15,6 +15,7 @@ llama es una forma con un estado que responde a estas fuerzas de forma creíble 
 | 5 | **Estiramiento por velocidad** | Más rápido, más larga y más fina (conserva el área) | ✅ `STRETCH`, ancho / √estiramiento |
 | 6 | **Recogida al frenar en seco** | Un instante más corta y ancha antes de volver a su largo | ✅ término de frenada en `flame_physics` |
 | 7 | **Estela del golpe** | El látigo sigue la trayectoria de la mano, exagerada y en medialuna | ✅ `fire_whip` (recorrido + Bézier) |
+| 7b | **Swoosh de la mano rápida** | La gota de la mano se tiende sobre el recorrido reciente; la base sigue en la mano | ✅ `flame_parts(trail, swoosh)`: de 0,05 a 0,2 anchos de hombros por cuadro; test `test_fast_hand_turns_the_flame_into_a_swoosh` |
 | 8 | **Movimiento de la cabeza** | La melena de la calavera se mece contra el giro y el movimiento de la cabeza | ✅ `flame_physics` en `fire_skull` |
 | 9 | **Rotación de la cara** | La calavera se redibuja en 3D según el giro de la cabeza (de frente a perfil) | ✅ `_skull3d` |
 | 10 | **Turbulencia** | El borde ondula sin patrón; las brasas se curvan | ✅ ruido coherente (`_smooth_noise`, `_noise`) |
@@ -23,11 +24,11 @@ llama es una forma con un estado que responde a estas fuerzas de forma creíble 
 | 13 | **Choque contra el piso** | El fuego se expande a los lados en olas que tiemblan y se aplanan | ✅ `fire_splash` |
 | 14 | **Desintegración** | Al apagarse se vacía desde el centro y suelta trozos y brasas | ✅ `erode`, brasas ×3 al morir |
 | 15 | **Saltos del detector** | Un salto de la pose (no un movimiento) no debe sacudir la llama | ✅ se ignora (test `test_tracker_jump_is_ignored`) |
-| 16 | **Fuerza centrífuga en giros** | En un giro sobre sí mismo, las llamas se abren hacia afuera del eje | ⏳ pendiente (hoy el giro usa el aro) |
-| 17 | **Viento del ambiente** | Todas las llamas inclinadas hacia un lado (exteriores, ventilador) | ⏳ parámetro `wind` listo en `flame_physics`, sin uso en el catálogo |
-| 18 | **Estela del aire detrás del cuerpo** | Al desplazarse todo el cuerpo, el fuego de la espalda se arrastra | ⏳ pendiente |
+| 16 | **Fuerza centrífuga en giros** | En un giro alrededor del cuerpo, las llamas de las manos se abren hacia afuera del eje | ✅ `CENTRIFUGAL` (v tangencial² / radio, solo con la mano a más de medio ancho de hombros del eje); test `test_spinning_around_the_body_opens_outward` |
+| 17 | **Viento del ambiente** | Todas las llamas inclinadas hacia un lado (exteriores, ventilador) | ✅ `AMBIENT_WIND` (apagado por defecto) o `wind=` por llama; test `test_ambient_wind_bends_still_flames` |
+| 18 | **Estela del aire detrás del cuerpo** | Al desplazarse todo el cuerpo, el fuego anclado a él se arrastra | ✅ cubierto por el viento relativo: cada llama anclada al cuerpo se inclina contra el desplazamiento de su ancla |
 | 19 | **Gravedad sobre trozos pesados** | Trozos grandes que se desprenden caen en vez de subir | ✅ las brasas más grandes caen; las livianas flotan |
-| 20 | **Interacción entre llamas** | Dos llamas que se acercan se atraen y se funden | Parcial: se funden en la máscara, sin atracción |
+| 20 | **Interacción entre llamas** | Dos llamas cercanas se inclinan una hacia la otra; con las manos juntas se funden en una sola gota | ✅ `ATTRACT` entre `MERGE_GAP` y un ancho de hombros; más cerca, una sola llama (tests `test_close_flames_lean_toward_each_other`, `test_joined_hands_light_a_single_flame`) |
 
 ## Parámetros para calibrar (`engine/firebend.py`)
 
@@ -38,3 +39,6 @@ llama es una forma con un estado que responde a estas fuerzas de forma creíble 
 | `SPRING`, `DAMPING` | Rigidez del resorte y cuánto tarda en asentarse (menos `DAMPING`, se asienta antes) |
 | `MAX_LEAN` | Inclinación máxima respecto de la vertical |
 | `STRETCH`, `MAX_STRETCH` | Estiramiento con la velocidad |
+| `CENTRIFUGAL` | Cuánto se abren las llamas al girar alrededor del cuerpo |
+| `ATTRACT`, `MERGE_GAP` | Atracción entre llamas cercanas y distancia a la que se funden en una |
+| `AMBIENT_WIND` | Viento del ambiente (por defecto, sin viento) |
