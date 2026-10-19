@@ -23,7 +23,7 @@ import cv2
 import numpy as np
 
 from vfxglow.engine.critters import TAU, WHITE, _activation, _ease, _phase, _seg
-from vfxglow.engine.firebend import CORE, MID, _floor, cel, note_frame, ribbon, rim, shed, teardrop, warm
+from vfxglow.engine.firebend import CORE, MID, _floor, cel, flame_physics, note_frame, ribbon, rim, shed, teardrop, warm
 from vfxglow.engine.raster import fill_polygon, splat
 
 FIRE_CREATURES = ("fire_skull", "fire_bird", "fire_serpent", "fire_splash", "fire_breath", "fire_dragon")
@@ -104,25 +104,98 @@ def _leader(body):
 # ----- la calavera -----
 
 
-def _skull_lines(c, r, up, across) -> list[np.ndarray]:
-    def at(pts):
-        return np.array([c + across * x * r + up * y * r for x, y in pts])
+# Calavera en 3D (x a la derecha, y arriba, z hacia la cámara; unidad = radio de la cara). Se
+# proyecta con el giro real de la cabeza: de frente como siempre y, al girar, de perfil (cuenca de
+# lado, mandíbula hacia adelante, sutura del costado), ocultando lo que queda atrás.
 
-    t = np.linspace(np.radians(-15), np.radians(195), 30)
-    cranium = np.array([c + across * np.cos(a) * 0.95 * r + up * (0.05 + np.sin(a) * 1.05) * r for a in t])
-    lines = [cranium]
-    for s in (-1, 1):
-        lines.append(at([(s * 0.92, 0.0), (s * 0.82, -0.3), (s * 0.62, -0.48), (s * 0.5, -0.62)]))  # sien y pómulo
-        e = np.linspace(0, TAU, 18)  # cuenca: un óvalo algo cuadrado
-        sock = np.stack([np.sign(np.cos(e)) * np.abs(np.cos(e)) ** 0.7, np.sign(np.sin(e)) * np.abs(np.sin(e)) ** 0.7], axis=1)
-        lines.append(at([(s * 0.36 + x * 0.24, 0.12 + y * 0.22) for x, y in sock]))
-    lines.append(at([(0.0, -0.08), (0.11, -0.34), (0.0, -0.4), (-0.11, -0.34), (0.0, -0.08)]))  # cavidad nasal
-    lines.append(at([(-0.4, -0.6), (0.4, -0.6)]))  # dientes de arriba
-    lines += [at([(x, -0.54), (x, -0.7)]) for x in np.linspace(-0.3, 0.3, 6)]
-    lines.append(at([(-0.5, -0.6), (-0.46, -0.9), (-0.2, -1.05), (0.2, -1.05), (0.46, -0.9), (0.5, -0.6)]))  # mandíbula
-    lines.append(at([(-0.34, -0.74), (0.34, -0.74)]))  # dientes de abajo
-    lines += [at([(x, -0.72), (x, -0.84)]) for x in np.linspace(-0.25, 0.25, 5)]
+
+def _rot(points: np.ndarray, yaw: float) -> np.ndarray:
+    c, s = np.cos(yaw), np.sin(yaw)
+    x, y, z = points[:, 0], points[:, 1], points[:, 2]
+    return np.stack([x * c + z * s, y, -x * s + z * c], axis=1)
+
+
+def _circle3d(center, normal, radius, n: int = 20) -> np.ndarray:
+    normal = np.asarray(normal, float) / np.linalg.norm(normal)
+    a = np.cross(normal, [0.0, 1.0, 0.0])
+    if np.linalg.norm(a) < 1e-3:
+        a = np.array([1.0, 0.0, 0.0])
+    a /= np.linalg.norm(a)
+    b = np.cross(normal, a)
+    t = np.linspace(0, TAU, n)
+    return np.asarray(center, float) + np.outer(np.cos(t) * radius[0], a) + np.outer(np.sin(t) * radius[1], b)
+
+
+def _skull3d(c, r, up, across, yaw: float, layer) -> list[np.ndarray]:
+    """Líneas de la calavera vista con giro `yaw` (radianes; + mira a la derecha de la imagen)."""
+
+    def screen(pts3):
+        q = _rot(np.asarray(pts3, float), yaw)
+        return np.array([c + across * x * r + up * y * r for x, y in q[:, :2]]), q[:, 2]
+
+    def facing(normal) -> float:
+        return float(_rot(np.asarray([normal], float), yaw)[0, 2])
+
+    lines: list[np.ndarray] = []
+    height, width = layer.shape[:2]
+    # Silueta: la unión del cráneo (elipsoide) y la cara de abajo (pómulos, maxilar y mandíbula),
+    # con el contorno real de esa unión (conserva la entrada bajo el pómulo del perfil).
+    u = np.linspace(0, TAU, 28)
+    v = np.linspace(-0.42 * np.pi, 0.5 * np.pi, 12)
+    # Abajo el cráneo se cierra más (la nuca baja curvada hasta la base, no una línea recta).
+    shell = np.array([[0.88 * np.cos(a) * np.cos(b) * (1.0 if b > 0 else 0.85 + 0.15 * np.cos(b)), 0.25 + (1.0 if b > 0 else 0.62) * np.sin(b), -0.15 + 0.95 * np.sin(a) * np.cos(b) * (1.0 if b > 0 or np.sin(a) >= 0 else 0.75)] for a in u for b in v])
+    face = []
+    for s in (-1.0, 1.0):
+        face += [[s * 0.62, -0.2, 0.45], [s * 0.5, -0.45, 0.55], [s * 0.45, -0.62, 0.62], [s * 0.52, -0.9, 0.2], [s * 0.6, -0.4, -0.05], [s * 0.2, -1.08, 0.55]]
+    face += [[0.0, -0.62, 0.86], [0.0, -1.1, 0.62], [0.0, -0.3, 0.92]]
+    mask = np.zeros((height, width), np.uint8)
+    hull_a = cv2.convexHull(np.round(screen(shell)[0]).astype(np.int32))
+    hull_b = cv2.convexHull(np.round(screen(np.array(face))[0]).astype(np.int32))
+    cv2.fillPoly(mask, [hull_a, hull_b], 1)
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    if contours:
+        outline = max(contours, key=cv2.contourArea).reshape(-1, 2).astype(float)[::3]
+        lines.append(np.vstack([outline, outline[:1]]))
+    # Cuencas de los ojos: círculos sobre la cara, que se achatan al girar y se ocultan atrás.
+    for s in (-1.0, 1.0):
+        normal = [s * 0.35, 0.0, 0.94]
+        if facing(normal) > 0.35:  # la del lado de atrás se oculta antes de asomar por el borde
+            ring = _circle3d([s * 0.36, 0.12, 0.72], normal, (0.22, 0.2))
+            lines.append(screen(ring)[0])
+        # Sutura del costado y borde del pómulo: se ven sobre todo de perfil (como en la imagen).
+        if facing([s, 0.0, 0.25]) > 0.2:
+            lines.append(screen([[s * 0.8, 0.35, 0.15], [s * 0.86, 0.12, 0.2], [s * 0.78, -0.05, 0.3], [s * 0.82, -0.2, 0.35]])[0])
+            lines.append(screen([[s * 0.82, -0.2, 0.35], [s * 0.66, -0.3, 0.45], [s * 0.55, -0.5, 0.56]])[0])
+    # Cavidad nasal.
+    if facing([0.0, 0.0, 1.0]) > 0.05:
+        lines.append(screen([[0.0, -0.08, 0.86], [0.11, -0.34, 0.88], [0.0, -0.4, 0.92], [-0.11, -0.34, 0.88], [0.0, -0.08, 0.86]])[0])
+    # Dientes: en arco (los del costado se ven de canto al girar y los de atrás se ocultan).
+    xs = np.linspace(-0.38, 0.38, 9)
+    arc_top = np.array([[x, -0.58, 0.82 - 0.9 * x * x] for x in xs])
+    arc_low = np.array([[x, -0.76, 0.78 - 0.9 * x * x] for x in xs])
+    seen = np.array([facing([x * 1.8, 0.0, 1.0]) > 0.05 for x in xs])
+    for arc in (arc_top, arc_low):
+        pts = screen(arc[seen])[0] if seen.sum() >= 2 else None
+        if pts is not None:
+            lines.append(pts)
+    for i, x in enumerate(xs):
+        if seen[i]:
+            lines.append(screen([[x, -0.53, 0.82 - 0.9 * x * x], [x, -0.81, 0.78 - 0.9 * x * x]])[0])
+    # Mandíbula: del ángulo de cada lado al mentón (se dibuja el lado visible).
+    for s in (-1.0, 1.0):
+        if facing([s, -0.3, 0.4]) > -0.25:
+            lines.append(screen([[s * 0.58, -0.35, -0.02], [s * 0.53, -0.88, 0.18], [s * 0.3, -1.04, 0.5], [0.0, -1.1, 0.62]])[0])
     return lines
+
+
+def _skull_eyes(c, r, up, across, yaw: float):
+    out = []
+    for s in (-1.0, 1.0):
+        q = _rot(np.array([[s * 0.36, 0.12, 0.72]]), yaw)[0]
+        normal_z = _rot(np.array([[s * 0.35, 0.0, 0.94]]), yaw)[0, 2]
+        if normal_z > 0.35:
+            out.append(c + across * q[0] * r + up * q[1] * r)
+    return out
 
 
 def _fire_skull(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
@@ -130,22 +203,29 @@ def _fire_skull(body, frame, scale, frame_index, runtime, layer, color, alpha, e
     if face is None:
         return []
     nose, r, up, across = face
-    c = nose + up * 0.15 * r
     u = _phase(runtime, event)
     st = _activation(runtime, event, "skull", body)
+    # Giro de la cabeza (suavizado): la nariz respecto de las orejas, en radianes.
+    from vfxglow.engine.characters import head_yaw
+
+    yaw = float(np.arcsin(np.clip(head_yaw(body), -0.98, 0.98)))
+    yaw = st["yaw"] = st.get("yaw", yaw) * 0.6 + yaw * 0.4
+    # El centro de la calavera: detrás de la nariz (de perfil la nariz está adelante del cráneo).
+    c = nose + up * 0.15 * r - across * np.sin(yaw) * 0.75 * r
     grow = _ease(_seg(u, 0.0, 0.2))
     leave = _seg(u, 0.7, 1.0)  # al final el fuego deja la cabeza
     if leave < 0.6:
-        ink(layer, _skull_lines(c, r, up, across), CORE, alpha * (1 - leave))
-        for s in (-1, 1):
-            eye = c + across * s * 0.36 * r + up * 0.12 * r
+        ink(layer, _skull3d(c, r, up, across, yaw, layer), CORE, alpha * (1 - leave))
+        for eye in _skull_eyes(c, r, up, across, yaw):
             splat(layer, float(eye[0]), float(eye[1]), 0.12 * r, WHITE * 2.0, alpha, runtime.kernels)
     hair = grow * (1 - 0.8 * leave)
+    # Física: la melena se inclina contra el movimiento de la cabeza, con inercia.
+    lean, stretch = flame_physics(st, "hair", c, scale, up)
     for k, tilt in enumerate((-0.55, -0.15, 0.25, 0.6)):  # la melena: alta y ondulada
-        d = up + across * tilt * 0.6
+        d = lean + across * tilt * 0.6
         d = d / float(np.linalg.norm(d))
         base = c + up * 0.95 * r + across * tilt * 0.75 * r
-        tall = (1.0 - 0.3 * abs(tilt)) * 3.0 * r * hair
+        tall = (1.0 - 0.3 * abs(tilt)) * 3.0 * r * hair * stretch
         if tall > 2:
             cel(layer, wavy(base, d, tall, 0.5 * r, frame_index, k * 1.9), color, alpha, runtime)
     rim(layer, runtime, [c], scale, color, alpha * grow, 1.0)
