@@ -606,10 +606,11 @@ def draw_adornment(runtime, track, points, frame_index: int, height: int, envelo
     # del efecto.
     # Solo lo disparado por un gesto tiene vida; lo que está siempre (la pared final, que se
     # cronometra sola) no se erosiona.
+    embers = runtime.swoosh.setdefault("_embers", {})
     if event is not None:
-        flush_fire(layer, frame_index, _phase(runtime, event), runtime.swoosh.setdefault("_firelife", {}))
+        flush_fire(layer, frame_index, _phase(runtime, event), runtime.swoosh.setdefault("_firelife", {}), embers)
     else:
-        flush_fire(layer, frame_index)
+        flush_fire(layer, frame_index, embers=embers)
     stroke_batch(layer, strokes, style.hdr_gain)
 
 

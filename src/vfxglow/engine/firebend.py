@@ -144,7 +144,116 @@ def _noise(height: int, width: int, frame_index: int, seed: int) -> np.ndarray:
     return tex[height - shift : 2 * height - shift]
 
 
-def flush_fire(layer, frame_index: int, u: float | None = None, st: dict | None = None) -> None:
+# ----- brasas: partículas que suelta el fuego -----
+#
+# Nacen en el borde de la llama (muchas más cuando muere y se deshace), salen hacia afuera y
+# arriba con turbulencia y frenado, y su color depende de la edad: blanco-amarillo al nacer,
+# naranja a media vida, rojo al apagarse, mientras se achican. Se dibujan como rayitas
+# orientadas por su velocidad (no puntos redondos).
+
+EMBER_LIFE = (10, 22)  # cuadros de vida (mínimo, máximo)
+EMBER_MAX = 260
+_EMBER_RAMP = np.array([
+    [1.0, 0.88, 0.45],   # nace amarilla
+    [1.0, 0.6, 0.1],
+    [1.0, 0.4, 0.04],    # media vida: naranja
+    [0.8, 0.15, 0.02],   # se apaga rojiza
+], np.float32)
+
+
+def _ember_color(age: np.ndarray) -> np.ndarray:
+    x = np.clip(age, 0.0, 1.0) * (len(_EMBER_RAMP) - 1)
+    i = np.minimum(np.floor(x).astype(int), len(_EMBER_RAMP) - 2)
+    f = (x - i)[:, None]
+    return _EMBER_RAMP[i] * (1 - f) + _EMBER_RAMP[i + 1] * f
+
+
+def emit_embers(pool: dict, mask: np.ndarray, box: tuple[int, int], frame_index: int, rate: float, height: int) -> None:
+    """Siembra brasas en el borde de `mask` (recorte con esquina `box` = (x0, y0))."""
+    if rate <= 0:
+        return
+    edge = cv2.morphologyEx((mask > 0.5).astype(np.uint8), cv2.MORPH_GRADIENT, np.ones((3, 3), np.uint8))
+    ys, xs = np.nonzero(edge)
+    if len(xs) == 0:
+        return
+    rng = np.random.default_rng(frame_index * 7919 + len(xs))
+    count = int(min(rng.poisson(rate), 40))
+    if count == 0:
+        return
+    pick = rng.integers(0, len(xs), count)
+    x0, y0 = box
+    pos = np.stack([xs[pick] + x0, ys[pick] + y0], axis=1).astype(np.float32)
+    center = np.array([xs.mean() + x0, ys.mean() + y0], np.float32)
+    out = pos - center
+    out /= np.maximum(np.linalg.norm(out, axis=1, keepdims=True), 1e-3)
+    speed = rng.uniform(0.004, 0.012, count)[:, None] * height
+    vel = out * speed + np.array([0.0, -0.006 * height], np.float32)  # afuera y arriba
+    new = {
+        "pos": pos,
+        "vel": vel.astype(np.float32),
+        "born": np.full(count, frame_index, np.float32),
+        "life": rng.integers(EMBER_LIFE[0], EMBER_LIFE[1], count).astype(np.float32),
+        "size": rng.uniform(0.004, 0.009, count).astype(np.float32) * height,
+    }
+    if "pos" not in pool:
+        pool.update(new)
+    else:
+        for k in new:
+            pool[k] = np.concatenate([pool[k], new[k]])[-EMBER_MAX:]
+
+
+def draw_embers(layer, pool: dict, frame_index: int, alpha: float) -> None:
+    """Mueve las brasas un cuadro y las dibuja como rayitas que cambian de color con la edad."""
+    if "pos" not in pool or len(pool["pos"]) == 0:
+        return
+    if pool.get("frame") is not None and frame_index < pool["frame"]:  # volvió atrás: se olvida
+        pool.clear()
+        return
+    if pool.get("frame") != frame_index:  # se mueven una vez por cuadro
+        pool["frame"] = frame_index
+        age = (frame_index - pool["born"]) / pool["life"]
+        alive = age < 1.0
+        for k in ("pos", "vel", "born", "life", "size"):
+            pool[k] = pool[k][alive]
+        if len(pool["pos"]) == 0:
+            return
+        pos, vel = pool["pos"], pool["vel"]
+        height = layer.shape[0]
+        # Turbulencia: ruido coherente según la posición y el tiempo (se curvan, no tiemblan).
+        wobble = np.stack([
+            _smooth_noise(pos[:, 1] / (0.05 * height) + frame_index * 0.15, 1.0),
+            _smooth_noise(pos[:, 0] / (0.05 * height) - frame_index * 0.15, 2.0) * 0.5,
+        ], axis=1).astype(np.float32)
+        pool["vel"] = vel * 0.9 + wobble * (0.0025 * height) + np.array([0.0, -0.0012 * height], np.float32)
+        pool["pos"] = pos + pool["vel"]
+    pos, vel = pool["pos"], pool["vel"]
+    age = (frame_index - pool["born"]) / pool["life"]
+    colors = _ember_color(age)
+    shrink = np.clip(1.0 - age, 0.0, 1.0) ** 0.6
+    height, width = layer.shape[:2]
+    lo = np.floor(pos.min(axis=0) - 12).astype(int)
+    hi = np.ceil(pos.max(axis=0) + 12).astype(int)
+    x0, y0 = max(lo[0], 0), max(lo[1], 0)
+    x1, y1 = min(hi[0], width), min(hi[1], height)
+    if x0 >= x1 or y0 >= y1:
+        return
+    canvas = np.zeros((y1 - y0, x1 - x0, 3), np.float32)
+    cover = np.zeros((y1 - y0, x1 - x0), np.float32)
+    for p, v, c, s, a in zip(pos, vel, colors, pool["size"], shrink):
+        tail = p - v * 1.6  # rayita orientada por la velocidad
+        p0 = (int(round(tail[0] - x0)), int(round(tail[1] - y0)))
+        p1 = (int(round(p[0] - x0)), int(round(p[1] - y0)))
+        thick = max(int(round(s * a)), 1)
+        bright = float(a) * 1.25
+        cv2.line(canvas, p0, p1, (float(c[0]) * bright, float(c[1]) * bright, float(c[2]) * bright), thick, cv2.LINE_AA)
+        cv2.line(cover, p0, p1, float(a), thick, cv2.LINE_AA)
+    a = np.float32(min(alpha, 1.0))
+    dst = layer[y0:y1, x0:x1]
+    dst[..., :3] += canvas * a
+    dst[..., 3] = 1.0 - (1.0 - dst[..., 3]) * (1.0 - np.clip(cover, 0, 1) * a)
+
+
+def flush_fire(layer, frame_index: int, u: float | None = None, st: dict | None = None, embers: dict | None = None) -> None:
     """Pinta el fuego acumulado del efecto: cuerpo blanco, borde amarillo y resplandor de color.
     Con `u` (vida del efecto), lo que no trae vida propia muere igual que las cintas: se vacía
     desde el centro en trozos, con la opacidad que tuvo (no se vuelve transparente)."""
@@ -164,6 +273,8 @@ def flush_fire(layer, frame_index: int, u: float | None = None, st: dict | None 
         np.maximum(mask, x * x * (3 - 2 * x), out=mask)
     ys, xs = np.nonzero(mask > 0.02)
     if len(xs) == 0:
+        if embers is not None:  # sin fuego, las brasas que quedan siguen su vida
+            draw_embers(layer, embers, frame_index, 1.0)
         return
     pad = int(0.14 * height)
     x0, x1 = max(xs.min() - pad, 0), min(xs.max() + pad + 1, width)
@@ -184,6 +295,12 @@ def flush_fire(layer, frame_index: int, u: float | None = None, st: dict | None 
     dst = layer[y0:y1, x0:x1]
     dst[..., :3] += rgb * a
     dst[..., 3] = 1.0 - (1.0 - dst[..., 3]) * (1.0 - cover * a)
+    if embers is not None:
+        # Pocas: una brasa cada ~14.000 px de fuego por cuadro; al morir, tres veces más (se deshace).
+        dying = u is not None and u > DIE_START
+        rate = min(float(m.sum()) / 14000.0 * (3.0 if dying else 1.0), 6.0)
+        emit_embers(embers, m, (x0, y0), frame_index, rate, height)
+        draw_embers(layer, embers, frame_index, 1.0)
 
 
 def erode(shape: np.ndarray, binary: np.ndarray, die: float, seed: int, box: tuple[int, int, int, int], size: tuple[int, int]) -> np.ndarray:
