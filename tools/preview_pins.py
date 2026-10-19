@@ -44,7 +44,7 @@ def main() -> None:
     path = Path(args.catalog) if args.catalog.endswith(".yaml") else Path("configs/catalogs") / f"{args.catalog}.yaml"
     catalog = load_catalog(path)
     script, _ = choreograph(catalog, brief, 1, load_pins(args.pins))
-    extra = [Effect.model_validate(raw) for raw in always_effects(catalog, list(brief.events), count, fps)]
+    extra = [Effect.model_validate(raw) for raw in always_effects(catalog, list(brief.events), count, fps, 1)]
     script = resolve_timing(script.model_copy(update={"effects": extra + list(script.effects)}), count)
     by_id = {e.id: e for e in script.effects}
     wanted = sorted({int(round(s * fps)) for s in args.seconds})

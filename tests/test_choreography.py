@@ -236,3 +236,26 @@ def test_garments_follow_the_wardrobe_each_person_chose() -> None:
     assert not wardrobe_allows(jacket, "person_0", {}) and not wardrobe_allows(dress, "person_0", {})
     assert wardrobe_allows(jacket, "person_0", {"*": "ambos"}) and wardrobe_allows(dress, "person_0", {"*": "ambos"})
     assert wardrobe_allows(plain, "person_0", {})
+
+
+def test_max_uses_caps_an_option_for_the_whole_video() -> None:
+    brief = _brief([_swing(f) for f in range(0, 800, 20)])
+    log = choreograph(_catalog(max_uses=1), brief)[1]
+    assert Counter(d.choice for d in log.decisions)["swoosh"] == 1  # el ave de fuego: una vez por video
+
+
+def test_always_chance_is_a_fixed_draw_per_video() -> None:
+    from vfxglow.director.choreography import always_effects
+
+    catalog = Catalog.model_validate(
+        {
+            "name": "t",
+            "defaults": {"type": "adornment", "target": {"kind": "joint", "id": "nose"}},
+            "always": [{"chance": 0.4, "style": {"shapes": ["fire_wall"]}}],
+            "reactions": [],
+        }
+    )
+    picks = [bool(always_effects(catalog, [], frames, 30.0, 18)) for frames in range(300, 700)]
+    assert 0.25 < sum(picks) / len(picks) < 0.55  # de vez en cuando
+    assert picks == [bool(always_effects(catalog, [], frames, 30.0, 18)) for frames in range(300, 700)]  # fijo
+    assert "chance" not in always_effects(Catalog.model_validate({**catalog.model_dump(), "always": [{"chance": 1.0}]}), [], 300, 30.0, 18)[0]

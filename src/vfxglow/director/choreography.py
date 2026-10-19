@@ -52,6 +52,9 @@ class Option(_Strict):
     # Si no está vacío, la opción solo entra en el sorteo cuando la acción es de una de estas
     # extremidades (un brazo musculoso no tiene sentido en una patada).
     limbs: list[str] = Field(default_factory=list)
+    # Veces que la opción puede salir en todo el video (0 = sin tope). Cuenta por nombre: la misma
+    # opción en varias acciones (el ave al levantar la mano o los brazos) comparte el tope.
+    max_uses: int = 0
     # Subtipos de la acción admitidos (MotionEvent.kind; p. ej. intent: hand_to_chest).
     kinds: list[str] = Field(default_factory=list)
     # La persona de la acción debe llevar uno de estos accesorios (gafas, máscara...). Si la
@@ -217,6 +220,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
     if pins is not None:
         rest = [] if pins.solo_estos else [[pair for pair in pairs if (id(pair[0]), id(pair[1])) not in forced] for pairs in passes]
         passes = [pinned, *rest]
+    spent: dict[str, int] = {}  # usos de cada opción en el video (para max_uses)
     for pairs in passes:
         for event, reaction in sorted(pairs, key=lambda pair: (pair[0].start_frame, catalog.reactions.index(pair[1]))):
             memo = state[id(reaction)]
@@ -233,6 +237,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 pinned_out.append((reaction, option, [(event.start_frame, event.target)], pin))
                 memo["last"] = event.start_frame
                 memo["used"][option.name] = event.start_frame
+                spent[option.name] = spent.get(option.name, 0) + 1
                 if option.exclusive:
                     exclusive_until = max(exclusive_until, end)
                 if reaction.action in KEY_ACTIONS:
@@ -259,6 +264,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 )
                 continue
             resting = {name for name, frame in memo["used"].items() if event.start_frame - frame < _option(reaction, name).cooldown}
+            resting |= {o.name for o in reaction.options if o.max_uses and spent.get(o.name, 0) >= o.max_uses}
             option = _draw(reaction, event, seed, resting, brief, catalog.wardrobe)
             if option.yields_to and _yields(option, event, brief, seed, fps):
                 option = Option(name=f"nada (cede a {', '.join(option.yields_to)})")
@@ -301,6 +307,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
             if option.effects:
                 memo["last"] = event.start_frame
                 memo["used"][option.name] = event.start_frame
+                spent[option.name] = spent.get(option.name, 0) + 1
                 chosen.setdefault((reaction.action, option.name), []).append((event.start_frame, event.target))
                 if option.exclusive:
                     exclusive_until = end
@@ -350,7 +357,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
             )
     if catalog.max_gap_s > 0 and not (pins is not None and pins.solo_estos):
         fill_gaps(catalog, brief, events, extra, chosen, decisions, seed, fps)
-    always = [] if pins is not None and pins.solo_estos else always_effects(catalog, events, brief.video.frame_count, fps)
+    always = [] if pins is not None and pins.solo_estos else always_effects(catalog, events, brief.video.frame_count, fps, seed)
     effects: list[dict] = list(always)
     for number, (reaction, option, picked, pin) in enumerate(pinned_out):
         for index, raw in enumerate(option.effects):
@@ -805,14 +812,20 @@ def ends_still(events: list[MotionEvent], frame_count: int, fps: float, seconds:
     return float(calm.mean()) >= 0.6
 
 
-def always_effects(catalog: Catalog, events: list[MotionEvent], frame_count: int, fps: float) -> list[dict]:
+def always_effects(catalog: Catalog, events: list[MotionEvent], frame_count: int, fps: float, seed: int | None = None) -> list[dict]:
     """Los efectos `always` del catálogo. Con `when: quieto_al_final`, solo si la persona termina
-    quieta (la pared de fuego final tapa el piso; si sigue moviéndose o camina, no corresponde)."""
+    quieta (la pared de fuego final tapa el piso; si sigue moviéndose o camina, no corresponde).
+    Con `chance`, sale solo en esa fracción de los videos (sorteo fijo por video y semilla)."""
+    seed = catalog.seed if seed is None else seed
     out = []
     for index, raw in enumerate(catalog.always):
         if raw.get("when") == "quieto_al_final" and not ends_still(events, frame_count, fps, float(raw.get("style", {}).get("size", 1.8))):
             continue
-        out.append(_effect(catalog, {k: v for k, v in raw.items() if k != "when"}, f"always_{index}"))
+        if "chance" in raw:
+            roll = np.random.default_rng(zlib.crc32(f"{seed}:always:{index}:{frame_count}".encode()) & 0xFFFFFFFF).random()
+            if roll >= float(raw["chance"]):
+                continue
+        out.append(_effect(catalog, {k: v for k, v in raw.items() if k not in ("when", "chance")}, f"always_{index}"))
     return out
 
 
