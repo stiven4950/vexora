@@ -31,7 +31,7 @@ def main() -> None:
     parser.add_argument("--run", required=True, type=Path)
     parser.add_argument("--video", required=True, type=Path)
     parser.add_argument("--ref", type=Path, default=None, help="Referencia (opcional): va arriba")
-    parser.add_argument("--catalog", required=True)
+    parser.add_argument("--catalog", required=True, help="Nombre en configs/catalogs o ruta a un .yaml")
     parser.add_argument("--pins", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--width", type=int, default=180)
@@ -41,7 +41,8 @@ def main() -> None:
     tracks = {t.frame: t for t in load_tracks(args.run / "analysis" / "tracks.jsonl")}
     brief = MotionBrief.model_validate_json((args.run / "analysis" / "motion_brief.json").read_text())
     fps, count, width, height = brief.video.fps, brief.video.frame_count, brief.video.width, brief.video.height
-    catalog = load_catalog(Path("configs/catalogs") / f"{args.catalog}.yaml")
+    path = Path(args.catalog) if args.catalog.endswith(".yaml") else Path("configs/catalogs") / f"{args.catalog}.yaml"
+    catalog = load_catalog(path)
     script, _ = choreograph(catalog, brief, 1, load_pins(args.pins))
     extra = [Effect.model_validate(_effect(catalog, raw, f"always_{i}")) for i, raw in enumerate(catalog.always)]
     script = resolve_timing(script.model_copy(update={"effects": extra + list(script.effects)}), count)

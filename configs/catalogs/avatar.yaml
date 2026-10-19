@@ -23,15 +23,18 @@ defaults:
   type: adornment
   target: {kind: joint, id: nose}
   time: {start_frame: 0, end_frame: -1, fade_in: 1, fade_out: 4}
-  style: {thickness: 0.008, hdr_gain: 1.6, focus: false}
-  # Prueba: brillo de caída larga (5 pasadas, hasta 24x el radio), como el Deep Glow.
-  render: {blend: add, motion_blur: 0.0, persistence: 0.0, group: glow, glow_layers: 5}
+  # Fuego combinado (look mix): el amarillo plano y opaco de video_51 con el núcleo blanco de
+  # video_18 en lo más grueso; tapa el fondo (over) para que el amarillo no se vaya al blanco sobre
+  # paredes claras.
+  style: {thickness: 0.008, hdr_gain: 1.6, focus: false, look: mix}
+  # Brillo de caída larga (5 pasadas, hasta 24x el radio), como el Deep Glow.
+  render: {blend: over, motion_blur: 0.0, persistence: 0.0, group: glow, glow_layers: 5}
 
 always:
   # La luz del fuego sobre el plano: tiñe ropa, piel y piso de naranja conservando su textura y
   # oscurece un poco el resto cuando hay mucho fuego (se mezcla multiplicando, antes del fuego).
   - type: adornment
-    style: {shapes: [fire_light], focus: false}
+    style: {shapes: [fire_light], size: 1.0, focus: false}
     render: {blend: multiply, group: grade}
   # Brasas que se desprenden de las extremidades rápidas.
   - type: droplets
@@ -119,11 +122,22 @@ reactions:
         effects:
           - &floor {type: adornment, style: {shapes: [floor_fire]}, trigger: {hold: 16, fade_in: 1, fade_out: 8}}
           - *heat
+      # video_51, seg. 2,7: alfombra de lenguas en gancho que cubre el piso alrededor de los pies.
+      - name: alfombra
+        weight: 0.45
+        cooldown: 150
+        effects:
+          - &carpet {type: adornment, style: {shapes: [fire_carpet]}, trigger: {hold: 20, fade_in: 1, fade_out: 6}}
+          - *heat2
   - action: stomp
     options:
       - name: piso
         weight: 0.3
         effects: [*floor]
+      - name: alfombra
+        weight: 0.25
+        cooldown: 150
+        effects: [*carpet]
       - name: nada
         weight: 0.7
 
@@ -154,6 +168,13 @@ reactions:
       - name: latigo
         weight: 0.4
         effects: [*whip]
+      # video_51, seg. 3,0 y 3,6: chorro de fuego desde el puño, en la dirección del antebrazo.
+      - name: chorro
+        weight: 0.4
+        cooldown: 60
+        effects:
+          - &blast {type: adornment, style: {shapes: [fire_blast]}, trigger: {hold: 14, fade_in: 1, fade_out: 5}}
+          - *heat
 
   # Seg. 3,6-4,8: golpes y barridos: el látigo con la forma del golpe; a veces un aro o el rayo.
   - action: fast_swing
@@ -161,6 +182,10 @@ reactions:
       - name: latigo
         weight: 0.65
         effects: [*whip, *heat]
+      - name: chorro
+        weight: 0.3
+        cooldown: 60
+        effects: [*blast, *heat]
       - name: aro
         weight: 0.15
         cooldown: 120
@@ -168,13 +193,31 @@ reactions:
           - type: adornment
             style: {shapes: [fire_ring]}
             trigger: {hold: 12, fade_in: 1, fade_out: 5}
-      # El rayo de los maestros fuego (de avatar_storm), de vez en cuando: fino, quebrado y con
-      # ramas, color fuego (antes salía grueso y blanco como una barra).
+      # El rayo cian (glowing/video_51, seg. 5,0-6,7), combinado con el rayo actual: la cinta
+      # quebrada y plana de la referencia más el trazo fino con núcleo claro y las ramas. Va de la
+      # mano al borde del cuadro, deja un lazo por donde barre el brazo y salta en chispazos por el
+      # cuerpo; el cuadro se tiñe de azul (fire_light).
       - name: rayo
-        weight: 0.12
+        weight: 0.15
         cooldown: 150
         effects:
           - &bolt
+            type: lightning
+            target: {kind: joint, id: right_wrist}
+            style:
+              colors: [[0.35, 0.92, 1.0], [0.1, 0.62, 0.85], [0.0, 0.3, 0.75]]
+              thickness: 0.008
+              hdr_gain: 1.3
+              lightning: {branches: 4, branch_depth: 2, branch_angle: 34, jitter: 0.38, reseed_every: 1, tail_frames: 3, sparks: 4, reach: 2.2, ribbon: 0.2, to_edge: true, trail: 8, crackle: 3}
+            # Tapa el fondo (no se suma): sobre una pared clara, sumado, el cian se iba al blanco.
+            render: {blend: over, motion_blur: 0.0, group: lightning, persistence: 0.2, glow_layers: 3}
+            trigger: {hold: 14, fade_in: 1, fade_out: 5}
+      # El rayo de los maestros fuego de antes (de avatar_storm): fino, quebrado y color fuego.
+      - name: rayo_fuego
+        weight: 0.05
+        cooldown: 150
+        effects:
+          - &bolt_fire
             type: lightning
             target: {kind: joint, id: right_wrist}
             style:
@@ -199,8 +242,22 @@ reactions:
   - action: finger_gun
     options:
       - name: rayo
-        weight: 1.0
+        weight: 0.8
         effects: [*bolt]
+      - name: rayo_fuego
+        weight: 0.2
+        effects: [*bolt_fire]
+
+  # video_51, seg. 5,0 y 6,2: el brazo que se extiende para lanzar: el rayo hasta el borde.
+  - action: throw
+    options:
+      - name: rayo
+        weight: 0.6
+        cooldown: 90
+        effects: [*bolt]
+      - name: chorro
+        weight: 0.4
+        effects: [*blast, *heat]
 
   # Puño en alto: llama en el puño.
   - action: fist_up
@@ -221,6 +278,13 @@ reactions:
       - name: latigos
         weight: 0.5
         effects: [*whip]
+      # video_51, seg. 2,4: un aro grande de fuego que sube de un pie y rodea todo el cuerpo.
+      - name: aro_grande
+        weight: 0.5
+        cooldown: 200
+        effects:
+          - &halo {type: adornment, style: {shapes: [fire_halo]}, trigger: {hold: 18, fade_in: 1, fade_out: 6}}
+          - *heat2
 
   # Seg. 5,2 y 9,2-10,8: pasos y barridos a ras del piso: la raya de fuego crece por donde pasa.
   - action: step
@@ -271,11 +335,19 @@ reactions:
         weight: 0.3
         effects:
           - {type: adornment, style: {shapes: [fire_ring]}, trigger: {hold: 12, fade_in: 1, fade_out: 5}}
+      - name: aro_grande
+        weight: 0.35
+        cooldown: 200
+        effects: [*halo]
   - action: tumble
     options:
       - name: piso
         weight: 0.3
         effects: [*floor, *heat]
+      - name: alfombra
+        weight: 0.3
+        cooldown: 150
+        effects: [*carpet]
       - name: golpe_piso
         weight: 0.3
         effects: [*splash]
