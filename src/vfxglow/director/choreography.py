@@ -350,8 +350,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
             )
     if catalog.max_gap_s > 0 and not (pins is not None and pins.solo_estos):
         fill_gaps(catalog, brief, events, extra, chosen, decisions, seed, fps)
-    always = [] if pins is not None and pins.solo_estos else catalog.always
-    effects: list[dict] = [_effect(catalog, raw, f"always_{index}") for index, raw in enumerate(always)]
+    always = [] if pins is not None and pins.solo_estos else always_effects(catalog, events, brief.video.frame_count, fps)
+    effects: list[dict] = list(always)
     for number, (reaction, option, picked, pin) in enumerate(pinned_out):
         for index, raw in enumerate(option.effects):
             effect = _effect(catalog, raw, f"{reaction.action}_{option.name}_{index}_fijado_{number}")
@@ -784,6 +784,36 @@ def _draw(reaction: Reaction, event: MotionEvent, seed: int, resting: set[str] =
         return Option(name="nada")
     rng = np.random.default_rng(zlib.crc32(f"{seed}:{reaction.action}:{event.start_frame}:{event.target}".encode()) & 0xFFFFFFFF)
     return options[int(rng.choice(len(options), p=weights / weights.sum()))]
+
+
+RESTLESS = ("jump", "flip", "tumble", "frenzy", "spin_body", "landing")
+
+
+def ends_still(events: list[MotionEvent], frame_count: int, fps: float, seconds: float) -> bool:
+    """Si en los últimos `seconds` la persona queda quieta o casi: al menos el 60% del tramo
+    cubierto por pausas (`still`, `lull`) y ningún salto, giro ni voltereta."""
+    start = max(frame_count - int(seconds * fps), 0)
+    span = max(frame_count - start, 1)
+    calm = np.zeros(span, bool)
+    for event in events:
+        if event.end_frame < start:
+            continue
+        if event.name in RESTLESS:
+            return False
+        if event.name in ("still", "lull"):
+            calm[max(event.start_frame - start, 0) : max(event.end_frame + 1 - start, 0)] = True
+    return float(calm.mean()) >= 0.6
+
+
+def always_effects(catalog: Catalog, events: list[MotionEvent], frame_count: int, fps: float) -> list[dict]:
+    """Los efectos `always` del catálogo. Con `when: quieto_al_final`, solo si la persona termina
+    quieta (la pared de fuego final tapa el piso; si sigue moviéndose o camina, no corresponde)."""
+    out = []
+    for index, raw in enumerate(catalog.always):
+        if raw.get("when") == "quieto_al_final" and not ends_still(events, frame_count, fps, float(raw.get("style", {}).get("size", 1.8))):
+            continue
+        out.append(_effect(catalog, {k: v for k, v in raw.items() if k != "when"}, f"always_{index}"))
+    return out
 
 
 def _effect(catalog: Catalog, raw: dict, effect_id: str) -> dict:

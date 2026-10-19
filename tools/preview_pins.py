@@ -19,7 +19,7 @@ import numpy as np
 from vfxglow.analysis.schema import MotionBrief
 from vfxglow.composite.composite import composite_frame
 from vfxglow.config import EngineConfig
-from vfxglow.director.choreography import _effect, choreograph, load_catalog
+from vfxglow.director.choreography import always_effects, choreograph, load_catalog
 from vfxglow.director.pins import load_pins
 from vfxglow.director.schema import Effect, resolve_timing
 from vfxglow.engine.engine import EffectEngine
@@ -44,7 +44,7 @@ def main() -> None:
     path = Path(args.catalog) if args.catalog.endswith(".yaml") else Path("configs/catalogs") / f"{args.catalog}.yaml"
     catalog = load_catalog(path)
     script, _ = choreograph(catalog, brief, 1, load_pins(args.pins))
-    extra = [Effect.model_validate(_effect(catalog, raw, f"always_{i}")) for i, raw in enumerate(catalog.always)]
+    extra = [Effect.model_validate(raw) for raw in always_effects(catalog, list(brief.events), count, fps)]
     script = resolve_timing(script.model_copy(update={"effects": extra + list(script.effects)}), count)
     by_id = {e.id: e for e in script.effects}
     wanted = sorted({int(round(s * fps)) for s in args.seconds})

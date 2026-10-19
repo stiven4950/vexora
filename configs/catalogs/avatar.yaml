@@ -23,12 +23,11 @@ defaults:
   type: adornment
   target: {kind: joint, id: nose}
   time: {start_frame: 0, end_frame: -1, fade_in: 1, fade_out: 4}
-  # Fuego combinado (look mix): el amarillo plano y opaco de video_51 con el núcleo blanco de
-  # video_18 en lo más grueso; tapa el fondo (over) para que el amarillo no se vaya al blanco sobre
-  # paredes claras.
-  style: {thickness: 0.008, hdr_gain: 1.6, focus: false, look: mix}
+  # El fuego se pinta como en video_18 (cuerpo blanco, borde amarillo, resplandor naranja); de
+  # video_51 se toman las formas (chorro, alfombra, aro grande), no la pintura.
+  style: {thickness: 0.008, hdr_gain: 1.6, focus: false}
   # Brillo de caída larga (5 pasadas, hasta 24x el radio), como el Deep Glow.
-  render: {blend: over, motion_blur: 0.0, persistence: 0.0, group: glow, glow_layers: 5}
+  render: {blend: add, motion_blur: 0.0, persistence: 0.0, group: glow, glow_layers: 5}
 
 always:
   # La luz del fuego sobre el plano: tiñe ropa, piel y piso de naranja conservando su textura y
@@ -41,7 +40,9 @@ always:
     target: {kind: joint, id: "left_wrist,right_wrist,left_ankle,right_ankle"}
     style: {thickness: 0.008, hdr_gain: 1.9, size: 0.3, min_speed: 0.25, chance: 0.3, shapes: [dash, leaf]}
   # Cierre (seg. 14,4-16): la pared de fuego sube del piso; la flecha y los ojos se encienden.
+  # Solo si la persona termina quieta (video_18 se arrodilla; en video_51 camina y no hay pared).
   - type: adornment
+    when: quieto_al_final
     style: {shapes: [fire_wall], size: 1.8, focus: false}
     # Sin fundido de salida: queda encendida hasta el último cuadro (al desvanecerse se notaban
     # las llamas sueltas con que se arma).
