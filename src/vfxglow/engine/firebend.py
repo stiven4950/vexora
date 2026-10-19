@@ -121,7 +121,7 @@ def cel(layer, make, color, alpha: float, runtime=None, heat: float = 1.0, core:
         lo, hi = poly.min(axis=0), poly.max(axis=0)
         size = float(np.linalg.norm(hi - lo))
         mid = (lo + hi) / 2
-        warm(layer, mid, max(size * 2.4, 0.45 * height), GLOW * 0.55, alpha * 0.16 * heat)  # ancha pero transparente
+        warm(layer, mid, max(size * 2.4, 0.45 * height), GLOW * 0.55, alpha * 0.1 * heat)  # ancha pero transparente
         _LIGHTS["now"].append((mid, size, float(alpha) * heat))
 
 
@@ -169,8 +169,8 @@ def flush_fire(layer, frame_index: int) -> None:
     small = cv2.resize(m, (max((x1 - x0) // 4, 1), max((y1 - y0) // 4, 1)), interpolation=cv2.INTER_AREA)
     far = cv2.resize(cv2.GaussianBlur(small, (0, 0), max(0.045 * height / 4, 1.0)), (x1 - x0, y1 - y0), interpolation=cv2.INTER_LINEAR)
     a = np.float32(min(entry["alpha"], 1.0))
-    rgb = WHITE_HOT * m[..., None] + RIM * band[..., None] + NEAR_GLOW * (near * 0.9)[..., None] + FAR_GLOW * (far * 0.7)[..., None]
-    cover = np.clip(m + band + near * 0.7 + far * 0.45, 0.0, 1.0)
+    rgb = WHITE_HOT * m[..., None] + RIM * band[..., None] + NEAR_GLOW * (near * 0.7)[..., None] + FAR_GLOW * (far * 0.45)[..., None]
+    cover = np.clip(m + band + near * 0.55 + far * 0.3, 0.0, 1.0)
     dst = layer[y0:y1, x0:x1]
     dst[..., :3] += rgb * a
     dst[..., 3] = 1.0 - (1.0 - dst[..., 3]) * (1.0 - cover * a)
@@ -599,7 +599,7 @@ def _fire_light(runtime, layer, frame_index: int, alpha: float) -> list:
         light += np.clip(1.0 - d2, 0.0, 1.0) ** 2 * np.float32(a)
         amount += size * a
     light = cv2.resize(np.clip(light, 0.0, 1.0), (width, height), interpolation=cv2.INTER_LINEAR)
-    cover = np.float32(min(amount / (0.5 * height), 1.0) * 0.85 * alpha)
+    cover = np.float32(min(amount / (0.5 * height), 1.0) * 0.6 * alpha)
     straight = LIGHT_DARK * (1.0 - light)[..., None] + LIGHT_TINT * light[..., None]
     layer[..., :3] = straight * cover
     layer[..., 3] = cover

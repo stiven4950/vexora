@@ -59,7 +59,7 @@ reactions:
         weight: 0.8
         effects:
           - &whip {type: adornment, style: {shapes: [fire_whip]}, trigger: {hold: 10, fade_in: 1, fade_out: 5}}
-          - &heat {type: grade, style: {colors: [[1.0, 0.45, 0.08]], intensity: 0.55, focus: false}, render: {blend: add, group: glow}, trigger: {hold: 6, fade_in: 2, fade_out: 8}}
+          - &heat {type: grade, style: {colors: [[1.0, 0.45, 0.08]], intensity: 0.35, focus: false}, render: {blend: add, group: glow}, trigger: {hold: 6, fade_in: 2, fade_out: 8}}
       - name: alas
         weight: 0.2
         effects:
@@ -79,7 +79,7 @@ reactions:
         cooldown: 450
         effects:
           - &breath {type: adornment, style: {shapes: [fire_breath]}, trigger: {hold: 26, fade_in: 1, fade_out: 6}}
-          - &heat2 {type: grade, style: {colors: [[1.0, 0.45, 0.08]], intensity: 0.45, focus: false}, render: {blend: add, group: glow}, trigger: {hold: 14, fade_in: 2, fade_out: 8}}
+          - &heat2 {type: grade, style: {colors: [[1.0, 0.45, 0.08]], intensity: 0.3, focus: false}, render: {blend: add, group: glow}, trigger: {hold: 14, fade_in: 2, fade_out: 8}}
 
   # Seg. 1,2: brazos arriba: llamas que suben de las manos.
   - action: arms_up
