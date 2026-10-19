@@ -40,6 +40,9 @@ always:
   # Cierre (seg. 14,4-16): la pared de fuego sube del piso; la flecha y los ojos se encienden.
   - type: adornment
     style: {shapes: [fire_wall], size: 1.8, focus: false}
+    # Sin fundido de salida: queda encendida hasta el último cuadro (al desvanecerse se notaban
+    # las llamas sueltas con que se arma).
+    time: {start_frame: 0, end_frame: -1, fade_in: 0, fade_out: 0}
 
 reactions:
   # Seg. 0: el estado Avatar.

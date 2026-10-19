@@ -76,6 +76,8 @@ def warm(layer, center: np.ndarray, radius: float, color: np.ndarray, alpha: flo
 _FIELDS: dict[int, dict] = {}
 # Luces de fuego del cuadro (para fire_light, que tiñe el plano): las del cuadro anterior y las de este.
 _LIGHTS: dict = {"frame": -1, "now": [], "prev": []}
+# Intensidad general del fuego pintado (núcleo, borde y resplandor): 0,85 = un 15% menos.
+FIRE_INTENSITY = 0.85
 WHITE_HOT = np.array([1.0, 0.98, 0.9], np.float32) * 1.35  # apenas sobre 1: con más, el bloom engorda la forma
 RIM = np.array([1.0, 0.78, 0.2], np.float32) * 1.6
 NEAR_GLOW = np.array([1.0, 0.48, 0.04], np.float32)
@@ -289,7 +291,7 @@ def flush_fire(layer, frame_index: int, u: float | None = None, st: dict | None 
     near = cv2.GaussianBlur(m, (0, 0), max(0.014 * height, 1.0)) * (1.0 - m)
     small = cv2.resize(m, (max((x1 - x0) // 4, 1), max((y1 - y0) // 4, 1)), interpolation=cv2.INTER_AREA)
     far = cv2.resize(cv2.GaussianBlur(small, (0, 0), max(0.045 * height / 4, 1.0)), (x1 - x0, y1 - y0), interpolation=cv2.INTER_LINEAR)
-    a = np.float32(min(entry["alpha"], 1.0))
+    a = np.float32(min(entry["alpha"], 1.0) * FIRE_INTENSITY)
     rgb = WHITE_HOT * m[..., None] + RIM * band[..., None] + NEAR_GLOW * (near * 0.375)[..., None] + FAR_GLOW * (far * 0.3)[..., None]
     cover = np.clip(m + band + near * 0.3 + far * 0.2, 0.0, 1.0)
     dst = layer[y0:y1, x0:x1]
@@ -835,8 +837,10 @@ def _fire_wall(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
         return []
     s = _ease((frame_index - (total - length)) / max(length - 1, 1))
     height, width = layer.shape[:2]
-    rise = height * (0.1 + 0.5 * s)
+    rise = height * (0.08 + 0.3 * s)  # más baja: no tapa a la persona
     base_y = height + 2
+    alpha = max(float(alpha), st.get("peak", 0.0))  # sin fundido al final: se notaban las piezas
+    st["peak"] = alpha
     # Como en la referencia (seg. 15,4): llamas blancas separadas, con huecos naranjas entre ellas
     # (el resplandor), sobre una base baja; no un bloque. Las de atrás más altas y finas.
     band = np.array([[-0.05 * width, base_y - rise * 0.12], [1.05 * width, base_y - rise * 0.12], [1.05 * width, base_y + 2], [-0.05 * width, base_y + 2]])
