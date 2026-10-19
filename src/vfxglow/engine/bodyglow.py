@@ -604,7 +604,12 @@ def draw_adornment(runtime, track, points, frame_index: int, height: int, envelo
 
     # El fuego acumulado se pinta (cuerpo blanco, borde amarillo, resplandor) y muere con la vida
     # del efecto.
-    flush_fire(layer, frame_index, _phase(runtime, event), runtime.swoosh.setdefault("_firelife", {}))
+    # Solo lo disparado por un gesto tiene vida; lo que está siempre (la pared final, que se
+    # cronometra sola) no se erosiona.
+    if event is not None:
+        flush_fire(layer, frame_index, _phase(runtime, event), runtime.swoosh.setdefault("_firelife", {}))
+    else:
+        flush_fire(layer, frame_index)
     stroke_batch(layer, strokes, style.hdr_gain)
 
 
