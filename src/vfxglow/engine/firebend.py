@@ -410,10 +410,28 @@ STRETCH = 2.5       # cuánto se estira con la velocidad
 MAX_STRETCH = 1.7
 
 
-def flame_physics(st: dict, key: str, anchor: np.ndarray, scale: float, up: np.ndarray | None = None, wind: np.ndarray | None = None) -> tuple[np.ndarray, float]:
+CENTRIFUGAL = 6.0   # cuánto abre las llamas hacia afuera al girar alrededor del cuerpo
+ATTRACT = 0.9       # cuánto se inclinan dos llamas cercanas una hacia la otra
+MERGE_GAP = 0.35    # a menos de esto (anchos de hombros) dos llamas se funden en una
+# Viento del ambiente (por ancho de hombros): (0, 0) sin viento; p. ej. (-0.6, 0) sopla a la izquierda.
+AMBIENT_WIND = np.array([0.0, 0.0])
+
+
+def flame_physics(
+    st: dict,
+    key: str,
+    anchor: np.ndarray,
+    scale: float,
+    up: np.ndarray | None = None,
+    wind: np.ndarray | None = None,
+    pivot: np.ndarray | None = None,
+    partner: np.ndarray | None = None,
+) -> tuple[np.ndarray, float]:
     """(dirección unitaria de la llama, factor de estiramiento) para la llama anclada en `anchor`.
 
-    `st` guarda el estado entre cuadros; `key` distingue cada llama del efecto."""
+    `st` guarda el estado entre cuadros; `key` distingue cada llama del efecto. `pivot`: el eje del
+    cuerpo (la llama se abre hacia afuera si el ancla gira a su alrededor). `partner`: el ancla de
+    otra llama cercana (se atraen cuando están a menos de un ancho de hombros)."""
     up = np.array([0.0, -1.0]) if up is None else up
     s = st.setdefault(key, {})
     prev = s.get("p")
@@ -422,9 +440,19 @@ def flame_physics(st: dict, key: str, anchor: np.ndarray, scale: float, up: np.n
     if float(np.linalg.norm(vel)) > 1.5:  # salto del detector (no un movimiento real): se ignora
         vel = np.zeros(2)
     s["v"] = s.get("v", vel) * 0.5 + vel * 0.5  # velocidad suavizada
-    force = up * BUOYANCY - s["v"] * WIND_DRAG
-    if wind is not None:
-        force = force + wind
+    force = up * BUOYANCY - s["v"] * WIND_DRAG + (AMBIENT_WIND if wind is None else wind)
+    if pivot is not None:  # fuerza centrífuga: v_tangencial² / radio, hacia afuera del eje
+        radial = (s["p"] - np.asarray(pivot, float)) / max(scale, 1e-6)
+        radius = float(np.linalg.norm(radial))
+        if radius > 0.5:  # solo con la mano lejos del eje (cerca, un temblor no es un giro)
+            out = radial / radius
+            tangential = s["v"] - out * float(np.dot(s["v"], out))
+            force = force + out * CENTRIFUGAL * float(np.dot(tangential, tangential)) / radius
+    if partner is not None:  # dos llamas cercanas se inclinan una hacia la otra
+        gap = (np.asarray(partner, float) - s["p"]) / max(scale, 1e-6)
+        dist = float(np.linalg.norm(gap))
+        if MERGE_GAP <= dist < 1.0:  # más cerca que eso ya son una sola llama (ver _hand_fire)
+            force = force + gap / dist * ATTRACT * (1.0 - dist)
     rest = float(np.arctan2(up[1], up[0]))
     target = float(np.arctan2(force[1], force[0]))
     target = rest + float(np.clip(np.angle(np.exp(1j * (target - rest))), -MAX_LEAN, MAX_LEAN))
@@ -475,31 +503,49 @@ def teardrop(base: np.ndarray, up: np.ndarray, length: float, width: float, fram
     return ribbon(spine, flame_profile(s, width, seed, frame_index), frame_index, 2.0, seed)
 
 
-def flame_parts(base: np.ndarray, up: np.ndarray, tall: float, width: float, frame_index: int, seed: float = 0.0) -> list[tuple[np.ndarray, np.ndarray]]:
-    """Una llama completa como piezas (línea central, anchos): el cuerpo de base redonda, una o
-    dos lenguas laterales que salen de su mitad hacia afuera y arriba, y un trocito suelto sobre la
-    punta. Se dibujan juntas y nacen/mueren juntas (living_ribbon)."""
+def flame_parts(base: np.ndarray, up: np.ndarray, tall: float, width: float, frame_index: int, seed: float = 0.0, trail: list | None = None, swoosh: float = 0.0) -> list[tuple[np.ndarray, np.ndarray]]:
+    """Una llama completa como piezas (línea central, anchos): el cuerpo en forma de gota (base
+    redonda) con bordes caóticos, a veces una lengüeta chica pegada al cuerpo, y un trocito suelto
+    sobre la punta. Se dibujan juntas y nacen/mueren juntas (living_ribbon).
+
+    `trail` (posiciones recientes del ancla, de la más vieja a la actual) y `swoosh` (0-1, según la
+    velocidad): con la mano rápida el cuerpo se dobla siguiendo su recorrido, como una estela."""
     side = np.array([-up[1], up[0]])
-    s = np.linspace(0, 1, 28)
-    sway = _smooth_noise(s * 2.5 - frame_index * 0.09, seed) * 0.22 * tall * s ** 1.3
+    s = np.linspace(0, 1, 32)
+    sway = _smooth_noise(s * 2.5 - frame_index * 0.09, seed) * 0.18 * tall * s ** 1.3
     spine = base + np.outer(s * tall, up) + np.outer(sway, side)
-    parts = [(spine, flame_profile(s, width, seed, frame_index))]
+    if trail is not None and len(trail) >= 3 and swoosh > 0:
+        # Estela: el punto s del cuerpo va hacia la posición que tenía el ancla hace s·n cuadros
+        # (la llama queda tendida sobre el camino de la mano).
+        path = np.asarray(trail[::-1], float)  # de la actual a la más vieja
+        offsets = path - path[0]
+        idx = np.clip(s * (len(path) - 1), 0, len(path) - 1)
+        lo = np.floor(idx).astype(int)
+        hi = np.minimum(lo + 1, len(path) - 1)
+        f = (idx - lo)[:, None]
+        streak = base + (offsets[lo] * (1 - f) + offsets[hi] * f) * 2.2 + np.outer(s * tall * 0.35, up)
+        w = np.clip(swoosh, 0.0, 1.0) * s[:, None] ** 0.6  # la base sigue en la mano
+        spine = spine * (1 - w) + streak * w
+    profile = flame_profile(s, width, seed, frame_index)
+    # Bordes caóticos: mordiscos y bultos irregulares que se mueven (no un contorno liso).
+    chaos = 1.0 + 0.22 * _smooth_noise(s * 9.0 - frame_index * 0.25, seed + 11.0) * np.clip(s * 2.5, 0, 1)
+    parts = [(spine, profile * chaos)]
     rng = np.random.default_rng(int(abs(seed) * 1000) % 2**31)
-    for k, at in enumerate((0.45, 0.62)[: 1 + int(rng.random() < 0.7)]):
-        sign = rng.choice([-1.0, 1.0]) if k == 0 else -parts_sign
-        parts_sign = sign
-        root = spine[int(at * 27)] + side * sign * flame_profile(np.array([at]), width, seed, frame_index)[0] * 0.7
-        d = up + side * sign * 0.75
+    if rng.random() < 0.6 and swoosh < 0.5:  # una lengüeta chica, pegada al cuerpo (no una hoja)
+        sign = rng.choice([-1.0, 1.0])
+        at = rng.uniform(0.5, 0.65)
+        k = int(at * 31)
+        root = spine[k] + side * sign * profile[k] * 0.55
+        d = up + side * sign * 0.3
         d /= float(np.linalg.norm(d))
-        q = np.linspace(0, 1, 12)
-        wob = _smooth_noise(q * 2.0 - frame_index * 0.12, seed + 7 + k) * 0.15 * tall * q
-        t_len = tall * rng.uniform(0.28, 0.4)
-        tongue = root + np.outer(q * t_len, d) + np.outer(wob, np.array([-d[1], d[0]]))
-        parts.append((tongue, width * 0.32 * np.sin(np.pi * np.clip(q * 0.95 + 0.05, 0, 1)) ** 0.6 * (1 - q) ** 0.5 + 0.4))
-    tip = spine[-1] + up * tall * 0.12 + side * _smooth_noise(np.array([frame_index * 0.1]), seed + 9)[0] * 0.08 * tall
+        q = np.linspace(0, 1, 10)
+        wob = _smooth_noise(q * 2.0 - frame_index * 0.12, seed + 7) * 0.08 * tall * q
+        tongue = root + np.outer(q * tall * rng.uniform(0.18, 0.26), d) + np.outer(wob, np.array([-d[1], d[0]]))
+        parts.append((tongue, width * 0.22 * np.sin(np.pi * np.clip(q * 0.9 + 0.1, 0, 1)) ** 0.6 * (1 - q) ** 0.6 + 0.4))
+    tip = spine[-1] + up * tall * 0.1 + side * _smooth_noise(np.array([frame_index * 0.1]), seed + 9)[0] * 0.08 * tall
     q = np.linspace(0, 1, 10)
-    wisp = tip + np.outer(q * tall * 0.18, up)
-    parts.append((wisp, width * 0.18 * np.sin(np.pi * q) + 0.3))
+    wisp = tip + np.outer(q * tall * 0.14, up)
+    parts.append((wisp, width * 0.15 * np.sin(np.pi * q) + 0.3))
     return parts
 
 
@@ -758,17 +804,29 @@ def _hand_fire(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
             continue
         st = _activation(runtime, event, f"hand:{side}", body)
         u = _phase(runtime, event)
-        flame = teardrop(wrist, up, 0.85 * scale, 0.2 * scale, frame_index, k * 1.7)
-        # Base ancha y redonda en la mano, cuerpo que se angosta, lenguas laterales y un trocito
-        # suelto arriba (proporción ~2:1, no una aguja).
-        tall, half = 1.45 * scale, 0.2 * scale
-        base = wrist - up * half * 0.6  # la base redonda envuelve el puño
-        # Física: se inclina contra el movimiento de la mano, con inercia, y se estira con la velocidad.
-        lean, stretch = flame_physics(st, "phys", wrist, scale, up)
+        # Gota: base ancha y redonda que envuelve el puño, cuerpo que se angosta con bordes
+        # caóticos (proporción ~2,3:1).
+        tall, half = 1.15 * scale, 0.25 * scale
+        other = body.get(f"{'right' if side == 'left' else 'left'}_wrist")
+        if len(sides) == 2 and other is not None and float(np.linalg.norm(other - wrist)) < MERGE_GAP * scale:
+            # Manos juntas: una sola gota que sale de entre las dos (no dos llamas encimadas).
+            if side == "right":
+                continue
+            wrist, other, half = (wrist + other) / 2, None, half * 1.1
+        base = wrist - up * half * 0.6
+        # Física: viento relativo, inercia, estiramiento, centrífuga alrededor del cuerpo y atracción
+        # hacia la otra llama cercana.
+        lean, stretch = flame_physics(st, "phys", wrist, scale, up, pivot=center + down * 0.5 * scale, partner=other)
+        trail = st.setdefault("trail", [])
+        if trail and float(np.linalg.norm(base - trail[-1])) > 0.5 * scale:
+            trail.clear()  # salto del detector: la estela empieza de nuevo
+        trail.append(base.copy())
+        del trail[:-8]
+        speed = float(np.linalg.norm(st["phys"].get("v", np.zeros(2))))
+        swoosh = float(np.clip((speed - 0.05) / 0.15, 0.0, 1.0))  # mano rápida: la llama se vuelve estela
         tall, half = tall * stretch, half / np.sqrt(stretch)
-        for j, (spine, widths) in enumerate(flame_parts(base, lean, tall, half, frame_index, k * 1.7 + 0.3)):
+        for j, (spine, widths) in enumerate(flame_parts(base, lean, tall, half, frame_index, k * 1.7 + 0.3, trail, swoosh)):
             living_ribbon(layer, spine, widths, u, st.setdefault(f"part{j}", {}), frame_index, color, alpha, runtime if j == 0 else None, grow_from_end=False, tongues=3.0, phase=k * 1.7 + j)
-        del flame
         flame_spine = np.array([wrist + up * 0.85 * scale * grow * s for s in np.linspace(0, 1, 8)])
         shed(layer, flame_spine, np.full(8, 0.12 * scale), st, frame_index, scale, color, alpha, 0.6)
         rim(layer, runtime, [wrist], scale, color, alpha, 1.0)
