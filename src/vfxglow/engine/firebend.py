@@ -380,6 +380,20 @@ def ribbon(spine: np.ndarray, widths: np.ndarray, frame_index: int, tongues: flo
     return make
 
 
+ROUND_BASE = 0.3  # fracción del largo que ocupa la base redonda
+
+
+def flame_profile(s: np.ndarray, width: float, seed: float = 0.0, frame_index: int = 0) -> np.ndarray:
+    """Ancho (medio) de una llama a lo largo de s (0 la base, 1 la punta), como en las llamas
+    animadas de referencia (SVG "flame animation"): la base es media circunferencia ancha y
+    redonda, y desde ahí el cuerpo se angosta hasta la punta con bultos suaves que se mueven."""
+    b = ROUND_BASE
+    bottom = np.sqrt(np.clip(1.0 - ((b - s) / b) ** 2, 0.0, 1.0))
+    body = np.clip((1.0 - s) / (1.0 - b), 0.0, 1.0) ** 1.1
+    bumps = 1.0 + 0.16 * _smooth_noise(s * 5.0 - frame_index * 0.1, seed + 4.0)
+    return width * np.where(s < b, bottom, body * bumps) + 0.5
+
+
 def teardrop(base: np.ndarray, up: np.ndarray, length: float, width: float, frame_index: int, seed: float = 0.0, curl: float = 0.0):
     """make(k) de una llama que sube desde `base` en la dirección `up` y se mece. `curl` (en
     vueltas, con signo para el lado) enrosca la punta en un gancho, como las llamas de anime."""
@@ -393,11 +407,37 @@ def teardrop(base: np.ndarray, up: np.ndarray, length: float, width: float, fram
         ds = np.gradient(s) * length
         local = np.cumsum(step * ds[:, None], axis=0)
         spine = base + np.outer(local[:, 0], up) + np.outer(local[:, 1] + sway * 0.5, side)
-        widths = width * np.sin(np.pi * (0.12 + 0.88 * s)) ** 0.8 * (1 - s) ** 0.5 + 0.5
-        return ribbon(spine, widths, frame_index, 2.0, seed)
+        return ribbon(spine, flame_profile(s, width, seed, frame_index), frame_index, 2.0, seed)
     spine = base + np.outer(s * length, up) + np.outer(sway, side)
-    widths = width * np.sin(np.pi * (0.12 + 0.88 * s)) ** 0.8 * (1 - s) ** 0.35 + 0.5
-    return ribbon(spine, widths, frame_index, 2.0, seed)
+    return ribbon(spine, flame_profile(s, width, seed, frame_index), frame_index, 2.0, seed)
+
+
+def flame_parts(base: np.ndarray, up: np.ndarray, tall: float, width: float, frame_index: int, seed: float = 0.0) -> list[tuple[np.ndarray, np.ndarray]]:
+    """Una llama completa como piezas (línea central, anchos): el cuerpo de base redonda, una o
+    dos lenguas laterales que salen de su mitad hacia afuera y arriba, y un trocito suelto sobre la
+    punta. Se dibujan juntas y nacen/mueren juntas (living_ribbon)."""
+    side = np.array([-up[1], up[0]])
+    s = np.linspace(0, 1, 28)
+    sway = _smooth_noise(s * 2.5 - frame_index * 0.09, seed) * 0.22 * tall * s ** 1.3
+    spine = base + np.outer(s * tall, up) + np.outer(sway, side)
+    parts = [(spine, flame_profile(s, width, seed, frame_index))]
+    rng = np.random.default_rng(int(abs(seed) * 1000) % 2**31)
+    for k, at in enumerate((0.45, 0.62)[: 1 + int(rng.random() < 0.7)]):
+        sign = rng.choice([-1.0, 1.0]) if k == 0 else -parts_sign
+        parts_sign = sign
+        root = spine[int(at * 27)] + side * sign * flame_profile(np.array([at]), width, seed, frame_index)[0] * 0.7
+        d = up + side * sign * 0.75
+        d /= float(np.linalg.norm(d))
+        q = np.linspace(0, 1, 12)
+        wob = _smooth_noise(q * 2.0 - frame_index * 0.12, seed + 7 + k) * 0.15 * tall * q
+        t_len = tall * rng.uniform(0.28, 0.4)
+        tongue = root + np.outer(q * t_len, d) + np.outer(wob, np.array([-d[1], d[0]]))
+        parts.append((tongue, width * 0.32 * np.sin(np.pi * np.clip(q * 0.95 + 0.05, 0, 1)) ** 0.6 * (1 - q) ** 0.5 + 0.4))
+    tip = spine[-1] + up * tall * 0.12 + side * _smooth_noise(np.array([frame_index * 0.1]), seed + 9)[0] * 0.08 * tall
+    q = np.linspace(0, 1, 10)
+    wisp = tip + np.outer(q * tall * 0.18, up)
+    parts.append((wisp, width * 0.18 * np.sin(np.pi * q) + 0.3))
+    return parts
 
 
 # ----- la vida de una llama: nacer, sostenerse y morir (docs/referencias/video_18_fuego.md) -----
@@ -644,14 +684,12 @@ def _hand_fire(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
         st = _activation(runtime, event, f"hand:{side}", body)
         u = _phase(runtime, event)
         flame = teardrop(wrist, up, 0.85 * scale, 0.2 * scale, frame_index, k * 1.7)
-        # Altas, finas y onduladas como en la referencia (seg. 2,5: ~2 veces el ancho de hombros).
-        tall = 1.6 * scale
-        s = np.linspace(0, 1, 28)
-        sway = _smooth_noise(s * 4.0 - frame_index * 0.12, k * 1.7) * 0.18 * tall * s
-        side_n = np.array([-up[1], up[0]])
-        spine = wrist + np.outer(s * tall, up) + np.outer(sway, side_n)
-        widths = 0.13 * scale * np.sin(np.pi * (0.1 + 0.9 * s)) ** 0.7 * (1 - s) ** 0.6 + 0.5
-        living_ribbon(layer, spine, widths, u, st, frame_index, color, alpha, runtime, grow_from_end=False, tongues=5.0, phase=k * 1.7)
+        # Base ancha y redonda en la mano, cuerpo que se angosta, lenguas laterales y un trocito
+        # suelto arriba (proporción ~2:1, no una aguja).
+        tall, half = 1.45 * scale, 0.2 * scale
+        base = wrist - up * half * 0.6  # la base redonda envuelve el puño
+        for j, (spine, widths) in enumerate(flame_parts(base, up, tall, half, frame_index, k * 1.7 + 0.3)):
+            living_ribbon(layer, spine, widths, u, st.setdefault(f"part{j}", {}), frame_index, color, alpha, runtime if j == 0 else None, grow_from_end=False, tongues=3.0, phase=k * 1.7 + j)
         del flame
         flame_spine = np.array([wrist + up * 0.85 * scale * grow * s for s in np.linspace(0, 1, 8)])
         shed(layer, flame_spine, np.full(8, 0.12 * scale), st, frame_index, scale, color, alpha, 0.6)
@@ -808,7 +846,7 @@ def _fire_wall(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
         x = width * (j + 0.5 + rng.uniform(-0.15, 0.15)) / 7
         tall = rise * rng.uniform(0.55, 1.0) * (0.85 + 0.2 * _smooth_noise(np.array([frame_index * 0.06 + j]), 3.0)[0])
         lean = np.array([_smooth_noise(np.array([frame_index * 0.05 + j * 1.7]), 5.0)[0] * 0.4, -1.0])
-        thin = min(tall * rng.uniform(0.14, 0.2), width / 7 * 0.42)
+        thin = min(tall * rng.uniform(0.22, 0.3), width / 7 * 0.55)  # base ancha
         # Se enroscan en la punta, alternando el lado y con distinta vuelta (no pasto recto).
         curl = (0.35 + 0.2 * rng.random() + 0.08 * _smooth_noise(np.array([frame_index * 0.05 + j]), 9.0)[0]) * (1 if j % 2 else -1)
         cel(layer, teardrop(np.array([x, base_y - rise * 0.06]), lean / float(np.linalg.norm(lean)), tall, thin, frame_index, j * 1.3, curl), color, alpha * 0.85, runtime, 1.5)
