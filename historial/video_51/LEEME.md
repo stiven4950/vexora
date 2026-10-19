@@ -1,0 +1,7 @@
+# Historial de video_51 (catálogo avatar)
+
+Referencia: `glowing/video_51.mp4`; lectura en `docs/referencias/video_51.md`.
+
+| Archivo | Qué cambió |
+| --- | --- |
+| `2026-10-19_avatar_v1_elementos.mp4` | Primera versión con el fuego combinado (look mix: amarillo plano de video_51 con el núcleo blanco de video_18), chorro desde el puño, alfombra en el piso, aro grande, tinte de capítulo y rayo cian (cinta quebrada, hasta el borde, lazo y chispazos). Coreógrafo automático: todavía no respeta los capítulos de elemento (salen rayos en medio del fuego) |
