@@ -62,18 +62,24 @@ def warm(layer, center: np.ndarray, radius: float, color: np.ndarray, alpha: flo
     dst[..., 3] = 1.0 - (1.0 - dst[..., 3]) * (1.0 - weight)
 
 
-# ----- el fuego como campo (metaballs) -----
+# ----- cómo se pinta el fuego -----
 #
-# Las llamas no se pintan como polígonos: cada una suma a un campo suave (más alto hacia su
-# centro: borde, cuerpo y núcleo). Al final del efecto, por cuadro (flush_fire), el campo se
-# desenfoca, se deforma con ruido que sube y se corta con tres umbrales: naranja, amarillo y núcleo
-# casi blanco. Así los bordes salen como líquido viscoso, dos llamas que se tocan se funden, el
-# borde se corroe y lo que se apaga se encoge en vez de volverse transparente.
+# Medido en la referencia (glowing/video_18, seg. 3,5): el cuerpo de la llama es BLANCO casi puro
+# (saturación 9/255), con un borde amarillo fino y suave, y alrededor un resplandor que va de
+# amarillo a naranja y tiñe todo el cuadro. No hay borde naranja duro.
+#
+# Cada llama suma su contorno a una máscara nítida del efecto (sin desenfocar: bordes limpios, con
+# los cortes dentados de su geometría). Las masas grandes (bola de fuego, pared) suman además a un
+# campo suave que se corta con un umbral (se funden como líquido). Al final del efecto, por cuadro
+# (flush_fire), la máscara se pinta blanca y se le agrega el borde amarillo y el resplandor.
 
 _FIELDS: dict[int, dict] = {}
 # Luces de fuego del cuadro (para fire_light, que tiñe el plano): las del cuadro anterior y las de este.
 _LIGHTS: dict = {"frame": -1, "now": [], "prev": []}
-LEVELS = ((0.5, 0.62), (1.4, 1.55), (2.15, 2.3))  # umbrales (borde, cuerpo, núcleo) con su rampa
+WHITE_HOT = np.array([1.0, 0.98, 0.9], np.float32) * 1.35  # apenas sobre 1: con más, el bloom engorda la forma
+RIM = np.array([1.0, 0.78, 0.2], np.float32) * 1.6
+NEAR_GLOW = np.array([1.0, 0.55, 0.08], np.float32)
+FAR_GLOW = np.array([1.0, 0.32, 0.02], np.float32)
 
 
 def note_frame(frame_index: int) -> None:
@@ -84,30 +90,39 @@ def note_frame(frame_index: int) -> None:
         _LIGHTS["prev"], _LIGHTS["now"], _LIGHTS["frame"] = _LIGHTS["now"], [], frame_index
 
 
-def cel(layer, make, color, alpha: float, runtime=None, heat: float = 1.0, core: bool = True) -> None:
-    """Suma una llama al campo de fuego del efecto: make(k) da el contorno con el grosor
-    multiplicado por k (1 = borde naranja, 0,62 = cuerpo, 0,3 = núcleo). Con `runtime`, además un
-    resplandor naranja tenue alrededor y la llama cuenta como luz para fire_light."""
+def cel(layer, make, color, alpha: float, runtime=None, heat: float = 1.0, core: bool = True, mass: bool = False) -> None:
+    """Suma una llama al fuego del efecto (make(1.0) da su contorno). `mass`: masa grande que se
+    funde con las vecinas como líquido (bola de fuego, pared). Con `runtime`, además un resplandor
+    tenue alrededor y la llama cuenta como luz para fire_light. (`core` queda por compatibilidad:
+    el cuerpo ya es blanco entero.)"""
     if alpha <= 0:
         return
     height, width = layer.shape[:2]
     entry = _FIELDS.get(id(layer))
     if entry is None:
-        entry = _FIELDS[id(layer)] = {"field": np.zeros((height, width), np.float32), "color": np.asarray(color, np.float32), "alpha": 0.0}
+        entry = _FIELDS[id(layer)] = {"mask": np.zeros((height, width), np.float32), "field": None, "alpha": 0.0}
     entry["alpha"] = max(entry["alpha"], float(alpha))
-    for k in (1.0, 0.62, 0.3) if core else (1.0, 0.62):
-        poly = make(k)
-        if poly is None or len(poly) < 3:
-            continue
-        mask = np.zeros((height, width), np.uint8)
-        cv2.fillPoly(mask, [np.round(poly).astype(np.int32)], 255, lineType=cv2.LINE_AA)
-        entry["field"] += mask.astype(np.float32) * np.float32(min(alpha, 1.0) / 255.0)
-        if k == 1.0 and runtime is not None and heat > 0:
-            lo, hi = poly.min(axis=0), poly.max(axis=0)
-            size = float(np.linalg.norm(hi - lo))
-            mid = (lo + hi) / 2
-            warm(layer, mid, max(size * 2.4, 0.45 * height), GLOW * 0.55, alpha * 0.16 * heat)  # ancha pero transparente
-            _LIGHTS["now"].append((mid, size, float(alpha) * heat))
+    poly = make(1.0)
+    if poly is None or len(poly) < 3:
+        return
+    pts = [np.round(poly).astype(np.int32)]
+    if mass:
+        if entry["field"] is None:
+            entry["field"] = np.zeros((height, width), np.float32)
+        blob = np.zeros((height, width), np.uint8)
+        cv2.fillPoly(blob, pts, 255, lineType=cv2.LINE_AA)
+        entry["field"] += blob.astype(np.float32) * np.float32(min(alpha, 1.0) / 255.0)
+    else:
+        shape = np.zeros((height, width), np.uint8)
+        cv2.fillPoly(shape, pts, 255, lineType=cv2.LINE_AA)
+        # Lo que se apaga se adelgaza (no se vuelve transparente): solo cuenta lo que pasa el umbral.
+        np.maximum(entry["mask"], np.clip((shape.astype(np.float32) / 255.0) * (0.4 + 0.6 * min(alpha, 1.0)), 0, 1), out=entry["mask"])
+    if runtime is not None and heat > 0:
+        lo, hi = poly.min(axis=0), poly.max(axis=0)
+        size = float(np.linalg.norm(hi - lo))
+        mid = (lo + hi) / 2
+        warm(layer, mid, max(size * 2.4, 0.45 * height), GLOW * 0.55, alpha * 0.16 * heat)  # ancha pero transparente
+        _LIGHTS["now"].append((mid, size, float(alpha) * heat))
 
 
 _NOISE: dict = {}
@@ -130,39 +145,48 @@ def _noise(height: int, width: int, frame_index: int, seed: int) -> np.ndarray:
 
 
 def flush_fire(layer, frame_index: int) -> None:
-    """Convierte el campo de fuego acumulado del efecto en las tres capas planas."""
+    """Pinta el fuego acumulado del efecto: cuerpo blanco, borde amarillo y resplandor de color."""
     entry = _FIELDS.pop(id(layer), None)
     if entry is None:
         return
-    field = entry["field"]
-    ys, xs = np.nonzero(field > 0.02)
+    mask = entry["mask"]
+    height, width = mask.shape
+    if entry["field"] is not None:  # las masas: campo suave cortado con un umbral, con el borde comido
+        field = cv2.GaussianBlur(entry["field"], (0, 0), max(0.008 * height, 1.0))
+        field = field - _noise(height, width, frame_index, 23) * 0.18
+        x = np.clip((field - 0.45) / 0.12, 0.0, 1.0)
+        np.maximum(mask, x * x * (3 - 2 * x), out=mask)
+    ys, xs = np.nonzero(mask > 0.02)
     if len(xs) == 0:
         return
-    height, width = field.shape
-    pad = int(0.06 * height)
+    pad = int(0.14 * height)
     x0, x1 = max(xs.min() - pad, 0), min(xs.max() + pad + 1, width)
     y0, y1 = max(ys.min() - pad, 0), min(ys.max() + pad + 1, height)
-    crop = cv2.GaussianBlur(field[y0:y1, x0:x1], (0, 0), max(0.006 * height, 1.0))
-    # Ruido que sube: deforma el borde (lenguas caóticas, no el patrón de un seno) y lo corroe.
-    nx = _noise(height, width, frame_index, 7)[y0:y1, x0:x1]
-    ny = _noise(height, width, frame_index, 11)[y0:y1, x0:x1]
-    amp = 0.014 * height
-    gx, gy = np.meshgrid(np.arange(x1 - x0, dtype=np.float32), np.arange(y1 - y0, dtype=np.float32))
-    crop = cv2.remap(crop, gx + nx * amp, gy + ny * amp + np.abs(ny) * amp * 0.6, cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
-    crop = crop - _noise(height, width, frame_index, 23)[y0:y1, x0:x1] * 0.22  # huecos y bordes comidos
-
-    def step(level):
-        lo, hi = level
-        x = np.clip((crop - lo) / (hi - lo), 0.0, 1.0)
-        return x * x * (3 - 2 * x)
-
-    outer, body, core = (step(level) for level in LEVELS)
-    color = entry["color"]
-    rgb = color[None, None, :] * (outer - body)[..., None] + MID * 1.3 * (body - core)[..., None] + CORE * 1.7 * core[..., None]
+    m = mask[y0:y1, x0:x1]
+    rim_blur = cv2.GaussianBlur(m, (0, 0), max(0.0035 * height, 0.8))
+    band = np.clip((rim_blur - m) * 2.2, 0.0, 1.0)  # borde amarillo: justo afuera del blanco, fino
+    near = cv2.GaussianBlur(m, (0, 0), max(0.014 * height, 1.0)) * (1.0 - m)
+    small = cv2.resize(m, (max((x1 - x0) // 4, 1), max((y1 - y0) // 4, 1)), interpolation=cv2.INTER_AREA)
+    far = cv2.resize(cv2.GaussianBlur(small, (0, 0), max(0.045 * height / 4, 1.0)), (x1 - x0, y1 - y0), interpolation=cv2.INTER_LINEAR)
     a = np.float32(min(entry["alpha"], 1.0))
+    rgb = WHITE_HOT * m[..., None] + RIM * band[..., None] + NEAR_GLOW * (near * 0.9)[..., None] + FAR_GLOW * (far * 0.7)[..., None]
+    cover = np.clip(m + band + near * 0.7 + far * 0.45, 0.0, 1.0)
     dst = layer[y0:y1, x0:x1]
     dst[..., :3] += rgb * a
-    dst[..., 3] = 1.0 - (1.0 - dst[..., 3]) * (1.0 - outer * a)
+    dst[..., 3] = 1.0 - (1.0 - dst[..., 3]) * (1.0 - cover * a)
+
+
+def _smooth_noise(x: np.ndarray, seed: float) -> np.ndarray:
+    """Ruido 1D suave y coherente en [-1, 1] (valores al azar en una grilla, interpolados con
+    curva suave): reemplaza al seno, cuyo patrón el ojo detecta."""
+    i = np.floor(x).astype(np.int64)
+    f = x - i
+    f = f * f * (3 - 2 * f)
+
+    def value(k):
+        return np.sin(k * 127.1 + seed * 311.7) * 43758.5453 % 1.0 * 2 - 1
+
+    return value(i) * (1 - f) + value(i + 1) * f
 
 
 def _normals(spine: np.ndarray) -> np.ndarray:
@@ -178,12 +202,22 @@ def ribbon(spine: np.ndarray, widths: np.ndarray, frame_index: int, tongues: flo
         return lambda k: None
     normal = _normals(spine)
     t = np.linspace(0, 1, len(spine))
-    flick = 1.0 + 0.7 * np.maximum(0.0, np.sin(t * tongues * TAU - frame_index * 0.9 + phase)) ** 3
+    drift = frame_index * 0.12  # el ruido corre por la cinta con el tiempo, sin parpadear
+    flick = 1.0 + 0.75 * np.maximum(0.0, _smooth_noise(t * tongues * 1.6 - drift, phase + 1.0)) ** 2
+    calm = 1.0 + 0.2 * _smooth_noise(t * tongues * 1.1 - drift, phase + 2.0)
+    # Cortes dentados: muescas en V, afiladas, en lugares fijos de la cinta (viajan con ella).
+    teeth = len(spine) / 2.5
+
+    def notch(seed):
+        f = (t * teeth + seed) % 1.0
+        return 1.0 - 0.38 * np.clip(1.0 - f / 0.14, 0.0, 1.0) * (np.sin((np.floor(t * teeth + seed)) * 12.9898 + seed) > 0.1)
+
+    up_notch, low_notch = notch(phase * 0.37 + 0.2), notch(phase * 0.73 + 0.6)
 
     def make(k: float):
         w = widths * k
-        upper = spine + normal * (w * flick)[:, None]
-        lower = spine - normal * (w * (0.65 + 0.35 * flick))[:, None]
+        upper = spine + normal * (w * flick * up_notch)[:, None]
+        lower = spine - normal * (w * (0.7 + 0.3 * calm) * low_notch)[:, None]
         return np.vstack([upper, lower[::-1]])
 
     return make
@@ -193,7 +227,7 @@ def teardrop(base: np.ndarray, up: np.ndarray, length: float, width: float, fram
     """make(k) de una llama que sube desde `base` en la dirección `up` y se mece."""
     side = np.array([-up[1], up[0]])
     s = np.linspace(0, 1, 18)
-    sway = np.sin(s * 3.0 - frame_index * 0.45 + seed) * 0.16 * length * s
+    sway = _smooth_noise(s * 2.5 - frame_index * 0.08, seed) * 0.2 * length * s  # se mece sin patrón
     spine = base + np.outer(s * length, up) + np.outer(sway, side)
     widths = width * np.sin(np.pi * (0.12 + 0.88 * s)) ** 0.8 * (1 - s) ** 0.35 + 0.5
     return ribbon(spine, widths, frame_index, 2.0, seed)
@@ -304,7 +338,7 @@ def _wrist(body, event, scale) -> tuple[str, np.ndarray] | None:
 
 
 TWO_HANDED = ("arms_open", "arms_up", "jump", "landing", "spin_body")
-WHIP_SCALE = 2.0
+WHIP_SCALE = 2.6
 
 
 def _fire_whip(body, scale, frame_index, runtime, layer, color, alpha, event) -> list:
@@ -328,15 +362,22 @@ def _fire_whip(body, scale, frame_index, runtime, layer, color, alpha, event) ->
         spine = spine[-1] + (spine - spine[-1]) * WHIP_SCALE
         ahead = spine[-1] - spine[-3]
         spine = np.vstack([spine, spine[-1] + ahead * 0.8])
-        q = np.linspace(0, 1, len(spine))
-        # Más curvo que el recorrido real: se arquea hacia el lado en que gira el golpe.
+        # Medialuna como en la referencia: se arquea hacia el lado en que gira el golpe (aunque el
+        # recorrido real sea casi recto), y se remuestrea a una curva suave de 40 puntos.
         chord = spine[-1] - spine[0]
         length = float(np.linalg.norm(chord))
         side = np.array([-chord[1], chord[0]]) / max(length, 1e-6)
-        turn = float(np.sign(np.dot(spine[len(spine) // 2] - (spine[0] + spine[-1]) / 2, side)) or 1.0)
-        spine = spine + np.outer(np.sin(np.pi * q) * 0.22 * length * turn, side)
-        smooth = np.array([spine[max(i - 1, 0)] * 0.25 + spine[i] * 0.5 + spine[min(i + 1, len(spine) - 1)] * 0.25 for i in range(len(spine))])
-        widths = (0.04 + 0.4 * np.sin(np.pi * np.clip(q * 1.05, 0, 1)) ** 0.7 * q ** 0.8) * scale  # medialuna gruesa
+        turn = st.setdefault("turn", float(np.sign(np.dot(spine[len(spine) // 2] - (spine[0] + spine[-1]) / 2, side)) or 1.0))  # fijo por golpe
+        q0 = np.linspace(0, 1, len(spine))
+        spine = spine + np.outer(np.sin(np.pi * q0) * 0.38 * length * turn, side)
+        for _ in range(3):  # suavizado 1-2-1 que conserva los extremos
+            spine[1:-1] = spine[:-2] * 0.25 + spine[1:-1] * 0.5 + spine[2:] * 0.25
+        q = np.linspace(0, 1, 40)
+        steps = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(spine, axis=0), axis=1))])
+        steps /= max(steps[-1], 1e-6)
+        smooth = np.stack([np.interp(q, steps, spine[:, 0]), np.interp(q, steps, spine[:, 1])], axis=1)
+        # Fina y en punta en la cola, ancha cerca de la mano y otra vez afilada en la cabeza.
+        widths = (0.006 + 0.24 * np.sin(np.pi * q) ** 0.9 * q ** 0.9) * scale
         seed = (event.start_frame if event is not None else 0) * 7 + len(name)
         for part, part_w in pieces(smooth, widths, seed):
             cel(layer, ribbon(part, part_w, frame_index, 3.0), color, alpha, runtime)
@@ -502,18 +543,19 @@ def _fire_wall(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
         return []
     s = _ease((frame_index - (total - length)) / max(length - 1, 1))
     height, width = layer.shape[:2]
-    rise = height * (0.12 + 0.55 * s)
+    rise = height * (0.1 + 0.5 * s)
     base_y = height + 2
-    band = np.array([[-0.05 * width, base_y - rise * 0.35], [1.05 * width, base_y - rise * 0.35], [1.05 * width, base_y + 2], [-0.05 * width, base_y + 2]])
-    alpha *= 0.75  # tres capas a lo ancho del cuadro, más el bloom: sin bajar, se quema en blanco
-    cel(layer, lambda k: band if k == 1.0 else band + np.array([0.0, rise * 0.35 * (1 - k)]), color, alpha, core=False)
+    # Como en la referencia (seg. 15,4): llamas blancas separadas, con huecos naranjas entre ellas
+    # (el resplandor), sobre una base baja; no un bloque. Las de atrás más altas y finas.
+    band = np.array([[-0.05 * width, base_y - rise * 0.12], [1.05 * width, base_y - rise * 0.12], [1.05 * width, base_y + 2], [-0.05 * width, base_y + 2]])
+    cel(layer, lambda k: band, color, alpha * 0.8, runtime, 2.0, core=False, mass=True)
     rng = np.random.default_rng(18)
-    for j in range(8):  # llamaradas: cada una sube, se mece y se enrosca
-        x = width * (j + rng.uniform(-0.3, 0.3)) / 7
-        tall = rise * rng.uniform(0.55, 1.0) * (0.9 + 0.15 * np.sin(frame_index * 0.3 + j))
-        lean = np.array([np.sin(frame_index * 0.12 + j * 1.7) * 0.35, -1.0])
-        # Llamaradas anchas y redondas (anchas como 4/10 de su alto), no puntas finas.
-        cel(layer, teardrop(np.array([x, base_y - rise * 0.25]), lean / float(np.linalg.norm(lean)), tall, tall * rng.uniform(0.32, 0.45), frame_index, j * 1.3), color, alpha, core=False)
+    for j in range(7):  # pocas y separadas: entre una y otra queda el resplandor naranja
+        x = width * (j + 0.5 + rng.uniform(-0.15, 0.15)) / 7
+        tall = rise * rng.uniform(0.55, 1.0) * (0.85 + 0.2 * _smooth_noise(np.array([frame_index * 0.06 + j]), 3.0)[0])
+        lean = np.array([_smooth_noise(np.array([frame_index * 0.05 + j * 1.7]), 5.0)[0] * 0.4, -1.0])
+        thin = min(tall * rng.uniform(0.1, 0.14), width / 7 * 0.32)
+        cel(layer, teardrop(np.array([x, base_y - rise * 0.06]), lean / float(np.linalg.norm(lean)), tall, thin, frame_index, j * 1.3), color, alpha * 0.85, runtime, 1.5)
     return _avatar_mark(body, frame, scale, frame_index, runtime, layer, color, alpha * min(s * 3, 1.0), event)
 
 
@@ -540,12 +582,12 @@ def _fire_light(runtime, layer, frame_index: int, alpha: float) -> list:
     light = np.zeros(gx.shape, np.float32)
     amount = 0.0
     for mid, size, a in lights:
-        r = max(size * 2.0, 0.5 * height)
+        r = max(size * 3.0, 0.9 * height)  # la referencia tiñe casi todo el cuadro mientras hay fuego
         d2 = ((gx - mid[0]) ** 2 + (gy - mid[1]) ** 2) / (r * r)
         light += np.clip(1.0 - d2, 0.0, 1.0) ** 2 * np.float32(a)
         amount += size * a
     light = cv2.resize(np.clip(light, 0.0, 1.0), (width, height), interpolation=cv2.INTER_LINEAR)
-    cover = np.float32(min(amount / (0.8 * height), 1.0) * 0.6 * alpha)
+    cover = np.float32(min(amount / (0.5 * height), 1.0) * 0.85 * alpha)
     straight = LIGHT_DARK * (1.0 - light)[..., None] + LIGHT_TINT * light[..., None]
     layer[..., :3] = straight * cover
     layer[..., 3] = cover

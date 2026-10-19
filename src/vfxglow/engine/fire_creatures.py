@@ -164,7 +164,7 @@ def _fire_skull(body, frame, scale, frame_index, runtime, layer, color, alpha, e
 # Fénix en coordenadas propias: x hacia adelante (el pico), y hacia el ala izquierda.
 # Ala barrida hacia atrás: borde de ataque que sube y se curva a la punta, y plumas en el borde de
 # fuga que vuelven al cuerpo.
-_WING = [(0.2, 0.12), (0.32, 0.55), (0.18, 0.95), (-0.15, 1.3), (-0.65, 1.5), (-0.55, 1.2), (-0.8, 1.12), (-0.62, 0.88), (-0.88, 0.76), (-0.6, 0.55), (-0.8, 0.38), (-0.38, 0.16)]
+_WING = [(0.12, 0.08), (0.3, 0.5), (0.25, 0.95), (0.0, 1.45), (-0.55, 1.75), (-0.35, 1.35), (-0.62, 1.3), (-0.4, 1.0), (-0.7, 0.92), (-0.42, 0.66), (-0.66, 0.5), (-0.3, 0.14)]
 _TAIL = [(-0.42, 0.1), (-1.0, 0.3), (-1.8, 0.55), (-1.35, 0.12), (-1.95, 0.0), (-1.35, -0.12), (-1.8, -0.55), (-1.0, -0.3), (-0.42, -0.1)]
 _HEAD = [(0.35, -0.12), (0.72, -0.06), (0.92, 0.0), (0.72, 0.06), (0.35, 0.12)]
 
@@ -228,7 +228,7 @@ def _fire_bird(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
             splat(layer, float(eye[0]), float(eye[1]), 0.05 * h + 1, WHITE * 2.0, alpha, runtime.kernels)
     else:
         flap = np.sin(frame_index * 0.7)
-        cel(layer, _bird_shape(pos, heading, 0.9 * scale * grow, flap, frame_index), color, alpha, runtime)
+        cel(layer, _bird_shape(pos, heading, 0.65 * scale * grow, flap, frame_index), color, alpha, runtime)
     shed(layer, stream, np.full(30, 0.06 * scale), st, frame_index, scale, color, alpha, 0.7)
     rim(layer, runtime, [hand], scale, color, alpha)
     return []
@@ -307,7 +307,7 @@ def _fire_breath(body, frame, scale, frame_index, runtime, layer, color, alpha, 
             off = np.array([rng.uniform(-1.3, 1.3), -abs(rng.uniform(0.4, 2.4))]) * scale * (0.3 + 1.0 * s)
             rad = rng.uniform(0.5, 1.0) * scale * (0.5 + 0.9 * s) * (1 - 0.35 * s)
             blob = lambda kk, at=mouth + off, rad=rad: np.array([at + np.array([np.cos(a), np.sin(a)]) * rad * (0.6 + 0.4 * kk) * (1 + 0.08 * np.sin(a * 5 + frame_index)) for a in np.linspace(0, TAU, 22)])
-            cel(layer, blob, color, alpha, runtime, 0.6, core=k % 2 == 0)
+            cel(layer, blob, color, alpha, runtime, 0.6, mass=True)
         warm(layer, mouth - up * scale * s, 2.2 * scale, np.asarray(color, np.float32), alpha * 0.4)
     if u >= 0.55:  # la cara de demonio: ojos encendidos y colmillos
         for name, s in (("left_eye", -1), ("right_eye", 1)):
