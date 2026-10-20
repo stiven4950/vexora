@@ -66,6 +66,10 @@ def focused(event: MotionEvent | None, key: str) -> bool:
 def draw_swoosh(runtime, track: FrameRecord | None, points: dict[str, np.ndarray], frame_index: int, height: int, envelope: float, layer: np.ndarray, event: MotionEvent | None = None) -> None:
     effect = runtime.effect
     style = effect.style
+    if "wind" in style.shapes and envelope > 0:  # viento del modo Avatar: el capítulo es de aire
+        from vfxglow.engine.firebend import note_wind
+
+        note_wind(frame_index)
     joints = [token.strip() for token in effect.target.id.split(",") if token.strip()]
     torso = torso_pixels(points, height)
     history: dict[str, deque] = runtime.swoosh
@@ -115,6 +119,12 @@ def draw_swoosh(runtime, track: FrameRecord | None, points: dict[str, np.ndarray
             for k, t in enumerate(np.linspace(0.15, 1.0, 6)):
                 at = curve[int(t * (len(curve) - 1))]
                 splat(layer, float(at[0]), float(at[1]), width * (2.5 + 4.0 * t), color * style.hdr_gain * envelope, active * (0.4 + 0.6 * t), runtime.kernels)
+            continue
+        if style.trail_style == "plain":
+            # Viento: trazos lisos del color, que se afinan hacia la cola; sin halo ni resplandor
+            # (por debajo del umbral del brillo de la composición).
+            for strand in strands(curve, max(style.strands, 1), width):
+                strokes += _plain(strand[0], np.minimum(color, 0.92), width * strand[1], active * strand[2])
             continue
         for strand in ([] if style.cross else strands(curve, max(style.strands, 1), width)):
             strokes += _neon(strand[0], color, width * strand[1], active * strand[2])
@@ -216,6 +226,19 @@ def neon_layers(curve: np.ndarray, color: np.ndarray, width: float, alpha: float
         (curve, color, core * 2.0, alpha * 0.85, core * 0.4),
         (curve, white, core, alpha * 0.9),
     ]
+
+
+def _plain(curve: np.ndarray, color: np.ndarray, width: float, alpha: float) -> list:
+    """Un trazo liso, sin halo: tramos de cola a cabeza cada vez más anchos y opacos."""
+    strokes = []
+    bounds = np.linspace(0, len(curve) - 1, SEGMENTS + 1).astype(int)
+    for index in range(SEGMENTS):
+        start, end = bounds[index], bounds[index + 1] + 1
+        if end - start < 2:
+            continue
+        t = (index + 1) / SEGMENTS
+        strokes.append((curve[start:end], color, max(width * (0.2 + 0.8 * t), 1.0), alpha * t ** 1.2))
+    return strokes
 
 
 def _neon(curve: np.ndarray, color: np.ndarray, width: float, alpha: float, taper: bool = True) -> list:

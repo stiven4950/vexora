@@ -269,8 +269,9 @@ class EffectStyle(_Strict):
     micro_sparks: int = 0
     # body_glow: opacidad del tinte de color que rellena la parte del cuerpo (0 = solo contorno).
     fill: float = 0.35
-    # swoosh: neon (trazo), flame (con lenguas de fuego) o dots (bolas de fuego).
-    trail_style: Literal["neon", "flame", "dots"] = "neon"
+    # swoosh: neon (trazo), flame (con lenguas de fuego), dots (bolas de fuego) o plain (trazo liso
+    # del color, sin halo ni resplandor: el viento blanco).
+    trail_style: Literal["neon", "flame", "dots", "plain"] = "neon"
 
 
 class EffectRender(_Strict):

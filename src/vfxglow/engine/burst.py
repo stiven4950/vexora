@@ -24,7 +24,7 @@ from vfxglow.analysis.schema import FrameRecord, MotionEvent
 from vfxglow.engine.anchors import joint_speed, resolve_anchor, torso_pixels
 from vfxglow.engine.raster import fill_polygon, stroke_batch
 from vfxglow.engine.swoosh import focused, neon_layers, swoosh_keys
-from vfxglow.engine.firebend import bolt_active
+from vfxglow.engine.firebend import other_element_active
 
 TAU = 2.0 * np.pi
 # Fracción de la vida de la llamarada en la que alcanza su tamaño completo.
@@ -259,8 +259,8 @@ def draw_droplets(runtime, track: FrameRecord | None, points, frame_index: int, 
         chooser = np.random.default_rng(seed)
         if float(chooser.random()) >= style.chance or envelope <= 0:
             continue
-        if event is None and bolt_active(frame_index):
-            continue  # las brasas de fuego de siempre no salen durante un rayo (glowing/video_51)
+        if event is None and other_element_active(frame_index):
+            continue  # las brasas de fuego de siempre no salen durante un rayo o un viento (glowing/video_51)
         shapes = [name for name in style.shapes if name in SHAPES] or ["drop"]
         shape = shapes[int(chooser.integers(0, len(shapes)))]
         gravity, inherit = SHAPES[shape]

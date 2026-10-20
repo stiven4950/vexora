@@ -876,6 +876,41 @@ def _fire_whip(body, scale, frame_index, runtime, layer, color, alpha, event) ->
 
 
 TRAIL_FRAMES = 12  # cuadros del recorrido que forman la estela
+TRAIL_EXAGGERATION = 1.5  # la estela, más larga que el recorrido real (como las de las referencias)
+HANDS, FEET = ("left_wrist", "right_wrist"), ("left_ankle", "right_ankle")
+FEET_EVENTS = ("flip", "tumble")  # dando volteretas la atención está en los pies
+HANDOFF_FRAMES = 8  # lo que tarda el fuego en viajar de las manos a los pies (o al revés)
+HANDOFF_WINDOW = 45  # cuadros: el fuego de antes solo se reutiliza si fue hace poco
+# Por persona: dónde estuvo el fuego la última vez (grupo, cuadro) para el traspaso.
+_FIRE_LIMBS: dict = {}
+
+
+def _limb_speed(body, names) -> float:
+    points, prefix = getattr(body, "points", body), getattr(body, "prefix", "")
+    vels = [points.get(f"vel:{prefix}{n}", points.get(f"vel:{n}")) for n in names]
+    vels = [float(np.linalg.norm(v)) for v in vels if v is not None]
+    return max(vels) if vels else 0.0
+
+
+def _attention_limbs(body, event, st: dict) -> tuple[str, ...]:
+    """Las extremidades que llevan el fuego: las del gesto si es de una mano o un pie; en
+    volteretas, los pies; si no, el grupo (manos o pies) que más se mueve, con histéresis (no
+    salta de uno a otro por un cuadro)."""
+    joint = event.target.split(":")[-1] if event is not None else ""
+    if joint.endswith(("_wrist", "_ankle")):
+        return (joint,)
+    if event is not None and event.name in FEET_EVENTS:
+        return FEET
+    if event is not None and event.kind in ("left", "right"):
+        return (f"{event.kind}_wrist",)
+    hands, feet = _limb_speed(body, HANDS), _limb_speed(body, FEET)
+    group = st.get("group", "hands")
+    if group == "hands" and feet > hands * 1.5 + 1.0:
+        group = "feet"
+    elif group == "feet" and hands > feet * 1.5 + 1.0:
+        group = "hands"
+    st["group"] = group
+    return FEET if group == "feet" else HANDS
 
 
 def _fire_trail(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
@@ -883,18 +918,16 @@ def _fire_trail(body, frame, scale, frame_index, runtime, layer, color, alpha, e
     prendida en la mano (o el pie) desde el principio y, cuando se mueve, una estela de fuego la
     persigue por el recorrido: ancha en la extremidad, afinándose hacia la cola. Lo que queda atrás
     sube (el aire caliente) y se achica; si la extremidad frena, la estela se recoge en la llama.
+    El fuego va en las extremidades donde está la atención (_attention_limbs) y, si venía de las
+    otras (de las manos a los pies), viaja hasta ellas antes de prenderse (_handoff).
     La estela se corta en el último giro brusco (en un giro sobre sí mismo hacía un gancho o una V)
     y tiene un tope de largo."""
     center, across, down = frame
     up = -down
-    joint = event.target.split(":")[-1] if event is not None else ""
-    if joint.endswith(("_wrist", "_ankle")):
-        limbs = [joint]  # la mano o el pie del golpe
-    elif event is not None and event.kind in ("left", "right"):
-        limbs = [f"{event.kind}_wrist"]
-    else:
-        limbs = ["left_wrist", "right_wrist"]
+    att = _activation(runtime, event, "trail:attention", body)
+    limbs = _attention_limbs(body, event, att)
     grow = _ease(_seg(_phase(runtime, event), 0.0, 0.15))
+    grow *= _handoff(body, limbs, frame_index, scale, layer, color, alpha, runtime, att)
     unit = _unit(scale, layer)
     for k, name in enumerate(limbs):
         point = body.get(name)
@@ -914,10 +947,11 @@ def _fire_trail(body, frame, scale, frame_index, runtime, layer, color, alpha, e
         speed = float(steps[-3:].mean()) if len(steps) else 0.0
         # La llama de la extremidad, siempre prendida. Rápida, se achica y queda como la cabeza de
         # la estela (con su inercia apuntaba a donde iba antes del giro y formaba una V); al frenar
-        # vuelve a crecer.
+        # vuelve a crecer. Tamaños en `unit`: si la persona ocupa poco del cuadro, el fuego no se
+        # achica con ella (video_51).
         moving = float(np.clip((speed - 0.04) / 0.12, 0.0, 1.0))
-        half = 0.22 * scale * grow * (1.0 - 0.45 * moving)
-        tall = 1.0 * scale * grow * (stretch * (1.0 - moving) + 0.35 * moving)
+        half = 0.22 * unit * grow * (1.0 - 0.45 * moving)
+        tall = 1.0 * unit * grow * (stretch * (1.0 - moving) + 0.35 * moving)
         base = point - up * half * 0.6
         for j, (spine, widths) in enumerate(flame_parts(base, lean, tall, half / np.sqrt(stretch), frame_index, k * 1.7 + 0.3)):
             cel(layer, ribbon(spine, widths, frame_index, 3.0, k * 1.7 + j), color, alpha, runtime if j == 0 else None)
@@ -951,14 +985,57 @@ def _fire_trail(body, frame, scale, frame_index, runtime, layer, color, alpha, e
         hi = np.minimum(lo + 1, len(tail) - 1)
         f = (idx - lo)[:, None]
         spine = tail[lo] * (1 - f) + tail[hi] * f  # de la cola a la extremidad
-        widths = (0.03 + 0.3 * q ** 1.2) * scale * grow  # fina en la cola, ancha en la extremidad
+        # Exagerada como en las referencias: el recorrido 1,5 veces más largo hacia atrás, con la
+        # misma forma y la cabeza pegada a la extremidad.
+        spine = spine[-1] + (spine - spine[-1]) * TRAIL_EXAGGERATION
+        widths = (0.03 + 0.4 * q ** 1.2) * unit * grow  # fina en la cola, ancha en la extremidad
         cel(layer, ribbon(spine, widths, frame_index, 5.0, k * 2.3), color, alpha, runtime)
     return []
+
+
+def _handoff(body, limbs, frame_index: int, scale: float, layer, color, alpha: float, runtime, st: dict) -> float:
+    """Continuidad del fuego (glowing/video_51, seg. 1,5-2,4): si hace poco el fuego estaba en las
+    otras extremidades (las manos) y ahora va a estas (los pies), no aparece de la nada: viaja de
+    aquellas a estas en HANDOFF_FRAMES cuadros, como lenguas que bajan por el cuerpo. Devuelve
+    cuánto está prendido el fuego aquí (0 mientras viaja, 1 al llegar)."""
+    group = "feet" if limbs[0].endswith("_ankle") else "hands"
+    key = body.prefix or "person"
+    last = _FIRE_LIMBS.get(key)
+    if last is not None and frame_index < last[1]:  # otro video o volvió atrás
+        last = None
+    if "from" not in st:
+        st["from"] = last[0] if last is not None and last[0] != group and frame_index - last[1] <= HANDOFF_WINDOW else None
+        st["start"] = frame_index
+    _FIRE_LIMBS[key] = (group, frame_index)
+    if st["from"] is None:
+        return 1.0
+    p = (frame_index - st["start"]) / HANDOFF_FRAMES
+    if p >= 1.0:
+        return 1.0
+    sources = [body.get(n) for n in (HANDS if st["from"] == "hands" else FEET)]
+    sources = [x for x in sources if x is not None]
+    for k, name in enumerate(limbs):
+        target = body.get(name)
+        if target is None or not sources:
+            continue
+        source = min(sources, key=lambda x: float(np.linalg.norm(x - target)))
+        # Por el costado del cuerpo, combado hacia afuera; la cabeza avanza y la cola la sigue.
+        chord = target - source
+        side = np.array([-chord[1], chord[0]]) / max(float(np.linalg.norm(chord)), 1e-6)
+        hips = body.mid("left_hip", "right_hip")
+        if hips is not None and float(np.dot(side, source - hips)) < 0:
+            side = -side  # combado hacia afuera del cuerpo, no por encima
+        q = np.linspace(max(p - 0.45, 0.0), p, 16)
+        path = source + np.outer(q, chord) + np.outer(np.sin(np.pi * q) * 0.35 * float(np.linalg.norm(chord)), side)
+        widths = (0.03 + 0.18 * np.linspace(0, 1, 16) ** 1.2) * scale
+        cel(layer, ribbon(path, widths, frame_index, 4.0, 1.9 + k), color, alpha, runtime)
+    return float(np.clip((p - 0.7) / 0.3, 0.0, 1.0))
 
 
 def _hand_fire(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
     center, across, down = frame
     up = -down
+    _FIRE_LIMBS[body.prefix or "person"] = ("hands", frame_index)  # el fuego está en las manos (traspaso)
     u = _phase(runtime, event)
     grow = _ease(_seg(u, 0.0, 0.2))
     sides = [event.kind] if event is not None and event.kind in ("left", "right") else ["left", "right"]
@@ -1436,6 +1513,16 @@ def note_bolt(frame_index: int) -> None:
 def bolt_active(frame_index: int) -> bool:
     """Si hubo un rayo en este cuadro o en el anterior (el capítulo es de rayo, no de fuego)."""
     return _LIGHTS.get("bolt", -99) >= frame_index - 1
+
+
+def note_wind(frame_index: int) -> None:
+    """Un viento dibujado en este cuadro (el capítulo es de aire, no de fuego)."""
+    _LIGHTS["wind"] = frame_index
+
+
+def other_element_active(frame_index: int) -> bool:
+    """Si en este cuadro (o el anterior) hay rayo o viento: las brasas del fuego no salen."""
+    return bolt_active(frame_index) or _LIGHTS.get("wind", -99) >= frame_index - 1
 
 
 def _chapter_tint(st: dict, frame_index: int, fire: bool, strength: float) -> np.ndarray | None:

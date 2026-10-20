@@ -97,6 +97,9 @@ def test_bolt_reaches_the_frame_edge_along_the_forearm() -> None:
 class _Body(dict):
     prefix = "p0"
 
+    def mid(self, a: str, b: str):
+        return (self[a] + self[b]) / 2 if a in self and b in self else None
+
 
 def _runtime(frames: int = 6) -> SimpleNamespace:
     return SimpleNamespace(effect=SimpleNamespace(triggers=[]), active_frames=frames, swoosh={}, silhouettes=[], kernels={})
@@ -284,7 +287,8 @@ def test_fire_trail_does_not_hook_after_a_sharp_turn() -> None:
     there = [(60.0 + 25 * i, 330.0) for i in range(8)]
     back = [(there[-1][0] - 25 * i, 330.0 - 3 * i) for i in range(1, 5)]
     ys, xs = np.nonzero(_trail(there + back))
-    assert xs.max() < there[-1][0] + 40 and xs.min() > there[0][0] + 60  # solo el tramo de vuelta, sin gancho
+    # Solo el tramo de vuelta (exagerado 1,5 veces hacia atrás), sin el gancho de ida.
+    assert xs.max() < there[-1][0] + 100 and xs.min() > there[0][0] + 60
 
 
 def test_bolt_comes_only_from_the_hands() -> None:
@@ -296,3 +300,45 @@ def test_bolt_comes_only_from_the_hands() -> None:
     assert np.allclose(_hand(points, left), points["left_wrist"])  # la mano del gesto
     kick = SimpleNamespace(target="left_ankle")
     assert np.allclose(_hand(points, kick), points["right_wrist"])  # una patada: la mano que más se mueve, nunca el pie
+
+
+def _feet_body() -> "_Body":
+    body = _body()
+    body.update({"vel:left_wrist": np.array([0.5, 0.0]), "vel:right_wrist": np.array([0.5, 0.0]),
+                 "vel:left_ankle": np.array([14.0, -6.0]), "vel:right_ankle": np.array([12.0, -8.0])})
+    return body
+
+
+def test_fire_goes_to_the_feet_in_a_flip_and_travels_there_from_the_hands() -> None:
+    frame = (np.array([200.0, 200.0]), np.array([1.0, 0.0]), np.array([0.0, 1.0]))
+    runtime = _runtime(0)
+    firebend._FIRE_LIMBS.clear()
+    hands = SimpleNamespace(start_frame=0, end_frame=10, kind="", target="p0", name="fast_swing")
+    flip = SimpleNamespace(start_frame=12, end_frame=40, kind="", target="p0", name="flip")
+    body = _body()
+    for f in range(0, 10):  # el fuego en las manos
+        layer = np.zeros((H, W, 4), np.float32)
+        runtime.active_frames = f + 1
+        firebend._fire_trail(body, frame, 60.0, f, runtime, layer, None, 1.0, hands)
+        firebend.flush_fire(layer, f)
+    feet = _feet_body()
+    masks = []
+    for f in range(12, 24):  # voltereta: el fuego pasa a los pies
+        layer = np.zeros((H, W, 4), np.float32)
+        runtime.active_frames = f - 11
+        firebend._fire_trail(feet, frame, 60.0, f, runtime, layer, None, 1.0, flip)
+        firebend.flush_fire(layer, f)
+        masks.append(layer[..., 3] > 0.5)
+    early, late = masks[3], masks[-1]
+    ys, _ = np.nonzero(early)
+    assert len(ys) and ys.min() < 400  # viajando: el fuego todavía está entre las manos y los pies
+    ys, _ = np.nonzero(late)
+    assert len(ys) and ys.mean() > 380  # ya llegó: prendido en los pies
+
+
+def test_fire_stays_in_the_hands_when_they_lead() -> None:
+    st: dict = {}
+    body = _body()
+    body.update({"vel:left_wrist": np.array([12.0, 0.0]), "vel:left_ankle": np.array([1.0, 0.0])})
+    assert firebend._attention_limbs(body, None, st) == firebend.HANDS
+    assert firebend._attention_limbs(_feet_body(), SimpleNamespace(target="p0", name="tumble", kind=""), {}) == firebend.FEET

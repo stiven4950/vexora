@@ -97,6 +97,12 @@ class Catalog(_Strict):
     # después, no sale otro (nada de rayo cian en medio del fuego).
     element: str = ""
     element_pad_s: float = 0.8
+    # Reparto del video en capítulos de un elemento (glowing/video_51): peso de cada elemento
+    # ({fuego: 1, rayo: 0.35, aire: 0.35}); vacío = sin reparto (solo el bloqueo de arriba). El
+    # primero y el último son del elemento del catálogo; los gestos del tramo inclinan la elección
+    # (lanzar y señalar, rayo; girar, saltar y voltear, aire).
+    element_mix: dict[str, float] = Field(default_factory=dict)
+    element_chapter_s: float = 3.5
     reactions: list[Reaction]
     # Lo que el análisis debe calcular para este catálogo (p. ej. [blades] para espadas).
     needs: list[str] = Field(default_factory=list)
@@ -229,6 +235,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
         rest = [] if pins.solo_estos else [[pair for pair in pairs if (id(pair[0]), id(pair[1])) not in forced] for pairs in passes]
         passes = [pinned, *rest]
     spent: dict[str, int] = {}  # usos de cada opción en el video (para max_uses)
+    plan = element_plan(catalog, events, brief.video.frame_count, fps, seed)
     elements: list[tuple[int, int, str]] = []  # tramos encendidos de cada elemento (capítulos)
     pad = int(round(catalog.element_pad_s * fps))
     closings = {"fire_wall", "fire_carpet_end"}
@@ -286,6 +293,9 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
             resting = {name for name, frame in memo["used"].items() if event.start_frame - frame < _option(reaction, name).cooldown}
             resting |= {o.name for o in reaction.options if o.max_uses and spent.get(o.name, 0) >= o.max_uses}
             resting |= other_elements(catalog, reaction.options, elements, event, pad)
+            chapter = chapter_element(plan, event.start_frame)
+            if chapter:  # solo el elemento del capítulo (y lo neutro)
+                resting |= {o.name for o in reaction.options if element_of(catalog, o) and element_of(catalog, o) != chapter}
             option = _draw(reaction, event, seed, resting, brief, catalog.wardrobe)
             if option.yields_to and _yields(option, event, brief, seed, fps):
                 option = Option(name=f"nada (cede a {', '.join(option.yields_to)})")
@@ -379,7 +389,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 )
             )
     if catalog.max_gap_s > 0 and not (pins is not None and pins.solo_estos):
-        fill_gaps(catalog, brief, events, extra, chosen, decisions, seed, fps, elements)
+        fill_gaps(catalog, brief, events, extra, chosen, decisions, seed, fps, elements, plan)
     always = [] if pins is not None and pins.solo_estos else always_effects(catalog, events, brief.video.frame_count, fps, seed)
     effects: list[dict] = list(always)
     for number, (reaction, option, picked, pin) in enumerate(pinned_out):
@@ -463,6 +473,50 @@ def _earned(option: Option) -> bool:
     return option.min_speed > 0 or option.min_duration_s > 0
 
 
+ELEMENT_CUES = {
+    "rayo": ("throw", "point", "finger_gun", "arms_open"),
+    "aire": ("spin_body", "jump", "flip"),
+}
+
+
+def element_plan(catalog: Catalog, events: list[MotionEvent], total: int, fps: float, seed: int) -> list[tuple[int, int, str]]:
+    """Capítulos de elemento: [(inicio, fin, elemento)] que cubren el video. Cortes cada
+    `element_chapter_s` aproximadamente, corridos a la pausa más cercana si la hay. Nunca dos
+    capítulos seguidos de otro elemento que el del catálogo."""
+    if not catalog.element_mix or total <= 0:
+        return []
+    length = max(int(catalog.element_chapter_s * fps), 1)
+    count = max(int(round(total / length)), 1)
+    pauses = sorted(e.start_frame for e in events if e.name in ("lull", "still"))
+    cuts = [0]
+    for k in range(1, count):
+        guess = int(k * total / count)
+        near = [p for p in pauses if abs(p - guess) <= fps and p > cuts[-1] + fps]
+        cuts.append(min(near, key=lambda p: abs(p - guess)) if near else guess)
+    cuts.append(total)
+    rng = np.random.default_rng(zlib.crc32(f"{seed}:elements:{total}".encode()) & 0xFFFFFFFF)
+    plan = []
+    for k, (a, b) in enumerate(zip(cuts, cuts[1:])):
+        previous = plan[-1][2] if plan else ""
+        if k == 0 or k == len(cuts) - 2 or previous != catalog.element:
+            # Abre y cierra el elemento del catálogo, y vuelve a él después de cada capítulo de
+            # otro elemento (el fuego es el protagonista: fuego, rayo, fuego, aire, fuego...).
+            plan.append((a, b - 1, catalog.element))
+            continue
+        names = list(catalog.element_mix)
+        scores = []
+        for name in names:
+            cues = sum(1 for e in events if e.name in ELEMENT_CUES.get(name, ()) and a <= e.start_frame < b)
+            scores.append(catalog.element_mix[name] * (1.0 + 2.0 * cues))
+        weights = np.array(scores) / sum(scores)
+        plan.append((a, b - 1, names[int(rng.choice(len(names), p=weights))]))
+    return plan
+
+
+def chapter_element(plan: list[tuple[int, int, str]], frame: int) -> str:
+    return next((el for s, e, el in plan if s <= frame <= e), "")
+
+
 def element_of(catalog: Catalog, option: Option) -> str:
     return catalog.element if option.element is None else option.element
 
@@ -481,7 +535,7 @@ def other_elements(catalog: Catalog, options: list[Option], elements: list[tuple
     return out
 
 
-def fill_gaps(catalog: Catalog, brief: MotionBrief, events, extra, chosen, decisions, seed: int, fps: float, elements: list | None = None) -> None:
+def fill_gaps(catalog: Catalog, brief: MotionBrief, events, extra, chosen, decisions, seed: int, fps: float, elements: list | None = None, plan: list | None = None) -> None:
     """Rellena los tramos sin ningún efecto más largos que `catalog.max_gap_s`: en cada hueco, un
     efecto del foco de ese momento (un `spotlight`), sorteado entre las opciones que dibujan algo y
     no son de escena. Si en el hueco no hay foco, se crea uno con la región de la línea de
@@ -512,6 +566,9 @@ def fill_gaps(catalog: Catalog, brief: MotionBrief, events, extra, chosen, decis
             events.append(event)
             extra.append(event)
         blocked = other_elements(catalog, spot.options, elements or [], event, int(round(catalog.element_pad_s * fps)))
+        chapter = chapter_element(plan or [], event.start_frame)
+        if chapter:
+            blocked |= {o.name for o in spot.options if element_of(catalog, o) and element_of(catalog, o) != chapter}
         pool = Reaction(action="spotlight", options=[o for o in spot.options if o.effects and not o.exclusive and o.name not in blocked])
         option = _draw(pool, event, seed + 7919 * (attempt + 1), frozenset(), brief, catalog.wardrobe)
         if not option.effects:
