@@ -47,7 +47,7 @@ seasons:
   - {action: heart_hands, sprite: halloween/candle.png, motion: [pop, sway], scale: 0.8, weight: 0.4, size: 1.6, max_uses: 1}
   - {action: hands_on_head, sprite: halloween/skull_flames.png, target: nose, motion: [pop, fade], scale: 0.7, weight: 0.3, size: 1.2, max_uses: 1}
   # Cabeza de calabaza en una pausa, ojos que flotan en la oscuridad y sombrero de bruja puesto.
-  - {action: still, sprite: halloween/pumpkin.png, target: nose, motion: [pop, sway], scale: 0.55, weight: 0.25, size: 2.0, max_uses: 1}
+  - {action: still, sprite: halloween/pumpkin.png, target: nose, motion: [pop, sway], scale: 0.75, weight: 0.25, size: 2.0, max_uses: 1}
   - {action: still, sprite: halloween/eyes.png, target: nose, motion: [above, pop, fade], scale: 1.0, weight: 0.15, size: 1.6, max_uses: 1}
   - {action: still, sprite: halloween/witch_hat.png, target: nose, motion: [hat, pop], scale: 0.6, weight: 0.2, size: 2.0, max_uses: 1}
   - {action: lull, sprite: halloween/corner_cobweb.png, target: nose, motion: [corner, pop], scale: 1.6, weight: 0.4, size: 2.0, max_uses: 1}

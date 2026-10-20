@@ -108,7 +108,10 @@ def draw_sprite(runtime, track, points, frame_index: int, height: int, envelope:
         return
     frames, own_fps = load_sprite(style.sprite)
     target = runtime.effect.target
-    anchor = runtime.anchor_point if event is not None and runtime.anchor_point is not None else resolve_anchor(points, target.kind, target.id, runtime.anchor_point)
+    # El punto del evento solo si el objeto lo pide (event_point); si pide una articulación (la
+    # calabaza en la nariz), va ahí aunque el gesto haya sido en las manos.
+    use_event = event is not None and runtime.anchor_point is not None and target.kind == "event_point"
+    anchor = runtime.anchor_point if use_event else resolve_anchor(points, target.kind, target.id, runtime.anchor_point)
     if anchor is None and event is not None:
         # Gestos sin punto de impacto (un golpe al aire, un salto): la articulación del gesto o,
         # si no es una, el centro del cuerpo.
