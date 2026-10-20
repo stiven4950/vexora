@@ -10,6 +10,7 @@ mirándolo; la atención está en el puño. El análisis lo marca como `fist_up`
   escarcha además destella y se dispersa.
 - `hourglass`: un reloj de arena grande: la mitad de abajo en el piso y la de arriba cortada,
   abierta hasta el puño, que vierte la arena; el montón de abajo crece. Él controla el tiempo.
+  Solo con el puño separado del torso (pegado al cuerpo, el reloj quedaba encima de la persona).
 """
 
 from __future__ import annotations
@@ -254,5 +255,26 @@ def fist_effect(shape, body, frame, scale, frame_index, runtime, layer, color, a
     if shape in ("sand", "glitter"):
         return _stream(fist, floor, scale, frame_index, layer, color, alpha, runtime, st, u, shape == "glitter")
     if shape == "hourglass":
-        return _hourglass(fist, floor, scale, frame_index, layer, color, alpha, runtime, st, u)
+        if "far" not in st:  # se decide al empezar y se mantiene (no parpadea si la mano vuelve)
+            st["far"] = next((f for f, _ in fists if _away_from_torso(body, f, scale)), None)
+        if st["far"] is None:
+            return []
+        fist = next((f for f, _ in fists if np.linalg.norm(f - st["far"]) < scale), fists[0][0])
+        st["far"] = fist
+        return _hourglass(fist, _floor(body, fist, scale), scale, frame_index, layer, color, alpha, runtime, st, u)
     return []
+
+
+AWAY_FROM_TORSO = 0.75  # anchos de hombros, de costado, entre el puño y el eje del torso
+
+
+def _away_from_torso(body, fist: np.ndarray, scale: float) -> bool:
+    """Si el puño está separado del torso, de costado (el reloj de arena va a un lado del cuerpo)."""
+    top, hips = body.mid("left_shoulder", "right_shoulder"), body.mid("left_hip", "right_hip")
+    if top is None:
+        return False
+    axis = (hips - top) if hips is not None else np.array([0.0, 1.0])
+    axis = axis / max(float(np.linalg.norm(axis)), 1e-6)
+    off = fist - top
+    side = off - axis * float(np.dot(off, axis))  # lo que se aparta del eje del torso
+    return float(np.linalg.norm(side)) > AWAY_FROM_TORSO * scale
