@@ -50,6 +50,11 @@ always:
     # Sin fundido de salida: queda encendida hasta el último cuadro (al desvanecerse se notaban
     # las llamas sueltas con que se arma).
     time: {start_frame: 0, end_frame: -1, fade_in: 0, fade_out: 0}
+  # Cierre con la alfombra de lenguas (video_51, seg. 2,7): solo al final, cuando la persona lleva
+  # más de 2 s de frente, y si no salió la pared. El motor cuenta la racha de frente.
+  - type: adornment
+    style: {shapes: [fire_carpet_end], focus: false}
+    time: {start_frame: 0, end_frame: -1, fade_in: 0, fade_out: 0}
 
 reactions:
   # Seg. 0: el estado Avatar.
@@ -133,22 +138,11 @@ reactions:
         effects:
           - &floor {type: adornment, style: {shapes: [floor_fire]}, trigger: {hold: 16, fade_in: 1, fade_out: 8}}
           - *heat
-      # video_51, seg. 2,7: alfombra de lenguas en gancho que cubre el piso alrededor de los pies.
-      - name: alfombra
-        weight: 0.45
-        cooldown: 150
-        effects:
-          - &carpet {type: adornment, style: {shapes: [fire_carpet]}, trigger: {hold: 20, fade_in: 1, fade_out: 6}}
-          - *heat2
   - action: stomp
     options:
       - name: piso
         weight: 0.3
         effects: [*floor]
-      - name: alfombra
-        weight: 0.25
-        cooldown: 150
-        effects: [*carpet]
       - name: nada
         weight: 0.7
 
@@ -359,10 +353,6 @@ reactions:
       - name: piso
         weight: 0.3
         effects: [*floor, *heat]
-      - name: alfombra
-        weight: 0.3
-        cooldown: 150
-        effects: [*carpet]
       - name: golpe_piso
         weight: 0.3
         effects: [*splash]

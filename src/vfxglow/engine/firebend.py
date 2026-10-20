@@ -15,6 +15,8 @@ blanco) con lenguas definidas, no como un brillo difuso.
 - `body_blaze`: el cuerpo arde: llamas que trepan por brazos y piernas y alas de fuego (seg. 11,2).
 - `fire_blast`, `fire_carpet`, `fire_halo` (glowing/video_51, docs/referencias/video_51.md): chorro
   de fuego desde el puño, alfombra de lenguas en el piso y aro grande alrededor del cuerpo.
+- `fire_carpet_end`: cierre con la alfombra: en los últimos segundos, solo si la persona lleva más
+  de 2 s de frente (y no hay pared). Se usa en `always`.
 - `fire_wall`: cierre: en el último tramo una pared de fuego sube desde el piso hasta llenar el
   cuadro, con la flecha y los ojos encendidos (seg. 14,4-16). Se usa en `always`: se cronometra
   sola con `runtime.frame_count` (`style.size` = segundos del cierre).
@@ -28,7 +30,7 @@ import numpy as np
 from vfxglow.engine.critters import TAU, WHITE, _activation, _ease, _phase, _seg
 from vfxglow.engine.raster import fill_polygon, splat
 
-FIREBEND = ("fire_whip", "hand_fire", "candle", "floor_fire", "fire_ring", "avatar_mark", "body_blaze", "fire_wall", "fire_light", "fire_blast", "fire_carpet", "fire_halo")
+FIREBEND = ("fire_whip", "hand_fire", "candle", "floor_fire", "fire_ring", "avatar_mark", "body_blaze", "fire_wall", "fire_light", "fire_blast", "fire_carpet", "fire_halo", "fire_carpet_end")
 MID = np.array([1.0, 0.66, 0.1], np.float32)
 # La luz que el fuego echa sobre el escenario: naranja profundo (con más verde, al sumarse sobre el
 # cuadro y el bloom, se iba al amarillo).
@@ -103,6 +105,17 @@ def note_frame(frame_index: int) -> None:
         _LIGHTS["prev"], _LIGHTS["now"], _LIGHTS["frame"] = _LIGHTS["now"], [], frame_index
 
 
+def _entry(layer) -> dict:
+    """El fuego acumulado de la capa en este cuadro (lo pinta flush_fire)."""
+    height, width = layer.shape[:2]
+    entry = _FIELDS.get(id(layer))
+    if entry is not None and entry["mask"].shape != (height, width):
+        entry = None  # quedó de otra capa ya liberada que tenía la misma dirección de memoria
+    if entry is None:
+        entry = _FIELDS[id(layer)] = {"mask": np.zeros((height, width), np.float32), "field": None, "alpha": 0.0, "look": LOOK["now"]}
+    return entry
+
+
 def cel(layer, make, color, alpha: float, runtime=None, heat: float = 1.0, core: bool = True, mass: bool = False) -> None:
     """Suma una llama al fuego del efecto (make(1.0) da su contorno). `mass`: masa grande que se
     funde con las vecinas como líquido (bola de fuego, pared). Con `runtime`, además un resplandor
@@ -111,9 +124,7 @@ def cel(layer, make, color, alpha: float, runtime=None, heat: float = 1.0, core:
     if alpha <= 0:
         return
     height, width = layer.shape[:2]
-    entry = _FIELDS.get(id(layer))
-    if entry is None:
-        entry = _FIELDS[id(layer)] = {"mask": np.zeros((height, width), np.float32), "field": None, "alpha": 0.0, "look": LOOK["now"]}
+    entry = _entry(layer)
     entry["alpha"] = max(entry["alpha"], float(alpha))
     poly = make(1.0)
     if poly is None or len(poly) < 3:
@@ -677,9 +688,7 @@ def living_ribbon(layer, spine: np.ndarray, widths: np.ndarray, u: float, st: di
     die = float(np.clip((u - DIE_START) / (1.0 - DIE_START), 0.0, 1.0))
     if die > 0:
         shape = erode(shape, mask, die, int(st.setdefault("seed", frame_index % 97)), (x0, y0, x1, y1), (height, width))
-    entry = _FIELDS.get(id(layer))
-    if entry is None:
-        entry = _FIELDS[id(layer)] = {"mask": np.zeros((height, width), np.float32), "field": None, "alpha": 0.0, "look": LOOK["now"]}
+    entry = _entry(layer)
     entry["alpha"] = max(entry["alpha"], float(alpha))
     entry["alive"] = True  # ya trae su propia vida: flush_fire no lo vuelve a erosionar
     np.maximum(entry["mask"][y0:y1, x0:x1], shape, out=entry["mask"][y0:y1, x0:x1])
@@ -967,7 +976,7 @@ def _fire_blast(body, scale, frame_index, runtime, layer, color, alpha, event) -
     return []
 
 
-def _fire_carpet(body, scale, frame_index, runtime, layer, color, alpha, event) -> list:
+def _fire_carpet(body, scale, frame_index, runtime, layer, color, alpha, event, u: float | None = None) -> list:
     """Alfombra de fuego en el piso (video_51, seg. 2,7): gotas gordas en gancho repartidas al azar
     sobre una elipse del piso alrededor de los pies, todas inclinadas hacia el mismo lado y más
     grandes cuanto más cerca de la cámara (más abajo en el cuadro). Al encimarse forman una masa
@@ -980,7 +989,7 @@ def _fire_carpet(body, scale, frame_index, runtime, layer, color, alpha, event) 
     if "x" not in st:
         st["x"] = float(np.mean([f[0] for f in feet]))
         st["lean"] = 1.0 if (st["x"] < layer.shape[1] / 2) else -1.0  # hacia el centro del cuadro
-    u = _phase(runtime, event)
+    u = _phase(runtime, event) if u is None else u
     scale = _unit(scale, layer)
     grow = _ease_out(u / GROW_END) if u < DIE_START else 1.0
     rng = np.random.default_rng(int(st["x"]) * 7 + 3)
@@ -1000,6 +1009,40 @@ def _fire_carpet(body, scale, frame_index, runtime, layer, color, alpha, event) 
         curl = (0.25 + 0.25 * rng.random()) * st["lean"]
         cel(layer, teardrop(np.array([xs[j], ys[j]]), d, tall, (0.3 + 0.18 * rng.random()) * depth * scale, frame_index, j * 1.1, curl), color, alpha, runtime, 0.4)
     return []
+
+
+# Cierres del fuego en el piso: la pared (si se enciende) gana y la alfombra no sale.
+_CLOSING: dict = {"wall": (0, -99)}  # (largo del video, último cuadro con pared): no se cruza entre videos
+CARPET_FRONT_S = 2.0  # segundos seguidos de frente para que salga la alfombra del cierre
+CARPET_WINDOW_S = 3.0  # solo en los últimos segundos del video
+
+
+def _carpet_end(body, scale, frame_index, runtime, layer, color, alpha) -> list:
+    """La alfombra como cierre: cuenta cuántos cuadros seguidos la persona mira de frente y, en los
+    últimos CARPET_WINDOW_S segundos, cuando esa racha pasa de CARPET_FRONT_S, nace y queda
+    encendida hasta el último cuadro (no muere)."""
+    from vfxglow.engine.bodyglow import facing
+
+    st = runtime.swoosh.setdefault("_carpetend", {})
+    if st.get("frame") == frame_index:  # una sola alfombra por cuadro, aunque haya dos personas
+        return []
+    if st.get("frame") is not None and frame_index < st["frame"]:  # otro video o volvió atrás
+        st.clear()
+    if frame_index - st.get("frame", frame_index) > 3:  # sin persona varios cuadros: la racha se corta
+        st["streak"] = 0
+    st["frame"] = frame_index
+    st["streak"] = st.get("streak", 0) + 1 if facing(body) == "front" else 0
+    total = runtime.frame_count
+    if total <= 0 or frame_index < total - int(CARPET_WINDOW_S * runtime.fps):
+        return []
+    if "start" not in st:
+        wall_total, wall_frame = _CLOSING["wall"]
+        if st["streak"] < CARPET_FRONT_S * runtime.fps or (wall_total == total and wall_frame >= frame_index - 1):
+            return []
+        st["start"] = frame_index
+    length = max(total - st["start"], 1)
+    u = min((frame_index - st["start"]) / length, 1.0) * (DIE_START - 0.01)  # nace y se sostiene
+    return _fire_carpet(body, scale, frame_index, runtime, layer, color, alpha, None, u)
 
 
 def _fire_halo(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
@@ -1238,6 +1281,7 @@ def _fire_wall(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
         st["front"] = facing(body) == "front"
     if not st["front"]:
         return []
+    _CLOSING["wall"] = (total, frame_index)  # la alfombra del cierre cede
     s = _ease((frame_index - (total - length)) / max(length - 1, 1))
     height, width = layer.shape[:2]
     rise = height * (0.08 + 0.32 * s)  # hasta el 40% del cuadro: no tapa a la persona
@@ -1362,4 +1406,6 @@ def firebend(shape, body, frame, scale, frame_index, runtime, layer, color, alph
         return _fire_carpet(body, scale, frame_index, runtime, layer, color, alpha, event)
     if shape == "fire_halo":
         return _fire_halo(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape == "fire_carpet_end":
+        return _carpet_end(body, scale, frame_index, runtime, layer, color, alpha)
     return []

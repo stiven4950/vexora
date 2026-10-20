@@ -203,3 +203,28 @@ def test_fire_wall_needs_the_person_facing_front() -> None:
 
     assert wall(((250.0, 200.0), (150.0, 200.0))) > 0.05  # de frente: hay pared
     assert wall(((150.0, 200.0), (250.0, 200.0))) == 0.0  # de espaldas: no
+
+
+def _carpet_end(front_frames: int, total: int = 150, wall: bool = False) -> float:
+    """Cobertura de la alfombra del cierre en el último cuadro, con la persona de frente en los
+    últimos `front_frames` cuadros (antes, de espaldas)."""
+    front, back = _head_body(((250.0, 200.0), (150.0, 200.0))), _head_body(((150.0, 200.0), (250.0, 200.0)))
+    for body in (front, back):
+        body.points.update(left_ankle=np.array([180.0, 480.0]), right_ankle=np.array([220.0, 480.0]))
+    runtime = SimpleNamespace(swoosh={}, frame_count=total, fps=30.0, silhouettes=[], kernels={}, active_frames=0, effect=SimpleNamespace(triggers=[]))
+    firebend._CLOSING["wall"] = (total, total - 1) if wall else (0, -99)
+    layer = np.zeros((H, W, 4), np.float32)
+    for f in range(total):
+        layer[:] = 0
+        body = front if f >= total - front_frames else back
+        firebend._carpet_end(body, body.scale, f, runtime, layer, (1.0, 0.4, 0.05), 1.0)
+        firebend.flush_fire(layer, f)
+    firebend._CLOSING["wall"] = (0, -99)
+    return float((layer[..., 3] > 0.5).mean())
+
+
+def test_closing_carpet_only_after_two_seconds_facing_front() -> None:
+    assert _carpet_end(75) > 0.05  # 2,5 s de frente al final: sale la alfombra
+    assert _carpet_end(30) == 0.0  # solo 1 s de frente: no
+    assert _carpet_end(0) == 0.0  # de espaldas: no
+    assert _carpet_end(75, wall=True) == 0.0  # si salió la pared, la alfombra cede
