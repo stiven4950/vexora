@@ -1017,13 +1017,19 @@ def _fire_carpet(body, scale, frame_index, runtime, layer, color, alpha, event, 
 # Cierres del fuego en el piso: la pared (si se enciende) gana y la alfombra no sale.
 _CLOSING: dict = {"wall": (0, -99)}  # (largo del video, último cuadro con pared): no se cruza entre videos
 CARPET_FRONT_S = 2.0  # segundos seguidos de frente para que salga la alfombra del cierre
-CARPET_WINDOW_S = 3.0  # solo en los últimos segundos del video
+CARPET_WINDOW_S = 1.8  # solo en los últimos segundos del video (como la pared)...
+CARPET_WINDOW_FRAC = 0.2  # ...y nunca más de esta fracción del video (en uno corto quedaba a la mitad)
+
+
+def closing_frames(total: int, fps: float) -> int:
+    """Cuadros del cierre del fuego en el piso (alfombra o pared) en un video de `total` cuadros."""
+    return int(min(CARPET_WINDOW_S * fps, CARPET_WINDOW_FRAC * total))
 
 
 def _carpet_end(body, scale, frame_index, runtime, layer, color, alpha) -> list:
-    """La alfombra como cierre: cuenta cuántos cuadros seguidos la persona mira de frente y, en los
-    últimos CARPET_WINDOW_S segundos, cuando esa racha pasa de CARPET_FRONT_S, nace y queda
-    encendida hasta el último cuadro (no muere)."""
+    """La alfombra como cierre: cuenta cuántos cuadros seguidos la persona mira de frente y, en el
+    tramo final (closing_frames), si esa racha pasa de CARPET_FRONT_S, nace desde el borde de
+    abajo del cuadro, sube y queda encendida hasta el último cuadro (no muere)."""
     from vfxglow.engine.bodyglow import facing
 
     st = runtime.swoosh.setdefault("_carpetend", {})
@@ -1036,16 +1042,33 @@ def _carpet_end(body, scale, frame_index, runtime, layer, color, alpha) -> list:
     st["frame"] = frame_index
     st["streak"] = st.get("streak", 0) + 1 if facing(body) == "front" else 0
     total = runtime.frame_count
-    if total <= 0 or frame_index < total - int(CARPET_WINDOW_S * runtime.fps):
+    if total <= 0 or frame_index < total - closing_frames(total, runtime.fps):
         return []
     if "start" not in st:
         wall_total, wall_frame = _CLOSING["wall"]
         if st["streak"] < CARPET_FRONT_S * runtime.fps or (wall_total == total and wall_frame >= frame_index - 1):
             return []
         st["start"] = frame_index
-    length = max(total - st["start"], 1)
-    u = min((frame_index - st["start"]) / length, 1.0) * (DIE_START - 0.01)  # nace y se sostiene
-    return _fire_carpet(body, scale, frame_index, runtime, layer, color, alpha, None, u)
+    s = _ease(min((frame_index - st["start"]) / max(total - st["start"] - 1, 1), 1.0))
+    height, width = layer.shape[:2]
+    # Desde el borde de abajo del cuadro hacia arriba (no en el piso de la persona, que puede estar
+    # a media altura): dos filas de lenguas en gancho a lo ancho, la de atrás más alta y fina.
+    rise = height * (0.06 + 0.24 * s)
+    base_y = height + 2
+    lean = 1.0 if st.setdefault("lean", 1.0 if frame_index % 2 else -1.0) > 0 else -1.0
+    rng = np.random.default_rng(29)
+    for row, (lift, size, count) in enumerate(((0.35, 0.75, 8), (0.0, 1.0, 9))):
+        for j in range(count):
+            x = width * (j + 0.5 + rng.uniform(-0.25, 0.25)) / count
+            tall = rise * size * rng.uniform(0.6, 1.0) * (0.9 + 0.12 * _smooth_noise(np.array([frame_index * 0.08 + j + row * 3]), 6.0)[0])
+            d = np.array([0.35 * lean, -1.0])
+            d /= float(np.linalg.norm(d))
+            thin = min(tall * rng.uniform(0.25, 0.35), width / count * 0.6)
+            curl = (0.25 + 0.25 * rng.random()) * lean
+            cel(layer, teardrop(np.array([x, base_y - rise * lift]), d, tall, thin, frame_index, row * 11 + j * 1.3, curl), color, alpha, runtime, 0.6)
+    band = np.array([[-0.05 * width, base_y - rise * 0.15], [1.05 * width, base_y - rise * 0.15], [1.05 * width, base_y + 2], [-0.05 * width, base_y + 2]])
+    cel(layer, lambda k: band, color, alpha * 0.8, None, mass=True)  # la base, pegada al borde
+    return []
 
 
 def _fire_halo(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
@@ -1273,7 +1296,7 @@ def _fire_wall(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
         return []
     st["frame"] = frame_index
     total = runtime.frame_count
-    length = int(max(runtime.effect.style.size, 0.5) * runtime.fps)
+    length = min(int(max(runtime.effect.style.size, 0.5) * runtime.fps), closing_frames(total, runtime.fps))
     if total <= 0 or frame_index < total - length:
         return []
     if "front" not in st:

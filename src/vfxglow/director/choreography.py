@@ -231,6 +231,14 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
     spent: dict[str, int] = {}  # usos de cada opción en el video (para max_uses)
     elements: list[tuple[int, int, str]] = []  # tramos encendidos de cada elemento (capítulos)
     pad = int(round(catalog.element_pad_s * fps))
+    closings = {"fire_wall", "fire_carpet_end"}
+    if catalog.element and any(closings & set(raw.get("style", {}).get("shapes", [])) for raw in catalog.always):
+        # El cierre de fuego en el piso (pared o alfombra) ocupa el tramo final: es de fuego, así
+        # que el rayo no sale ahí (se veía un rayo cian sobre la alfombra).
+        from vfxglow.engine.firebend import closing_frames
+
+        total = brief.video.frame_count
+        elements.append((total - closing_frames(total, fps), total, catalog.element))
     for pairs in passes:
         for event, reaction in sorted(pairs, key=lambda pair: (pair[0].start_frame, catalog.reactions.index(pair[1]))):
             memo = state[id(reaction)]

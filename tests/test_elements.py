@@ -228,3 +228,22 @@ def test_closing_carpet_only_after_two_seconds_facing_front() -> None:
     assert _carpet_end(30) == 0.0  # solo 1 s de frente: no
     assert _carpet_end(0) == 0.0  # de espaldas: no
     assert _carpet_end(75, wall=True) == 0.0  # si salió la pared, la alfombra cede
+
+
+def test_closing_carpet_rises_from_the_bottom_edge_only_at_the_very_end() -> None:
+    total = 267  # video de 8,9 s: antes nacía a los 5,9 s, a media altura del cuadro
+    front = _head_body(((250.0, 200.0), (150.0, 200.0)))
+    front.points.update(left_ankle=np.array([180.0, 300.0]), right_ankle=np.array([220.0, 300.0]))  # pies a media altura
+    runtime = SimpleNamespace(swoosh={}, frame_count=total, fps=30.0, silhouettes=[], kernels={}, active_frames=0, effect=SimpleNamespace(triggers=[]))
+    firebend._CLOSING["wall"] = (0, -99)
+    first = None
+    layer = np.zeros((H, W, 4), np.float32)
+    for f in range(total):
+        layer[:] = 0
+        firebend._carpet_end(front, front.scale, f, runtime, layer, (1.0, 0.4, 0.05), 1.0)
+        firebend.flush_fire(layer, f)
+        if first is None and layer[..., 3].max() > 0.5:
+            first = f
+    assert first is not None and first >= total * 0.8  # solo en el último 20% del video
+    rows = np.nonzero((layer[..., 3] > 0.5).any(axis=1))[0]
+    assert rows.max() >= H - 2 and rows.min() > H * 0.6  # pegada al borde de abajo, sube hasta un tercio
