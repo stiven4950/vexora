@@ -839,7 +839,9 @@ def _fire_whip(body, scale, frame_index, runtime, layer, color, alpha, event) ->
             continue
         # Exagerado como en la referencia: el látigo dobla el recorrido real (desde la mano hacia
         # atrás) y la llama se adelanta a la mano, como si la lanzara.
-        spine = spine[-1] + (spine - spine[-1]) * WHIP_SCALE * (1.4 if len(limbs) == 2 else 1.0)
+        # El recorrido exagerado; si la persona ocupa poco del cuadro, más (el swoosh se ve en
+        # proporción al cuadro, como en video_51).
+        spine = spine[-1] + (spine - spine[-1]) * WHIP_SCALE * (1.4 if len(limbs) == 2 else 1.0) * (_unit(scale, layer) / scale)
         ahead = spine[-1] - spine[-3]
         spine = np.vstack([spine, spine[-1] + ahead * 0.8])
         # Medialuna como en la referencia: se arquea hacia el lado en que gira el golpe (aunque el
@@ -850,7 +852,8 @@ def _fire_whip(body, scale, frame_index, runtime, layer, color, alpha, event) ->
         turn = st.setdefault("turn", float(np.sign(np.dot(spine[len(spine) // 2] - (spine[0] + spine[-1]) / 2, side)) or 1.0))  # fijo por golpe
         # Siempre una medialuna suave: curva de Bézier del inicio al fin del tramo, arqueada hacia el
         # lado del golpe. Con pocos puntos de recorrido, la curva anterior salía con esquinas ("A").
-        cap = (2.4 if len(limbs) == 2 else 1.8) * scale  # tope de largo (las patadas hacían barras)
+        unit = _unit(scale, layer)  # en proporción al cuadro si la persona ocupa poco (video_51)
+        cap = (2.4 if len(limbs) == 2 else 1.8) * unit  # tope de largo (las patadas hacían barras)
         start, end = spine[0], spine[-1]
         if length > cap:
             start = end + (start - end) * (cap / length)
@@ -861,7 +864,7 @@ def _fire_whip(body, scale, frame_index, runtime, layer, color, alpha, event) ->
         q = q[:, 0]
         # Fina y en punta en la cola, ancha cerca de la mano y otra vez afilada en la cabeza.
         big = 1.5 if len(limbs) == 2 else 1.0  # con las dos manos, medialunas grandes (seg. 0,8)
-        widths = (0.006 + 0.24 * big * np.sin(np.pi * q) ** 0.9 * q ** 0.9) * scale
+        widths = (0.006 + 0.24 * big * np.sin(np.pi * q) ** 0.9 * q ** 0.9) * unit
         living_ribbon(layer, smooth, widths, u, st, frame_index, color, alpha, runtime)
         if u < DIE_START:
             shed(layer, smooth, widths, st, frame_index, scale, color, alpha)

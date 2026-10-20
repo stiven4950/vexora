@@ -259,3 +259,30 @@ def test_always_chance_is_a_fixed_draw_per_video() -> None:
     assert 0.25 < sum(picks) / len(picks) < 0.55  # de vez en cuando
     assert picks == [bool(always_effects(catalog, [], frames, 30.0, 18)) for frames in range(300, 700)]  # fijo
     assert "chance" not in always_effects(Catalog.model_validate({**catalog.model_dump(), "always": [{"chance": 1.0}]}), [], 300, 30.0, 18)[0]
+
+
+def test_element_chapters_do_not_mix_fire_and_lightning() -> None:
+    catalog = Catalog.model_validate(
+        {
+            "name": "t",
+            "seed": 3,
+            "element": "fuego",
+            "defaults": {"type": "swoosh", "target": {"kind": "joint", "id": "right_wrist"}},
+            "reactions": [
+                {
+                    "action": "fast_swing",
+                    "options": [
+                        {"name": "latigo", "weight": 1.0, "effects": [{"trigger": {"hold": 30}}]},
+                        {"name": "rayo", "element": "rayo", "weight": 1.0, "effects": [{"trigger": {"hold": 30}}]},
+                    ],
+                }
+            ],
+        }
+    )
+    bursts = [f for start in range(0, 800, 120) for f in range(start, start + 40, 10)]  # golpes en ráfagas
+    log = choreograph(catalog, _brief([_swing(f) for f in bursts]))[1]
+    picks = [(d.frame, d.choice) for d in log.decisions if d.choice in ("latigo", "rayo")]
+    assert {c for _f, c in picks} == {"latigo", "rayo"}  # salen los dos elementos...
+    for (f1, c1), (f2, c2) in zip(picks, picks[1:]):
+        if c1 != c2:
+            assert f2 - f1 >= 30 + 24  # ...pero nunca encimados: el anterior termina y pasan 0,8 s

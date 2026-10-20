@@ -55,6 +55,9 @@ class Option(_Strict):
     # Veces que la opción puede salir en todo el video (0 = sin tope). Cuenta por nombre: la misma
     # opción en varias acciones (el ave al levantar la mano o los brazos) comparte el tope.
     max_uses: int = 0
+    # Elemento de la opción (fuego, rayo...). Sin dar, el del catálogo; "" = neutra (la mirada, las
+    # chispas). Con capítulos de elemento, no se mezclan elementos en el mismo tramo.
+    element: str | None = None
     # Subtipos de la acción admitidos (MotionEvent.kind; p. ej. intent: hand_to_chest).
     kinds: list[str] = Field(default_factory=list)
     # La persona de la acción debe llevar uno de estos accesorios (gafas, máscara...). Si la
@@ -89,6 +92,11 @@ class Catalog(_Strict):
     defaults: dict = Field(default_factory=dict)
     # Efectos que no dependen de una elección (por ejemplo, partículas con su propia probabilidad).
     always: list[dict] = Field(default_factory=list)
+    # Capítulos de elemento (glowing/video_51): el elemento de las opciones que no dicen el suyo
+    # ("" = sin capítulos). Mientras un elemento está encendido, y `element_pad_s` antes y
+    # después, no sale otro (nada de rayo cian en medio del fuego).
+    element: str = ""
+    element_pad_s: float = 0.8
     reactions: list[Reaction]
     # Lo que el análisis debe calcular para este catálogo (p. ej. [blades] para espadas).
     needs: list[str] = Field(default_factory=list)
@@ -221,6 +229,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
         rest = [] if pins.solo_estos else [[pair for pair in pairs if (id(pair[0]), id(pair[1])) not in forced] for pairs in passes]
         passes = [pinned, *rest]
     spent: dict[str, int] = {}  # usos de cada opción en el video (para max_uses)
+    elements: list[tuple[int, int, str]] = []  # tramos encendidos de cada elemento (capítulos)
+    pad = int(round(catalog.element_pad_s * fps))
     for pairs in passes:
         for event, reaction in sorted(pairs, key=lambda pair: (pair[0].start_frame, catalog.reactions.index(pair[1]))):
             memo = state[id(reaction)]
@@ -238,6 +248,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 memo["last"] = event.start_frame
                 memo["used"][option.name] = event.start_frame
                 spent[option.name] = spent.get(option.name, 0) + 1
+                if element_of(catalog, option):
+                    elements.append((start, end, element_of(catalog, option)))
                 if option.exclusive:
                     exclusive_until = max(exclusive_until, end)
                 if reaction.action in KEY_ACTIONS:
@@ -265,6 +277,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 continue
             resting = {name for name, frame in memo["used"].items() if event.start_frame - frame < _option(reaction, name).cooldown}
             resting |= {o.name for o in reaction.options if o.max_uses and spent.get(o.name, 0) >= o.max_uses}
+            resting |= other_elements(catalog, reaction.options, elements, event, pad)
             option = _draw(reaction, event, seed, resting, brief, catalog.wardrobe)
             if option.yields_to and _yields(option, event, brief, seed, fps):
                 option = Option(name=f"nada (cede a {', '.join(option.yields_to)})")
@@ -308,6 +321,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 memo["last"] = event.start_frame
                 memo["used"][option.name] = event.start_frame
                 spent[option.name] = spent.get(option.name, 0) + 1
+                if element_of(catalog, option):
+                    elements.append((start, end, element_of(catalog, option)))
                 chosen.setdefault((reaction.action, option.name), []).append((event.start_frame, event.target))
                 if option.exclusive:
                     exclusive_until = end
@@ -356,7 +371,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 )
             )
     if catalog.max_gap_s > 0 and not (pins is not None and pins.solo_estos):
-        fill_gaps(catalog, brief, events, extra, chosen, decisions, seed, fps)
+        fill_gaps(catalog, brief, events, extra, chosen, decisions, seed, fps, elements)
     always = [] if pins is not None and pins.solo_estos else always_effects(catalog, events, brief.video.frame_count, fps, seed)
     effects: list[dict] = list(always)
     for number, (reaction, option, picked, pin) in enumerate(pinned_out):
@@ -440,7 +455,25 @@ def _earned(option: Option) -> bool:
     return option.min_speed > 0 or option.min_duration_s > 0
 
 
-def fill_gaps(catalog: Catalog, brief: MotionBrief, events, extra, chosen, decisions, seed: int, fps: float) -> None:
+def element_of(catalog: Catalog, option: Option) -> str:
+    return catalog.element if option.element is None else option.element
+
+
+def other_elements(catalog: Catalog, options: list[Option], elements: list[tuple[int, int, str]], event: MotionEvent, pad: int) -> set[str]:
+    """Las opciones cuyo tramo (con `pad` de margen) se encima con uno de otro elemento ya
+    encendido (capítulos de elemento)."""
+    out = set()
+    for o in options:
+        mine = element_of(catalog, o)
+        if not mine or not o.effects:
+            continue
+        start, end = _window(o, event)
+        if any(el != mine and s - pad <= end and start <= e + pad for s, e, el in elements):
+            out.add(o.name)
+    return out
+
+
+def fill_gaps(catalog: Catalog, brief: MotionBrief, events, extra, chosen, decisions, seed: int, fps: float, elements: list | None = None) -> None:
     """Rellena los tramos sin ningún efecto más largos que `catalog.max_gap_s`: en cada hueco, un
     efecto del foco de ese momento (un `spotlight`), sorteado entre las opciones que dibujan algo y
     no son de escena. Si en el hueco no hay foco, se crea uno con la región de la línea de
@@ -470,7 +503,8 @@ def fill_gaps(catalog: Catalog, brief: MotionBrief, events, extra, chosen, decis
                                 confidence=1.0, detail="Relleno: ningún tramo sin efecto.", kind=region)
             events.append(event)
             extra.append(event)
-        pool = Reaction(action="spotlight", options=[o for o in spot.options if o.effects and not o.exclusive])
+        blocked = other_elements(catalog, spot.options, elements or [], event, int(round(catalog.element_pad_s * fps)))
+        pool = Reaction(action="spotlight", options=[o for o in spot.options if o.effects and not o.exclusive and o.name not in blocked])
         option = _draw(pool, event, seed + 7919 * (attempt + 1), frozenset(), brief, catalog.wardrobe)
         if not option.effects:
             # Sin opción para esa región: el cuerpo entero sí admite casi todas.
@@ -479,6 +513,8 @@ def fill_gaps(catalog: Catalog, brief: MotionBrief, events, extra, chosen, decis
             covered[start : end + 1] = True  # nada que poner aquí: no insistir
             continue
         first, last = _window(option, event)
+        if elements is not None and element_of(catalog, option):
+            elements.append((first, last, element_of(catalog, option)))
         chosen.setdefault(("spotlight", option.name), []).append((event.start_frame, event.target))
         decisions.append(
             Decision(frame=event.start_frame, second=round(event.start_frame / fps, 2), action="spotlight", target=event.target, choice=option.name, until=last)
