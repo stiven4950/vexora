@@ -105,7 +105,7 @@ reactions:
           - &wind
             type: swoosh
             target: {kind: joint, id: "left_wrist,right_wrist,left_ankle,right_ankle"}
-            style: {colors: [[1.0, 1.0, 1.0]], trail_style: plain, strands: 3, trail_frames: 12, min_speed: 0.1, thickness: 0.03, hdr_gain: 1.0, focus: false, shapes: [wind]}
+            style: {colors: [[1.0, 1.0, 1.0]], trail_style: plain, strands: 2, trail_frames: 14, min_speed: 0.1, thickness: 0.12, hdr_gain: 1.0, focus: false, shapes: [wind]}
             render: {blend: over, motion_blur: 0.0, group: glow, glow_layers: 1}
             trigger: {hold: 10, fade_in: 1, fade_out: 5}
       - name: viento_azul
@@ -115,7 +115,7 @@ reactions:
           - &wind_blue
             type: swoosh
             target: {kind: joint, id: "left_wrist,right_wrist,left_ankle,right_ankle"}
-            style: {colors: [[0.35, 0.65, 1.0]], strands: 3, trail_frames: 12, min_speed: 0.1, thickness: 0.016, hdr_gain: 1.6, focus: false, shapes: [wind]}
+            style: {colors: [[0.35, 0.65, 1.0]], trail_style: plain, strands: 2, trail_frames: 14, min_speed: 0.1, thickness: 0.1, hdr_gain: 1.6, focus: false, shapes: [wind, glow]}
             render: {blend: add, motion_blur: 0.0, group: glow, glow_layers: 3}
             trigger: {hold: 10, fade_in: 1, fade_out: 5}
       - name: aliento

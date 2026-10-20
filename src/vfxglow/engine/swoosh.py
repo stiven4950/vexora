@@ -25,7 +25,7 @@ import numpy as np
 from vfxglow.analysis.schema import FrameRecord, MotionEvent
 from vfxglow.engine.anchors import joint_speed, torso_pixels
 from vfxglow.engine.glyphs import boil_jitter
-from vfxglow.engine.raster import splat, stroke_batch
+from vfxglow.engine.raster import fill_polygon, splat, stroke_batch
 from vfxglow.geom import catmull_rom, normals
 
 # Salto entre fotogramas (en torsos) que se trata como cambio de persona y corta la estela.
@@ -121,10 +121,19 @@ def draw_swoosh(runtime, track: FrameRecord | None, points: dict[str, np.ndarray
                 splat(layer, float(at[0]), float(at[1]), width * (2.5 + 4.0 * t), color * style.hdr_gain * envelope, active * (0.4 + 0.6 * t), runtime.kernels)
             continue
         if style.trail_style == "plain":
-            # Viento: trazos lisos del color, que se afinan hacia la cola; sin halo ni resplandor
-            # (por debajo del umbral del brillo de la composición).
-            for strand in strands(curve, max(style.strands, 1), width):
-                strokes += _plain(strand[0], np.minimum(color, 0.92), width * strand[1], active * strand[2])
+            # Viento: cintas rellenas del color, anchas en la extremidad y en punta en la cola, como
+            # pinceladas de aire; sin halo ni resplandor (por debajo del umbral del brillo). Con
+            # líneas finas no se notaba. `thickness` es el medio ancho máximo, en torsos. Solo los
+            # recorridos que barren: los que se enroscan (la mano que tiembla o gira en el lugar)
+            # hacían rulos.
+            if chord < 0.65 * length or length < 0.6 * torso:
+                continue
+            # Con `glow` en shapes, la misma pincelada en neón: el color con su ganancia (el bloom le
+            # pone el halo), como el viento azul; sin él, liso y sin resplandor (el blanco).
+            glow = "glow" in style.shapes
+            tint, gain = (color, style.hdr_gain) if glow else (np.minimum(color, 0.92), 1.0)
+            for strand in strands(curve, max(style.strands, 1), width * 0.6):  # hebras pegadas (separadas, en las curvas se cruzaban)
+                fill_polygon(layer, _sliver(strand[0], width * strand[1]), tint, active * strand[2] * envelope, gain, feather=1.5)
             continue
         for strand in ([] if style.cross else strands(curve, max(style.strands, 1), width)):
             strokes += _neon(strand[0], color, width * strand[1], active * strand[2])
@@ -228,17 +237,13 @@ def neon_layers(curve: np.ndarray, color: np.ndarray, width: float, alpha: float
     ]
 
 
-def _plain(curve: np.ndarray, color: np.ndarray, width: float, alpha: float) -> list:
-    """Un trazo liso, sin halo: tramos de cola a cabeza cada vez más anchos y opacos."""
-    strokes = []
-    bounds = np.linspace(0, len(curve) - 1, SEGMENTS + 1).astype(int)
-    for index in range(SEGMENTS):
-        start, end = bounds[index], bounds[index + 1] + 1
-        if end - start < 2:
-            continue
-        t = (index + 1) / SEGMENTS
-        strokes.append((curve[start:end], color, max(width * (0.2 + 0.8 * t), 1.0), alpha * t ** 1.2))
-    return strokes
+def _sliver(curve: np.ndarray, half: float) -> np.ndarray:
+    """Contorno de una cinta por `curve` (de la cola a la cabeza): en punta en la cola, ancha cerca
+    de la cabeza y redondeada en ella."""
+    nrm = normals(curve)
+    t = np.linspace(0.0, 1.0, len(curve))
+    w = half * np.sin(np.pi * np.clip(t * 0.85 + 0.05, 0, 1)) ** 0.8 * (0.25 + 0.75 * t)
+    return np.vstack([curve + nrm * w[:, None], (curve - nrm * w[:, None])[::-1]])
 
 
 def _neon(curve: np.ndarray, color: np.ndarray, width: float, alpha: float, taper: bool = True) -> list:
