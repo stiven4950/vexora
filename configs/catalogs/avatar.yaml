@@ -174,9 +174,12 @@ reactions:
         weight: 0.4
         cooldown: 300
         effects: [*skull, *heat]
-      - name: latigo
+      # El swoosh de fuego: la mano (o el pie) lleva la llama prendida y la estela la persigue.
+      # Es el efecto más recurrente; las medialunas quedan para abrir los brazos y saltar.
+      - name: estela
         weight: 0.9
-        effects: [*whip]
+        effects:
+          - &trail {type: adornment, style: {shapes: [fire_trail]}, trigger: {hold: 8, fade_in: 1, fade_out: 5}}
       # video_51, seg. 3,0 y 3,6: chorro de fuego desde el puño, en la dirección del antebrazo.
       - name: chorro
         weight: 0.2
@@ -189,9 +192,9 @@ reactions:
   - action: fast_swing
     options:
       # El swoosh de fuego es el efecto más recurrente del catálogo.
-      - name: latigo
+      - name: estela
         weight: 1.3
-        effects: [*whip, *heat]
+        effects: [*trail, *heat]
       - name: chorro
         weight: 0.15
         cooldown: 90
@@ -248,9 +251,9 @@ reactions:
         element: rayo
         weight: 0.7
         effects: [*bolt]
-      - name: latigo
+      - name: estela
         weight: 0.5
-        effects: [*whip]
+        effects: [*trail]
   - action: finger_gun
     options:
       - name: rayo
@@ -289,9 +292,9 @@ reactions:
           - type: adornment
             style: {shapes: [fire_ring]}
             trigger: {hold: 14, fade_in: 1, fade_out: 5}
-      - name: latigos
+      - name: estelas
         weight: 0.9
-        effects: [*whip]
+        effects: [*trail]
       # video_51, seg. 2,4: un aro grande de fuego que sube de un pie y rodea todo el cuerpo.
       - name: aro_grande
         weight: 0.5
@@ -313,9 +316,9 @@ reactions:
   # Seg. 11,2-11,6: cuerpo entero en tensión: el cuerpo arde.
   - action: frenzy
     options:
-      - name: latigos
+      - name: estelas
         weight: 1.0
-        effects: [*whip, *heat]
+        effects: [*trail, *heat]
       # Seg. 8,0: el fuego sube a la cabeza y sale por la boca; queda la cara de demonio.
       - name: aliento
         weight: 0.3
@@ -339,9 +342,9 @@ reactions:
         weight: 0.3
         max_uses: 1
         effects: [*dragon, *heat2]
-      - name: latigos
+      - name: estelas
         weight: 0.5
-        effects: [*whip, *heat]
+        effects: [*trail, *heat]
       - name: cuerpo_en_llamas
         weight: 0.3
         cooldown: 200
@@ -435,10 +438,10 @@ reactions:
   # Lo que más se mueve, entre gesto y gesto: llamas en las manos, fuego en el piso o la mirada.
   - action: spotlight
     options:
-      - name: latigo
+      - name: estela
         weight: 0.6
         kinds: [left_arm, right_arm]
-        effects: [*whip]
+        effects: [*trail]
       - name: manos
         weight: 0.3
         kinds: [left_arm, right_arm]

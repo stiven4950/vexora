@@ -247,3 +247,41 @@ def test_closing_carpet_rises_from_the_bottom_edge_only_at_the_very_end() -> Non
     assert first is not None and first >= total * 0.8  # solo en el último 20% del video
     rows = np.nonzero((layer[..., 3] > 0.5).any(axis=1))[0]
     assert rows.max() >= H - 2 and rows.min() > H * 0.6  # pegada al borde de abajo, sube hasta un tercio
+
+
+def _trail(path, joint: str = "right_wrist") -> np.ndarray:
+    """Máscara del swoosh de fuego en el último cuadro, con la extremidad recorriendo `path`."""
+    body = _body()
+    frame = (np.array([200.0, 200.0]), np.array([1.0, 0.0]), np.array([0.0, 1.0]))
+    event = SimpleNamespace(start_frame=0, end_frame=60, kind="", target=f"p0:{joint}", name="fast_swing")
+    runtime = _runtime(0)
+    firebend.set_look("hot")
+    layer = np.zeros((H, W, 4), np.float32)
+    for f, point in enumerate(path):
+        runtime.active_frames = f + 1
+        body[joint] = np.array(point, dtype=np.float64)
+        layer[:] = 0
+        firebend._fire_trail(body, frame, 60.0, f, runtime, layer, None, 1.0, event)
+        firebend.flush_fire(layer, f)
+    return (layer[..., 3] > 0.5).astype(np.uint8)
+
+
+def test_fire_trail_is_lit_still_and_chases_the_hand_when_it_moves() -> None:
+    still = _trail([(300.0, 300.0)] * 12)
+    ys, xs = np.nonzero(still)
+    assert len(xs) > 0 and xs.max() - xs.min() < 60  # quieta: solo la llama prendida en la mano
+    moving = _trail([(60.0 + 22 * i, 330.0) for i in range(12)])  # de izquierda a derecha
+    ys, xs = np.nonzero(moving)
+    assert xs.min() < 60.0 + 22 * 11 - 120 and xs.max() > 60.0 + 22 * 11 - 20  # la estela queda atrás, en el recorrido
+
+
+def test_fire_trail_follows_a_kicking_foot() -> None:
+    ys, xs = np.nonzero(_trail([(60.0 + 22 * i, 470.0) for i in range(12)], "right_ankle"))
+    assert len(ys) and ys.mean() > 380  # el fuego va en el pie, no en la mano
+
+
+def test_fire_trail_does_not_hook_after_a_sharp_turn() -> None:
+    there = [(60.0 + 25 * i, 330.0) for i in range(8)]
+    back = [(there[-1][0] - 25 * i, 330.0 - 3 * i) for i in range(1, 5)]
+    ys, xs = np.nonzero(_trail(there + back))
+    assert xs.max() < there[-1][0] + 40 and xs.min() > there[0][0] + 60  # solo el tramo de vuelta, sin gancho

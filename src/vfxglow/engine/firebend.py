@@ -15,6 +15,8 @@ blanco) con lenguas definidas, no como un brillo difuso.
 - `body_blaze`: el cuerpo arde: llamas que trepan por brazos y piernas y alas de fuego (seg. 11,2).
 - `fire_blast`, `fire_carpet`, `fire_halo` (glowing/video_51, docs/referencias/video_51.md): chorro
   de fuego desde el puño, alfombra de lenguas en el piso y aro grande alrededor del cuerpo.
+- `fire_trail`: swoosh de fuego: la mano lleva la llama prendida y, al moverse, la estela de fuego
+  la persigue por su recorrido (lo que queda atrás sube y se achica); al frenar se recoge.
 - `fire_carpet_end`: cierre con la alfombra: en los últimos segundos, solo si la persona lleva más
   de 2 s de frente (y no hay pared). Se usa en `always`.
 - `fire_wall`: cierre: en el último tramo una pared de fuego sube desde el piso hasta llenar el
@@ -30,7 +32,7 @@ import numpy as np
 from vfxglow.engine.critters import TAU, WHITE, _activation, _ease, _phase, _seg
 from vfxglow.engine.raster import fill_polygon, splat
 
-FIREBEND = ("fire_whip", "hand_fire", "candle", "floor_fire", "fire_ring", "avatar_mark", "body_blaze", "fire_wall", "fire_light", "fire_blast", "fire_carpet", "fire_halo", "fire_carpet_end")
+FIREBEND = ("fire_whip", "hand_fire", "candle", "floor_fire", "fire_ring", "avatar_mark", "body_blaze", "fire_wall", "fire_light", "fire_blast", "fire_carpet", "fire_halo", "fire_carpet_end", "fire_trail")
 MID = np.array([1.0, 0.66, 0.1], np.float32)
 # La luz que el fuego echa sobre el escenario: naranja profundo (con más verde, al sumarse sobre el
 # cuadro y el bloom, se iba al amarillo).
@@ -873,6 +875,87 @@ def _fire_whip(body, scale, frame_index, runtime, layer, color, alpha, event) ->
     return []
 
 
+TRAIL_FRAMES = 12  # cuadros del recorrido que forman la estela
+
+
+def _fire_trail(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
+    """Swoosh de fuego (como el swoosh del catálogo de peleas, pero de fuego): la llama está
+    prendida en la mano (o el pie) desde el principio y, cuando se mueve, una estela de fuego la
+    persigue por el recorrido: ancha en la extremidad, afinándose hacia la cola. Lo que queda atrás
+    sube (el aire caliente) y se achica; si la extremidad frena, la estela se recoge en la llama.
+    La estela se corta en el último giro brusco (en un giro sobre sí mismo hacía un gancho o una V)
+    y tiene un tope de largo."""
+    center, across, down = frame
+    up = -down
+    joint = event.target.split(":")[-1] if event is not None else ""
+    if joint.endswith(("_wrist", "_ankle")):
+        limbs = [joint]  # la mano o el pie del golpe
+    elif event is not None and event.kind in ("left", "right"):
+        limbs = [f"{event.kind}_wrist"]
+    else:
+        limbs = ["left_wrist", "right_wrist"]
+    grow = _ease(_seg(_phase(runtime, event), 0.0, 0.15))
+    unit = _unit(scale, layer)
+    for k, name in enumerate(limbs):
+        point = body.get(name)
+        if point is None:
+            continue
+        st = _activation(runtime, event, f"trail:{name}", body)
+        hist = st.setdefault("hist", [])
+        if hist and float(np.linalg.norm(point - hist[-1])) > 1.5 * scale:
+            hist.clear()  # salto del detector: la estela empieza de nuevo
+        for h in hist:  # lo que quedó atrás sube y se mece
+            h += up * 0.025 * scale + across * _smooth_noise(np.array([frame_index * 0.2 + h[0] * 0.01]), 3.0)[0] * 0.01 * scale
+        hist.append(np.asarray(point, dtype=np.float64).copy())
+        del hist[:-TRAIL_FRAMES]
+        lean, stretch = flame_physics(st, "phys", point, scale, up)
+        pts = np.array(hist)
+        steps = np.linalg.norm(np.diff(pts, axis=0), axis=1) / max(scale, 1e-6) if len(pts) > 1 else np.zeros(0)
+        speed = float(steps[-3:].mean()) if len(steps) else 0.0
+        # La llama de la extremidad, siempre prendida. Rápida, se achica y queda como la cabeza de
+        # la estela (con su inercia apuntaba a donde iba antes del giro y formaba una V); al frenar
+        # vuelve a crecer.
+        moving = float(np.clip((speed - 0.04) / 0.12, 0.0, 1.0))
+        half = 0.22 * scale * grow * (1.0 - 0.45 * moving)
+        tall = 1.0 * scale * grow * (stretch * (1.0 - moving) + 0.35 * moving)
+        base = point - up * half * 0.6
+        for j, (spine, widths) in enumerate(flame_parts(base, lean, tall, half / np.sqrt(stretch), frame_index, k * 1.7 + 0.3)):
+            cel(layer, ribbon(spine, widths, frame_index, 3.0, k * 1.7 + j), color, alpha, runtime if j == 0 else None)
+        # La estela: solo si viene moviéndose; más larga cuanto más rápido.
+        keep = int(np.clip(speed / 0.04, 0, len(pts)))  # quieta: no hay estela
+        tail = pts[-keep:] if keep >= 3 else pts[:0]
+        if len(tail) >= 3:
+            # Desde la extremidad hacia atrás, hasta que el recorrido gire más de 75° en total (un
+            # giro repartido en varios cuadros también cuenta): un arco suave queda entero, un
+            # cambio de dirección no deja ganchos ni esquinas en V.
+            d = np.diff(tail, axis=0)
+            n = np.linalg.norm(d, axis=1)
+            heading = np.arctan2(d[:, 1], d[:, 0])
+            turned = 0.0
+            for i in range(len(d) - 1, 0, -1):
+                if n[i] > 1 and n[i - 1] > 1:
+                    turned += abs(float(np.angle(np.exp(1j * (heading[i] - heading[i - 1])))))
+                if turned > np.radians(75):
+                    tail = tail[i:]
+                    break
+        if len(tail) >= 2:  # tope de largo, medido desde la extremidad hacia atrás
+            seg = np.linalg.norm(np.diff(tail, axis=0), axis=1)
+            far = np.cumsum(seg[::-1])
+            cut = int(np.searchsorted(far, 2.2 * unit))
+            tail = tail[max(len(tail) - 1 - cut - 1, 0):]
+        if len(tail) < 3:
+            continue
+        q = np.linspace(0, 1, 24)
+        idx = q * (len(tail) - 1)
+        lo = np.floor(idx).astype(int)
+        hi = np.minimum(lo + 1, len(tail) - 1)
+        f = (idx - lo)[:, None]
+        spine = tail[lo] * (1 - f) + tail[hi] * f  # de la cola a la extremidad
+        widths = (0.03 + 0.3 * q ** 1.2) * scale * grow  # fina en la cola, ancha en la extremidad
+        cel(layer, ribbon(spine, widths, frame_index, 5.0, k * 2.3), color, alpha, runtime)
+    return []
+
+
 def _hand_fire(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
     center, across, down = frame
     up = -down
@@ -1432,6 +1515,8 @@ def firebend(shape, body, frame, scale, frame_index, runtime, layer, color, alph
         return _fire_carpet(body, scale, frame_index, runtime, layer, color, alpha, event)
     if shape == "fire_halo":
         return _fire_halo(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape == "fire_trail":
+        return _fire_trail(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape == "fire_carpet_end":
         return _carpet_end(body, scale, frame_index, runtime, layer, color, alpha)
     return []
