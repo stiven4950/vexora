@@ -111,9 +111,9 @@ def test_a_choreography_exported_as_pins_comes_out_the_same(tmp_path: Path) -> N
 
 # Efectos que dependen de algo que esta pareja sintética no tiene: los pasos detectados (huellas),
 # la gorra seguida (objeto), los golpes de la música (ecualizador, pulso) o la silueta del
-# segmentador (fantasma), o un brazo estirado en pose de golpe (brazo musculoso). Se comprueban en
-# sus propias pruebas y con videos reales.
-NEEDS_MORE = {"footprints", "prop_spring", "prop_outline", "prop_rings", "prop_doodle", "equalizer", "beat_pulse", "ghost_trail", "arm_outline"}
+# segmentador (fantasma), o un brazo estirado en pose de golpe (brazo musculoso), o el puño
+# separado del torso (reloj de arena). Se comprueban en sus propias pruebas y con videos reales.
+NEEDS_MORE = {"footprints", "prop_spring", "prop_outline", "prop_rings", "prop_doodle", "equalizer", "beat_pulse", "ghost_trail", "arm_outline", "hourglass"}
 
 
 def test_every_effect_of_the_dance_catalog_draws_where_it_is_pinned() -> None:
@@ -123,7 +123,7 @@ def test_every_effect_of_the_dance_catalog_draws_where_it_is_pinned() -> None:
     silent = []
     for reaction in catalog.reactions:
         for option in reaction.options:
-            if not option.effects or all(e.get("type") in NEEDS_MORE for e in option.effects):
+            if not option.effects or all(e.get("type") in NEEDS_MORE or set(e.get("style", {}).get("shapes", [])) & NEEDS_MORE for e in option.effects):
                 continue
             pins = PinFile(solo_estos=True, momentos=[Pin(seg=1.0, accion=reaction.action, opcion=option.name, persona="person_1")])
             script, _ = choreograph(catalog, _brief(), 1, pins)

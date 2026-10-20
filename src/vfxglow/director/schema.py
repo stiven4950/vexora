@@ -183,6 +183,8 @@ class LightningParams(_Strict):
     to_edge: bool = False
     trail: int = 0
     crackle: int = 0
+    # Sale de la mano del gesto (o de la que más se mueve), nunca de un pie ni del cuerpo.
+    hands_only: bool = False
 
 
 class Drawing(_Strict):

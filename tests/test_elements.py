@@ -285,3 +285,14 @@ def test_fire_trail_does_not_hook_after_a_sharp_turn() -> None:
     back = [(there[-1][0] - 25 * i, 330.0 - 3 * i) for i in range(1, 5)]
     ys, xs = np.nonzero(_trail(there + back))
     assert xs.max() < there[-1][0] + 40 and xs.min() > there[0][0] + 60  # solo el tramo de vuelta, sin gancho
+
+
+def test_bolt_comes_only_from_the_hands() -> None:
+    from vfxglow.engine.lightning import _hand
+
+    points = {"left_wrist": np.array([100.0, 200.0]), "right_wrist": np.array([300.0, 200.0]),
+              "vel:left_wrist": np.array([1.0, 0.0]), "vel:right_wrist": np.array([9.0, 0.0]), "left_ankle": np.array([150.0, 480.0])}
+    left = SimpleNamespace(target="left_wrist")
+    assert np.allclose(_hand(points, left), points["left_wrist"])  # la mano del gesto
+    kick = SimpleNamespace(target="left_ankle")
+    assert np.allclose(_hand(points, kick), points["right_wrist"])  # una patada: la mano que más se mueve, nunca el pie

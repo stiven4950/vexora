@@ -50,6 +50,27 @@ def _edge_tip(origin: np.ndarray, effect: Effect, points: dict[str, np.ndarray],
     return origin + direction * max(min(steps), 0.15 * height)
 
 
+def _hand(points: dict[str, np.ndarray], event) -> np.ndarray | None:
+    """La mano que lanza el rayo: la del gesto si el gesto es de una mano; si no (un pie, el
+    cuerpo), la que más se mueve. El rayo nunca sale de un pie ni del cuerpo."""
+    if event is not None:
+        name = event.target.split(":")[-1]
+        if name.endswith("_wrist"):
+            for key in (event.target, name):
+                if key in points:
+                    return points[key]
+    prefix = event.target.split(":")[0] + ":" if event is not None and ":" in event.target else ""
+    best, speed = None, -1.0
+    for side in ("left", "right"):
+        key = f"{prefix}{side}_wrist"
+        hand = points.get(key, points.get(f"{side}_wrist"))
+        vel = points.get(f"vel:{key}", points.get(f"vel:{side}_wrist"))
+        moving = float(np.linalg.norm(vel)) if vel is not None else 0.0
+        if hand is not None and moving > speed:
+            best, speed = hand, moving
+    return best
+
+
 def _tip(origin: np.ndarray, effect: Effect, points: dict[str, np.ndarray], track, height: int) -> np.ndarray:
     if effect.target.secondary:
         other = resolve_anchor(points, "joint", effect.target.secondary)
@@ -216,9 +237,12 @@ def draw_lightning(
     height: int,
     envelope: float,
     layer: np.ndarray,
+    event=None,
 ) -> None:
     effect = runtime.effect
-    origin = resolve_anchor(points, effect.target.kind, effect.target.id, runtime.anchor_point)
+    origin = _hand(points, event) if effect.style.lightning.hands_only else None
+    if origin is None:
+        origin = resolve_anchor(points, effect.target.kind, effect.target.id, runtime.anchor_point)
     if origin is None or envelope <= 0:
         step_particles(runtime.particles)
         draw_particles(layer, runtime.particles, effect, max(envelope, 0.15), runtime.kernels)
@@ -279,12 +303,13 @@ def _lasso(runtime, layer: np.ndarray, origin: np.ndarray, slot: int, effect: Ef
     stroke_polyline(layer, line, hot, max(1.0, width * 0.3), effect.style.hdr_gain * envelope, envelope)
 
 
-_LIMBS = (("left_shoulder", "left_elbow"), ("left_elbow", "left_wrist"), ("right_shoulder", "right_elbow"), ("right_elbow", "right_wrist"), ("nose", "left_ear"), ("nose", "right_ear"), ("left_hip", "left_knee"), ("right_hip", "right_knee"))
+# Solo los brazos: el rayo sale de las manos y corre por los brazos (en piernas y cabeza no).
+_LIMBS = (("left_shoulder", "left_elbow"), ("left_elbow", "left_wrist"), ("right_shoulder", "right_elbow"), ("right_elbow", "right_wrist"))
 
 
 def _crackle(runtime, layer: np.ndarray, points: dict[str, np.ndarray], slot: int, effect: Effect, envelope: float, width: float, torso: float) -> None:
-    """Chispazos cortos que saltan sobre brazos, cabeza y piernas (video_51, seg. 5,4 y 6,6): un
-    arco quebrado de un punto del miembro a otro, separado un poco del cuerpo."""
+    """Chispazos cortos que saltan sobre los brazos (video_51, seg. 5,4 y 6,6): un arco quebrado
+    de un punto del brazo a otro, separado un poco del cuerpo."""
     bones = [(points[a], points[b]) for a, b in _LIMBS if a in points and b in points]
     if not bones:
         return

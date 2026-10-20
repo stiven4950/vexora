@@ -93,7 +93,7 @@ def render_effect(
     elif kind == "aura":
         _aura(runtime, points, frame_index, height, envelope, mask, layer)
     elif kind == "lightning":
-        draw_lightning(runtime, track, points, frame_index, height, envelope, layer)
+        draw_lightning(runtime, track, points, frame_index, height, envelope, layer, event)
     elif kind == "decal":
         _decal(runtime, points, frame_index, height, envelope, layer)
     elif kind == "distortion":
