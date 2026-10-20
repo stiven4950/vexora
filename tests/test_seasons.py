@@ -51,17 +51,30 @@ def test_every_season_moment_and_object_draws() -> None:
     for season in SEASONS:
         assert set(season.particles) <= set(OBJECTS) and set(season.closing) <= set(OBJECTS)
         for moment in season.moments:
-            assert moment.moment in MOMENTS
+            assert moment.moment in MOMENTS or moment.sprite  # un dibujo de líneas o un objeto en imagen
             raw = moment_effect(season, moment)
             trigger = raw.pop("trigger")
             effect = Effect.model_validate({"id": "m", **raw, "triggers": [{**trigger, "event": "still", "fade_in": 0}]})
             event = MotionEvent(name="still", target="person_0", start_frame=0, end_frame=40, confidence=1.0)
             engine = EffectEngine(EffectScript(title="t", theme="t", effects=[effect]), EngineConfig(), events=[event])
-            pose = [Landmark(name=n, x=x, y=y, c=0.9) for n, (x, y) in {"nose": (0.5, 0.3), "left_hip": (0.45, 0.6), "right_hip": (0.55, 0.6), "left_ankle": (0.45, 0.9), "right_ankle": (0.55, 0.9)}.items()]
+            pose = [Landmark(name=n, x=x, y=y, c=0.9) for n, (x, y) in {"nose": (0.5, 0.3), "left_shoulder": (0.42, 0.38), "right_shoulder": (0.58, 0.38), "left_hip": (0.45, 0.6), "right_hip": (0.55, 0.6), "left_ankle": (0.45, 0.9), "right_ankle": (0.55, 0.9)}.items()]
             drawn = 0.0
             for i in range(30):
                 layer = engine.render_frame(FrameRecord(frame=i, time_s=i / 30, pose=pose), i, 360, 640, 60)[0][2]
                 drawn = max(drawn, float(layer[..., 3].max()))
-            assert drawn > 0.3, (season.id, moment.moment)
+            assert drawn > 0.3, (season.id, moment.moment or moment.sprite)
     for name in OBJECTS:
         assert object_outline(name, np.array([100.0, 100.0]), 10.0)
+
+
+def test_halloween_image_objects_join_the_existing_effects() -> None:
+    from vfxglow.engine.sprite import resolve_sprite
+
+    halloween = next(s for s in SEASONS if s.id == "halloween")
+    images = [m for m in halloween.moments if m.sprite]
+    assert len(images) >= 10 and any(m.moment for m in halloween.moments)  # se suman a los de líneas
+    for moment in images:
+        assert resolve_sprite(moment.sprite).exists()
+    themed = apply_to_catalog(load_catalog(Path("configs/catalogs/avatar.yaml")), halloween)
+    options = [o for r in themed.reactions for o in r.options if o.name.startswith("temporada_img_")]
+    assert options and all(o.max_uses >= 1 and o.element == "" for o in options)  # pocas veces, neutras

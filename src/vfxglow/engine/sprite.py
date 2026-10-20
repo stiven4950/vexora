@@ -16,6 +16,17 @@ Rutas relativas a `configs/sprites/`. El motor:
   `loop` en `style.shapes` se repite, si no se queda en el último cuadro mientras dure;
 - con `orient` lo gira hacia la dirección del evento (un tajo, un lanzamiento) y con `tint` lo
   tiñe del color de la paleta (el capítulo de color).
+
+Para objetos fijos (una figura en PNG, como los de Halloween en `halloween/`), `style.shapes`
+también los anima a lo largo de su momento (0 al aparecer, 1 al irse):
+
+- `pop`: aparece creciendo con un rebote; `fade`: se apaga en el último tercio;
+- `rise`: sube un torso mientras dura; `fly`: sale volando hacia arriba y a un costado;
+- `spin`: gira despacio; `sway`: se mece de un lado a otro;
+- `floor`: se apoya en el piso, entre los pies; `above`: flota sobre la cabeza; `hat`: puesto
+  sobre la cabeza (el ala a la altura de la frente);
+- `corner`: va en la esquina de arriba más cercana a la persona (espejado a la derecha);
+- `flat`: acostado sobre el piso, aplastado en perspectiva (un sigilo, un portal).
 """
 
 from __future__ import annotations
@@ -98,6 +109,11 @@ def draw_sprite(runtime, track, points, frame_index: int, height: int, envelope:
     frames, own_fps = load_sprite(style.sprite)
     target = runtime.effect.target
     anchor = runtime.anchor_point if event is not None and runtime.anchor_point is not None else resolve_anchor(points, target.kind, target.id, runtime.anchor_point)
+    if anchor is None and event is not None:
+        # Gestos sin punto de impacto (un golpe al aire, un salto): la articulación del gesto o,
+        # si no es una, el centro del cuerpo.
+        joint = event.target.split(":")[-1]
+        anchor = points.get(event.target, points.get(joint, points.get("mid_shoulder")))
     if anchor is None:
         return
     # Cuadro de la animación desde el inicio de la activación.
@@ -109,6 +125,10 @@ def draw_sprite(runtime, track, points, frame_index: int, height: int, envelope:
     torso = torso_pixels(points, height)
     scale = style.size * torso / sprite.shape[0]
     angle = -event.direction_deg if event is not None and "orient" in style.shapes else 0.0
+    anchor, scale, angle, sprite, fade = _animate(style.shapes, np.asarray(anchor, dtype=np.float64), scale, angle, sprite, runtime, points, torso, layer.shape, event)
+    envelope *= fade
+    if envelope <= 0 or scale <= 0:
+        return
     center = (sprite.shape[1] / 2.0, sprite.shape[0] / 2.0)
     matrix = cv2.getRotationMatrix2D(center, angle, scale)
     matrix[:, 2] += np.asarray(anchor, dtype=np.float64) - np.array(center)
@@ -130,3 +150,55 @@ def draw_sprite(runtime, track, points, frame_index: int, height: int, envelope:
     region = layer[y0:y1, x0:x1]
     region[..., :3] += rgb * np.float32(style.hdr_gain * envelope)
     region[..., 3] = 1.0 - (1.0 - region[..., 3]) * (1.0 - alpha * envelope)
+
+
+def _animate(flags, anchor: np.ndarray, scale: float, angle: float, sprite: np.ndarray, runtime, points, torso: float, shape, event=None) -> tuple:
+    """Posición, escala, giro y opacidad del objeto según sus `flags` (ver arriba)."""
+    from vfxglow.engine.critters import _phase
+
+    flags = set(flags)
+    u = _phase(runtime, event)  # 0 al aparecer, 1 al irse (lo que dura el evento más la retención)
+    fade = 1.0
+    size = scale * sprite.shape[0]  # alto en píxeles
+    if "floor" in flags:
+        feet = [points[k] for k in ("left_heel", "right_heel", "left_ankle", "right_ankle") if k in points]
+        if feet:
+            feet = np.array(feet)
+            anchor = np.array([feet[:, 0].mean(), feet[:, 1].max() - size * 0.35])
+    if "above" in flags or "hat" in flags:
+        top = points.get("head_top", points.get("nose"))
+        if top is not None:
+            anchor = np.array([top[0], top[1] - size * (0.6 if "above" in flags else 0.28)])
+    if "flat" in flags:
+        # Acostado en el piso: gira sobre sí mismo (antes de aplastarlo) y se aplasta en
+        # perspectiva; el ancho se mantiene.
+        if "spin" in flags:
+            h, w = sprite.shape[:2]
+            turn = cv2.getRotationMatrix2D((w / 2.0, h / 2.0), 120.0 * u, 1.0)
+            sprite = cv2.warpAffine(sprite, turn, (w, h), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=0)
+            flags.discard("spin")
+        sprite = cv2.resize(sprite, (sprite.shape[1], max(int(sprite.shape[0] * 0.4), 2)), interpolation=cv2.INTER_AREA)
+        scale *= 1.0 / 0.4
+        size = scale * sprite.shape[0]
+    if "corner" in flags:
+        height, width = shape[:2]
+        left = anchor[0] < width / 2
+        anchor = np.array([size * 0.5 if left else width - size * 0.5, size * 0.5])
+        if not left:
+            sprite = sprite[:, ::-1]  # el dibujo va armado para la esquina izquierda
+    if "pop" in flags:
+        k = min(u * 5.0, 1.0)  # crece en el primer quinto, con un rebote
+        scale *= max(k * (1.0 + 0.25 * np.sin(np.pi * k)), 0.05)
+    if "rise" in flags:
+        anchor = anchor - np.array([0.0, torso * u])
+    if "fly" in flags:
+        side = 1.0 if (runtime.effect.style.seed_offset % 2 == 0) else -1.0
+        anchor = anchor + np.array([side * 1.5 * torso * u * u, -2.5 * torso * u])
+        scale *= 1.0 - 0.4 * u  # se aleja
+    if "spin" in flags:
+        angle += 120.0 * u
+    if "sway" in flags:
+        angle += 10.0 * np.sin(u * 4.0 * np.pi)
+    if "fade" in flags:
+        fade = float(np.clip((1.0 - u) * 3.0, 0.0, 1.0))
+    return anchor, scale, angle, np.ascontiguousarray(sprite), fade

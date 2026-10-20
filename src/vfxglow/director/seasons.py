@@ -25,9 +25,18 @@ BOOST_FACTOR = 2.5
 
 class Moment(BaseModel):
     action: str
-    moment: str
+    moment: str = ""
     weight: float = 0.5
     size: float = 1.5  # duración en segundos
+    # Un objeto de la época en imagen (configs/sprites/, p. ej. halloween/pumpkin.png) en vez del
+    # dibujo de líneas: `target` es la articulación o `event` (el punto del gesto), `scale` su alto
+    # en torsos y `motion` cómo se mueve (engine/sprite.py: pop, rise, fly, spin, sway, fade,
+    # floor, above, corner, orient). `max_uses`: veces por video.
+    sprite: str = ""
+    target: str = "event"
+    scale: float = 0.8
+    motion: list[str] = Field(default_factory=list)
+    max_uses: int = 2
 
 
 class Season(BaseModel):
@@ -77,6 +86,15 @@ HEAD_HATS = {"cap", "cowboy_hat", "top_hat", "fedora", "party_hat", "headphones"
 
 
 def moment_effect(season: Season, moment: Moment) -> dict:
+    if moment.sprite:
+        target = {"kind": "event_point", "id": "impact"} if moment.target == "event" else {"kind": "joint", "id": moment.target}
+        return {
+            "type": "sprite_fx",
+            "target": target,
+            "style": {"sprite": moment.sprite, "size": moment.scale, "shapes": list(moment.motion), "hdr_gain": 1.0, "colors": season.palette[:4] or [(1.0, 1.0, 1.0)], "focus": False},
+            "render": {"blend": "add", "motion_blur": 0.0, "persistence": 0.0, "group": "glow", "glow_layers": 2},
+            "trigger": {"hold": int(moment.size * 30), "fade_in": 2, "fade_out": 6},
+        }
     return {
         "type": "season_fx",
         "target": {"kind": "joint", "id": "nose"},
@@ -127,7 +145,11 @@ def apply_to_catalog(catalog, season: Season):
         moments.append(Moment(action="fast_swing", moment="", weight=0.35))
         moments.append(Moment(action="spotlight", moment="", weight=0.3))
     for moment in moments:
-        if moment.moment:
+        if moment.sprite:
+            # Objeto en imagen: neutro para los capítulos de elemento y pocas veces por video.
+            name = f"temporada_img_{Path(moment.sprite).stem}"
+            option = Option(name=name, weight=moment.weight, effects=[moment_effect(season, moment)], element="", max_uses=moment.max_uses)
+        elif moment.moment:
             option = Option(name=f"temporada_{moment.moment}", weight=moment.weight, effects=[moment_effect(season, moment)])
         else:
             option = Option(

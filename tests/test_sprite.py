@@ -59,3 +59,36 @@ def test_video_without_alpha_makes_black_transparent(tmp_path) -> None:
 def test_demo_sprite_loads() -> None:
     frames, _ = load_sprite("demo_burst")
     assert len(frames) == 16 and frames[0].shape[2] == 4
+
+
+def _object(flags: list[str], frames: int, tmp_path, event_frames: int = 30) -> np.ndarray:
+    path = tmp_path / "obj.png"
+    image = np.zeros((40, 40, 3), np.uint8)
+    cv2.rectangle(image, (8, 8), (32, 32), (255, 255, 255), -1)  # luz sobre negro, como los de halloween/
+    cv2.imwrite(str(path), image)
+    event = MotionEvent(name="impact", target="person_0", start_frame=0, end_frame=event_frames, confidence=1.0, position=(0.5, 0.5))
+    return _render(EffectStyle(sprite=str(path), size=0.4, shapes=flags), event, frames)
+
+
+def test_pop_grows_in_and_rise_floats_up(tmp_path) -> None:
+    early = (_object(["pop"], 2, tmp_path)[..., 3] > 0.5).sum()
+    later = (_object(["pop"], 12, tmp_path)[..., 3] > 0.5).sum()
+    assert 0 < early < later  # aparece creciendo
+    start = np.nonzero(_object(["rise"], 2, tmp_path)[..., 3] > 0.5)[0].mean()
+    end = np.nonzero(_object(["rise"], 30, tmp_path)[..., 3] > 0.5)[0].mean()
+    assert end < start - 0.1 * H  # sube
+
+
+def test_fade_goes_out_at_the_end(tmp_path) -> None:
+    assert _object(["fade"], 5, tmp_path)[..., 3].max() > 0.5
+    assert _object(["fade"], 49, tmp_path)[..., 3].max() < 0.2  # en el último tramo de su momento
+
+
+def test_flat_lies_on_the_floor_squashed(tmp_path) -> None:
+    ys, xs = np.nonzero(_object(["flat"], 10, tmp_path)[..., 3] > 0.5)
+    assert np.ptp(xs) > 2 * np.ptp(ys)  # un cuadrado acostado: ancho y bajo
+
+
+def test_corner_goes_to_the_nearest_top_corner(tmp_path) -> None:
+    ys, xs = np.nonzero(_object(["corner"], 10, tmp_path)[..., 3] > 0.5)
+    assert ys.min() < 20 and (xs.min() < 20 or xs.max() > W - 20)  # pegado a la esquina (con el borde negro de la imagen)

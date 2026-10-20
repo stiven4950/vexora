@@ -33,6 +33,7 @@ def main() -> None:
     parser.add_argument("--ref", type=Path, default=None, help="Referencia (opcional): va arriba")
     parser.add_argument("--catalog", required=True, help="Nombre en configs/catalogs o ruta a un .yaml")
     parser.add_argument("--pins", required=True, type=Path)
+    parser.add_argument("--season", default=None, help="Temporada encima del catálogo (halloween...)")
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--width", type=int, default=180)
     parser.add_argument("seconds", nargs="+", type=float)
@@ -43,6 +44,10 @@ def main() -> None:
     fps, count, width, height = brief.video.fps, brief.video.frame_count, brief.video.width, brief.video.height
     path = Path(args.catalog) if args.catalog.endswith(".yaml") else Path("configs/catalogs") / f"{args.catalog}.yaml"
     catalog = load_catalog(path)
+    if args.season:
+        from vfxglow.director.seasons import apply_to_catalog, find, load_seasons
+
+        catalog = apply_to_catalog(catalog, find(load_seasons(Path("configs/seasons.yaml")), args.season))
     script, _ = choreograph(catalog, brief, 1, load_pins(args.pins))
     extra = [Effect.model_validate(raw) for raw in always_effects(catalog, list(brief.events), count, fps, 1)]
     script = resolve_timing(script.model_copy(update={"effects": extra + list(script.effects)}), count)
