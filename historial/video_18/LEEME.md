@@ -24,3 +24,4 @@ Lectura de la referencia en `docs/referencias/video_18.md`. Los `.mp4` no van a 
 | `2026-10-19_avatar_v18_mix.mp4` | Fuego combinado (look mix) y rayo cian. Problema conocido: en 4,4-4,85 el guion profundo elige "rayo" y ahora sale cian sobre el fuego |
 | `2026-10-19_avatar_v19_flecha.mp4` | Pintura del fuego de vuelta a la original; pared final solo porque termina quieto; flecha de la frente a la coronilla (de espaldas, por la columna). Conocido: la vela de las manos juntas tapa la flecha al final, y el rayo cian en 4,85 s |
 | `2026-10-19_avatar_v20_swoosh_auto.mp4` | Coreógrafo automático (sin --deep): swoosh más frecuente, criaturas una vez, pared final porque termina quieto y de frente. Rayo cian dentro del fuego en 4,4 s |
+| `2026-10-19_avatar_v21_capitulos.mp4` | Capítulos de elemento (tramo de rayo limpio en 3,2-5,3 s), swoosh más frecuente, pared final |
