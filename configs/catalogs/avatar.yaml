@@ -105,9 +105,12 @@ reactions:
           - *heat
   - action: jump
     options:
+      # Las piernas en el aire dejan la estela (no la medialuna, que es solo de abrir los brazos).
       - name: remolinos
         weight: 0.7
-        effects: [*whip, *heat]
+        effects:
+          - {type: adornment, style: {shapes: [fire_trail]}, trigger: {hold: 8, fade_in: 1, fade_out: 5}}
+          - *heat
       # Viento (elemento aire, glowing/video_51 seg. 8,1-11,4): como el swoosh, pero de aire: las
       # extremidades rápidas dejan estelas de neón. Blanco liso, sin halo ni resplandor, o azul.
       - name: viento
