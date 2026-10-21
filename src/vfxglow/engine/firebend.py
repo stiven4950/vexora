@@ -19,6 +19,9 @@ blanco) con lenguas definidas, no como un brillo difuso.
   la persigue por su recorrido (lo que queda atrás sube y se achica); al frenar se recoge.
 - `fire_landing`: al caer al piso con el fuego en los pies, el fuego choca y se desbarata en el
   suelo (video_51, seg. 2,4-2,7); si no venía de los pies, el golpe de piso de siempre.
+- `fire_orbit`: la mano pone el fuego a girar alrededor del cuerpo (en perspectiva), lo atrapa al
+  completar la vuelta y, si estira el brazo o abre la mano, lo lanza como una explosión
+  (video_51, seg. 4,0-4,7).
 - `fire_carpet_end`: cierre con la alfombra: en los últimos segundos, solo si la persona lleva más
   de 2 s de frente (y no hay pared). Se usa en `always`.
 - `fire_wall`: cierre: en el último tramo una pared de fuego sube desde el piso hasta llenar el
@@ -34,7 +37,7 @@ import numpy as np
 from vfxglow.engine.critters import TAU, WHITE, _activation, _ease, _phase, _seg
 from vfxglow.engine.raster import fill_polygon, splat
 
-FIREBEND = ("fire_whip", "hand_fire", "candle", "floor_fire", "fire_ring", "avatar_mark", "body_blaze", "fire_wall", "fire_light", "fire_blast", "fire_carpet", "fire_halo", "fire_carpet_end", "fire_trail", "fire_landing")
+FIREBEND = ("fire_whip", "hand_fire", "candle", "floor_fire", "fire_ring", "avatar_mark", "body_blaze", "fire_wall", "fire_light", "fire_blast", "fire_carpet", "fire_halo", "fire_carpet_end", "fire_trail", "fire_landing", "fire_orbit")
 MID = np.array([1.0, 0.66, 0.1], np.float32)
 # La luz que el fuego echa sobre el escenario: naranja profundo (con más verde, al sumarse sobre el
 # cuadro y el bloom, se iba al amarillo).
@@ -1234,6 +1237,83 @@ def _fire_carpet(body, scale, frame_index, runtime, layer, color, alpha, event, 
     return []
 
 
+ORBIT_END = 0.55  # fracción de la vida en que el fuego termina la vuelta y vuelve a la mano
+ARM_STRAIGHT = 0.85  # brazo estirado: muñeca-hombro más que esto del largo del brazo
+
+
+def _arm_extended(body, side: str) -> bool:
+    """Si el brazo está estirado (puñetazo o mano abierta hacia afuera): la muñeca lejos del
+    hombro, casi el largo entero de brazo y antebrazo."""
+    shoulder, elbow, wrist = (body.get(f"{side}_{j}") for j in ("shoulder", "elbow", "wrist"))
+    if shoulder is None or elbow is None or wrist is None:
+        return False
+    length = float(np.linalg.norm(elbow - shoulder) + np.linalg.norm(wrist - elbow))
+    return float(np.linalg.norm(wrist - shoulder)) > ARM_STRAIGHT * max(length, 1e-6)
+
+
+def _fire_orbit(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
+    """El fuego que gira alrededor del cuerpo (video_51, seg. 4,0-4,7): sale de la mano y da una
+    vuelta en elipse alrededor del torso, en perspectiva (por delante más grande y brillante, por
+    detrás más chico y tenue), como una cola de trocitos que se persiguen. Al completar la vuelta
+    vuelve a la mano (la atrapa) y queda una llama. Si después el brazo se estira (un puñetazo o
+    la mano abierta hacia afuera), el fuego sale como una explosión en la dirección del antebrazo;
+    si no, la llama se apaga en la mano."""
+    center, across, down = frame
+    up = -down
+    found = _wrist(body, event, scale)
+    if found is None:
+        return []
+    name, wrist = found
+    side_name = name.split("_")[0]
+    st = _activation(runtime, event, f"orbit:{name}", body)
+    u = _phase(runtime, event)
+    unit = _unit(scale, layer)
+    hips = body.mid("left_hip", "right_hip")
+    # A la altura del pecho (la referencia gira el fuego a la altura de los brazos).
+    mid = center + ((hips - center) * 0.3 if hips is not None else down * 0.3 * scale)
+    rx, ry = 1.4 * unit, 0.4 * unit  # la elipse, vista un poco desde arriba
+    start = float(np.arctan2((wrist - mid)[1] / ry, (wrist - mid)[0] / rx))
+    st.setdefault("a0", start)
+    if u < ORBIT_END:
+        k = _ease(u / ORBIT_END)
+        head = st["a0"] + TAU * k  # la cabeza de la cola da una vuelta completa
+        for i in range(8):
+            a = head - i * 0.22
+            depth = 0.5 + 0.5 * np.sin(a)  # 1 por delante (abajo de la elipse), 0 por detrás
+            pos = mid + np.array([np.cos(a) * rx, np.sin(a) * ry])
+            if k < 0.12:  # al salir, la cola nace desde la mano
+                pos = wrist + (pos - wrist) * (k / 0.12)
+            if k > 0.88:  # al volver, se cierra sobre la mano
+                pos = pos + (wrist - pos) * ((k - 0.88) / 0.12)
+            ahead = np.array([-np.sin(a) * rx, np.cos(a) * ry])
+            ahead /= max(float(np.linalg.norm(ahead)), 1e-6)
+            size = (0.75 - 0.06 * i) * unit * (0.55 + 0.45 * depth)
+            cel(layer, teardrop(pos, -ahead, size, 0.18 * unit * (0.55 + 0.45 * depth) + 0.5, frame_index, i * 1.7, 0.25), color, alpha * (0.6 + 0.4 * depth), runtime if i == 0 else None)
+        return []
+    # La atrapó: la llama en la mano, hasta que el brazo se estira y la lanza.
+    if not st.get("thrown") and _arm_extended(body, side_name):
+        st["thrown"] = frame_index
+    if st.get("thrown") is None:
+        fade = 1.0 - _seg(u, 0.85, 1.0)
+        cel(layer, teardrop(wrist, up, 0.8 * unit * fade, 0.2 * unit * fade + 0.5, frame_index, 2.2), color, alpha, runtime)
+        return []
+    # La explosión: el chorro desde el puño y un estallido de lenguas y brasas en la punta.
+    age = frame_index - st["thrown"]
+    _fire_blast(body, scale, frame_index, runtime, layer, color, alpha, event)
+    blast = st.get("blast")
+    if blast is None:
+        elbow = body.get(f"{side_name}_elbow")
+        aim = (wrist - elbow) / max(float(np.linalg.norm(wrist - elbow)), 1e-6) if elbow is not None else across
+        blast = st["blast"] = wrist + aim * 3.0 * unit
+    burst = _ease(min(age / 5.0, 1.0)) * (1.0 - _seg(u, 0.9, 1.0))
+    if burst > 0:
+        for i in range(10):  # lenguas que se abren en todas direcciones
+            a = i * TAU / 10 + 0.3
+            d = np.array([np.cos(a), np.sin(a)])
+            cel(layer, teardrop(blast + d * unit * 0.3 * burst, d, 0.9 * unit * burst, 0.16 * unit * burst + 0.5, frame_index, i * 1.1, 0.35), color, alpha, runtime if i == 0 else None)
+    return []
+
+
 LANDING_FEET_S = 1.0  # el fuego tenía que estar en los pies hace menos de esto
 
 
@@ -1685,6 +1765,8 @@ def firebend(shape, body, frame, scale, frame_index, runtime, layer, color, alph
         return _fire_carpet(body, scale, frame_index, runtime, layer, color, alpha, event)
     if shape == "fire_halo":
         return _fire_halo(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape == "fire_orbit":
+        return _fire_orbit(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape == "fire_landing":
         return _fire_landing(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape == "fire_trail":

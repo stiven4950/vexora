@@ -396,3 +396,34 @@ def test_fire_breaks_up_on_the_floor_only_if_it_came_in_the_feet() -> None:
     assert _state(runtime, "landing:p0:14").get("feet") is True
     _mask, runtime = _landing(False)
     assert _state(runtime, "landing:p0:14").get("feet") is False  # si no, el golpe de piso
+
+
+def _orbit(frames: range, arm_out: bool) -> tuple[list[float], dict]:
+    from vfxglow.engine.critters import _state
+
+    body = _body()
+    if arm_out:  # brazo derecho estirado hacia afuera: hombro (230,200), codo (290,205), muñeca (350,210)
+        body.update(right_elbow=np.array([290.0, 205.0]), right_wrist=np.array([350.0, 210.0]))
+    else:  # brazo doblado: la muñeca vuelve cerca del hombro
+        body.update(right_elbow=np.array([260.0, 260.0]), right_wrist=np.array([235.0, 215.0]))
+    runtime = _runtime(0)
+    event = SimpleNamespace(start_frame=0, end_frame=20, kind="right", target="p0:right_wrist", name="lunge")
+    frame = (np.array([200.0, 200.0]), np.array([1.0, 0.0]), np.array([0.0, 1.0]))
+    xs = []
+    for f in frames:
+        runtime.active_frames = f + 1
+        layer = np.zeros((H, W, 4), np.float32)
+        firebend._fire_orbit(body, frame, 60.0, f, runtime, layer, None, 1.0, event)
+        firebend.flush_fire(layer, f)
+        mask = layer[..., 3] > 0.5
+        xs.append(float(np.nonzero(mask)[1].min()) if mask.any() else -1.0)
+    return xs, _state(runtime, "orbit:right_wrist:p0:0")
+
+
+def test_fire_orbit_circles_the_body_and_only_explodes_with_the_arm_out() -> None:
+    xs, _st = _orbit(range(0, 12), arm_out=False)
+    assert min(x for x in xs if x >= 0) < 150 and max(xs) > 200  # da la vuelta: llega al otro lado del cuerpo y vuelve
+    _xs, bent = _orbit(range(0, 40), arm_out=False)
+    assert bent.get("thrown") is None  # brazo doblado: la llama se apaga en la mano
+    _xs, out = _orbit(range(0, 40), arm_out=True)
+    assert out.get("thrown") is not None and out["blast"][0] > 350  # brazo estirado: explota hacia afuera

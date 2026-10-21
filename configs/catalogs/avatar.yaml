@@ -202,6 +202,14 @@ reactions:
           - &skull {type: adornment, style: {shapes: [fire_skull], thickness: 0.009}, trigger: {hold: 18, fade_in: 2, fade_out: 6}}
   - action: lunge
     options:
+      # video_51, seg. 4,0-4,7: gira el fuego alrededor del cuerpo, lo atrapa y, al estirar el
+      # brazo, lo lanza como una explosión.
+      - name: orbita
+        weight: 0.25
+        max_uses: 2
+        effects:
+          - &orbit {type: adornment, style: {shapes: [fire_orbit]}, trigger: {hold: 30, fade_in: 1, fade_out: 5}}
+          - *heat
       - name: viento
         element: aire
         weight: 0.4
@@ -433,6 +441,10 @@ reactions:
   # Mano en alto o brazos cruzados: llamas en las manos.
   - action: raise_hand
     options:
+      - name: orbita
+        weight: 0.25
+        max_uses: 2
+        effects: [*orbit]
       - name: llama
         weight: 0.3
         effects: [*hands]
@@ -513,6 +525,11 @@ reactions:
         element: aire
         weight: 0.6
         effects: [*wind]
+      - name: orbita
+        weight: 0.15
+        kinds: [left_arm, right_arm]
+        max_uses: 2
+        effects: [*orbit]
       - name: manos
         weight: 0.3
         kinds: [left_arm, right_arm]
