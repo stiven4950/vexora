@@ -1601,16 +1601,48 @@ def _fire_halo(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
     a = np.pi / 2 + turn * np.linspace(0.15, 0.15 + 1.7 * np.pi, 48)  # de abajo, 306° de vuelta
     spine = mid + np.stack([np.cos(a) * rx, np.sin(a) * ry], axis=1)
     q = np.linspace(0, 1, 48)
-    widths = (0.03 + 0.6 * np.sin(np.pi * q) ** 0.7) * scale
+    widths = (0.03 + 0.45 * np.sin(np.pi * q) ** 0.7) * scale
     if float(np.mean(np.sum(_normals(spine) * (spine - mid), axis=1))) < 0:  # lenguas hacia afuera
         spine, widths = spine[::-1], widths[::-1]
         grow_from_end = True
     else:
         grow_from_end = False
-    living_ribbon(layer, spine, widths, u, st, frame_index, color, alpha, runtime, grow_from_end=grow_from_end, tongues=8.0, phase=2.7)
-    if u < DIE_START:
-        shed(layer, spine, widths, st, frame_index, scale, color, alpha, 1.5)
+    # No una C lisa: la cabeza es una cinta y lo que deja atrás se parte en escamas cada vez más
+    # chicas y finas (seg. 0,7 de marcial_arts se veía como una C acostada).
+    n = len(spine)
+    from_head = (n - 1 - np.arange(n)) / (n - 1) if grow_from_end else np.arange(n) / (n - 1)
+    reached = _ease_out(u / GROW_END)
+    for k, (t0, t1) in enumerate(_halo_scales()):
+        if k and t0 >= reached:  # la cabeza siempre (crece sola); las escamas, cuando llega
+            break
+        idx = np.nonzero((from_head >= t0) & (from_head <= t1))[0]
+        if len(idx) < 3:
+            continue
+        if k == 0:
+            living_ribbon(layer, spine[idx], widths[idx], u, st, frame_index, color, alpha, runtime, grow_from_end=grow_from_end, tongues=8.0, phase=2.7)
+            if u < DIE_START:
+                shed(layer, spine[idx], widths[idx], st, frame_index, scale, color, alpha, 1.5)
+            continue
+        # Cada escama, una coma: gruesa del lado de la cabeza y en punta hacia la cola.
+        head_i, tail_i = idx[np.argmin(from_head[idx])], idx[np.argmax(from_head[idx])]
+        along = spine[tail_i] - spine[head_i]
+        length = float(np.linalg.norm(along))
+        if length < 2:
+            continue
+        thick = float(np.max(widths[idx])) * (1.0 - 0.5 * t0) * 0.7
+        cel(layer, teardrop(spine[head_i], along / length, length * 1.15, thick, frame_index, k * 1.7, 0.25 * turn), color, alpha, None)
     return []
+
+
+def _halo_scales() -> list[tuple[float, float]]:
+    """Tramos del aro medidos desde la cabeza (0) a la cola (1): la cabeza larga y después escamas
+    que se acortan, separadas por huecos chicos."""
+    out, t, size = [(0.0, 0.4)], 0.43, 0.13
+    while t < 1.0:
+        out.append((t, min(t + size, 1.0)))
+        t += size + 0.03
+        size = max(size * 0.8, 0.04)
+    return out
 
 
 # ----- piso y aro -----
