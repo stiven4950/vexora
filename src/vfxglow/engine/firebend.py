@@ -879,10 +879,22 @@ TRAIL_FRAMES = 12  # cuadros del recorrido que forman la estela
 TRAIL_EXAGGERATION = 1.5  # la estela, más larga que el recorrido real (como las de las referencias)
 HANDS, FEET = ("left_wrist", "right_wrist"), ("left_ankle", "right_ankle")
 FEET_EVENTS = ("flip", "tumble")  # dando volteretas la atención está en los pies
-HANDOFF_FRAMES = 8  # lo que tarda el fuego en viajar de las manos a los pies (o al revés)
-HANDOFF_WINDOW = 45  # cuadros: el fuego de antes solo se reutiliza si fue hace poco
-# Por persona: dónde estuvo el fuego la última vez (grupo, cuadro) para el traspaso.
+TRANSFER_FRAMES = 12  # lo que tarda el fuego en pasar de unas extremidades a otras
+TRANSFER_WINDOW = 45  # cuadros: el fuego de antes solo se reutiliza si fue hace poco
+TRANSFER_SWOOSH = 2.5  # unidades: más lejos que esto, el fuego viaja en un swoosh y no en trocitos
+# Por persona: dónde estuvo el fuego la última vez: (extremidades, sus posiciones, cuadro).
 _FIRE_LIMBS: dict = {}
+
+
+def _limb_point(body, name: str) -> np.ndarray | None:
+    """La posición de una extremidad del fuego (`head` es la cabeza: la nariz)."""
+    return body.get("nose") if name == "head" else body.get(name)
+
+
+def note_fire(body, names, frame_index: int) -> None:
+    """Anota que el fuego está en estas extremidades (para el traspaso de lo que siga)."""
+    where = {n: _limb_point(body, n) for n in names}
+    _FIRE_LIMBS[getattr(body, "prefix", "") or "person"] = (tuple(names), {n: p.copy() for n, p in where.items() if p is not None}, frame_index)
 
 
 def _limb_speed(body, names) -> float:
@@ -919,20 +931,20 @@ def _fire_trail(body, frame, scale, frame_index, runtime, layer, color, alpha, e
     persigue por el recorrido: ancha en la extremidad, afinándose hacia la cola. Lo que queda atrás
     sube (el aire caliente) y se achica; si la extremidad frena, la estela se recoge en la llama.
     El fuego va en las extremidades donde está la atención (_attention_limbs) y, si venía de las
-    otras (de las manos a los pies), viaja hasta ellas antes de prenderse (_handoff).
+    otras (de una mano a la otra, de las manos a los pies), viaja hasta ellas (transfer_fire).
     La estela se corta en el último giro brusco (en un giro sobre sí mismo hacía un gancho o una V)
     y tiene un tope de largo."""
     center, across, down = frame
     up = -down
     att = _activation(runtime, event, "trail:attention", body)
     limbs = _attention_limbs(body, event, att)
-    grow = _ease(_seg(_phase(runtime, event), 0.0, 0.15))
-    grow *= _handoff(body, limbs, frame_index, scale, layer, color, alpha, runtime, att)
+    lit = transfer_fire(body, limbs, frame_index, scale, layer, color, alpha, runtime, att)
     unit = _unit(scale, layer)
     for k, name in enumerate(limbs):
         point = body.get(name)
         if point is None:
             continue
+        grow = _ease(_seg(_phase(runtime, event), 0.0, 0.15)) * lit.get(name, 1.0)
         st = _activation(runtime, event, f"trail:{name}", body)
         hist = st.setdefault("hist", [])
         if hist and float(np.linalg.norm(point - hist[-1])) > 1.5 * scale:
@@ -993,49 +1005,95 @@ def _fire_trail(body, frame, scale, frame_index, runtime, layer, color, alpha, e
     return []
 
 
-def _handoff(body, limbs, frame_index: int, scale: float, layer, color, alpha: float, runtime, st: dict) -> float:
-    """Continuidad del fuego (glowing/video_51, seg. 1,5-2,4): si hace poco el fuego estaba en las
-    otras extremidades (las manos) y ahora va a estas (los pies), no aparece de la nada: viaja de
-    aquellas a estas en HANDOFF_FRAMES cuadros, como lenguas que bajan por el cuerpo. Devuelve
-    cuánto está prendido el fuego aquí (0 mientras viaja, 1 al llegar)."""
-    group = "feet" if limbs[0].endswith("_ankle") else "hands"
-    key = body.prefix or "person"
+def transfer_fire(body, limbs, frame_index: int, scale: float, layer, color, alpha: float, runtime, st: dict) -> dict[str, float]:
+    """Continuidad del fuego (glowing/video_51, seg. 0,5, 2,0 y 3,5): si hace poco el fuego estaba
+    en otras extremidades (una mano, las manos, los pies, la cabeza), no aparece de la nada en
+    estas: la llama de origen se achica y el fuego viaja en TRANSFER_FRAMES cuadros.
+
+    - Cerca (de mano a mano, de la cabeza a la mano): se deshace en trocitos alargados que se
+      enroscan como serpientes chicas alrededor del camino (en perspectiva: más chicos al pasar
+      por detrás) y se vuelven a juntar en el destino.
+    - Lejos (de las manos a los pies en una voltereta): se desintegra en el origen y un swoosh
+      corto lo transporta, soltando trocitos.
+
+    Devuelve, por extremidad, cuánto está prendido el fuego (0 mientras viaja hacia ella, 1 al
+    llegar; la que ya lo tenía, 1)."""
+    key = getattr(body, "prefix", "") or "person"
     last = _FIRE_LIMBS.get(key)
-    if last is not None and frame_index < last[1]:  # otro video o volvió atrás
-        last = None
+    if last is not None and (frame_index < last[2] or frame_index - last[2] > TRANSFER_WINDOW):
+        last = None  # otro video, volvió atrás o fue hace mucho
     if "from" not in st:
-        st["from"] = last[0] if last is not None and last[0] != group and frame_index - last[1] <= HANDOFF_WINDOW else None
+        st["from"] = last[1] if last is not None and set(last[0]) != set(limbs) else None
         st["start"] = frame_index
-    _FIRE_LIMBS[key] = (group, frame_index)
-    if st["from"] is None:
-        return 1.0
-    p = (frame_index - st["start"]) / HANDOFF_FRAMES
+    note_fire(body, limbs, frame_index)
+    lit = {name: 1.0 for name in limbs}
+    if not st["from"]:
+        return lit
+    p = (frame_index - st["start"]) / TRANSFER_FRAMES
     if p >= 1.0:
-        return 1.0
-    sources = [body.get(n) for n in (HANDS if st["from"] == "hands" else FEET)]
-    sources = [x for x in sources if x is not None]
+        return lit
+    unit = _unit(scale, layer)
+    sources = list(st["from"].values())
     for k, name in enumerate(limbs):
-        target = body.get(name)
-        if target is None or not sources:
+        target = _limb_point(body, name)
+        if target is None:
             continue
         source = min(sources, key=lambda x: float(np.linalg.norm(x - target)))
-        # Por el costado del cuerpo, combado hacia afuera; la cabeza avanza y la cola la sigue.
         chord = target - source
-        side = np.array([-chord[1], chord[0]]) / max(float(np.linalg.norm(chord)), 1e-6)
+        dist = float(np.linalg.norm(chord))
+        if dist < 0.3 * unit:
+            continue  # ya tenía el fuego (de las dos manos a una de ellas)
+        lit[name] = float(np.clip((p - 0.75) / 0.25, 0.0, 1.0))
+        side = np.array([-chord[1], chord[0]]) / max(dist, 1e-6)
         hips = body.mid("left_hip", "right_hip")
         if hips is not None and float(np.dot(side, source - hips)) < 0:
             side = -side  # combado hacia afuera del cuerpo, no por encima
-        q = np.linspace(max(p - 0.45, 0.0), p, 16)
-        path = source + np.outer(q, chord) + np.outer(np.sin(np.pi * q) * 0.35 * float(np.linalg.norm(chord)), side)
-        widths = (0.03 + 0.18 * np.linspace(0, 1, 16) ** 1.2) * scale
-        cel(layer, ribbon(path, widths, frame_index, 4.0, 1.9 + k), color, alpha, runtime)
-    return float(np.clip((p - 0.7) / 0.3, 0.0, 1.0))
+
+        def path(t, source=source, chord=chord, side=side, dist=dist):
+            t = np.asarray(t, dtype=np.float64)
+            return source + np.outer(t, chord) + np.outer(np.sin(np.pi * t) * 0.3 * dist, side)
+
+        if p < 0.3:  # la llama de origen se achica
+            shrink = 1.0 - p / 0.3
+            cel(layer, teardrop(source, np.array([0.0, -1.0]), 0.5 * unit * shrink, 0.12 * unit * shrink + 0.5, frame_index, 3.1 + k), color, alpha, runtime)
+        if dist > TRANSFER_SWOOSH * unit:
+            # Lejos: un swoosh corto lleva el fuego; la cabeza avanza y la cola la sigue.
+            head = float(np.clip((p - 0.15) / 0.65, 0.0, 1.0))
+            if head > 0.05:
+                spine = path(np.linspace(max(head - 0.35, 0.0), head, 18))
+                q = np.linspace(0, 1, 18)
+                widths = (0.02 + 0.14 * q ** 1.2) * unit
+                cel(layer, ribbon(spine, widths, frame_index, 5.0, 2.7 + k), color, alpha, runtime)
+                shed(layer, spine, widths, st, frame_index, scale, color, alpha, 2.0)
+            for i in range(5):  # al salir se desintegra: trocitos que se dispersan del origen
+                t = float(np.clip(p / 0.4, 0.0, 1.0))
+                if 0 < t < 1:
+                    a = i * TAU / 5 + 0.7
+                    out = np.array([np.cos(a), np.sin(a)])
+                    cel(layer, teardrop(source + out * unit * 0.4 * t, -out, 0.1 * unit * (1 - t), 0.025 * unit + 0.5, frame_index, i * 1.3, 0.5), color, alpha, None)
+            continue
+        # Cerca: trocitos alargados que se enroscan alrededor del camino y se juntan al llegar.
+        pieces = 9
+        for i in range(pieces):
+            t = float(np.clip((p - 0.12 - i * 0.04) / 0.55, 0.0, 1.0))
+            if not 0.0 < t < 1.0:
+                continue
+            a = t * TAU * 1.5 + i * TAU / pieces
+            radius = 1.4 * unit * np.sin(np.pi * t) * (0.6 + 0.4 * np.sin(i * 2.3))  # se dispersan alrededor del cuerpo y se juntan (video_51, seg. 0,5)
+            depth = 0.7 + 0.3 * np.sin(a)  # por detrás, más chicos
+            pos = path([t])[0] + side * np.cos(a) * radius
+            ahead = path([min(t + 0.05, 1.0)])[0] + side * np.cos(a + 0.4) * radius - pos
+            ahead /= max(float(np.linalg.norm(ahead)), 1e-6)
+            # Alargados y apenas enroscados en la punta (con más vuelta se cerraban en bolitas).
+            curl = 0.18 * (1 if i % 2 else -1)
+            cel(layer, teardrop(pos, -ahead, 0.6 * unit * depth, 0.06 * unit * depth + 0.5, frame_index, i * 2.1 + k, curl), color, alpha * depth, None)
+    return lit
 
 
 def _hand_fire(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
     center, across, down = frame
     up = -down
-    _FIRE_LIMBS[body.prefix or "person"] = ("hands", frame_index)  # el fuego está en las manos (traspaso)
+    note_fire(body, HANDS, frame_index)  # el fuego está en las manos (para el traspaso)
     u = _phase(runtime, event)
     grow = _ease(_seg(u, 0.0, 0.2))
     sides = [event.kind] if event is not None and event.kind in ("left", "right") else ["left", "right"]

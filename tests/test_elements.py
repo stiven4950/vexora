@@ -342,3 +342,28 @@ def test_fire_stays_in_the_hands_when_they_lead() -> None:
     body.update({"vel:left_wrist": np.array([12.0, 0.0]), "vel:left_ankle": np.array([1.0, 0.0])})
     assert firebend._attention_limbs(body, None, st) == firebend.HANDS
     assert firebend._attention_limbs(_feet_body(), SimpleNamespace(target="p0", name="tumble", kind=""), {}) == firebend.FEET
+
+
+def test_fire_travels_from_one_hand_to_the_other_in_curled_pieces() -> None:
+    body = _body()  # muñecas en (130, 300) y (300, 260)
+    firebend._FIRE_LIMBS.clear()
+    firebend.note_fire(body, ("left_wrist",), 0)  # el fuego estaba en la mano izquierda
+    st: dict = {}
+    lit, between = [], []
+    for f in range(1, 14):
+        layer = np.zeros((H, W, 4), np.float32)
+        lit.append(firebend.transfer_fire(body, ("right_wrist",), f, 60.0, layer, None, 1.0, _runtime(f), st)["right_wrist"])
+        firebend.flush_fire(layer, f)
+        mask = layer[..., 3] > 0.5
+        between.append(int(mask[:, 170:260].sum()))  # entre las dos manos
+    assert max(lit[:6]) == 0.0 and lit[-1] == 1.0  # el destino se prende recién al llegar
+    assert max(between[3:9]) > 30  # a mitad de camino hay trocitos entre las manos
+    assert firebend._FIRE_LIMBS["p0"][0] == ("right_wrist",)  # ahora el fuego está en la derecha
+
+
+def test_no_transfer_when_the_fire_is_already_there() -> None:
+    body = _body()
+    firebend._FIRE_LIMBS.clear()
+    firebend.note_fire(body, ("right_wrist",), 0)
+    layer = np.zeros((H, W, 4), np.float32)
+    assert firebend.transfer_fire(body, ("right_wrist",), 1, 60.0, layer, None, 1.0, _runtime(1), {}) == {"right_wrist": 1.0}

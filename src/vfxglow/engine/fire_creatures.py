@@ -23,7 +23,7 @@ import cv2
 import numpy as np
 
 from vfxglow.engine.critters import TAU, WHITE, _activation, _ease, _phase, _seg
-from vfxglow.engine.firebend import CORE, MID, _floor, cel, flame_physics, note_frame, ribbon, rim, shed, teardrop, warm
+from vfxglow.engine.firebend import CORE, MID, _floor, cel, flame_physics, note_fire, note_frame, ribbon, rim, shed, teardrop, transfer_fire, warm
 from vfxglow.engine.raster import fill_polygon, splat
 
 FIRE_CREATURES = ("fire_skull", "fire_bird", "fire_serpent", "fire_splash", "fire_breath", "fire_dragon")
@@ -89,6 +89,11 @@ def _face(body, frame, scale):
 
 def _leader(body):
     """La mano que toma el protagonismo: la más rápida (o la más alta)."""
+    name = _leader_name(body)
+    return body.get(name) if name else None
+
+
+def _leader_name(body) -> str | None:
     best, speed = None, -1.0
     for name in ("left_wrist", "right_wrist"):
         p = body.get(name)
@@ -97,7 +102,7 @@ def _leader(body):
         vel = body.points.get(f"vel:{body.prefix}{name}")
         v = float(np.linalg.norm(vel)) if vel is not None else -p[1] * 1e-3
         if v > speed:
-            best, speed = p, v
+            best, speed = name, v
     return best
 
 
@@ -229,12 +234,17 @@ def _fire_skull(body, frame, scale, frame_index, runtime, layer, color, alpha, e
         if tall > 2:
             cel(layer, wavy(base, d, tall, 0.5 * r, frame_index, k * 1.9), color, alpha, runtime)
     rim(layer, runtime, [c], scale, color, alpha * grow, 1.0)
-    if leave > 0:  # el fuego viaja de la cabeza a la mano que toma el protagonismo
-        hand = _leader(body)
-        if hand is not None:
-            top = c + up * 1.2 * r
-            curve = bezier([top, top + up * 1.2 * scale + across * 0.8 * scale, hand + up * 0.8 * scale, hand], 40)
-            comet(curve, _ease(leave) * 1.1, 0.5, 0.35 * scale, frame_index, layer, color, alpha, runtime, st, scale)
+    if leave <= 0:
+        note_fire(body, ("head",), frame_index)  # el fuego está en la cabeza
+        return []
+    # Al final el fuego deja la cabeza y viaja a la mano que toma el protagonismo (video_51, seg.
+    # 3,5), con el traspaso de siempre: trocitos que se enroscan y se juntan en la mano.
+    name = st.setdefault("hand", _leader_name(body))
+    hand = body.get(name) if name else None
+    if hand is not None:
+        lit = transfer_fire(body, (name,), frame_index, scale, layer, color, alpha, runtime, st.setdefault("transfer", {}))[name]
+        if lit > 0:  # llegó: la llama prendida en la mano
+            cel(layer, teardrop(hand, up, 0.9 * scale * lit, 0.2 * scale * lit + 0.5, frame_index, 4.4), color, alpha, runtime)
     return []
 
 
