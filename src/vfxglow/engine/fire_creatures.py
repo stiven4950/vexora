@@ -5,6 +5,9 @@
   deja la cabeza y viaja en un trazo hasta la mano que toma el protagonismo (seg. 3,1-3,6).
 - `fire_bird` / `fire_serpent`: de la mano levantada sale un ave de fuego (o un dragón serpiente)
   unida a la mano por una corriente en S; vuela, vuelve y se ondula siguiendo la mano (seg. 4,2-4,8).
+- `fire_phoenix` / `fire_dragon_launch`: bestias que se lanzan (video_51, seg. 7,0-7,3): salen del
+  puño en la dirección del golpe o del lanzamiento, el ave aleteando y el dragón serpiente
+  ondulando, y se van sin volver; al alejarse se deshacen en trozos.
 - `fire_splash`: el fuego que choca contra el piso se expande en olas con crestas enroscadas que
   tiemblan como gelatina y se aplanan en una línea con escamas (seg. 5,0-5,2).
 - `fire_breath`: el fuego sube por el costado hasta la cabeza, la envuelve, estalla una bola de
@@ -23,10 +26,10 @@ import cv2
 import numpy as np
 
 from vfxglow.engine.critters import TAU, WHITE, _activation, _ease, _phase, _seg
-from vfxglow.engine.firebend import CORE, MID, _floor, cel, flame_physics, note_fire, note_frame, ribbon, rim, shed, teardrop, transfer_fire, warm
+from vfxglow.engine.firebend import CORE, MID, _floor, _unit, _wrist, cel, flame_physics, note_fire, note_frame, ribbon, rim, shed, teardrop, transfer_fire, warm
 from vfxglow.engine.raster import fill_polygon, splat
 
-FIRE_CREATURES = ("fire_skull", "fire_bird", "fire_serpent", "fire_splash", "fire_breath", "fire_dragon")
+FIRE_CREATURES = ("fire_skull", "fire_bird", "fire_serpent", "fire_splash", "fire_breath", "fire_dragon", "fire_phoenix", "fire_dragon_launch")
 
 
 def ink(layer, curves: list[np.ndarray], color, alpha: float, width: int = 2) -> None:
@@ -324,6 +327,97 @@ def _fire_bird(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
     return []
 
 
+# ----- bestias que se lanzan -----
+
+
+def _launched_beast(body, frame, scale, frame_index, runtime, layer, color, alpha, event, dragon: bool = False) -> list:
+    """Una bestia de fuego que se lanza (video_51, seg. 7,0-7,3): nace en el puño, sale en la
+    dirección del golpe o del lanzamiento (el antebrazo) y un poco hacia arriba, y se va sin volver:
+    el ave aleteando (fénix), el dragón serpiente ondulando con el cuerpo como su recorrido. Al
+    alejarse se achica y se deshace en trozos."""
+    center, across, down = frame
+    up = -down
+    found = _wrist(body, event, scale)
+    if found is None:
+        return []
+    name, hand = found
+    st = _activation(runtime, event, f"beast:{name}", body)
+    if "aim" not in st:  # se decide al lanzar: hacia donde apunta el antebrazo, y algo hacia arriba
+        elbow = body.get(name.replace("wrist", "elbow").replace("ankle", "knee"))
+        aim = (hand - elbow) if elbow is not None and float(np.linalg.norm(hand - elbow)) > 1 else across
+        aim = aim / max(float(np.linalg.norm(aim)), 1e-6) + up * 0.6
+        aim = aim / float(np.linalg.norm(aim))
+        # Hacia el espacio libre: si el vuelo se sale enseguida del cuadro (el puño junto a un
+        # borde), se va hacia el otro lado (una bestia que se pierde al nacer no se ve).
+        height, width = layer.shape[:2]
+        land = hand + aim * 3.0 * _unit(scale, layer)
+        if not (0 <= land[0] < width):
+            aim = np.array([-aim[0], aim[1]])
+        st.update(aim=aim, origin=np.asarray(hand, dtype=np.float64).copy())
+    aim, origin = st["aim"], st["origin"]
+    side = np.array([-aim[1], aim[0]])
+    u = _phase(runtime, event)
+    unit = _unit(scale, layer)
+    # Sale despacio (se ve la bestia junto al puño) y después se aleja rápido; la trayectoria ondula.
+    travel = _seg(u, 0.05, 0.85) ** 1.6
+    wave = np.sin(u * 9.0) * 0.35 * unit * travel
+    pos = origin + aim * 5.0 * unit * travel + side * wave
+    prev = st.get("pos", pos)
+    heading = pos - prev if float(np.linalg.norm(pos - prev)) > 0.5 else st.get("heading", aim)
+    st.update(pos=pos, heading=heading)
+    trail = st.setdefault("trail", [])
+    trail.append(pos.copy())
+    del trail[:-18]
+    grow = _ease(_seg(u, 0.0, 0.12))
+    fade = 1.0 - _seg(u, 0.7, 1.0)  # al alejarse se achica y se deshace
+    size = (2.2 if dragon else 1.6) * unit * grow * fade * (1.0 - 0.3 * travel)
+    if size < 1.0:
+        return []
+    if u < 0.25:  # la corriente que lo une al puño al salir
+        q = np.linspace(0, 1, 20)
+        stream = origin + np.outer(q, pos - origin) + np.outer(np.sin(np.pi * q) * 0.2 * unit, side)
+        cel(layer, ribbon(stream, (0.04 + 0.14 * q) * unit * (1 - u / 0.25) + 0.5, frame_index, 4.0), color, alpha, runtime)
+    if dragon:
+        # El cuerpo es el tramo de trayectoria detrás de la cabeza (no el historial de cuadros: al
+        # salir despacio quedaba un muñón): largo y ondulando como serpiente.
+        # El cuerpo: 3 unidades detrás de la cabeza, en S (aunque recién salga del puño).
+        body_len = 4.5 * unit * min(travel * 4.0 + 0.4, 1.0)
+        q_ = np.linspace(-1.0, 0.0, 28)
+        spine = pos + np.outer(q_ * body_len, aim) + np.outer(np.sin(q_ * 7.0 + frame_index * 0.35) * 0.45 * unit * (-q_) ** 0.6, side)
+        spine[-1] = pos
+        q = np.linspace(0, 1, len(spine))
+        widths = (0.02 + 0.07 * np.sin(np.pi * np.clip(q * 0.85 + 0.1, 0, 1)) ** 0.6) * size
+        cel(layer, ribbon(spine, widths, frame_index, 6.0, 3.3), color, alpha, runtime)
+        normals = np.gradient(spine, axis=0)
+        normals = np.stack([-normals[:, 1], normals[:, 0]], axis=1) / np.maximum(np.linalg.norm(normals, axis=1, keepdims=True), 1e-6)
+        for j in range(4, len(spine) - 3, 3):  # crestas del lomo, inclinadas hacia la cola
+            tip_dir = normals[j] * 0.8 - (spine[j + 1] - spine[j - 1]) / max(float(np.linalg.norm(spine[j + 1] - spine[j - 1])), 1e-6) * 0.6
+            cel(layer, teardrop(spine[j] + normals[j] * widths[j] * 0.8, tip_dir / max(float(np.linalg.norm(tip_dir)), 1e-6), widths[j] * 2.2, widths[j] * 0.3 + 0.5, frame_index, j * 0.7), color, alpha, None)
+        d = heading / max(float(np.linalg.norm(heading)), 1e-6)
+        n = np.array([-d[1], d[0]])
+        h = 0.42 * size
+        jaw = 0.35 + 0.15 * np.sin(frame_index * 0.6)  # la boca se abre y se cierra
+        upper = np.array([pos - d * h * 0.5 + n * h * 0.35, pos + d * h * 0.4 + n * h * 0.4, pos + d * h * 1.3 + n * h * jaw * 0.5, pos + d * h * 0.3, pos - d * h * 0.5])
+        lower = np.array([pos - d * h * 0.4, pos + d * h * 0.3 - n * h * 0.05, pos + d * h * 1.1 - n * h * jaw * 0.6, pos + d * h * 0.3 - n * h * 0.35, pos - d * h * 0.4 - n * h * 0.3])
+        cel(layer, lambda k, upper=upper: upper, color, alpha, runtime)
+        cel(layer, lambda k, lower=lower: lower, color, alpha, None)
+        for s_ in (1, -1):  # los cuernos, hacia atrás y separados de la cabeza
+            root = pos - d * h * 0.35 + n * s_ * h * 0.3
+            cel(layer, teardrop(root, -d * 0.8 + n * s_ * 0.6, h * 1.1, h * 0.12 + 0.5, frame_index, 5.1 + s_, 0.3 * s_), color, alpha, None)
+        eye = pos + d * h * 0.15 + n * h * 0.25
+        splat(layer, float(eye[0]), float(eye[1]), 0.07 * h + 1, WHITE * 2.0, alpha, runtime.kernels)
+        shed(layer, spine, widths, st, frame_index, scale, color, alpha, 1.5 * (1 + 2 * (1 - fade)))
+    else:
+        flap = np.sin(frame_index * 0.8)
+        cel(layer, _bird_shape(pos, heading, 1.1 * size, flap, frame_index), color, alpha, runtime)
+        if len(trail) > 3:  # la estela de fuego que deja al volar
+            spine = np.array(trail)
+            q = np.linspace(0, 1, len(spine))
+            cel(layer, ribbon(spine, (0.02 + 0.12 * q) * size, frame_index, 5.0, 1.1), color, alpha, None)
+            shed(layer, spine, (0.02 + 0.12 * q) * size, st, frame_index, scale, color, alpha, 1.0 + 3 * (1 - fade))
+    return []
+
+
 # ----- el fuego que choca contra el piso -----
 
 
@@ -493,6 +587,8 @@ def fire_creature(shape, body, frame, scale, frame_index, runtime, layer, color,
         return _fire_skull(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape in ("fire_bird", "fire_serpent"):
         return _fire_bird(body, frame, scale, frame_index, runtime, layer, color, alpha, event, shape == "fire_serpent")
+    if shape in ("fire_phoenix", "fire_dragon_launch"):
+        return _launched_beast(body, frame, scale, frame_index, runtime, layer, color, alpha, event, shape == "fire_dragon_launch")
     if shape == "fire_splash":
         return _fire_splash(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape == "fire_breath":

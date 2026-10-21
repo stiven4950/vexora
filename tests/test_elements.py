@@ -427,3 +427,24 @@ def test_fire_orbit_circles_the_body_and_only_explodes_with_the_arm_out() -> Non
     assert bent.get("thrown") is None  # brazo doblado: la llama se apaga en la mano
     _xs, out = _orbit(range(0, 40), arm_out=True)
     assert out.get("thrown") is not None and out["blast"][0] > 350  # brazo estirado: explota hacia afuera
+
+
+def test_launched_beasts_fly_away_and_do_not_return() -> None:
+    from vfxglow.engine.fire_creatures import fire_creature
+
+    for shape in ("fire_phoenix", "fire_dragon_launch"):
+        body = _body()  # brazo derecho hacia la derecha: codo (250,250), muñeca (300,260)
+        runtime = _runtime(0)
+        event = SimpleNamespace(start_frame=0, end_frame=30, kind="right", target="p0:right_wrist", name="throw")
+        frame = (np.array([200.0, 200.0]), np.array([1.0, 0.0]), np.array([0.0, 1.0]))
+        hand = body["right_wrist"]
+        far = []
+        for f in range(0, 30):
+            runtime.active_frames = f + 1
+            layer = np.zeros((H, W, 4), np.float32)
+            fire_creature(shape, body, frame, 60.0, f, runtime, layer, None, 1.0, event)
+            firebend.flush_fire(layer, f)
+            ys, xs = np.nonzero(layer[..., 3] > 0.5)
+            far.append(float(np.max(np.hypot(xs - hand[0], ys - hand[1]))) if len(xs) else -1.0)
+        assert max(far) > 150, shape  # sale del puño y se aleja (hacia donde hay lugar en el cuadro)
+        assert far[22] >= far[10] - 5, shape  # no vuelve a la mano

@@ -44,6 +44,8 @@ def test_every_adornment_draws(shape: str) -> None:
         pytest.skip("necesitan la velocidad o la trayectoria de la mano (se prueban con video)")
     if shape in ("fire_wall", "fire_light", "fire_carpet_end"):
         pytest.skip("se encienden solas (el cierre, o la luz del fuego de los demás efectos): se prueban con video")
+    if shape in ("fire_phoenix", "fire_dragon_launch"):
+        pytest.skip("nacen al lanzar (crecen en los primeros cuadros del gesto): se prueban en test_elements")
     if shape in FACE + NECK + ("battery", "hero_text", "venom", "iron_man"):
         # Van sobre la cara o el pecho: de frente (la pose de prueba está de espaldas).
         points = {name.replace("left", "@").replace("right", "left").replace("@", "right"): p for name, p in points.items()}

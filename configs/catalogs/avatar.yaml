@@ -235,6 +235,19 @@ reactions:
   # Seg. 3,6-4,8: golpes y barridos: el látigo con la forma del golpe; a veces un aro o el rayo.
   - action: fast_swing
     options:
+      # Bestias que se lanzan (video_51, seg. 7,0): salen del puño y se van sin volver.
+      - name: fenix
+        weight: 0.08
+        max_uses: 1
+        effects:
+          - &phoenix {type: adornment, style: {shapes: [fire_phoenix]}, trigger: {hold: 26, fade_in: 1, fade_out: 6}}
+          - *heat2
+      - name: dragon_lanzado
+        weight: 0.06
+        max_uses: 1
+        effects:
+          - &dragon_launch {type: adornment, style: {shapes: [fire_dragon_launch]}, trigger: {hold: 30, fade_in: 1, fade_out: 6}}
+          - *heat2
       - name: viento
         element: aire
         weight: 0.15
@@ -316,6 +329,15 @@ reactions:
   # video_51, seg. 5,0 y 6,2: el brazo que se extiende para lanzar: el rayo hasta el borde.
   - action: throw
     options:
+      # video_51, seg. 7,0: lanza una bestia de fuego que se va sin volver (una vez cada una).
+      - name: fenix
+        weight: 0.3
+        max_uses: 1
+        effects: [*phoenix, *heat2]
+      - name: dragon_lanzado
+        weight: 0.25
+        max_uses: 1
+        effects: [*dragon_launch, *heat2]
       - name: rayo
         element: rayo
         weight: 0.6
