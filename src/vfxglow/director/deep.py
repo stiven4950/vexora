@@ -372,8 +372,14 @@ def _generate(cfg: DeepConfig, key: str, body: dict, sleep=time.sleep) -> dict:
 # ----- de la respuesta al guion -----
 
 
+# Opciones renombradas: las respuestas guardadas con el nombre viejo siguen sirviendo.
+RENAMED = {"latigo": "estela"}
+
+
 def _match(catalog, accion: str | None, opcion: str | None):
     """(acción, opción) del catálogo; la acción se corrige si la opción solo está en otra."""
+    if opcion in RENAMED and not any(o.name == opcion for r in catalog.reactions for o in r.options):
+        opcion = RENAMED[opcion]
     found = [(r, o) for r in catalog.reactions for o in r.options if o.name == opcion and o.effects]
     exact = [(r, o) for r, o in found if r.action == accion]
     if exact:
