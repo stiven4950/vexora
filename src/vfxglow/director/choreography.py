@@ -31,6 +31,24 @@ class _Strict(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class Follow(_Strict):
+    """Cadena: esta opción es la consecuencia de otra (`after` = "acción:opción", o "*:opción").
+    Si la otra salió hace menos de `within_s`, el peso se multiplica por `boost`."""
+
+    after: str
+    within_s: float = 1.2
+    boost: float = 8.0
+
+
+class Earn(_Strict):
+    """La opción solo entra si, entre `within_s[0]` y `within_s[1]` segundos después, la misma
+    extremidad hace una de estas acciones (la bestia que vuelve a la mano necesita el golpe que la
+    use)."""
+
+    actions: list[str]
+    within_s: tuple[float, float] = (0.3, 1.6)
+
+
 class Option(_Strict):
     name: str
     weight: float = 1.0
@@ -58,6 +76,14 @@ class Option(_Strict):
     # Elemento de la opción (fuego, rayo...). Sin dar, el del catálogo; "" = neutra (la mirada, las
     # chispas). Con capítulos de elemento, no se mezclan elementos en el mismo tramo.
     element: str | None = None
+    # Cadenas (ver Follow). `requires_follow`: sin la opción anterior de la cadena, no entra.
+    follows: list[Follow] = Field(default_factory=list)
+    requires_follow: bool = False
+    earns: Earn | None = None
+    # El gesto manda la atención (una voltereta: la atención va a los pies): no cede ante el tope
+    # de focos encendidos. Lo mismo vale para una consecuencia cuya opción anterior salió (la
+    # caída que desbarata el fuego continúa el mismo foco de la voltereta).
+    leads: bool = False
     # Subtipos de la acción admitidos (MotionEvent.kind; p. ej. intent: hand_to_chest).
     kinds: list[str] = Field(default_factory=list)
     # La persona de la acción debe llevar uno de estos accesorios (gafas, máscara...). Si la
@@ -235,6 +261,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
         rest = [] if pins.solo_estos else [[pair for pair in pairs if (id(pair[0]), id(pair[1])) not in forced] for pairs in passes]
         passes = [pinned, *rest]
     spent: dict[str, int] = {}  # usos de cada opción en el video (para max_uses)
+    history: list[tuple[int, str, str]] = []  # (cuadro, acción, opción) de lo que ya salió (cadenas)
     plan = element_plan(catalog, events, brief.video.frame_count, fps, seed)
     elements: list[tuple[int, int, str]] = []  # tramos encendidos de cada elemento (capítulos)
     pad = int(round(catalog.element_pad_s * fps))
@@ -263,6 +290,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 memo["last"] = event.start_frame
                 memo["used"][option.name] = event.start_frame
                 spent[option.name] = spent.get(option.name, 0) + 1
+                history.append((event.start_frame, reaction.action, option.name))
                 if element_of(catalog, option):
                     elements.append((start, end, element_of(catalog, option)))
                 if option.exclusive:
@@ -296,7 +324,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
             chapter = chapter_element(plan, event.start_frame)
             if chapter:  # solo el elemento del capítulo (y lo neutro)
                 resting |= {o.name for o in reaction.options if element_of(catalog, o) and element_of(catalog, o) != chapter}
-            option = _draw(reaction, event, seed, resting, brief, catalog.wardrobe)
+            resting |= {o.name for o in reaction.options if o.earns and not _earns_ok(o.earns, event, events, fps)}
+            option = _draw(_chained(reaction, event, history, fps, resting), event, seed, resting, brief, catalog.wardrobe)
             if option.yields_to and _yields(option, event, brief, seed, fps):
                 option = Option(name=f"nada (cede a {', '.join(option.yields_to)})")
             if option.effects and event.start_frame - memo["last"] < reaction.cooldown:
@@ -339,6 +368,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 memo["last"] = event.start_frame
                 memo["used"][option.name] = event.start_frame
                 spent[option.name] = spent.get(option.name, 0) + 1
+                history.append((event.start_frame, reaction.action, option.name))
                 if element_of(catalog, option):
                     elements.append((start, end, element_of(catalog, option)))
                 chosen.setdefault((reaction.action, option.name), []).append((event.start_frame, event.target))
@@ -470,7 +500,7 @@ def _partner(person: str | None, span, brief: MotionBrief) -> str | None:
 def _earned(option: Option) -> bool:
     """La opción exige movimiento fuerte o largo: ese movimiento manda, no cede ante el tope de
     focos ni ante un efecto de escena ya encendido (sí ante otro exclusivo y la cara)."""
-    return option.min_speed > 0 or option.min_duration_s > 0
+    return option.min_speed > 0 or option.min_duration_s > 0 or option.leads
 
 
 ELEMENT_CUES = {
@@ -515,6 +545,44 @@ def element_plan(catalog: Catalog, events: list[MotionEvent], total: int, fps: f
 
 def chapter_element(plan: list[tuple[int, int, str]], frame: int) -> str:
     return next((el for s, e, el in plan if s <= frame <= e), "")
+
+
+def _limb(target: str) -> str:
+    name = target.rsplit(":", 1)[-1]
+    return name if name.endswith(("_wrist", "_ankle")) else ""
+
+
+def _earns_ok(earn: Earn, event: MotionEvent, events: list[MotionEvent], fps: float) -> bool:
+    """Si después del evento llega un golpe que use lo que la opción deja (de la misma mano, si se
+    sabe cuál)."""
+    lo, hi = event.start_frame + earn.within_s[0] * fps, event.start_frame + earn.within_s[1] * fps
+    mine = _limb(event.target)
+    for e in events:
+        if e.name in earn.actions and lo <= e.start_frame <= hi and e is not event:
+            theirs = _limb(e.target)
+            if not mine or not theirs or theirs == mine:
+                return True
+    return False
+
+
+def _chained(reaction: Reaction, event: MotionEvent, history: list[tuple[int, str, str]], fps: float, resting: set[str]) -> Reaction:
+    """Las opciones con cadenas (`follows`), con el peso de esta ocurrencia: multiplicado si su
+    opción anterior salió hace poco; las que la exigen y no la tienen, a reposo."""
+    if not any(o.follows for o in reaction.options):
+        return reaction
+    options = []
+    for o in reaction.options:
+        weight, linked = o.weight, False
+        for link in o.follows:
+            action, _, name = link.after.partition(":")
+            window = link.within_s * fps
+            if any(f <= event.start_frame and event.start_frame - f <= window and n == name and action in ("*", a) for f, a, n in history):
+                weight *= link.boost
+                linked = True
+        if o.requires_follow and not linked:
+            resting.add(o.name)
+        options.append(o.model_copy(update={"weight": weight, "leads": o.leads or linked}) if weight != o.weight else o)
+    return reaction.model_copy(update={"options": options})
 
 
 def element_of(catalog: Catalog, option: Option) -> str:

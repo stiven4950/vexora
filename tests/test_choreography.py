@@ -286,3 +286,58 @@ def test_element_chapters_do_not_mix_fire_and_lightning() -> None:
     for (f1, c1), (f2, c2) in zip(picks, picks[1:]):
         if c1 != c2:
             assert f2 - f1 >= 30 + 24  # ...pero nunca encimados: el anterior termina y pasan 0,8 s
+
+
+def _chain_catalog() -> Catalog:
+    return Catalog.model_validate(
+        {
+            "name": "t",
+            "seed": 3,
+            "defaults": {"type": "swoosh", "target": {"kind": "joint", "id": "right_wrist"}},
+            "reactions": [
+                {"action": "flip", "options": [{"name": "estelas", "weight": 1.0, "effects": [{"trigger": {"hold": 4}}]}]},
+                {
+                    "action": "landing",
+                    "options": [
+                        {"name": "desbarate", "weight": 0.5, "follows": [{"after": "flip:estelas", "within_s": 1.0, "boost": 10}],
+                         "requires_follow": True, "effects": [{"trigger": {"hold": 4}}]},
+                        {"name": "piso", "weight": 0.5, "effects": [{"trigger": {"hold": 4}}]},
+                    ],
+                },
+            ],
+        }
+    )
+
+
+def _ev(name: str, frame: int, target: str = "person_0") -> MotionEvent:
+    return MotionEvent(name=name, target=target, start_frame=frame, end_frame=frame + 3, confidence=1.0)
+
+
+def test_a_consequence_follows_its_cause_and_never_comes_alone() -> None:
+    catalog = _chain_catalog()
+    after = Counter()
+    alone = Counter()
+    for seed in range(40):
+        log = choreograph(catalog, _brief([_ev("flip", 100), _ev("landing", 115)]), seed)[1]
+        after[next(d.choice for d in log.decisions if d.action == "landing")] += 1
+        log = choreograph(catalog, _brief([_ev("landing", 115)]), seed)[1]
+        alone[next(d.choice for d in log.decisions if d.action == "landing")] += 1
+    assert after["desbarate"] >= 32  # tras la voltereta, casi siempre (10:1 contra el golpe de piso)
+    assert alone["desbarate"] == 0  # sin la voltereta, nunca
+
+
+def test_an_option_that_earns_needs_the_strike_that_uses_it() -> None:
+    catalog = Catalog.model_validate(
+        {
+            "name": "t",
+            "defaults": {"type": "swoosh", "target": {"kind": "joint", "id": "right_wrist"}},
+            "reactions": [
+                {"action": "throw", "options": [{"name": "fenix", "weight": 1.0, "effects": [{"trigger": {"hold": 4}}],
+                                                 "earns": {"actions": ["fast_swing"], "within_s": [0.5, 2.0]}}]},
+            ],
+        }
+    )
+    used = choreograph(catalog, _brief([_ev("throw", 100, "person_0:right_wrist"), _ev("fast_swing", 130, "person_0:right_wrist")]))[1]
+    unused = choreograph(catalog, _brief([_ev("throw", 100, "person_0:right_wrist"), _ev("fast_swing", 130, "person_0:left_wrist")]))[1]
+    assert any(d.choice == "fenix" for d in used.decisions)  # el golpe con la misma mano la usa
+    assert not any(d.choice == "fenix" for d in unused.decisions)  # sin golpe de esa mano, no sale

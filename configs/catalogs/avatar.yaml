@@ -160,6 +160,9 @@ reactions:
       # el suelo; si no, el golpe de piso.
       - name: desbarate
         weight: 0.6
+        # Consecuencia de la voltereta con el fuego en los pies (si no la hubo, no entra).
+        follows: [{after: "flip:estelas", within_s: 1.5, boost: 10}, {after: "tumble:estelas", within_s: 1.5, boost: 10}]
+        requires_follow: true
         effects:
           - &landing {type: adornment, style: {shapes: [fire_landing]}, trigger: {hold: 12, fade_in: 1, fade_out: 4}}
           - *heat2
@@ -239,12 +242,14 @@ reactions:
       - name: fenix
         weight: 0.08
         max_uses: 1
+        earns: {actions: [fast_swing, lunge, throw, intended_strike], within_s: [0.6, 2.0]}
         effects:
           - &phoenix {type: adornment, style: {shapes: [fire_phoenix]}, trigger: {hold: 26, fade_in: 1, fade_out: 6}}
           - *heat2
       - name: dragon_lanzado
         weight: 0.06
         max_uses: 1
+        earns: {actions: [fast_swing, lunge, throw, intended_strike], within_s: [0.6, 2.0]}
         effects:
           - &dragon_launch {type: adornment, style: {shapes: [fire_dragon_launch]}, trigger: {hold: 30, fade_in: 1, fade_out: 6}}
           - *heat2
@@ -333,10 +338,12 @@ reactions:
       - name: fenix
         weight: 0.3
         max_uses: 1
+        earns: {actions: [fast_swing, lunge, throw, intended_strike], within_s: [0.6, 2.0]}
         effects: [*phoenix, *heat2]
       - name: dragon_lanzado
         weight: 0.25
         max_uses: 1
+        earns: {actions: [fast_swing, lunge, throw, intended_strike], within_s: [0.6, 2.0]}
         effects: [*dragon_launch, *heat2]
       - name: rayo
         element: rayo
@@ -422,11 +429,12 @@ reactions:
         weight: 0.3
         effects: [*wind]
       - name: dragon
-        weight: 0.3
+        weight: 0.15
         max_uses: 1
         effects: [*dragon, *heat2]
       - name: estelas
-        weight: 0.5
+        leads: true  # dando volteretas la atención va a los pies
+        weight: 1.0
         effects: [*trail, *heat]
       - name: cuerpo_en_llamas
         weight: 0.3
@@ -435,21 +443,24 @@ reactions:
           - {type: adornment, style: {shapes: [body_blaze]}, trigger: {hold: 14, fade_in: 2, fade_out: 8}}
           - *heat
       - name: aro
-        weight: 0.3
+        weight: 0.15
         effects:
           - {type: adornment, style: {shapes: [fire_ring]}, trigger: {hold: 12, fade_in: 1, fade_out: 5}}
       - name: aro_grande
-        weight: 0.35
+        weight: 0.15
         cooldown: 200
         effects: [*halo]
   - action: tumble
     options:
       - name: desbarate
         weight: 0.3
+        follows: [{after: "flip:estelas", within_s: 1.5, boost: 10}]
+        requires_follow: true
         effects: [*landing]
       # Rodando por el piso la atención está en los pies: el fuego sale de ellos.
       - name: estelas
-        weight: 0.4
+        leads: true  # dando volteretas la atención va a los pies
+        weight: 0.8
         effects: [*trail]
       - name: piso
         weight: 0.3
