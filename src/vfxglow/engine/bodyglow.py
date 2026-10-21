@@ -587,6 +587,13 @@ def draw_adornment(runtime, track, points, frame_index: int, height: int, envelo
     seed = zlib.crc32(f"{style.seed_offset}:adorn:{key}".encode()) & 0xFFFFFFFF
     shape = names[int(np.random.default_rng(seed).integers(0, len(names)))]
     grow = float(np.clip(runtime.active_frames / 5.0, 0.0, 1.0))
+    from vfxglow.engine.fire_creatures import FIRE_CREATURES
+    from vfxglow.engine.firebend import FIREBEND
+
+    if shape in FIREBEND or shape in FIRE_CREATURES:
+        # El fuego nace creciendo en forma y opaco: con el fundido quedaba gris y transparente
+        # los primeros cuadros (piezas grises a 6,3 s en marcial_arts).
+        grow = 1.0
     strokes = []
     # La silueta real (segmentador) en píxeles: el fuego ilumina el borde del cuerpo cercano.
     outlines = (track.body_contours or ([track.body_contour] if track.body_contour else [])) if track is not None else []
