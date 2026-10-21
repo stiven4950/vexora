@@ -184,7 +184,10 @@ def _noise(height: int, width: int, frame_index: int, seed: int) -> np.ndarray:
 # naranja a media vida, rojo al apagarse, mientras se achican. Se dibujan como rayitas
 # orientadas por su velocidad (no puntos redondos).
 
-EMBER_LIFE = (10, 22)  # cuadros de vida (mínimo, máximo)
+# Cuadros de vida (mínimo, máximo): casi todas se consumen en 2-6 cuadros, como los trocitos de las
+# referencias (tools/measure_fire.py --trozos); unas pocas (EMBER_LONG) viven más.
+EMBER_LIFE = (2, 7)
+EMBER_LONG = (0.1, (10, 18))
 EMBER_MAX = 260
 _EMBER_RAMP = np.array([
     [1.0, 0.88, 0.45],   # nace amarilla
@@ -219,13 +222,13 @@ def emit_embers(pool: dict, mask: np.ndarray, box: tuple[int, int], frame_index:
     center = np.array([xs.mean() + x0, ys.mean() + y0], np.float32)
     out = pos - center
     out /= np.maximum(np.linalg.norm(out, axis=1, keepdims=True), 1e-3)
-    speed = rng.uniform(0.004, 0.012, count)[:, None] * height
-    vel = out * speed + np.array([0.0, -0.006 * height], np.float32) + pool.get("inherit", np.zeros(2, np.float32))  # afuera, arriba y con el fuego
+    speed = rng.uniform(0.002, 0.005, count)[:, None] * height
+    vel = out * speed + np.array([0.0, -0.0015 * height], np.float32) + pool.get("inherit", np.zeros(2, np.float32))  # afuera, arriba y con el fuego
     new = {
         "pos": pos,
         "vel": vel.astype(np.float32),
         "born": np.full(count, frame_index, np.float32),
-        "life": rng.integers(EMBER_LIFE[0], EMBER_LIFE[1], count).astype(np.float32),
+        "life": np.where(rng.random(count) < EMBER_LONG[0], rng.integers(*EMBER_LONG[1], count), rng.integers(EMBER_LIFE[0], EMBER_LIFE[1], count)).astype(np.float32),
         "size": rng.uniform(0.004, 0.009, count).astype(np.float32) * height,
     }
     if "pos" not in pool:
@@ -258,14 +261,14 @@ def draw_embers(layer, pool: dict, frame_index: int, alpha: float) -> None:
             _smooth_noise(pos[:, 0] / (0.05 * height) - frame_index * 0.15, 2.0) * 0.5,
         ], axis=1).astype(np.float32)
         # Las livianas flotan; las más grandes (trozos pesados) caen con gravedad.
-        heavy = (pool["size"] > 0.0078 * height)[:, None]
-        lift = np.where(heavy, np.array([0.0, 0.0016 * height], np.float32), np.array([0.0, -0.0012 * height], np.float32))
-        pool["vel"] = vel * 0.9 + wobble * (0.0025 * height) + lift
+        heavy = (pool["size"] > 0.0085 * height)[:, None]  # ~10%: los trozos pesados caen
+        lift = np.where(heavy, np.array([0.0, 0.0012 * height], np.float32), np.array([0.0, -0.0005 * height], np.float32))
+        pool["vel"] = vel * 0.85 + wobble * (0.0012 * height) + lift
         pool["pos"] = pos + pool["vel"]
     pos, vel = pool["pos"], pool["vel"]
     age = (frame_index - pool["born"]) / pool["life"]
     colors = _ember_color(age)
-    shrink = np.clip(1.0 - age, 0.0, 1.0) ** 0.6
+    shrink = np.clip(1.0 - age, 0.0, 1.0) ** 1.2  # se consumen (antes casi no se achicaban)
     height, width = layer.shape[:2]
     lo = np.floor(pos.min(axis=0) - 12).astype(int)
     hi = np.ceil(pos.max(axis=0) + 12).astype(int)
@@ -368,7 +371,13 @@ def flush_fire(layer, frame_index: int, u: float | None = None, st: dict | None 
             embers["inherit"] = (center_now - prev_c) * 0.5 if prev_c is not None and np.linalg.norm(center_now - prev_c) < 0.15 * height else np.zeros(2, np.float32)
         # Pocas: una brasa cada ~14.000 px de fuego por cuadro; al morir, tres veces más (se deshace).
         dying = u is not None and u > DIE_START
-        rate = min(float(m.sum()) / 22000.0 * (3.0 if dying else 1.0), 4.0)
+        # Como en las referencias: cuando la masa se achica (se recoge o muere) suelta el doble de
+        # trozos que cuando crece.
+        mass = float(m.sum())
+        before = embers.get("mass", mass)
+        embers["mass"] = mass
+        trend = 2.0 if mass < before * 0.9 else (0.6 if mass > before * 1.05 else 1.0)
+        rate = min(mass / 15000.0 * (3.0 if dying else 1.0) * trend, 6.0)
         embers["look"] = look
         emit_embers(embers, m, (x0, y0), frame_index, rate, height)
         draw_embers(layer, embers, frame_index, 1.0)
@@ -452,7 +461,8 @@ def ribbon(spine: np.ndarray, widths: np.ndarray, frame_index: int, tongues: flo
         return lambda k: None
     normal = _normals(spine)
     t = np.linspace(0, 1, len(spine))
-    drift = frame_index * 0.12  # el ruido corre por la cinta con el tiempo, sin parpadear
+    length = float(np.linalg.norm(np.diff(spine, axis=0), axis=1).sum())
+    drift = frame_index * 0.12 * flicker(length)  # el ruido corre por la cinta, más lento en las cintas largas
     flick = 1.0 + 0.75 * np.maximum(0.0, _smooth_noise(t * tongues * 1.6 - drift, phase + 1.0)) ** 2
     calm = 1.0 + 0.2 * _smooth_noise(t * tongues * 1.1 - drift, phase + 2.0)
     # Cortes dentados: muescas en V, afiladas, en lugares fijos de la cinta (viajan con ella).
@@ -576,12 +586,30 @@ def flame_profile(s: np.ndarray, width: float, seed: float = 0.0, frame_index: i
     return width * np.where(s < b, bottom, body * bumps) + 0.5
 
 
+FLICKER_REF = 200.0  # px: una llama de este largo aletea a la velocidad base
+
+
+def flicker(length: float) -> float:
+    """Velocidad del aleteo según el tamaño: las llamas reales aletean a 10-20 Hz y la frecuencia
+    escala con 1/√tamaño (Cetegen y Ahmed; Byram y Nelson): las chicas rápidas, las grandes (la
+    pared, la alfombra) más lentas."""
+    return float(np.clip(np.sqrt(FLICKER_REF / max(length, 1.0)), 0.5, 1.8))
+
+
+def s_or_c(s: np.ndarray, length: float, frame_index: int, seed: float) -> np.ndarray:
+    """Desvío lateral que alterna la forma de la llama entre una C y una S (la regla de animación
+    del fuego: S que se vuelve C y vuelve a S), al ritmo del aleteo."""
+    k = 1.5 + 0.5 * np.sin(frame_index * 0.35 * flicker(length) + seed * 2.1)  # 1 = C, 2 = S
+    return np.sin(np.pi * s * k) * 0.08 * length * s
+
+
 def teardrop(base: np.ndarray, up: np.ndarray, length: float, width: float, frame_index: int, seed: float = 0.0, curl: float = 0.0):
     """make(k) de una llama que sube desde `base` en la dirección `up` y se mece. `curl` (en
     vueltas, con signo para el lado) enrosca la punta en un gancho, como las llamas de anime."""
     side = np.array([-up[1], up[0]])
     s = np.linspace(0, 1, 26 if curl else 18)
-    sway = _smooth_noise(s * 2.5 - frame_index * 0.08, seed) * 0.2 * length * s  # se mece sin patrón
+    # Se mece sin patrón, al ritmo de su tamaño, y alterna entre C y S.
+    sway = _smooth_noise(s * 2.5 - frame_index * 0.08 * flicker(length), seed) * 0.2 * length * s + s_or_c(s, length, frame_index, seed)
     if curl:
         # El rumbo gira cada vez más hacia la punta: la llama sube y se enrosca sobre sí misma.
         angle = curl * TAU * np.clip((s - 0.45) / 0.55, 0.0, 1.0) ** 1.6
@@ -603,7 +631,7 @@ def flame_parts(base: np.ndarray, up: np.ndarray, tall: float, width: float, fra
     velocidad): con la mano rápida el cuerpo se dobla siguiendo su recorrido, como una estela."""
     side = np.array([-up[1], up[0]])
     s = np.linspace(0, 1, 32)
-    sway = _smooth_noise(s * 2.5 - frame_index * 0.09, seed) * 0.18 * tall * s ** 1.3
+    sway = _smooth_noise(s * 2.5 - frame_index * 0.09 * flicker(tall), seed) * 0.18 * tall * s ** 1.3 + s_or_c(s, tall, frame_index, seed)
     spine = base + np.outer(s * tall, up) + np.outer(sway, side)
     if trail is not None and len(trail) >= 3 and swoosh > 0:
         # Estela: el punto s del cuerpo va hacia la posición que tenía el ancla hace s·n cuadros
@@ -731,33 +759,41 @@ def pieces(spine: np.ndarray, widths: np.ndarray, seed: int, gap: float = 0.05) 
 
 
 def shed(layer, spine: np.ndarray, widths: np.ndarray, st: dict, frame_index: int, scale: float, color, alpha: float, rate: float = 1.0) -> None:
-    """Escamas de fuego que se desprenden del borde de la llama: medialunas que salen, giran y
-    se apagan en ~10 cuadros."""
+    """Escamas de fuego que se desprenden del borde de la llama: medialunas que salen, giran, frenan
+    y se consumen. Calibrado con tools/measure_fire.py --trozos contra video_51 y video_18: viven
+    2-5 cuadros (unas pocas, más), se achican hasta ~15% de su área, suben ~0,15% del alto por
+    cuadro y derivan algo más de lo que suben."""
     flakes = st.setdefault("flakes", [])
     rng = np.random.default_rng(frame_index * 31 + len(flakes))
-    if len(spine) >= 3 and rng.random() < 0.8 * rate:
+    height = layer.shape[0]
+    if len(spine) >= 3 and rng.random() < 0.95 * rate:
         normal = _normals(spine)
-        for _ in range(1 + int(rng.random() < 0.5 * rate)):
+        for _ in range(1 + int(rng.random() < 0.6 * rate) + int(rng.random() < 0.3 * rate)):
             i = int(rng.integers(len(spine) // 3, len(spine)))
             side = rng.choice([-1.0, 1.0])
             pos = spine[i] + normal[i] * widths[i] * side
-            vel = normal[i] * side * rng.uniform(0.02, 0.05) * scale + np.array([0.0, -0.015 * scale])
-            flakes.append([pos.copy(), vel, frame_index, rng.uniform(0.04, 0.08) * scale, rng.uniform(0, TAU)])
+            vel = normal[i] * side * rng.uniform(0.003, 0.006) * height  # sale hacia afuera (y frena)
+            life = rng.integers(6, 9) if rng.random() < 0.1 else rng.integers(2, 6)
+            # Del tamaño de los trozos de la referencia: ~1% del alto del cuadro (área mediana de
+            # 92 px a 540x960); antes eran de 10 a 20 veces más chicas y no se notaban.
+            flakes.append([pos.copy(), vel, frame_index, rng.uniform(0.008, 0.02) * height, rng.uniform(0, TAU), int(life)])
     keep = []
     for flake in flakes:
-        pos, vel, born, size, spin = flake
+        pos, vel, born, size, spin, life = flake
         age = frame_index - born
-        if age > 10:
+        if age > life:
             continue
         keep.append(flake)
-        at = pos + vel * age
-        fade = 1.0 - age / 10.0
+        # Hacia afuera frena; hacia arriba sube parejo (el aire caliente): ~0,28% del alto por cuadro.
+        at = pos + vel * (1.0 - 0.85 ** age) / 0.15 + np.array([0.0, -0.0028 * height * age])
+        fade = (1.0 - age / (life + 1.0)) ** 0.9  # el tamaño se consume (el área cae a ~15%)
         a = spin + age * 0.4
         arc = np.linspace(a, a + 2.4, 10)  # una medialuna: dos arcos de distinto radio
         outer = at + np.stack([np.cos(arc), np.sin(arc)], axis=1) * size * fade
         inner = at + np.stack([np.cos(arc[::-1]), np.sin(arc[::-1])], axis=1) * size * fade * 0.6 + np.array([np.cos(a + 1.2), np.sin(a + 1.2)]) * size * 0.25
         crescent = np.vstack([outer, inner])
-        fill_polygon(layer, crescent, MID, alpha * fade, 1.4, feather=0.8)
+        # Opaca hasta el final: se consume achicándose, no volviéndose transparente (la referencia).
+        fill_polygon(layer, crescent, MID, alpha, 1.4, feather=0.8)
     st["flakes"] = keep
 
 
