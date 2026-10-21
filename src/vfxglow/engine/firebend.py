@@ -452,21 +452,31 @@ def _cel_body(m: np.ndarray, look: str, frame_index: int, box: tuple[int, int, i
     return m, flat * (1.0 - core) + body * core
 
 
-def erode(shape: np.ndarray, binary: np.ndarray, die: float, seed: int, box: tuple[int, int, int, int], size: tuple[int, int]) -> np.ndarray:
-    """La muerte de una llama: se vacía desde el centro y el borde que queda se parte en tramos.
-    `shape` es la máscara (0-1) del recuadro `box` (x0, y0, x1, y1) de un cuadro de `size` (alto, ancho)."""
+def erode(shape: np.ndarray, binary: np.ndarray, die: float, seed: int, box: tuple[int, int, int, int], size: tuple[int, int], order: np.ndarray | None = None) -> np.ndarray:
+    """La muerte de una llama, como la animan los efectistas (Flash FX, VFX Apprentice) y como se
+    apaga una llama real (pierde altura): lo más alto (o la punta) se va primero, la llama baja
+    hacia su base y lo que queda se parte en escamas que se achican. `order` (0-1, misma forma que
+    `shape`) dice qué muere antes (1 = primero); sin él, la altura dentro de la forma. `shape` es la
+    máscara (0-1) del recuadro `box` (x0, y0, x1, y1) de un cuadro de `size` (alto, ancho)."""
     if die <= 0:
         return shape
     x0, y0, x1, y1 = box
     height, width = size
-    dist = cv2.distanceTransform(binary, cv2.DIST_L2, 5)
-    local = cv2.dilate(dist, np.ones((25, 25), np.uint8))
-    center = dist / np.maximum(local, 1.0)  # 1 en el centro de cada parte, 0 en su borde
+    if order is None:
+        rows = np.nonzero(binary.any(axis=1))[0]
+        top, bottom = (rows.min(), rows.max()) if len(rows) else (0, shape.shape[0] - 1)
+        ys = np.arange(shape.shape[0], dtype=np.float32)[:, None]
+        order = np.clip((bottom - ys) / max(bottom - top, 1), 0.0, 1.0) * np.ones_like(shape)
     coarse = _noise(height, width, 0, 31 + seed)[y0:y1, x0:x1]
     fine = _fine_noise(height, width, 57 + seed)[y0:y1, x0:x1]
-    field = center + 0.35 * coarse + 0.55 * fine  # el ruido fino parte el borde en tramos
-    limit = 1.3 - 1.9 * die  # sube el umbral: primero cae el centro, al final el borde
-    return shape * np.clip((limit - field) / 0.08, 0.0, 1.0)
+    # Los bordes se van un poco antes que el centro: lo que queda se angosta y se achica (no se
+    # agujerea como una esponja).
+    dist = cv2.distanceTransform(binary, cv2.DIST_L2, 5)
+    edge = 1.0 - dist / max(float(dist.max()), 1.0)
+    # El ruido corta el frente en trozos (escamas) sin volverlo poroso.
+    field = 0.85 * order + 0.3 * edge + 0.08 * coarse + 0.1 * fine
+    limit = 1.25 - 1.5 * die  # el frente baja de la punta a la base y termina justo al final
+    return shape * np.clip((limit - field) / 0.04, 0.0, 1.0)
 
 
 def _fine_noise(height: int, width: int, seed: int) -> np.ndarray:
@@ -773,7 +783,20 @@ def living_ribbon(layer, spine: np.ndarray, widths: np.ndarray, u: float, st: di
     shape = mask.astype(np.float32) / 255.0
     die = float(np.clip((u - DIE_START) / (1.0 - DIE_START), 0.0, 1.0))
     if die > 0:
-        shape = erode(shape, mask, die, int(st.setdefault("seed", frame_index % 97)), (x0, y0, x1, y1), (height, width))
+        # El orden de muerte sigue la línea central: de la punta hacia la base (donde nace).
+        order = np.zeros(mask.shape, np.float32)
+        k = len(part)
+        values = np.linspace(0.0, 1.0, k - 1)
+        if grow_from_end:
+            values = values[::-1]  # la base es donde la cinta nace
+        # De la punta a la base: lo más cercano a la base se dibuja último y no queda tapado.
+        for i in np.argsort(-values):
+            a, b = np.round(part[i] - [x0, y0]).astype(int), np.round(part[i + 1] - [x0, y0]).astype(int)
+            line = max(int(np.ceil(float(part_w[i]) * 2.6)), 2)
+            cv2.line(order, (int(a[0]), int(a[1])), (int(b[0]), int(b[1])), float(values[i]), line)
+        shape = erode(shape, mask, die, int(st.setdefault("seed", frame_index % 97)), (x0, y0, x1, y1), (height, width), order)
+        if runtime is not None and die < 0.9:  # lo que se desprende de la punta: escamas que suben
+            shed(layer, part[::-1] if grow_from_end else part, part_w, st, frame_index, float(np.max(part_w)) * 4, color, alpha, 1.5)
     entry = _entry(layer)
     entry["alpha"] = max(entry["alpha"], float(alpha))
     entry["alive"] = True  # ya trae su propia vida: flush_fire no lo vuelve a erosionar

@@ -535,3 +535,22 @@ def test_looks_apply_over_the_catalog_without_touching_it() -> None:
     colors = {o.name: e["style"]["colors"][1] for r in themed.reactions for o in r.options for e in o.effects if e.get("type") == "lightning"}
     assert colors["rayo"] == [0.72, 0.3, 1.0] and colors["rayo_fuego"] == [1.0, 0.5, 0.1]  # el rayo de fuego no cambia
     assert "fire_palette" not in original.defaults.get("style", {})  # el original intacto
+
+
+def test_a_dying_flame_goes_from_the_top_down_and_stays_opaque() -> None:
+    st: dict = {}
+    base = np.array([200.0, 520.0])
+    tops, areas, peak = [], [], []
+    for k, u in enumerate(np.linspace(0.6, 0.95, 8)):
+        layer = np.zeros((600, 400, 4), np.float32)
+        spine, widths = firebend.flame_parts(base, np.array([0.0, -1.0]), 360.0, 80.0, 10, 1.3)[0]
+        firebend.living_ribbon(layer, spine, widths, float(u), st, 10 + k, None, 1.0, None, grow_from_end=False)
+        firebend.flush_fire(layer, 10 + k)
+        m = layer[..., 3] > 0.5
+        ys = np.nonzero(m.any(axis=1))[0]
+        tops.append(ys.min() if len(ys) else 600)
+        areas.append(int(m.sum()))
+        peak.append(float(layer[..., 3].max()))
+    assert all(b >= a for a, b in zip(tops, tops[1:])) and tops[5] > tops[0] + 100  # baja desde arriba
+    assert areas[-1] < 0.1 * areas[0] and areas[3] > 0.4 * areas[0]  # se consume poco a poco
+    assert min(p for p, a in zip(peak, areas) if a > 50) > 0.8  # opaca mientras queda algo (no se vuelve transparente)
