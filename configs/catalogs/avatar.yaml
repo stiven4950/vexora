@@ -171,6 +171,7 @@ reactions:
       # video_51, seg. 2,4: si el fuego venía en los pies (una voltereta), al caer se desbarata en
       # el suelo; si no, el golpe de piso.
       - name: desbarate
+        cooldown: 60  # una vez por caída, no en cada rebote
         weight: 0.6
         # Consecuencia de la voltereta con el fuego en los pies (si no la hubo, no entra).
         follows: [{after: "flip:estelas", within_s: 1.5, boost: 10}, {after: "tumble:estelas", within_s: 1.5, boost: 10}]
@@ -508,6 +509,7 @@ reactions:
   - action: tumble
     options:
       - name: desbarate
+        cooldown: 60  # una vez por caída, no en cada rebote
         weight: 0.3
         follows: [{after: "flip:estelas", within_s: 1.5, boost: 10}]
         requires_follow: true
