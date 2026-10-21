@@ -171,7 +171,7 @@ Responde SOLO este JSON (sin texto fuera de él):
 
 
 # Marcas de estilo que viajan en `shapes` pero no son figuras (cómo se dibuja, no qué).
-STYLE_FLAGS = {"no_outline", "no_fill", "lines_only", "partial", "abs", "wave", "wave_down", "hem", "flap", "stitches", "dots"}
+STYLE_FLAGS = {"no_outline", "no_fill", "lines_only", "partial", "abs", "wave", "wave_down", "hem", "flap", "stitches", "dots", "glow"}
 
 
 def figures(option) -> list[str]:
@@ -196,7 +196,14 @@ def catalog_text(catalog) -> str:
 # Las figuras de fuego del estilo Avatar (engine/firebend.py, engine/fire_creatures.py): no son
 # metáforas raras sino el lenguaje del estilo, y el modelo debe saber qué dibuja cada una.
 FIRE_FIGURES = {
-    "fire_whip": "látigo de fuego en medialuna con la forma del golpe (con las dos manos, dos medialunas espejadas grandes)",
+    "fire_trail": "la estela de fuego (el swoosh de fuego, el efecto más recurrente): la mano o el pie lleva la llama prendida y, al moverse, el fuego la persigue por su recorrido; sale de las manos cuando ellas tienen la atención y de los pies en volteretas, rodadas o patadas",
+    "fire_whip": "medialunas de fuego grandes y espejadas con las dos manos: solo al abrir los brazos o en un salto (no en cada golpe)",
+    "fire_blast": "chorro de fuego desde el puño en la dirección del antebrazo, que se abre en lenguas al final (lanzar, empujar)",
+    "fire_halo": "aro grande de fuego que sube de un pie y rodea todo el cuerpo (giros y volteretas)",
+    "fire_orbit": "la mano pone el fuego a girar alrededor del cuerpo, lo atrapa al completar la vuelta y, si estira el brazo o abre la mano, lo lanza como explosión",
+    "fire_landing": "al caer al piso con el fuego en los pies (después de una voltereta), el fuego se desbarata en el suelo",
+    "fire_phoenix": "un fénix de fuego que sale del puño al lanzar y se va volando sin volver",
+    "fire_dragon_launch": "un dragón oriental de fuego que sale del puño al lanzar y se va ondulando sin volver",
     "hand_fire": "llamas de base redonda que suben de las manos",
     "candle": "una sola llama entre las manos juntas que se achica",
     "floor_fire": "fuego a ras del piso bajo la mano o el pie",
@@ -208,8 +215,43 @@ FIRE_FIGURES = {
     "fire_breath": "el fuego sube a la cabeza, sale por la boca y queda una cara de demonio",
     "fire_dragon": "las llamas suben por los brazos y forman un dragón de alas enormes",
     "body_blaze": "el cuerpo arde: llamas en brazos y piernas y alas de fuego",
-    "avatar_mark": "estado Avatar: flecha en la frente y ojos encendidos",
+    "avatar_mark": "estado Avatar: la flecha que sube de la frente por la cabeza (de espaldas, por la columna) y los ojos encendidos",
+    "wind": "viento (elemento aire): pinceladas anchas de aire, blancas lisas o de neón azul, que siguen a las extremidades rápidas en giros, saltos y volteretas",
 }
+
+# Los momentos de temporada (Halloween): cada uno es la consecuencia de un gesto, no decoración.
+SEASON_FIGURES = {
+    "bat_release": "la mano que suelta algo (golpe, brazos abiertos, lanzamiento) libera murciélagos que escapan hacia arriba",
+    "claw_slash": "un tajo con la mano deja cuatro arañazos en la dirección del golpe",
+    "ghost_rise": "al pisar fuerte sale un fantasma del piso, donde pisó el pie",
+    "pumpkin_head": "en una pausa de frente a la cámara la cabeza se vuelve una calabaza tallada encendida (solo de frente y quieto)",
+    "spider_drop": "si se queda quieto, una araña baja de su hilo hasta la cabeza",
+    "web_corner": "si se queda quieto mucho rato, crece una telaraña en la esquina de arriba",
+    "bat_swarm": "un enjambre de murciélagos sale del cuerpo en un movimiento frenético",
+}
+
+# Reglas del estilo Avatar (configs/catalogs/avatar.yaml): el coreógrafo las cumple solo, pero lo
+# que fija el modelo pasa por encima, así que el modelo tiene que conocerlas.
+AVATAR_RULES = """Reglas del estilo Avatar (respétalas: lo que tú fijas pasa por encima del sistema):
+- Un elemento por capítulo: el video se cuenta en tramos de 3 a 4 s y cada tramo es de UN solo
+  elemento (fuego, rayo o aire). El fuego abre, cierra y vuelve después de cada tramo de rayo o
+  de aire. Nunca pongas un rayo o un viento dentro de un tramo de fuego, ni al revés.
+- El swoosh de fuego (estela) es el efecto principal: úsalo en la mayoría de golpes, estocadas y
+  giros. Las medialunas solo al abrir los brazos o en un salto; el chorro, poco.
+- El fuego va donde está la atención: de las manos cuando son ellas las que mandan; en
+  volteretas, rodadas o patadas, de los pies.
+- Continuidad: el fuego nunca aparece ni desaparece de golpe. Al pasar de una extremidad a otra
+  (de una mano a la otra, de la cabeza a la mano, de las manos a los pies) el sistema lo hace
+  viajar solo; tú elige momentos seguidos que cuenten ese viaje (por ejemplo, la calavera y
+  luego el puño que lanza; la voltereta y luego la caída que desbarata el fuego).
+- El rayo sale solo de las manos y se lanza desde ellas: en un tramo de rayo, al lanzar, señalar
+  o extender el brazo; nunca de los pies ni del cuerpo.
+- El viento (aire) va en un tramo de giros, saltos o volteretas.
+- Las criaturas (ave, serpiente, dragón, fénix y dragón lanzados) salen como mucho una vez cada
+  una por video, en los momentos más fuertes; la calavera, pocas veces. Las bestias lanzadas, solo
+  en un lanzamiento o un golpe con el brazo extendido.
+- No fijes cierres en el piso: la pared o la alfombra de fuego del final las pone el sistema solo
+  si la persona termina quieta y de frente."""
 
 
 def build_prompt(catalog, duration: float) -> str:
@@ -217,7 +259,11 @@ def build_prompt(catalog, duration: float) -> str:
     shapes = {s for r in catalog.reactions for o in r.options for e in o.effects for s in e.get("style", {}).get("shapes", [])}
     fire = [f"- {name}: {text}" for name, text in FIRE_FIGURES.items() if name in shapes]
     if fire:  # el estilo Avatar: el fuego es el lenguaje principal, no un acento
-        stories += "\n\nFiguras de fuego de este estilo (úsalas en casi todos los momentos; las de criatura, como la calavera, el ave, el aliento o el dragón, en los 3 a 5 momentos más fuertes):\n" + "\n".join(fire)
+        stories += "\n\nFiguras del estilo Avatar (el fuego en casi todos los momentos; las opciones \"rayo\" son el rayo cian que sale de la mano):\n" + "\n".join(fire)
+        stories += "\n\n" + AVATAR_RULES
+    season = [f"- {name}: {text}" for name, text in SEASON_FIGURES.items() if name in shapes]
+    if season:  # una temporada encima: sus momentos son consecuencias de un gesto, no adornos
+        stories += "\n\nMomentos de la temporada (solo con el gesto que los provoca, pocas veces cada uno):\n" + "\n".join(season)
     return PROMPT.format(duration=duration, catalog=catalog_text(catalog), stories=stories)
 
 
