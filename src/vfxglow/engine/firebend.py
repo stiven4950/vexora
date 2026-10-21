@@ -376,6 +376,13 @@ def flush_fire(layer, frame_index: int, u: float | None = None, st: dict | None 
     x0, x1 = max(xs.min() - pad, 0), min(xs.max() + pad + 1, width)
     y0, y1 = max(ys.min() - pad, 0), min(ys.max() + pad + 1, height)
     m = mask[y0:y1, x0:x1]
+    if entry.get("lace"):
+        # Fuego de piso como encaje (video_51, seg. 2,4): huecos por donde se ve el piso, solo
+        # donde la masa es ancha; el ruido corre con el tiempo (el fuego hierve).
+        dist = cv2.distanceTransform((m > 0.5).astype(np.uint8), cv2.DIST_L2, 3)
+        wide = np.clip((dist - 0.004 * height) / (0.005 * height), 0.0, 1.0)
+        boil = 0.5 * _noise(height, width, frame_index // 2, 61)[y0:y1, x0:x1] + _fine_noise(height, width, 63 + (frame_index // 3) % 4)[y0:y1, x0:x1]
+        m = m * (1.0 - np.clip((boil - 0.3) / 0.08, 0.0, 1.0) * wide)
     if entry.get("pixel"):  # pixel art: la forma en bloques de un píxel grande
         block = max(int(round(entry["pixel"] * height)), 2)
         h_, w_ = m.shape
@@ -1316,11 +1323,57 @@ def _fire_blast(body, scale, frame_index, runtime, layer, color, alpha, event) -
     return []
 
 
+def _floor_burst(layer, center_x: float, floor_y: float, half_width: float, unit: float, grow: float, frame_index: int, seed: int, color, alpha: float, runtime, lean: float = 0.0) -> None:
+    """Fuego de piso como el de video_51 (seg. 2,4-2,9), medido: una masa baja y ancha (llega al
+    ~20% del alto) partida en muchas piezas, con huecos por donde se ve el piso (encaje) y lenguas
+    de largos muy distintos que salen del borde hacia afuera con la punta en gancho; algunas
+    acostadas sobre el piso por la perspectiva. Hierve: las lenguas cambian de largo y se mecen.
+    `lean` inclina todo hacia un lado (-1 a 1)."""
+    rng = np.random.default_rng(seed)
+    w = half_width * (0.35 + 0.65 * grow)
+    # La base: una franja baja y ancha con el borde de arriba irregular (se funde como masa).
+    xs = np.linspace(-1.0, 1.0, 40)
+    top = floor_y - unit * (0.25 + 0.3 * (1 - xs ** 2)) * grow * (1.0 + 0.35 * _smooth_noise(xs * 4.0 + frame_index * 0.15, seed * 0.1))
+    # Hacia la cámara el fuego se extiende por el piso (en la referencia ocupa la franja de abajo).
+    bottom = floor_y + unit * 1.1 * (1 - xs ** 2) ** 0.6 * grow * (1.0 + 0.3 * _smooth_noise(xs * 3.0 - frame_index * 0.12, seed * 0.3))
+    band = np.vstack([np.stack([center_x + xs * w, top], axis=1), np.stack([center_x + xs[::-1] * w, bottom[::-1]], axis=1)])
+    cel(layer, lambda k: band, color, alpha, runtime, 0.6, mass=True)
+    entry = _entry(layer)
+    entry["lace"] = True
+    # Las lenguas: del borde de arriba, hacia afuera según de qué lado salen, con gancho hacia afuera.
+    for j in range(24):
+        f = rng.uniform(-1.0, 1.0)
+        x = center_x + f * w
+        depth = rng.random() ** 1.5  # de los pies (0) hacia la cámara (1): más adelante, más grandes
+        y = floor_y + unit * (-0.2 + 1.0 * depth * (1 - f * f) ** 0.6) * grow
+        side = np.sign(f) if abs(f) > 0.08 else rng.choice([-1.0, 1.0])
+        lying = abs(f) > 0.7 and rng.random() < 0.6  # en las orillas, acostadas sobre el piso
+        reach = rng.random() ** 0.7
+        # Se abren hacia afuera y bajas, como en la referencia (no una fuente que sube al centro);
+        # las más largas se paran más (las columnas altas de los costados a 2,43 s).
+        tilt = (1.0 + 0.6 * rng.random()) if lying else (0.45 + 0.9 * abs(f) + 0.3 * rng.random()) * (1.0 - 0.6 * reach ** 3)
+        d = np.array([side * tilt + lean * 0.4, -0.8 if not lying else -0.3])
+        d /= float(np.linalg.norm(d))
+        near = 1.0 - abs(f) ** 1.3
+        boil = 1.0 + 0.3 * _smooth_noise(np.array([frame_index * 0.18 + j * 1.9]), seed + 5.0)[0]
+        big = 0.8 + 0.6 * depth
+        # Las altas en los costados; en el centro bajas, para que se vea la persona (ref. 2,43 s).
+        tall = unit * (0.5 + 1.9 * (0.25 + 0.75 * abs(f) ** 0.7) * reach) * big * grow * boil  # largos muy distintos
+        thin = unit * (0.14 + 0.16 * rng.random()) * (0.6 + 0.4 * near) * big * grow
+        curl = -side * (0.18 + 0.2 * rng.random())  # gancho hacia afuera, sin rulos cerrados
+        cel(layer, teardrop(np.array([x, y]), d, tall, thin + 0.5, frame_index, seed * 0.37 + j * 1.3, curl), color, alpha, None)
+    # Trozos sueltos alrededor: comas chicas que saltan del borde.
+    for j in range(6):
+        f = rng.uniform(-1.1, 1.1)
+        at = np.array([center_x + f * w, floor_y - unit * rng.uniform(0.6, 1.6) * grow])
+        d = np.array([np.sign(f) * 0.8, -1.0]) / np.hypot(0.8, 1.0)
+        cel(layer, teardrop(at, d, unit * 0.3 * grow, unit * 0.06 * grow + 0.5, frame_index, j * 2.7, 0.3 * np.sign(f)), color, alpha, None)
+
+
 def _fire_carpet(body, scale, frame_index, runtime, layer, color, alpha, event, u: float | None = None, size: float = 1.0) -> list:
-    """Alfombra de fuego en el piso (video_51, seg. 2,7): gotas gordas en gancho repartidas al azar
-    sobre una elipse del piso alrededor de los pies, todas inclinadas hacia el mismo lado y más
-    grandes cuanto más cerca de la cámara (más abajo en el cuadro). Al encimarse forman una masa
-    irregular, y los espacios entre ellas son los huecos por donde se ve el piso."""
+    """El fuego que cae al piso y se desbarata (video_51, seg. 2,4): el fuego de piso (_floor_burst)
+    alrededor de los pies. Nace en 2 cuadros (la masa de golpe), hierve y muere desde arriba,
+    partiéndose en trozos (la vida del efecto, como el resto del fuego)."""
     floor = _floor(body, scale)
     feet = [p for p in (body.get(j) for j in ("left_ankle", "right_ankle")) if p is not None]
     if floor is None or not feet:
@@ -1330,24 +1383,11 @@ def _fire_carpet(body, scale, frame_index, runtime, layer, color, alpha, event, 
         st["x"] = float(np.mean([f[0] for f in feet]))
         st["lean"] = 1.0 if (st["x"] < layer.shape[1] / 2) else -1.0  # hacia el centro del cuadro
     u = _phase(runtime, event) if u is None else u
-    scale = _unit(scale, layer) * size
-    grow = _ease_out(u / GROW_END) if u < DIE_START else 1.0
-    rng = np.random.default_rng(int(st["x"]) * 7 + 3)
-    count = 22
-    # Puntos al azar en la elipse (más densos cerca de los pies), ordenados de atrás hacia adelante.
-    r = np.sqrt(rng.random(count)) * (0.35 + 0.65 * grow)
-    t = rng.uniform(0, TAU, count)
-    xs = st["x"] + np.cos(t) * r * 4.6 * scale
-    ys = floor + np.sin(t) * r * 1.0 * scale + 0.3 * scale
-    for j in np.argsort(ys):
-        depth = 0.75 + 0.45 * float(np.sin(t[j]) * r[j])  # adelante (más abajo), más grande
-        near = 1.0 - float(r[j])
-        tall = (2.6 + 3.8 * near) * depth * scale * grow * (0.6 + 0.6 * rng.random())
-        tall *= 1.0 + 0.15 * _smooth_noise(np.array([frame_index * 0.12 + j * 1.7]), 5.0)[0]
-        d = np.array([0.35 * st["lean"], -1.0])
-        d /= float(np.linalg.norm(d))
-        curl = (0.25 + 0.25 * rng.random()) * st["lean"]
-        cel(layer, teardrop(np.array([xs[j], ys[j]]), d, tall, (0.3 + 0.18 * rng.random()) * depth * scale, frame_index, j * 1.1, curl), color, alpha, runtime, 0.4)
+    height, width = layer.shape[:2]
+    # Del tamaño de la referencia: casi todo el ancho del cuadro y hasta ~20% del alto.
+    unit = max(_unit(scale, layer), 0.08 * height) * size
+    grow = _ease_out(min(u / 0.1, 1.0))  # de golpe: en 2 cuadros
+    _floor_burst(layer, st["x"], floor, max(2.3 * unit, 0.45 * width) * size, unit, grow, frame_index, int(st["x"]) % 997, color, alpha, runtime, st["lean"] * 0.3)
     return []
 
 
@@ -1493,7 +1533,7 @@ def _fire_landing(body, frame, scale, frame_index, runtime, layer, color, alpha,
         from vfxglow.engine.fire_creatures import _fire_splash
 
         return _fire_splash(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
-    return _fire_carpet(body, scale, frame_index, runtime, layer, color, alpha, event, size=0.8)
+    return _fire_carpet(body, scale, frame_index, runtime, layer, color, alpha, event)
 
 
 # Cierres del fuego en el piso: la pared (si se enciende) gana y la alfombra no sale.

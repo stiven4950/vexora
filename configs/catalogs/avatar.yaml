@@ -177,7 +177,7 @@ reactions:
         follows: [{after: "flip:estelas", within_s: 1.5, boost: 10}, {after: "tumble:estelas", within_s: 1.5, boost: 10}]
         requires_follow: true
         effects:
-          - &landing {type: adornment, style: {shapes: [fire_landing]}, trigger: {hold: 12, fade_in: 1, fade_out: 4}}
+          - &landing {type: adornment, style: {shapes: [fire_landing]}, trigger: {hold: 24, fade_in: 1, fade_out: 4}}
           - *heat2
       # Seg. 5,0: el fuego choca contra el piso y se expande en olas que tiemblan como gelatina.
       - name: golpe_piso

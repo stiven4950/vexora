@@ -554,3 +554,29 @@ def test_a_dying_flame_goes_from_the_top_down_and_stays_opaque() -> None:
     assert all(b >= a for a, b in zip(tops, tops[1:])) and tops[5] > tops[0] + 100  # baja desde arriba
     assert areas[-1] < 0.1 * areas[0] and areas[3] > 0.4 * areas[0]  # se consume poco a poco
     assert min(p for p, a in zip(peak, areas) if a > 50) > 0.8  # opaca mientras queda algo (no se vuelve transparente)
+
+
+def test_the_floor_fire_is_a_wide_lace_that_dies_in_pieces() -> None:
+    # Como la caída de video_51 (seg. 2,4-2,9): baja y ancha, con huecos, y muere en ~10 cuadros.
+    st: dict = {}
+    frames = 24
+    holes, heights, areas, pieces = [], [], [], []
+    for k in range(frames):
+        u = (k + 0.5) / frames
+        layer = np.zeros((1000, 560, 4), np.float32)
+        grow = firebend._ease_out(min(u / 0.1, 1.0))
+        firebend._floor_burst(layer, 280.0, 760.0, 250.0, 80.0, grow, 40 + k, 7, (1.0, 0.6, 0.1), 1.0, None)
+        firebend.flush_fire(layer, 40 + k, u, st)
+        m = (layer[..., 3] > 0.5).astype(np.uint8)
+        _contours, tree = cv2.findContours(m, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+        holes.append(0 if tree is None else int((tree[0][:, 3] >= 0).sum()))
+        ys = np.nonzero(m.any(axis=1))[0]
+        heights.append(760 - ys.min() if len(ys) else 0)
+        areas.append(int(m.sum()))
+        pieces.append(cv2.connectedComponents(m)[0] - 1)
+    peak = int(np.argmax(areas))
+    assert max(holes[2:14]) >= 8  # encaje: se ve el piso por los huecos
+    assert max(heights) <= 0.22 * 1000  # baja: no pasa del 22% del cuadro
+    alive = [k for k, a in enumerate(areas) if a > 0.05 * areas[peak]]
+    assert alive[-1] - peak <= 14 and alive[-1] < frames - 1  # se apaga en pocos cuadros
+    assert max(pieces[peak:]) >= 8  # al morir se parte en trozos
