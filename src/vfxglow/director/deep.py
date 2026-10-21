@@ -202,8 +202,11 @@ FIRE_FIGURES = {
     "fire_halo": "aro grande de fuego que sube de un pie y rodea todo el cuerpo (giros y volteretas)",
     "fire_orbit": "la mano pone el fuego a girar alrededor del cuerpo, lo atrapa al completar la vuelta y, si estira el brazo o abre la mano, lo lanza como explosión",
     "fire_landing": "al caer al piso con el fuego en los pies (después de una voltereta), el fuego se desbarata en el suelo",
-    "fire_phoenix": "un fénix de fuego que sale del puño al lanzar y se va volando sin volver",
-    "fire_dragon_launch": "un dragón oriental de fuego que sale del puño al lanzar y se va ondulando sin volver",
+    "fire_phoenix": "un fénix de fuego que sale del puño al lanzar, hace un arco sobre la persona, vuelve en picada a la mano y se usa en el puñetazo siguiente (explosión en estrella)",
+    "fire_dragon_launch": "un dragón oriental de fuego con el mismo ciclo que el fénix: sale del puño, vuelve a la mano y se usa en el golpe",
+    "fire_coil": "una serpiente de fuego que se enrosca en el brazo, rodea el cuerpo siguiendo un giro, sube en espiral y vuelve a la mano para el golpe",
+    "fire_kitsune": "nueve colas de fuego en abanico desde la cadera, que siguen el giro y se abren con los brazos; luego el fuego va a la mano para el golpe",
+    "fire_lion": "melena de fuego alrededor de la cabeza, rugido en anillo y, en el golpe, un zarpazo de tres cortes",
     "hand_fire": "llamas de base redonda que suben de las manos",
     "candle": "una sola llama entre las manos juntas que se achica",
     "floor_fire": "fuego a ras del piso bajo la mano o el pie",
@@ -247,9 +250,11 @@ AVATAR_RULES = """Reglas del estilo Avatar (respétalas: lo que tú fijas pasa p
 - El rayo sale solo de las manos y se lanza desde ellas: en un tramo de rayo, al lanzar, señalar
   o extender el brazo; nunca de los pies ni del cuerpo.
 - El viento (aire) va en un tramo de giros, saltos o volteretas.
-- Las criaturas (ave, serpiente, dragón, fénix y dragón lanzados) salen como mucho una vez cada
-  una por video, en los momentos más fuertes; la calavera, pocas veces. Las bestias lanzadas, solo
-  en un lanzamiento o un golpe con el brazo extendido.
+- Las bestias tienen un objetivo: salen de una extremidad, hacen su recorrido, vuelven a la mano
+  y la persona las usa en un golpe. Elige una bestia SOLO si poco después (1 a 2 s) hay un golpe
+  de esa mano que la use, y cada una como mucho una vez por video. Por gesto: lanzamiento → fénix
+  o dragón; giro → serpiente o kitsune; estocada → león.
+- Cadenas: una voltereta con el fuego en los pies y, si cae al piso enseguida, el desbarate.
 - No fijes cierres en el piso: la pared o la alfombra de fuego del final las pone el sistema solo
   si la persona termina quieta y de frente."""
 
