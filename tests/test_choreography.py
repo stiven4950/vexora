@@ -358,3 +358,29 @@ def test_a_group_limit_caps_options_across_actions() -> None:
     events = [_ev(a, 100 + 60 * i) for i, a in enumerate(("throw", "lunge", "spin_body", "fast_swing"))]
     log = choreograph(catalog, _brief(events))[1]
     assert sum(d.choice.startswith("b_") for d in log.decisions) == 2  # dos bestias por video, no cuatro
+
+
+def test_a_heavy_effect_is_not_combined_with_anything_but_light_ones() -> None:
+    catalog = Catalog.model_validate(
+        {
+            "name": "t",
+            "defaults": {"type": "swoosh", "target": {"kind": "joint", "id": "right_wrist"}},
+            "reactions": [
+                {"action": "throw", "options": [{"name": "bestia", "weight_class": "pesado", "effects": [{"trigger": {"hold": 40}}]}]},
+                {"action": "fast_swing", "options": [{"name": "estela", "effects": [{"trigger": {"hold": 6}}]}]},
+                {"action": "lunge", "options": [{"name": "chispas", "weight_class": "ligero", "effects": [{"trigger": {"hold": 6}}]}]},
+                {"action": "flip", "options": [{"name": "voltereta", "effects": [{"trigger": {"hold": 6}}]}]},
+                {
+                    "action": "landing",
+                    "options": [{"name": "caida", "weight_class": "pesado", "follows": [{"after": "flip:voltereta"}], "effects": [{"trigger": {"hold": 20}}]}],
+                },
+            ],
+        }
+    )
+    events = [_ev("throw", 100), _ev("fast_swing", 120), _ev("lunge", 125), _ev("fast_swing", 300), _ev("flip", 400), _ev("landing", 410)]
+    log = choreograph(catalog, _brief(events))[1]
+    lit = {(d.frame, d.choice) for d in log.decisions}
+    assert (100, "bestia") in lit and (125, "chispas") in lit  # lo ligero sí acompaña al pesado
+    assert (120, "nada (cede al efecto pesado bestia)") in lit  # la estela encimada cede
+    assert (300, "estela") in lit  # lejos del pesado, sale
+    assert (400, "voltereta") in lit and (410, "caida") in lit  # la consecuencia no choca con su causa

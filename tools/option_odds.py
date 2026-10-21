@@ -12,7 +12,7 @@ from collections import Counter
 from pathlib import Path
 
 from vfxglow.analysis.schema import MotionBrief
-from vfxglow.director.choreography import choreograph, load_catalog
+from vfxglow.director.choreography import _chained_pair, choreograph, load_catalog, weight_class
 
 
 def main() -> None:
@@ -29,9 +29,18 @@ def main() -> None:
     seen: Counter = Counter()
     chains: Counter = Counter()
     firsts: Counter = Counter()
+    options = {(r.action, o.name): o for r in catalog.reactions for o in r.options}
+    clashes = 0  # coreografías con un pesado encimado a algo que no es ligero
     for seed in range(args.semillas):
         _, log = choreograph(catalog, brief, seed)
         picks = [(d.frame, d.action, d.choice.split(" ")[0]) for d in log.decisions if not d.choice.startswith("nada")]
+        lit = [(d.frame, d.until, weight_class(options[(d.action, d.choice.split(" (")[0])]), d.action, d.choice.split(" (")[0]) for d in log.decisions if not d.choice.startswith("nada") and (d.action, d.choice.split(" (")[0]) in options]
+        clashes += any(
+            a[2] == "pesado" and b[2] != "ligero" and a[0] <= b[1] and b[0] <= a[1] and not _chained_pair(options[a[3:]], options[b[3:]], a[3], b)
+            for i, a in enumerate(lit)
+            for j, b in enumerate(lit)
+            if i != j
+        )
         for name in {c for _f, _a, c in picks}:
             seen[name] += 1
         for chain in args.cadena:
@@ -44,6 +53,7 @@ def main() -> None:
     print(f"{args.run.name}: {n} coreografías")
     for name in wanted:
         print(f"  {name:20s} {100 * seen[name] // n:3d}%")
+    print(f"  choques pesado+otro: {clashes} de {n} (sin contar una consecuencia con su causa)")
     for chain in args.cadena:
         print(f"  cadena {chain}: la primera {100 * firsts[chain] // n}%; con la segunda después {100 * chains[chain] // max(firsts[chain], 1)}% de esas")
 

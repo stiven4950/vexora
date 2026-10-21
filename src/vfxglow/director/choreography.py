@@ -87,6 +87,10 @@ class Option(_Strict):
     # Grupo con tope compartido en el video (Catalog.group_limits): p. ej. "bestia", para que no
     # salgan más de dos bestias por video aunque cada una tenga su max_uses.
     group: str = ""
+    # Peso visual: "pesado" (cubre mucha pantalla o es complejo: alfombra, aro grande, bestias),
+    # "medio" (estelas, chorro, rayo) o "ligero" (chispas, la mirada). Un pesado no comparte su
+    # tramo con nada que no sea ligero (unclutter). Vacío: según sus figuras (weight_class).
+    weight_class: str = ""
     # Subtipos de la acción admitidos (MotionEvent.kind; p. ej. intent: hand_to_chest).
     kinds: list[str] = Field(default_factory=list)
     # La persona de la acción debe llevar uno de estos accesorios (gafas, máscara...). Si la
@@ -431,6 +435,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
     if catalog.max_gap_s > 0 and not (pins is not None and pins.solo_estos):
         fill_gaps(catalog, brief, events, extra, chosen, decisions, seed, fps, elements, plan)
     always = [] if pins is not None and pins.solo_estos else always_effects(catalog, events, brief.video.frame_count, fps, seed)
+    unclutter(catalog, chosen, decisions, always, brief.video.frame_count, fps)
     effects: list[dict] = list(always)
     for number, (reaction, option, picked, pin) in enumerate(pinned_out):
         for index, raw in enumerate(option.effects):
@@ -511,6 +516,89 @@ def _earned(option: Option) -> bool:
     """La opción exige movimiento fuerte o largo: ese movimiento manda, no cede ante el tope de
     focos ni ante un efecto de escena ya encendido (sí ante otro exclusivo y la cara)."""
     return option.min_speed > 0 or option.min_duration_s > 0 or option.leads
+
+
+# Figuras que cubren mucha pantalla o son complejas (pesadas) y las que casi no ocupan (ligeras); el
+# resto, medias. Así una opción no tiene que decir su peso en el catálogo.
+HEAVY_SHAPES = {
+    "fire_landing", "fire_carpet", "fire_carpet_end", "fire_wall", "fire_halo", "fire_orbit", "body_blaze",
+    "fire_dragon", "fire_skull", "fire_bird", "fire_serpent", "fire_breath", "fire_phoenix", "fire_dragon_launch",
+    "fire_coil", "fire_kitsune", "fire_lion",
+}
+LIGHT_SHAPES = {"sparks", "droplets", "avatar_mark", "cracks", "glow_eyes"}
+LIGHT_TYPES = {"sparks", "droplets", "grade"}
+UNCLUTTER_MARGIN_S = 0.3  # aire entre un efecto pesado y el siguiente
+
+
+def weight_class(option: Option) -> str:
+    """El peso visual de la opción: el que dice el catálogo o, si no, el de sus figuras."""
+    if option.weight_class:
+        return option.weight_class
+    shapes = {shape for raw in option.effects for shape in (raw.get("style") or {}).get("shapes", [])}
+    if shapes & HEAVY_SHAPES:
+        return "pesado"
+    def light(raw: dict) -> bool:
+        figures = set((raw.get("style") or {}).get("shapes", []))
+        return raw.get("type") in LIGHT_TYPES or bool(figures) and figures <= LIGHT_SHAPES
+
+    return "ligero" if all(light(raw) for raw in option.effects) else "medio"
+
+
+def unclutter(catalog: Catalog, chosen: dict, decisions: list, always: list[dict], total: int, fps: float) -> None:
+    """Los efectos pesados no se combinan: mientras uno está encendido (y UNCLUTTER_MARGIN_S antes
+    y después) no sale nada que no sea ligero, para no saturar la escena. Mandan, en orden, lo
+    fijado a mano, la pared del cierre, lo que lleva la atención (leads), los pesados y lo que
+    empieza antes; lo que choca con algo ya aceptado cede. Una consecuencia no choca con lo que
+    la causa (la caída que desbarata el fuego de la voltereta)."""
+    options = {(r.action, o.name): o for r in catalog.reactions for o in r.options}
+    margin = int(round(UNCLUTTER_MARGIN_S * fps))
+    items = []  # (rango, inicio, fin, peso, acción, opción, decisión)
+    for d in decisions:
+        name = d.choice.split(" (")[0]
+        option = options.get((d.action, name))
+        if option is None or not option.effects or d.choice.startswith("nada"):
+            continue
+        heavy = weight_class(option)
+        if heavy == "ligero":
+            continue
+        pinned = d.choice.endswith("(fijado)")
+        rank = (0 if pinned else 1 if option.leads else 2 if heavy == "pesado" else 3, d.frame)
+        items.append((rank, d.frame, max(d.until, d.frame), heavy, d.action, name, d))
+    accepted = []
+    if any("fire_wall" in (raw.get("style") or {}).get("shapes", []) for raw in always):
+        from vfxglow.engine.firebend import closing_frames
+
+        accepted.append((total - closing_frames(total, fps), total, "pesado", "always", "fire_wall"))
+    for _rank, start, end, heavy, action, name, d in sorted(items, key=lambda item: item[0]):
+        option = options[(action, name)]
+        clash = next(
+            (
+                other
+                for other in accepted
+                if (heavy == "pesado" or other[2] == "pesado")
+                and other[0] - margin <= end
+                and start <= other[1] + margin
+                and not _chained_pair(option, options.get((other[3], other[4])), action, other)
+            ),
+            None,
+        )
+        if clash is None or d.choice.endswith(("(fijado)", "(espejo)")):
+            accepted.append((start, end, heavy, action, name))
+            continue
+        picks = chosen.get((action, name), [])
+        if (d.frame, d.target) in picks:
+            picks.remove((d.frame, d.target))
+        d.choice = f"nada (cede al efecto pesado {clash[4]})"
+        d.until = d.frame
+
+
+def _chained_pair(option: Option, other: Option | None, action: str, other_item: tuple) -> bool:
+    """Si una de las dos opciones es la consecuencia de la otra (Option.follows)."""
+
+    def causes(follows: list[Follow], cause_action: str, cause: str) -> bool:
+        return any(f.after in (f"{cause_action}:{cause}", f"*:{cause}") for f in follows)
+
+    return causes(option.follows, other_item[3], other_item[4]) or (other is not None and causes(other.follows, action, option.name))
 
 
 ELEMENT_CUES = {
