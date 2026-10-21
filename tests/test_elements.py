@@ -254,6 +254,12 @@ def test_closing_carpet_rises_from_the_bottom_edge_only_at_the_very_end() -> Non
 
 def _trail(path, joint: str = "right_wrist") -> np.ndarray:
     """Máscara del swoosh de fuego en el último cuadro, con la extremidad recorriendo `path`."""
+    return _trail_frames(path, joint)[-1]
+
+
+def _trail_frames(path, joint: str = "right_wrist") -> list[np.ndarray]:
+    """Máscaras del swoosh de fuego cuadro a cuadro, con la extremidad recorriendo `path`."""
+    out = []
     body = _body()
     frame = (np.array([200.0, 200.0]), np.array([1.0, 0.0]), np.array([0.0, 1.0]))
     event = SimpleNamespace(start_frame=0, end_frame=60, kind="", target=f"p0:{joint}", name="fast_swing")
@@ -266,7 +272,8 @@ def _trail(path, joint: str = "right_wrist") -> np.ndarray:
         layer[:] = 0
         firebend._fire_trail(body, frame, 60.0, f, runtime, layer, None, 1.0, event)
         firebend.flush_fire(layer, f)
-    return (layer[..., 3] > 0.5).astype(np.uint8)
+        out.append((layer[..., 3] > 0.5).astype(np.uint8))
+    return out
 
 
 def test_fire_trail_is_lit_still_and_chases_the_hand_when_it_moves() -> None:
@@ -286,9 +293,41 @@ def test_fire_trail_follows_a_kicking_foot() -> None:
 def test_fire_trail_does_not_hook_after_a_sharp_turn() -> None:
     there = [(60.0 + 25 * i, 330.0) for i in range(8)]
     back = [(there[-1][0] - 25 * i, 330.0 - 3 * i) for i in range(1, 5)]
-    ys, xs = np.nonzero(_trail(there + back))
+    ys, xs = np.nonzero(_main_piece(_trail(there + back)))  # sin las escamas sueltas
     # Solo el tramo de vuelta (exagerado 1,5 veces hacia atrás), sin el gancho de ida.
     assert xs.max() < there[-1][0] + 100 and xs.min() > there[0][0] + 60
+
+
+def test_fire_trail_changes_smoothly_with_a_shaky_detector() -> None:
+    # Un arco con el detector temblando ±4 px: la estela no salta de un cuadro al siguiente.
+    rng = np.random.default_rng(3)
+    t = np.linspace(0.0, np.pi, 16)
+    path = [(200 - 130 * np.cos(a) + rng.uniform(-4, 4), 330 - 90 * np.sin(a) + rng.uniform(-4, 4)) for a in t]
+    masks = _trail_frames(path)
+    for (a, b), point in zip(zip(masks[6:-1], masks[7:]), path[7:]):
+        ys, xs = np.nonzero(b)
+        ya, xa = np.nonzero(a)
+        # La forma vista desde la mano: su centro se corre poco de un cuadro al otro.
+        prev_point = path[path.index(point) - 1]
+        moved = np.hypot((xs.mean() - point[0]) - (xa.mean() - prev_point[0]), (ys.mean() - point[1]) - (ya.mean() - prev_point[1]))
+        assert moved < 25
+
+
+def test_fire_trail_recoils_into_the_hand_when_it_stops() -> None:
+    run = [(60.0 + 22 * i, 330.0) for i in range(12)]
+    stop = [run[-1]] * 10
+    widths = [int(np.ptp(np.nonzero(m)[1])) for m in map(_main_piece, _trail_frames(run + stop))]
+    moving, after = widths[11], widths[12:]
+    assert after[1] > 0.5 * moving  # no se corta de golpe al frenar
+    assert after[5] < 0.25 * moving  # en ~5 cuadros queda solo la llama de la mano
+    shrinking = after[: after.index(min(after)) + 1]
+    assert all(b <= a for a, b in zip(shrinking, shrinking[1:]))  # se recoge, sin estirarse de vuelta
+
+
+def _main_piece(mask: np.ndarray) -> np.ndarray:
+    """La pieza más grande de la máscara (sin las escamas que se desprenden)."""
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
+    return (labels == 1 + int(np.argmax(stats[1:, 4]))).astype(np.uint8) if n > 1 else mask
 
 
 def test_bolt_comes_only_from_the_hands() -> None:

@@ -900,6 +900,9 @@ def rim(layer, runtime, sources: list[np.ndarray], scale: float, color, alpha: f
     layer[..., 3] = 1.0 - (1.0 - layer[..., 3]) * (1.0 - glow)
 
 
+LOW_JOINTS = ("left_wrist", "right_wrist", "left_knee", "right_knee", "left_hip", "right_hip", "nose", "left_shoulder", "right_shoulder")
+
+
 def _floor(body, scale: float) -> float | None:
     feet = [p for p in (body.get(j) for j in ("left_ankle", "right_ankle", "left_heel", "right_heel", "left_foot_index", "right_foot_index")) if p is not None]
     return max(p[1] for p in feet) + 0.02 * scale if feet else None
@@ -999,6 +1002,8 @@ def _fire_whip(body, scale, frame_index, runtime, layer, color, alpha, event) ->
 
 TRAIL_FRAMES = 12  # cuadros del recorrido que forman la estela
 TRAIL_EXAGGERATION = 1.5  # la estela, más larga que el recorrido real (como las de las referencias)
+TRAIL_BLEND = 0.35  # cuánto de la forma del cuadro anterior conserva la estela (continuidad)
+TRAIL_RECOIL = 5  # cuadros en que la estela se recoge hacia la extremidad al frenar
 HANDS, FEET = ("left_wrist", "right_wrist"), ("left_ankle", "right_ankle")
 FEET_EVENTS = ("flip", "tumble")  # dando volteretas la atención está en los pies
 TRANSFER_FRAMES = 12  # lo que tarda el fuego en pasar de unas extremidades a otras
@@ -1073,8 +1078,10 @@ def _fire_trail(body, frame, scale, frame_index, runtime, layer, color, alpha, e
         grow = _ease(_seg(_phase(runtime, event), 0.0, 0.15)) * lit.get(name, 1.0)
         st = _activation(runtime, event, f"trail:{name}", body)
         hist = st.setdefault("hist", [])
-        if hist and float(np.linalg.norm(point - hist[-1])) > 1.5 * scale:
-            hist.clear()  # salto del detector: la estela empieza de nuevo
+        if hist and float(np.linalg.norm(point - hist[-1])) > 1.5 * unit:
+            # Salto del detector: la estela empieza de nuevo (en `unit`: en una voltereta la
+            # escala del cuerpo se achica y un pie rápido parecía un salto).
+            hist.clear()
         for h in hist:  # lo que quedó atrás sube y se mece
             h += up * 0.025 * scale + across * _smooth_noise(np.array([frame_index * 0.2 + h[0] * 0.01]), 3.0)[0] * 0.01 * scale
         hist.append(np.asarray(point, dtype=np.float64).copy())
@@ -1088,47 +1095,75 @@ def _fire_trail(body, frame, scale, frame_index, runtime, layer, color, alpha, e
         # vuelve a crecer. Tamaños en `unit`: si la persona ocupa poco del cuadro, el fuego no se
         # achica con ella (video_51).
         moving = float(np.clip((speed - 0.04) / 0.12, 0.0, 1.0))
+        # Suave entre cuadros: la gota no salta de grande a chica cuando la velocidad tiembla.
+        moving = st["moving"] = st.get("moving", moving) * 0.55 + moving * 0.45
         half = 0.22 * unit * grow * (1.0 - 0.45 * moving)
         tall = 1.0 * unit * grow * (stretch * (1.0 - moving) + 0.35 * moving)
         base = point - up * half * 0.6
         for j, (spine, widths) in enumerate(flame_parts(base, lean, tall, half / np.sqrt(stretch), frame_index, k * 1.7 + 0.3)):
             cel(layer, ribbon(spine, widths, frame_index, 3.0, k * 1.7 + j), color, alpha, runtime if j == 0 else None)
-        # La estela: solo si viene moviéndose; más larga cuanto más rápido.
-        keep = int(np.clip(speed / 0.04, 0, len(pts)))  # quieta: no hay estela
+        # La estela: solo si viene moviéndose; más larga cuanto más rápido. Al frenar no se corta de
+        # golpe: se recoge hacia la extremidad en TRAIL_RECOIL cuadros.
+        keep = float(np.clip(speed / 0.04, 0, len(pts)))
+        before = st.get("keep", 0.0)
+        keep = max(keep, before - max(before / TRAIL_RECOIL, 1.0))
+        st["keep"] = keep
+        keep = int(min(round(keep), len(pts)))
         tail = pts[-keep:] if keep >= 3 else pts[:0]
         if len(tail) >= 3:
-            # Desde la extremidad hacia atrás, hasta que el recorrido gire más de 75° en total (un
-            # giro repartido en varios cuadros también cuenta): un arco suave queda entero, un
-            # cambio de dirección no deja ganchos ni esquinas en V.
+            # Desde la extremidad hacia atrás, hasta un quiebre: un giro brusco de un cuadro al otro
+            # (> 90°), un ida y vuelta (giros a los dos lados que suman > 75°) o más de 200° de vuelta.
+            # El arco de una voltereta queda entero (video_51, seg. 1,9-2,2); un cambio de dirección
+            # no deja ganchos ni esquinas en V.
             d = np.diff(tail, axis=0)
             n = np.linalg.norm(d, axis=1)
             heading = np.arctan2(d[:, 1], d[:, 0])
-            turned = 0.0
+            signed = unsigned = 0.0
             for i in range(len(d) - 1, 0, -1):
                 if n[i] > 1 and n[i - 1] > 1:
-                    turned += abs(float(np.angle(np.exp(1j * (heading[i] - heading[i - 1])))))
-                if turned > np.radians(75):
-                    tail = tail[i:]
-                    break
+                    step = float(np.angle(np.exp(1j * (heading[i] - heading[i - 1]))))
+                    signed += step
+                    unsigned += abs(step)
+                    if abs(step) > np.radians(90) or unsigned - abs(signed) > np.radians(75) or abs(signed) > np.radians(200):
+                        tail = tail[i:]
+                        break
         if len(tail) >= 2:  # tope de largo, medido desde la extremidad hacia atrás
             seg = np.linalg.norm(np.diff(tail, axis=0), axis=1)
             far = np.cumsum(seg[::-1])
-            cut = int(np.searchsorted(far, 2.2 * unit))
+            cut = int(np.searchsorted(far, 3.0 * unit))
             tail = tail[max(len(tail) - 1 - cut - 1, 0):]
-        if len(tail) < 3:
+        # Un recorrido corto es el temblor del detector, no un swoosh (exagerado hacía una estrella).
+        if len(tail) < 3 or float(np.linalg.norm(np.diff(tail, axis=0), axis=1).sum()) < 0.35 * unit:
+            st.pop("shape", None)
             continue
+        from vfxglow.engine.fire_creatures import _smooth_path
+
         q = np.linspace(0, 1, 24)
-        idx = q * (len(tail) - 1)
-        lo = np.floor(idx).astype(int)
-        hi = np.minimum(lo + 1, len(tail) - 1)
-        f = (idx - lo)[:, None]
-        spine = tail[lo] * (1 - f) + tail[hi] * f  # de la cola a la extremidad
+        spine = _smooth_path(tail, 24)  # de la cola a la extremidad, sin quiebres entre cuadros
         # Exagerada como en las referencias: el recorrido 1,5 veces más largo hacia atrás, con la
         # misma forma y la cabeza pegada a la extremidad.
-        spine = spine[-1] + (spine - spine[-1]) * TRAIL_EXAGGERATION
-        widths = (0.03 + 0.4 * q ** 1.2) * unit * grow  # fina en la cola, ancha en la extremidad
+        rel = (spine - spine[-1]) * TRAIL_EXAGGERATION
+        # Continuidad: la forma (relativa a la extremidad) se mezcla con la del cuadro anterior, así
+        # el detector que tiembla no la hace saltar; la cabeza sigue pegada a la extremidad.
+        prev = st.get("shape")
+        if prev is not None and len(prev) == len(rel) and _same_way(prev[0], rel[0]):
+            rel = rel * (1.0 - TRAIL_BLEND) + prev * TRAIL_BLEND  # si cambió de rumbo, no (hacía una V)
+        st["shape"] = rel
+        spine = spine[-1] + rel
+        # Fina en la cola, ancha en la extremidad; una estela corta es fina (ancha y corta, con las
+        # lenguas del borde, era una estrella).
+        span = float(np.linalg.norm(np.diff(spine, axis=0), axis=1).sum())
+        widths = (0.03 + 0.4 * q ** 1.2) * unit * grow * float(np.clip(span / (2.0 * unit), 0.25, 1.0))
         cel(layer, ribbon(spine, widths, frame_index, 5.0, k * 2.3), color, alpha, runtime)
+        # La cola se deshace en escamas (no termina en una punta lisa).
+        shed(layer, spine[::-1], widths[::-1], st, frame_index, scale, color, alpha, 0.8 if moving > 0.3 else 1.5)
     return []
+
+
+def _same_way(a: np.ndarray, b: np.ndarray) -> bool:
+    """Si dos colas (vectores desde la extremidad) apuntan más o menos al mismo lado (< ~45°)."""
+    na, nb = float(np.linalg.norm(a)), float(np.linalg.norm(b))
+    return na > 1e-6 and nb > 1e-6 and float(np.dot(a, b)) / (na * nb) > 0.7
 
 
 def transfer_fire(body, limbs, frame_index: int, scale: float, layer, color, alpha: float, runtime, st: dict) -> dict[str, float]:
@@ -1374,13 +1409,16 @@ def _fire_carpet(body, scale, frame_index, runtime, layer, color, alpha, event, 
     """El fuego que cae al piso y se desbarata (video_51, seg. 2,4): el fuego de piso (_floor_burst)
     alrededor de los pies. Nace en 2 cuadros (la masa de golpe), hierve y muere desde arriba,
     partiéndose en trozos (la vida del efecto, como el resto del fuego)."""
-    floor = _floor(body, scale)
     feet = [p for p in (body.get(j) for j in ("left_ankle", "right_ankle")) if p is not None]
-    if floor is None or not feet:
+    # El piso es lo más bajo del cuerpo (en una voltereta los pies están arriba y el fuego quedaba
+    # en el aire) y nunca sube: al caer, baja con la persona hasta el piso de verdad.
+    low = [p for p in (body.get(j) for j in (*LOW_JOINTS, "left_ankle", "right_ankle")) if p is not None]
+    if not low:
         return []
     st = _activation(runtime, event, "carpet", body)
+    floor = st["floor"] = max(st.get("floor", -1e9), max(p[1] for p in low) + 0.02 * scale)
     if "x" not in st:
-        st["x"] = float(np.mean([f[0] for f in feet]))
+        st["x"] = float(np.mean([f[0] for f in feet])) if feet else float(max(low, key=lambda p: p[1])[0])
         st["lean"] = 1.0 if (st["x"] < layer.shape[1] / 2) else -1.0  # hacia el centro del cuadro
     u = _phase(runtime, event) if u is None else u
     height, width = layer.shape[:2]
