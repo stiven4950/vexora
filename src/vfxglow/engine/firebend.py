@@ -1574,22 +1574,10 @@ def _carpet_end(body, scale, frame_index, runtime, layer, color, alpha) -> list:
     s = _ease(min((frame_index - st["start"]) / max(total - st["start"] - 1, 1), 1.0))
     height, width = layer.shape[:2]
     # Desde el borde de abajo del cuadro hacia arriba (no en el piso de la persona, que puede estar
-    # a media altura): dos filas de lenguas en gancho a lo ancho, la de atrás más alta y fina.
-    rise = height * (0.06 + 0.24 * s)
-    base_y = height + 2
+    # a media altura): el mismo fuego de piso de la caída (_floor_burst), a todo el ancho.
     lean = 1.0 if st.setdefault("lean", 1.0 if frame_index % 2 else -1.0) > 0 else -1.0
-    rng = np.random.default_rng(29)
-    for row, (lift, size, count) in enumerate(((0.35, 0.75, 8), (0.0, 1.0, 9))):
-        for j in range(count):
-            x = width * (j + 0.5 + rng.uniform(-0.25, 0.25)) / count
-            tall = rise * size * rng.uniform(0.6, 1.0) * (0.9 + 0.12 * _smooth_noise(np.array([frame_index * 0.08 + j + row * 3]), 6.0)[0])
-            d = np.array([0.35 * lean, -1.0])
-            d /= float(np.linalg.norm(d))
-            thin = min(tall * rng.uniform(0.25, 0.35), width / count * 0.6)
-            curl = (0.25 + 0.25 * rng.random()) * lean
-            cel(layer, teardrop(np.array([x, base_y - rise * lift]), d, tall, thin, frame_index, row * 11 + j * 1.3, curl), color, alpha, runtime, 0.6)
-    band = np.array([[-0.05 * width, base_y - rise * 0.15], [1.05 * width, base_y - rise * 0.15], [1.05 * width, base_y + 2], [-0.05 * width, base_y + 2]])
-    cel(layer, lambda k: band, color, alpha * 0.8, None, mass=True)  # la base, pegada al borde
+    unit = 0.12 * height * (0.4 + 0.6 * s)
+    _floor_burst(layer, width / 2, height - 0.6 * unit, 0.6 * width, unit, _ease_out(min(s * 3.0, 1.0)), frame_index, 29, color, alpha, None, lean * 0.3)
     return []
 
 
