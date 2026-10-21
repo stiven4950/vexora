@@ -402,15 +402,14 @@ def _orbit(frames: range, arm_out: bool) -> tuple[list[float], dict]:
     from vfxglow.engine.critters import _state
 
     body = _body()
-    if arm_out:  # brazo derecho estirado hacia afuera: hombro (230,200), codo (290,205), muñeca (350,210)
-        body.update(right_elbow=np.array([290.0, 205.0]), right_wrist=np.array([350.0, 210.0]))
-    else:  # brazo doblado: la muñeca vuelve cerca del hombro
-        body.update(right_elbow=np.array([260.0, 260.0]), right_wrist=np.array([235.0, 215.0]))
+    body.update(right_elbow=np.array([260.0, 260.0]), right_wrist=np.array([235.0, 215.0]))  # brazo doblado
     runtime = _runtime(0)
     event = SimpleNamespace(start_frame=0, end_frame=20, kind="right", target="p0:right_wrist", name="lunge")
     frame = (np.array([200.0, 200.0]), np.array([1.0, 0.0]), np.array([0.0, 1.0]))
     xs = []
     for f in frames:
+        if arm_out and f == 28:  # después de atraparlo, estira el brazo (el puñetazo)
+            body.update(right_elbow=np.array([290.0, 205.0]), right_wrist=np.array([350.0, 210.0]))
         runtime.active_frames = f + 1
         layer = np.zeros((H, W, 4), np.float32)
         firebend._fire_orbit(body, frame, 60.0, f, runtime, layer, None, 1.0, event)
@@ -426,25 +425,33 @@ def test_fire_orbit_circles_the_body_and_only_explodes_with_the_arm_out() -> Non
     _xs, bent = _orbit(range(0, 40), arm_out=False)
     assert bent.get("thrown") is None  # brazo doblado: la llama se apaga en la mano
     _xs, out = _orbit(range(0, 40), arm_out=True)
-    assert out.get("thrown") is not None and out["blast"][0] > 350  # brazo estirado: explota hacia afuera
+    assert out.get("thrown") is not None and out["burst_at"][0] > 350  # brazo estirado: explota hacia afuera
 
 
-def test_launched_beasts_fly_away_and_do_not_return() -> None:
+def test_beasts_fly_an_arc_return_to_the_hand_and_burst_on_the_punch() -> None:
+    from vfxglow.engine.critters import _state
     from vfxglow.engine.fire_creatures import fire_creature
 
     for shape in ("fire_phoenix", "fire_dragon_launch"):
-        body = _body()  # brazo derecho hacia la derecha: codo (250,250), muñeca (300,260)
+        body = _body()
+        body.update(right_elbow=np.array([260.0, 260.0]), right_wrist=np.array([300.0, 240.0]))  # brazo doblado
         runtime = _runtime(0)
-        event = SimpleNamespace(start_frame=0, end_frame=30, kind="right", target="p0:right_wrist", name="throw")
+        runtime.fps = 30.0
+        runtime.effect = SimpleNamespace(triggers=[SimpleNamespace(hold=72)])  # como en el catálogo
+        event = SimpleNamespace(start_frame=0, end_frame=2, kind="right", target="p0:right_wrist", name="throw")
         frame = (np.array([200.0, 200.0]), np.array([1.0, 0.0]), np.array([0.0, 1.0]))
         hand = body["right_wrist"]
         far = []
-        for f in range(0, 30):
+        for f in range(0, 50):
+            if f == 40:  # el puñetazo: el brazo se estira
+                body.update(right_elbow=np.array([290.0, 205.0]), right_wrist=np.array([350.0, 210.0]))
             runtime.active_frames = f + 1
             layer = np.zeros((H, W, 4), np.float32)
             fire_creature(shape, body, frame, 60.0, f, runtime, layer, None, 1.0, event)
             firebend.flush_fire(layer, f)
             ys, xs = np.nonzero(layer[..., 3] > 0.5)
             far.append(float(np.max(np.hypot(xs - hand[0], ys - hand[1]))) if len(xs) else -1.0)
-        assert max(far) > 150, shape  # sale del puño y se aleja (hacia donde hay lugar en el cuadro)
-        assert far[22] >= far[10] - 5, shape  # no vuelve a la mano
+        assert max(far[8:22]) > 150, shape  # sale del puño y hace su arco lejos de la mano
+        assert 0 <= far[34] < 0.6 * max(far[8:22]), shape  # volvió: queda como una llama en la mano
+        punch = _state(runtime, "beast:right_wrist:p0:0").get("punch", {})
+        assert punch.get("thrown") == 40, shape  # el puñetazo la usa

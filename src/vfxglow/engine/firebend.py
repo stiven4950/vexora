@@ -31,6 +31,8 @@ blanco) con lenguas definidas, no como un brillo difuso.
 
 from __future__ import annotations
 
+import weakref
+
 import cv2
 import numpy as np
 
@@ -116,10 +118,10 @@ def _entry(layer) -> dict:
     """El fuego acumulado de la capa en este cuadro (lo pinta flush_fire)."""
     height, width = layer.shape[:2]
     entry = _FIELDS.get(id(layer))
-    if entry is not None and entry["mask"].shape != (height, width):
+    if entry is not None and entry["ref"]() is not layer:
         entry = None  # quedó de otra capa ya liberada que tenía la misma dirección de memoria
     if entry is None:
-        entry = _FIELDS[id(layer)] = {"mask": np.zeros((height, width), np.float32), "field": None, "alpha": 0.0, "look": LOOK["now"]}
+        entry = _FIELDS[id(layer)] = {"mask": np.zeros((height, width), np.float32), "field": None, "alpha": 0.0, "look": LOOK["now"], "ref": weakref.ref(layer)}
     return entry
 
 
@@ -309,6 +311,8 @@ def flush_fire(layer, frame_index: int, u: float | None = None, st: dict | None 
     Con `u` (vida del efecto), lo que no trae vida propia muere igual que las cintas: se vacía
     desde el centro en trozos, con la opacidad que tuvo (no se vuelve transparente)."""
     entry = _FIELDS.pop(id(layer), None)
+    if entry is not None and entry["ref"]() is not layer:
+        entry = None  # fuego de otra capa ya liberada con la misma dirección de memoria: no es de esta
     if entry is None:
         return
     if st is not None and u is not None and not entry.get("alive"):
@@ -1290,28 +1294,73 @@ def _fire_orbit(body, frame, scale, frame_index, runtime, layer, color, alpha, e
             size = (0.75 - 0.06 * i) * unit * (0.55 + 0.45 * depth)
             cel(layer, teardrop(pos, -ahead, size, 0.18 * unit * (0.55 + 0.45 * depth) + 0.5, frame_index, i * 1.7, 0.25), color, alpha * (0.6 + 0.4 * depth), runtime if i == 0 else None)
         return []
-    # La atrapó: la llama en la mano, hasta que el brazo se estira y la lanza.
-    if not st.get("thrown") and _arm_extended(body, side_name):
-        st["thrown"] = frame_index
-    if st.get("thrown") is None:
-        fade = 1.0 - _seg(u, 0.85, 1.0)
-        cel(layer, teardrop(wrist, up, 0.8 * unit * fade, 0.2 * unit * fade + 0.5, frame_index, 2.2), color, alpha, runtime)
-        return []
-    # La explosión: el chorro desde el puño y un estallido de lenguas y brasas en la punta.
-    age = frame_index - st["thrown"]
-    _fire_blast(body, scale, frame_index, runtime, layer, color, alpha, event)
-    blast = st.get("blast")
-    if blast is None:
-        elbow = body.get(f"{side_name}_elbow")
-        aim = (wrist - elbow) / max(float(np.linalg.norm(wrist - elbow)), 1e-6) if elbow is not None else across
-        blast = st["blast"] = wrist + aim * 3.0 * unit
-    burst = _ease(min(age / 5.0, 1.0)) * (1.0 - _seg(u, 0.9, 1.0))
-    if burst > 0:
-        for i in range(10):  # lenguas que se abren en todas direcciones
-            a = i * TAU / 10 + 0.3
-            d = np.array([np.cos(a), np.sin(a)])
-            cel(layer, teardrop(blast + d * unit * 0.3 * burst, d, 0.9 * unit * burst, 0.16 * unit * burst + 0.5, frame_index, i * 1.1, 0.35), color, alpha, runtime if i == 0 else None)
+    # La atrapó: la llama en la mano, hasta el golpe que la lanza (con el chorro desde el puño).
+    fire_punch(body, name, scale, frame_index, runtime, layer, color, alpha, event, st, u, jet=True)
     return []
+
+
+PUNCH_SPEED = 0.35  # anchos de hombros por cuadro: la muñeca que va así de rápido está golpeando
+BURST_FRAMES = 10  # lo que dura la explosión del puñetazo
+
+
+def _punching(body, name: str, scale: float) -> bool:
+    """Si la mano está golpeando: el brazo estirado (puñetazo o mano abierta hacia afuera) o la
+    muñeca disparada."""
+    if _arm_extended(body, name.split("_")[0]):
+        return True
+    points, prefix = getattr(body, "points", body), getattr(body, "prefix", "")
+    vel = points.get(f"vel:{prefix}{name}", points.get(f"vel:{name}"))
+    return vel is not None and float(np.linalg.norm(vel)) > PUNCH_SPEED * scale
+
+
+def fire_punch(body, name: str, scale: float, frame_index: int, runtime, layer, color, alpha: float, event, st: dict, u: float, jet: bool = False) -> bool:
+    """La llama sostenida en la mano que se usa en un golpe (video_51, seg. 4,6 y 7,7): queda una
+    llama chica en la mano hasta que la mano golpea (`_punching`); ahí estalla delante del puño una
+    explosión en estrella de lenguas cortas que se disipa en trozos que se consumen, y con `jet`
+    sale además el chorro desde el puño. Si no golpea, la llama se apaga al final. Devuelve si ya
+    golpeó."""
+    hand = body.get(name)
+    if hand is None:
+        return bool(st.get("thrown"))
+    unit = _unit(scale, layer)
+    up = np.array([0.0, -1.0])
+    punching = _punching(body, name, scale)
+    if not punching:
+        st["armed"] = True  # un golpe es un cambio: primero el brazo sin golpear, después el golpe
+    if not st.get("thrown") and st.get("armed") and punching:
+        st["thrown"] = frame_index
+        elbow = body.get(name.replace("wrist", "elbow"))
+        aim = (hand - elbow) if elbow is not None and float(np.linalg.norm(hand - elbow)) > 1 else np.array([1.0, 0.0])
+        st["aim"] = aim / float(np.linalg.norm(aim))
+    if not st.get("thrown"):
+        fade = 1.0 - _seg(u, 0.85, 1.0)
+        cel(layer, teardrop(hand, up, 0.7 * unit * fade, 0.18 * unit * fade + 0.5, frame_index, 2.2), color, alpha, runtime)
+        note_fire(body, (name,), frame_index)
+        return False
+    age = frame_index - st["thrown"]
+    if jet:
+        _fire_blast(body, scale, frame_index, runtime, layer, color, alpha, event)
+    if age > BURST_FRAMES:
+        return True
+    aim = st["aim"]
+    at = st.setdefault("burst_at", hand + aim * unit * (2.0 if jet else 0.6))
+    grow = _ease_out(min(age / 3.0, 1.0))  # estalla en 3 cuadros
+    die = _seg(age, 4, BURST_FRAMES)
+    # La estrella: puntas largas y cortas alternadas, que se afinan y se apagan.
+    a = np.linspace(0, TAU, 21)[:-1] + 0.2
+    radius = np.where(np.arange(20) % 2 == 0, 1.3, 0.45) * unit * grow * (1.0 - 0.5 * die)
+    radius *= 1.0 + 0.2 * np.sin(np.arange(20) * 2.3)
+    star = at + np.stack([np.cos(a), np.sin(a)], axis=1) * radius[:, None]
+    if die < 0.6:
+        cel(layer, lambda k, star=star: star, color, alpha, runtime)
+    # Los trozos: lenguas cortas que salen disparadas y se consumen.
+    for i in range(9):
+        d = np.array([np.cos(i * TAU / 9 + 0.5), np.sin(i * TAU / 9 + 0.5)])
+        pos = at + d * unit * (0.6 + 1.6 * die) * grow
+        size = 0.45 * unit * grow * (1.0 - die) ** 1.5
+        if size > 1:
+            cel(layer, teardrop(pos, d, size, 0.1 * unit * (1.0 - die) + 0.5, frame_index, i * 1.3, 0.3), color, alpha, None)
+    return True
 
 
 LANDING_FEET_S = 1.0  # el fuego tenía que estar en los pies hace menos de esto

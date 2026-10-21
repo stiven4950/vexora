@@ -244,14 +244,14 @@ reactions:
         max_uses: 1
         earns: {actions: [fast_swing, lunge, throw, intended_strike], within_s: [0.6, 2.0]}
         effects:
-          - &phoenix {type: adornment, style: {shapes: [fire_phoenix]}, trigger: {hold: 26, fade_in: 1, fade_out: 6}}
+          - &phoenix {type: adornment, style: {shapes: [fire_phoenix]}, trigger: {hold: 72, fade_in: 1, fade_out: 4}}
           - *heat2
       - name: dragon_lanzado
         weight: 0.06
         max_uses: 1
         earns: {actions: [fast_swing, lunge, throw, intended_strike], within_s: [0.6, 2.0]}
         effects:
-          - &dragon_launch {type: adornment, style: {shapes: [fire_dragon_launch]}, trigger: {hold: 30, fade_in: 1, fade_out: 6}}
+          - &dragon_launch {type: adornment, style: {shapes: [fire_dragon_launch]}, trigger: {hold: 72, fade_in: 1, fade_out: 4}}
           - *heat2
       - name: viento
         element: aire
