@@ -1284,7 +1284,9 @@ def _hand_fire(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
         del trail[:-8]
         speed = float(np.linalg.norm(st["phys"].get("v", np.zeros(2))))
         swoosh = float(np.clip((speed - 0.05) / 0.15, 0.0, 1.0))  # mano rápida: la llama se vuelve estela
-        tall, half = tall * stretch, half / np.sqrt(stretch)
+        swoosh = st["swoosh"] = st.get("swoosh", swoosh) * 0.5 + swoosh * 0.5  # sin saltos entre cuadros
+        # La masa pasa de la gota a la estela: al volverse swoosh se adelgaza (no dos cuerpos de fuego).
+        tall, half = tall * stretch, half / np.sqrt(stretch) * (1.0 - 0.35 * swoosh)
         for j, (spine, widths) in enumerate(flame_parts(base, lean, tall, half, frame_index, k * 1.7 + 0.3, trail, swoosh)):
             living_ribbon(layer, spine, widths, u, st.setdefault(f"part{j}", {}), frame_index, color, alpha, runtime if j == 0 else None, grow_from_end=False, tongues=3.0, phase=k * 1.7 + j)
         flame_spine = np.array([wrist + up * 0.85 * scale * grow * s for s in np.linspace(0, 1, 8)])
