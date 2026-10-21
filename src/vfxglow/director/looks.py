@@ -21,6 +21,12 @@ class Look(BaseModel):
     description: str
 
 
+# Colores de las brasas que sueltan las extremidades rápidas (efecto droplets) por paleta.
+SPARKS = {
+    "azul": [[0.8, 0.92, 1.0], [0.25, 0.6, 1.0]],
+    "verde": [[0.88, 1.0, 0.7], [0.35, 1.0, 0.2]],
+}
+
 FIRE_STYLES: dict[str, dict] = {
     "clasico": {"title": "Clásico", "description": "Cuerpo blanco, borde amarillo y resplandor naranja (video_18).", "style": {"look": "hot", "fire_palette": "naranja"}},
     "plano": {"title": "Plano amarillo", "description": "Amarillo plano y opaco con huecos, como el anime de video_51.", "style": {"look": "cel", "fire_palette": "naranja"}, "blend": "over"},
@@ -86,6 +92,11 @@ def apply_looks(catalog, fire: str | None = None, bolt: str | None = None):
         # Cada efecto toma su estilo de los valores por defecto más los suyos (choreography._effect):
         # con cambiarlos alcanza, también para la luz del fuego y las bestias.
         out.defaults = defaults
+        sparks = SPARKS.get(spec["style"].get("fire_palette", "naranja"))
+        if sparks:  # las brasas de las extremidades, del color del fuego
+            for raw in [*out.always, *(e for r in out.reactions for o in r.options for e in o.effects)]:
+                if raw.get("type") in ("droplets", "sparks"):
+                    raw.setdefault("style", {})["colors"] = [list(c) for c in sparks]
     if bolt:
         spec = BOLT_STYLES[bolt]
         for reaction in out.reactions:

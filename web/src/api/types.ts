@@ -28,6 +28,18 @@ export interface Season {
   suggested: boolean;
 }
 
+/** Estilo de fuego o de rayo (director/looks.py) que el cliente elige antes de renderizar. */
+export interface Look {
+  id: string;
+  title: string;
+  description: string;
+}
+
+export interface Looks {
+  fuego: Look[];
+  rayo: Look[];
+}
+
 export type JobStatus = "queued" | "running" | "done" | "failed";
 export type JobStage = "queued" | "analyze" | "direct" | "render" | "done";
 
@@ -41,6 +53,9 @@ export interface Job {
   /** Sin semilla: 0 = la mejor coreografía elegida sola; 1, 2... = "otra versión". */
   take: number;
   season: string | null;
+  /** Estilos de fuego y de rayo elegidos (null = los del estilo). */
+  fire_style: string | null;
+  bolt_style: string | null;
   status: JobStatus;
   stage: JobStage;
   progress: number;

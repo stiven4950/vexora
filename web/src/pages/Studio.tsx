@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 import { api } from "../api/client";
 import { rgb } from "../api/format";
-import { WARDROBES, type Season, type Style, type Wardrobe } from "../api/types";
+import { WARDROBES, type Looks, type Season, type Style, type Wardrobe } from "../api/types";
 import { Button } from "../components/Button";
 import { Dropzone } from "../components/Dropzone";
 import { Icon } from "../components/Icon";
@@ -22,6 +22,10 @@ export function Studio() {
   const [wardrobe, setWardrobe] = useState<Wardrobe>("ninguno");
   // Análisis profundo: opcional, más lento y de pago. Por defecto, el económico.
   const [deep, setDeep] = useState(false);
+  // Estilos de fuego y de rayo (director/looks.py); null = los del estilo elegido.
+  const [looks, setLooks] = useState<Looks>({ fuego: [], rayo: [] });
+  const [fireStyle, setFireStyle] = useState<string | null>(null);
+  const [boltStyle, setBoltStyle] = useState<string | null>(null);
   const [showPresets, setShowPresets] = useState(false);
   const [upload, setUpload] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -36,9 +40,14 @@ export function Studio() {
       .catch((cause: unknown) => setLoadError(cause instanceof Error ? cause.message : String(cause)));
     // Las temporadas son opcionales: si la API no las tiene, simplemente no se muestran.
     api.seasons().then(setSeasonList).catch(() => setSeasonList([]));
+    api.looks().then(setLooks).catch(() => setLooks({ fuego: [], rayo: [] }));
   }, []);
   const suggested = seasonList.find((s) => s.suggested) ?? null;
 
+  // Fuego y rayo solo en los estilos que los dibujan (el avatar); los pasos se numeran en orden.
+  const hasFire = chosen?.kind === "catalog" && chosen.tags.some((t) => t === "fuego" || t === "rayos") && looks.fuego.length > 0;
+  let step = 2;
+  const nextStep = () => String(++step).padStart(2, "0");
   const catalogs = useMemo(() => styleList.filter((s) => s.kind === "catalog"), [styleList]);
   const presets = useMemo(() => styleList.filter((s) => s.kind === "preset"), [styleList]);
   const aurora: [string, string] | undefined = chosen?.palette[0]
@@ -52,7 +61,7 @@ export function Studio() {
     try {
       // Sin semilla: el servidor prueba varias coreografías y se queda con la mejor.
       const wear: Record<string, Wardrobe> = chosen.kind === "catalog" && wardrobe !== "ninguno" ? { "*": wardrobe } : {};
-      const job = await api.create(file, chosen.kind, chosen.name, null, setUpload, season, wear, chosen.kind === "catalog" && deep);
+      const job = await api.create(file, chosen.kind, chosen.name, null, setUpload, season, wear, chosen.kind === "catalog" && deep, hasFire ? fireStyle : null, hasFire ? boltStyle : null);
       navigate(`/jobs/${job.id}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -134,7 +143,7 @@ export function Studio() {
       {seasonList.length > 0 && (
         <section className={`${styles.step} ${chosen?.kind === "catalog" ? "" : styles.last}`}>
           <header>
-            <span className={styles.num}>03</span>
+            <span className={styles.num}>{nextStep()}</span>
             <div>
               <h2>Toque de temporada</h2>
               <p>
@@ -171,10 +180,46 @@ export function Studio() {
         </section>
       )}
 
+      {hasFire && (
+        <section className={styles.step}>
+          <header>
+            <span className={styles.num}>{nextStep()}</span>
+            <div>
+              <h2>Fuego y rayo</h2>
+              <p>Cómo se pintan el fuego y los rayos de este estilo. La coreografía es la misma: cambia el look.</p>
+            </div>
+          </header>
+          <div className={styles.seasons}>
+            <button type="button" className={`${styles.season} ${fireStyle === null ? styles.on : ""}`} onClick={() => setFireStyle(null)}>
+              Fuego del estilo
+            </button>
+            {looks.fuego
+              .filter((look) => look.id !== "clasico")
+              .map((look) => (
+                <button key={look.id} type="button" title={look.description} className={`${styles.season} ${fireStyle === look.id ? styles.on : ""}`} onClick={() => setFireStyle(look.id)}>
+                  🔥 {look.title}
+                </button>
+              ))}
+          </div>
+          <div className={styles.seasons}>
+            <button type="button" className={`${styles.season} ${boltStyle === null ? styles.on : ""}`} onClick={() => setBoltStyle(null)}>
+              Rayo del estilo
+            </button>
+            {looks.rayo
+              .filter((look) => look.id !== "cian")
+              .map((look) => (
+                <button key={look.id} type="button" title={look.description} className={`${styles.season} ${boltStyle === look.id ? styles.on : ""}`} onClick={() => setBoltStyle(look.id)}>
+                  ⚡ {look.title}
+                </button>
+              ))}
+          </div>
+        </section>
+      )}
+
       {chosen?.kind === "catalog" && (
         <section className={styles.step}>
           <header>
-            <span className={styles.num}>{seasonList.length > 0 ? "04" : "03"}</span>
+            <span className={styles.num}>{nextStep()}</span>
             <div>
               <h2>Vestuario</h2>
               <p>Opcional: de vez en cuando se dibuja una prenda de cuerpo entero sobre las personas. Después, en la página del video, puedes elegirla para cada persona por separado.</p>
@@ -193,7 +238,7 @@ export function Studio() {
       {chosen?.kind === "catalog" && (
         <section className={`${styles.step} ${styles.last}`}>
           <header>
-            <span className={styles.num}>{seasonList.length > 0 ? "05" : "04"}</span>
+            <span className={styles.num}>{nextStep()}</span>
             <div>
               <h2>Análisis</h2>
               <p>

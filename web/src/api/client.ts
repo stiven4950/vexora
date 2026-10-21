@@ -1,5 +1,5 @@
 import { idToken } from "../auth/firebase";
-import type { Season, Job, Moment, Person, Style, StyleKind, Wardrobe } from "./types";
+import type { Season, Job, Looks, Moment, Person, Style, StyleKind, Wardrobe } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -34,6 +34,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   styles: () => request<Style[]>("/api/styles"),
   seasons: () => request<Season[]>("/api/seasons"),
+  looks: () => request<Looks>("/api/looks"),
   jobs: () => request<Job[]>("/api/jobs"),
   job: (id: string) => request<Job>(`/api/jobs/${id}`),
   choreography: (id: string) => request<Moment[]>(`/api/jobs/${id}/choreography`),
@@ -50,6 +51,8 @@ export const api = {
     season: string | null = null,
     wardrobe: Record<string, Wardrobe> = {},
     deep = false,
+    fireStyle: string | null = null,
+    boltStyle: string | null = null,
   ): Promise<Job> {
     const headers = await authHeaders();
     const form = new FormData();
@@ -60,6 +63,8 @@ export const api = {
     if (season) form.append("season", season);
     if (Object.keys(wardrobe).length) form.append("wardrobe", JSON.stringify(wardrobe));
     if (deep) form.append("deep", "true");
+    if (fireStyle) form.append("fire_style", fireStyle);
+    if (boltStyle) form.append("bolt_style", boltStyle);
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open("POST", "/api/jobs");
@@ -83,10 +88,12 @@ export const api = {
     season: string | null = null,
     wardrobe: Record<string, Wardrobe> | null = null,
     deep: boolean | null = null,
+    fireStyle: string | null = null,
+    boltStyle: string | null = null,
   ) =>
     request<Job>(`/api/jobs/${id}/variations`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ style_kind: kind, style, seed, season, wardrobe, deep }),
+      body: JSON.stringify({ style_kind: kind, style, seed, season, wardrobe, deep, fire_style: fireStyle, bolt_style: boltStyle }),
     }),
 };

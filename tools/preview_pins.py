@@ -34,6 +34,8 @@ def main() -> None:
     parser.add_argument("--catalog", required=True, help="Nombre en configs/catalogs o ruta a un .yaml")
     parser.add_argument("--pins", required=True, type=Path)
     parser.add_argument("--season", default=None, help="Temporada encima del catálogo (halloween...)")
+    parser.add_argument("--fuego", default=None, help="Estilo de fuego (director/looks.py)")
+    parser.add_argument("--rayo", default=None, help="Estilo de rayo (director/looks.py)")
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--width", type=int, default=180)
     parser.add_argument("seconds", nargs="+", type=float)
@@ -44,6 +46,10 @@ def main() -> None:
     fps, count, width, height = brief.video.fps, brief.video.frame_count, brief.video.width, brief.video.height
     path = Path(args.catalog) if args.catalog.endswith(".yaml") else Path("configs/catalogs") / f"{args.catalog}.yaml"
     catalog = load_catalog(path)
+    if args.fuego or args.rayo:
+        from vfxglow.director.looks import apply_looks
+
+        catalog = apply_looks(catalog, args.fuego, args.rayo)
     if args.season:
         from vfxglow.director.seasons import apply_to_catalog, find, load_seasons
 

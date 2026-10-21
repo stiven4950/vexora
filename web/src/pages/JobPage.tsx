@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { api } from "../api/client";
 import { rgb, timecode } from "../api/format";
-import { WARDROBES, type Moment, type Person, type Season, type Style, type Wardrobe } from "../api/types";
+import { WARDROBES, type Looks, type Moment, type Person, type Season, type Style, type Wardrobe } from "../api/types";
 import { Button } from "../components/Button";
 import { ChoreographyPanel } from "../components/ChoreographyPanel";
 import { CompareViewer, type CompareViewerHandle } from "../components/CompareViewer";
@@ -34,6 +34,10 @@ export function JobPage() {
   // Vestuario de la variación, por persona (arranca en el del trabajo).
   const [nextWardrobe, setNextWardrobe] = useState<Record<string, Wardrobe> | null>(null);
   const [nextDeep, setNextDeep] = useState<boolean | null>(null);
+  // Estilos de fuego y de rayo de la variación: "" = los del estilo; undefined = los del trabajo.
+  const [looks, setLooks] = useState<Looks>({ fuego: [], rayo: [] });
+  const [nextFire, setNextFire] = useState<string | undefined>(undefined);
+  const [nextBolt, setNextBolt] = useState<string | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [playhead, setPlayhead] = useState(0);
@@ -42,6 +46,7 @@ export function JobPage() {
   useEffect(() => {
     api.styles().then(setStyleList).catch(() => setStyleList([]));
     api.seasons().then(setSeasonList).catch(() => setSeasonList([]));
+    api.looks().then(setLooks).catch(() => setLooks({ fuego: [], rayo: [] }));
   }, []);
 
   useEffect(() => {
@@ -56,9 +61,14 @@ export function JobPage() {
         .catch(() => setPeople([]));
     if (job) setNextStyle((current) => current || `${job.style_kind_current}:${job.style_current}`);
     if (job) setNextSeason((current) => (current === undefined ? (job.season ?? "") : current));
+    if (job) setNextFire((current) => (current === undefined ? (job.fire_style ?? "") : current));
+    if (job) setNextBolt((current) => (current === undefined ? (job.bolt_style ?? "") : current));
   }, [job?.status, job?.id]);
 
   const current = styleList.find((s) => s.name === job?.style_current);
+  const [nextKind, nextName] = nextStyle.split(":");
+  const nextChosen = styleList.find((s) => s.kind === nextKind && s.name === nextName);
+  const nextHasFire = nextKind === "catalog" && !!nextChosen?.tags.some((t) => t === "fuego" || t === "rayos") && looks.fuego.length > 0;
   const aurora: [string, string] | undefined = current?.palette[0]
     ? [rgb(current.palette[0], 0.2), rgb(current.palette[1] ?? current.palette[0], 0.16)]
     : undefined;
@@ -72,7 +82,10 @@ export function JobPage() {
     try {
       const wear = kind === "catalog" && nextWardrobe ? nextWardrobe : null;
       const deep = kind === "catalog" ? (nextDeep ?? job.deep) : false;
-      const next = await api.variation(job.id, kind, name, null, (nextSeason ?? job.season ?? "") || null, wear, deep);
+      // "" pide los del estilo; sin fuego en el estilo, tampoco se mandan.
+      const fire = nextHasFire ? (nextFire ?? "") : "";
+      const bolt = nextHasFire ? (nextBolt ?? "") : "";
+      const next = await api.variation(job.id, kind, name, null, (nextSeason ?? job.season ?? "") || null, wear, deep, fire, bolt);
       navigate(`/jobs/${next.id}`);
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : String(cause));
@@ -113,6 +126,8 @@ export function JobPage() {
             {job.style_kind === "catalog" && ` · ${versionLabel(job)}`}
             {job.season && ` · ${job.season.replace(/_/g, " ")}`}
             {job.deep && " · análisis profundo"}
+            {job.fire_style && ` · fuego ${looks.fuego.find((l) => l.id === job.fire_style)?.title.toLowerCase() ?? job.fire_style}`}
+            {job.bolt_style && ` · rayo ${looks.rayo.find((l) => l.id === job.bolt_style)?.title.toLowerCase() ?? job.bolt_style}`}
           </span>
           <h1>{job.filename}</h1>
         </div>
@@ -209,6 +224,36 @@ export function JobPage() {
                     ))}
                   </ul>
                 </div>
+              )}
+              {nextHasFire && (
+                <label className={styles.pick}>
+                  <span>Fuego</span>
+                  <select value={nextFire ?? ""} onChange={(event) => setNextFire(event.target.value)}>
+                    <option value="">Fuego del estilo</option>
+                    {looks.fuego
+                      .filter((look) => look.id !== "clasico")
+                      .map((look) => (
+                        <option key={look.id} value={look.id}>
+                          🔥 {look.title}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              )}
+              {nextHasFire && (
+                <label className={styles.pick}>
+                  <span>Rayo</span>
+                  <select value={nextBolt ?? ""} onChange={(event) => setNextBolt(event.target.value)}>
+                    <option value="">Rayo del estilo</option>
+                    {looks.rayo
+                      .filter((look) => look.id !== "cian")
+                      .map((look) => (
+                        <option key={look.id} value={look.id}>
+                          ⚡ {look.title}
+                        </option>
+                      ))}
+                  </select>
+                </label>
               )}
               {nextStyle.startsWith("catalog:") && (
                 <label className={styles.pick}>
