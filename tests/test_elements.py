@@ -650,3 +650,12 @@ def test_the_neon_lion_draws_the_tribal_mask() -> None:
     layer = np.zeros((H, W, 4), np.float32)
     lines = _lion_roar(body, frame, 60.0, 10, runtime, layer, (0.3, 0.9, 1.0), 1.0, event, None)
     assert len(lines) > 20 and layer[..., 3].max() > 0  # mechones, rasgos y la masa tenue de la melena
+
+
+def test_neon_on_the_face_has_a_short_faint_halo() -> None:
+    from vfxglow.engine.swoosh import FACE_HALO, neon_layers
+
+    curve = np.array([[0.0, 0.0], [50.0, 0.0]])
+    full, face = neon_layers(curve, np.ones(3), 3.0, 1.0), neon_layers(curve, np.ones(3), 3.0, 1.0, halo=FACE_HALO)
+    assert face[0][3] < 0.4 * full[0][3] and face[0][2] < full[0][2]  # el halo ancho: tenue y más corto
+    assert face[-1][3] == full[-1][3]  # el filamento blanco no cambia
