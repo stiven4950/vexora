@@ -341,3 +341,20 @@ def test_an_option_that_earns_needs_the_strike_that_uses_it() -> None:
     unused = choreograph(catalog, _brief([_ev("throw", 100, "person_0:right_wrist"), _ev("fast_swing", 130, "person_0:left_wrist")]))[1]
     assert any(d.choice == "fenix" for d in used.decisions)  # el golpe con la misma mano la usa
     assert not any(d.choice == "fenix" for d in unused.decisions)  # sin golpe de esa mano, no sale
+
+
+def test_a_group_limit_caps_options_across_actions() -> None:
+    catalog = Catalog.model_validate(
+        {
+            "name": "t",
+            "group_limits": {"bestia": 2},
+            "defaults": {"type": "swoosh", "target": {"kind": "joint", "id": "right_wrist"}},
+            "reactions": [
+                {"action": action, "options": [{"name": f"b_{action}", "group": "bestia", "weight": 1.0, "effects": [{"trigger": {"hold": 2}}]}]}
+                for action in ("throw", "lunge", "spin_body", "fast_swing")
+            ],
+        }
+    )
+    events = [_ev(a, 100 + 60 * i) for i, a in enumerate(("throw", "lunge", "spin_body", "fast_swing"))]
+    log = choreograph(catalog, _brief(events))[1]
+    assert sum(d.choice.startswith("b_") for d in log.decisions) == 2  # dos bestias por video, no cuatro

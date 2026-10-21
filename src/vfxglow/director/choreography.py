@@ -84,6 +84,9 @@ class Option(_Strict):
     # de focos encendidos. Lo mismo vale para una consecuencia cuya opción anterior salió (la
     # caída que desbarata el fuego continúa el mismo foco de la voltereta).
     leads: bool = False
+    # Grupo con tope compartido en el video (Catalog.group_limits): p. ej. "bestia", para que no
+    # salgan más de dos bestias por video aunque cada una tenga su max_uses.
+    group: str = ""
     # Subtipos de la acción admitidos (MotionEvent.kind; p. ej. intent: hand_to_chest).
     kinds: list[str] = Field(default_factory=list)
     # La persona de la acción debe llevar uno de estos accesorios (gafas, máscara...). Si la
@@ -128,6 +131,8 @@ class Catalog(_Strict):
     # primero y el último son del elemento del catálogo; los gestos del tramo inclinan la elección
     # (lanzar y señalar, rayo; girar, saltar y voltear, aire).
     element_mix: dict[str, float] = Field(default_factory=dict)
+    # Tope de usos por video de cada grupo de opciones (Option.group).
+    group_limits: dict[str, int] = Field(default_factory=dict)
     element_chapter_s: float = 3.5
     reactions: list[Reaction]
     # Lo que el análisis debe calcular para este catálogo (p. ej. [blades] para espadas).
@@ -290,6 +295,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 memo["last"] = event.start_frame
                 memo["used"][option.name] = event.start_frame
                 spent[option.name] = spent.get(option.name, 0) + 1
+                if option.group:
+                    spent[f"grupo:{option.group}"] = spent.get(f"grupo:{option.group}", 0) + 1
                 history.append((event.start_frame, reaction.action, option.name))
                 if element_of(catalog, option):
                     elements.append((start, end, element_of(catalog, option)))
@@ -320,6 +327,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 continue
             resting = {name for name, frame in memo["used"].items() if event.start_frame - frame < _option(reaction, name).cooldown}
             resting |= {o.name for o in reaction.options if o.max_uses and spent.get(o.name, 0) >= o.max_uses}
+            resting |= {o.name for o in reaction.options if o.group and spent.get(f"grupo:{o.group}", 0) >= catalog.group_limits.get(o.group, 10**6)}
             resting |= other_elements(catalog, reaction.options, elements, event, pad)
             chapter = chapter_element(plan, event.start_frame)
             if chapter:  # solo el elemento del capítulo (y lo neutro)
@@ -368,6 +376,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 memo["last"] = event.start_frame
                 memo["used"][option.name] = event.start_frame
                 spent[option.name] = spent.get(option.name, 0) + 1
+                if option.group:
+                    spent[f"grupo:{option.group}"] = spent.get(f"grupo:{option.group}", 0) + 1
                 history.append((event.start_frame, reaction.action, option.name))
                 if element_of(catalog, option):
                     elements.append((start, end, element_of(catalog, option)))

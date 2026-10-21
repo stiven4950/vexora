@@ -18,6 +18,8 @@ element: fuego
 # El video se reparte en capítulos de ~3,5 s, cada uno de un elemento: fuego casi siempre (y al
 # principio y al final), rayo donde lanza o señala, aire donde gira, salta o voltea.
 element_mix: {fuego: 1.0, rayo: 0.35, aire: 0.35}
+# Como mucho dos bestias por video (fénix, dragón, serpiente, kitsune, león).
+group_limits: {bestia: 2}
 # Ningún tramo de más de 1,2 s sin fuego (en la referencia siempre hay algo, aunque sean brasas).
 max_gap_s: 1.2
 attention: true
@@ -93,6 +95,8 @@ reactions:
   # Seg. 1,6: salto: remolinos de fuego y pantalla naranja.
       # La kitsune: nueve colas de fuego que se abren en abanico con los brazos (una vez por video).
       - name: kitsune
+        leads: true  # la bestia es el foco del momento
+        group: bestia
         weight: 0.15
         max_uses: 1
         earns: {actions: [fast_swing, lunge, throw, intended_strike], within_s: [0.8, 2.4]}
@@ -215,6 +219,8 @@ reactions:
     options:
       # El león: melena, rugido y, en el golpe, un zarpazo de tres cortes (una vez por video).
       - name: leon
+        leads: true  # la bestia es el foco del momento
+        group: bestia
         weight: 0.2
         max_uses: 1
         earns: {actions: [fast_swing, lunge, intended_strike], within_s: [0.3, 1.8]}
@@ -256,6 +262,8 @@ reactions:
     options:
       # Bestias que se lanzan (video_51, seg. 7,0): salen del puño y se van sin volver.
       - name: fenix
+        leads: true  # la bestia es el foco del momento
+        group: bestia
         weight: 0.08
         max_uses: 1
         earns: {actions: [fast_swing, lunge, throw, intended_strike], within_s: [0.6, 2.0]}
@@ -263,6 +271,8 @@ reactions:
           - &phoenix {type: adornment, style: {shapes: [fire_phoenix]}, trigger: {hold: 72, fade_in: 1, fade_out: 4}}
           - *heat2
       - name: dragon_lanzado
+        leads: true  # la bestia es el foco del momento
+        group: bestia
         weight: 0.06
         max_uses: 1
         earns: {actions: [fast_swing, lunge, throw, intended_strike], within_s: [0.6, 2.0]}
@@ -352,11 +362,15 @@ reactions:
     options:
       # video_51, seg. 7,0: lanza una bestia de fuego que se va sin volver (una vez cada una).
       - name: fenix
+        leads: true  # la bestia es el foco del momento
+        group: bestia
         weight: 0.3
         max_uses: 1
         earns: {actions: [fast_swing, lunge, throw, intended_strike], within_s: [0.6, 2.0]}
         effects: [*phoenix, *heat2]
       - name: dragon_lanzado
+        leads: true  # la bestia es el foco del momento
+        group: bestia
         weight: 0.25
         max_uses: 1
         earns: {actions: [fast_swing, lunge, throw, intended_strike], within_s: [0.6, 2.0]}
@@ -383,6 +397,8 @@ reactions:
       # Bestias del giro (una vez por video, solo si después hay un golpe que las use): la serpiente
       # se enrosca en el brazo, rodea el cuerpo y vuelve a la mano; la kitsune abre nueve colas.
       - name: serpiente_enroscada
+        leads: true  # la bestia es el foco del momento
+        group: bestia
         weight: 0.3
         max_uses: 1
         earns: {actions: [fast_swing, lunge, throw, intended_strike], within_s: [0.8, 2.4]}
@@ -390,6 +406,8 @@ reactions:
           - &coil {type: adornment, style: {shapes: [fire_coil]}, trigger: {hold: 72, fade_in: 1, fade_out: 4}}
           - *heat2
       - name: kitsune
+        leads: true  # la bestia es el foco del momento
+        group: bestia
         weight: 0.3
         max_uses: 1
         earns: {actions: [fast_swing, lunge, throw, intended_strike], within_s: [0.8, 2.4]}
@@ -432,6 +450,13 @@ reactions:
   # Seg. 11,2-11,6: cuerpo entero en tensión: el cuerpo arde.
   - action: frenzy
     options:
+      - name: kitsune
+        weight: 0.25
+        max_uses: 1
+        leads: true
+        group: bestia
+        earns: {actions: [fast_swing, lunge, throw, intended_strike], within_s: [0.8, 2.4]}
+        effects: [*kitsune, *heat2]
       - name: estelas
         weight: 1.0
         effects: [*trail, *heat]
