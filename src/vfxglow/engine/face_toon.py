@@ -24,8 +24,14 @@ import numpy as np
 from vfxglow.analysis.schema import FrameRecord, MotionEvent
 from vfxglow.analysis.touch import face_frame, fingertips
 from vfxglow.engine.raster import fill_polygon, stroke_batch
-from vfxglow.engine.swoosh import neon_layers
+from vfxglow.engine.swoosh import FACE_HALO, neon_layers
 from vfxglow.geom import catmull_rom
+
+
+def _face_neon(*args, **kwargs) -> list:
+    """Neón sobre la cara: con poco halo (FACE_HALO), para no lavarla de luz."""
+    return neon_layers(*args, halo=FACE_HALO, **kwargs)
+
 
 SHAPES = ("tint", "kiss", "caricature", "sweat", "exclaim", "question", "anger", "heart_eyes")
 # Expresiones: una por activación. Con la boca abierta (malla facial) gana la sorpresa ("!!").
@@ -156,10 +162,10 @@ def draw_face_toon(runtime, track, points, frame_index: int, height: int, envelo
                 if yank > 0:
                     # Los ojos se vuelven rayas que apuntan a la mano.
                     pull = (hand - pts[eye]) * 0.35 * yank
-                    strokes += neon_layers(np.stack([pts[eye], pts[eye] + pull]), color, line, envelope)
+                    strokes += _face_neon(np.stack([pts[eye], pts[eye] + pull]), color, line, envelope)
                 else:
                     for piece in _closed_eye(face, pts[eye]):
-                        strokes += neon_layers(piece, color, line, envelope)
+                        strokes += _face_neon(piece, color, line, envelope)
             center, scale, angle = mouth, 1.0, 0.0
             if yank > 0:
                 ease = yank**0.7
@@ -169,21 +175,21 @@ def draw_face_toon(runtime, track, points, frame_index: int, height: int, envelo
                 direction = hand - mouth
                 angle = float(np.arctan2(np.dot(direction, face.y), np.dot(direction, face.x))) * ease
             for piece in _lips(face, center, scale, angle):
-                strokes += neon_layers(piece, color, line, envelope)
+                strokes += _face_neon(piece, color, line, envelope)
         emotes = [name for name in EMOTES if name in shapes]
         if emotes:
             strokes += _emote(_pick_emote(emotes, points, size, event, style, frame_index), face, pts, frame_index, color, line, envelope)
         if "caricature" in shapes:
             jaw = catmull_rom(face.place(_JAW), 6)
-            strokes += neon_layers(jaw, color, line, envelope)
+            strokes += _face_neon(jaw, color, line, envelope)
             for side in (1.0, -1.0):
-                strokes += neon_layers(catmull_rom(face.place(_EAR * [side, 1.0]), 5), color, line, envelope)
+                strokes += _face_neon(catmull_rom(face.place(_EAR * [side, 1.0]), 5), color, line, envelope)
             for eye in ("left_eye", "right_eye"):
                 theta = np.linspace(0.0, 2.0 * np.pi, 13)
                 dot = pts[eye] + np.stack([np.cos(theta), np.sin(theta)], axis=1) * size * 0.035
-                strokes += neon_layers(dot, color, line, envelope)
-            strokes += neon_layers(face.place(_NOSE), color, line, envelope)
-            strokes += neon_layers(catmull_rom(face.place(_MOUTH), 5), color, line, envelope)
+                strokes += _face_neon(dot, color, line, envelope)
+            strokes += _face_neon(face.place(_NOSE), color, line, envelope)
+            strokes += _face_neon(catmull_rom(face.place(_MOUTH), 5), color, line, envelope)
     if strokes:
         stroke_batch(layer, strokes, style.hdr_gain)
 
@@ -217,29 +223,29 @@ def _emote(name: str, face: FaceFrame, pts, frame_index: int, color, line: float
             fall = ((frame_index * 0.02 + k * 0.4) % 1.0) * 0.25
             t = np.linspace(0, 2 * np.pi, 24)
             drop = np.stack([x + 0.05 * np.sin(t) * (1 - np.cos(t)) / 2 * 1.6, y - fall + 0.08 * np.cos(t)], axis=1)
-            strokes += neon_layers(place(drop), color, line, envelope)
+            strokes += _face_neon(place(drop), color, line, envelope)
     elif name == "exclaim":
         for x in (0.55, 0.72):
-            strokes += neon_layers(place(np.array([[x, 1.35 + bob], [x - 0.02, 0.98 + bob]])), color, line * 1.4, envelope)
-            strokes += neon_layers(place(np.array([[x - 0.025, 0.88 + bob], [x - 0.03, 0.85 + bob]])), color, line * 1.6, envelope)
+            strokes += _face_neon(place(np.array([[x, 1.35 + bob], [x - 0.02, 0.98 + bob]])), color, line * 1.4, envelope)
+            strokes += _face_neon(place(np.array([[x - 0.025, 0.88 + bob], [x - 0.03, 0.85 + bob]])), color, line * 1.6, envelope)
     elif name == "question":
         t = np.linspace(np.pi * 0.9, -np.pi * 0.5, 16)
         hook = np.stack([0.62 + 0.12 * np.cos(t), 1.25 + bob + 0.12 * np.sin(t)], axis=1)
         stem = np.array([[0.62, 1.13 + bob], [0.62, 1.02 + bob]])
-        strokes += neon_layers(place(np.vstack([hook, stem])), color, line * 1.3, envelope)
-        strokes += neon_layers(place(np.array([[0.62, 0.93 + bob], [0.62, 0.9 + bob]])), color, line * 1.6, envelope)
+        strokes += _face_neon(place(np.vstack([hook, stem])), color, line * 1.3, envelope)
+        strokes += _face_neon(place(np.array([[0.62, 0.93 + bob], [0.62, 0.9 + bob]])), color, line * 1.6, envelope)
     elif name == "anger":
         # Marca de enojo (cuatro corchetes curvos) en la sien y una nubecita encima.
         pulse = 1.0 + 0.15 * max(np.sin(frame_index * 0.7), 0.0)
         for sx, sy in ((1, 1), (-1, 1), (1, -1), (-1, -1)):
             corner = np.array([[0.62 + sx * 0.03 * pulse, 0.62 + sy * 0.09 * pulse], [0.62 + sx * 0.03 * pulse, 0.62 + sy * 0.03 * pulse], [0.62 + sx * 0.09 * pulse, 0.62 + sy * 0.03 * pulse]])
-            strokes += neon_layers(place(corner), color, line, envelope)
+            strokes += _face_neon(place(corner), color, line, envelope)
         t = np.linspace(0, 2 * np.pi, 60)
         cloud = np.stack([0.15 * np.cos(t) * (1 + 0.15 * np.cos(6 * t)), 1.25 + bob + 0.08 * np.sin(t) * (1 + 0.15 * np.cos(6 * t))], axis=1)
-        strokes += neon_layers(place(cloud), color, line, envelope)
+        strokes += _face_neon(place(cloud), color, line, envelope)
     elif name == "heart_eyes":
         pulse = 1.0 + 0.2 * max(np.sin(frame_index * 0.6), 0.0)
         for eye in ("left_eye", "right_eye"):
             local = np.linalg.lstsq(np.stack([face.x, face.y], axis=1), (pts[eye] - face.origin), rcond=None)[0] / face.size
-            strokes += neon_layers(face.place(_heart_local((float(local[0]), float(local[1])), 0.11 * pulse)), color, line, envelope)
+            strokes += _face_neon(face.place(_heart_local((float(local[0]), float(local[1])), 0.11 * pulse)), color, line, envelope)
     return strokes

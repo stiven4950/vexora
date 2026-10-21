@@ -27,7 +27,7 @@ import numpy as np
 
 from vfxglow.analysis.schema import FrameRecord, MotionEvent
 from vfxglow.engine.raster import stroke_batch
-from vfxglow.engine.swoosh import neon_layers
+from vfxglow.engine.swoosh import FACE_HALO, neon_layers
 
 SHAPES = ("frames", "stars", "hearts", "mask", "visor", "rings", "glint", "band", "x_eyes", "dots")
 # Grosor relativo por figura: la banda es un trazo grueso de lado a lado (mirada encendida).
@@ -38,6 +38,11 @@ MIN_EYE_DIST = 6.0
 # Separación de los ojos como fracción del ancho de hombros. En planos lejanos la pose junta
 # los ojos (11 px a 720 de ancho) y las gafas saldrían invisibles; los hombros dan la escala.
 EYES_PER_SHOULDERS = 0.22
+
+
+def _face_neon(*args, **kwargs) -> list:
+    """Neón sobre la cara: con poco halo (FACE_HALO), para no lavarla de luz."""
+    return neon_layers(*args, halo=FACE_HALO, **kwargs)
 
 
 def eyes_of(points: dict[str, np.ndarray], person: str | None) -> tuple[np.ndarray, np.ndarray] | None:
@@ -94,7 +99,7 @@ def draw_eyewear(runtime, track: FrameRecord | None, points: dict[str, np.ndarra
         color = np.asarray(style.colors[index % len(style.colors)], dtype=np.float32)
         width = max(1.0, unit * style.thickness * WIDTH.get(shape, 1.0))
         for line in figure(shape, left, right, frame_index):
-            strokes += neon_layers(line, color, width, envelope)
+            strokes += _face_neon(line, color, width, envelope)
     stroke_batch(layer, strokes, style.hdr_gain)
 
 

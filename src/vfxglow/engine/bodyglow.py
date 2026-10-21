@@ -23,7 +23,7 @@ import numpy as np
 from vfxglow.analysis.schema import FrameRecord, MotionEvent
 from vfxglow.engine.duo_doodles import DOODLES, doodle
 from vfxglow.engine.raster import fill_polygon, splat, stroke_batch
-from vfxglow.engine.swoosh import neon_layers
+from vfxglow.engine.swoosh import FACE_HALO, neon_layers
 
 TAU = 2.0 * np.pi
 PARTS = ("left_arm", "right_arm", "arms", "legs", "torso", "head", "feet", "hands", "body", "jacket")
@@ -573,6 +573,11 @@ def biceps_lines(body: Body, side: str, frame_index: int = 0) -> list[np.ndarray
 
 # ----- adornos -----
 
+# Adornos que se dibujan sobre la cara (antifaces, bigote, parche, ojos, el león, la marca del
+# Avatar): van con poco
+# halo de neón.
+FACE_SHAPES = ("hero_mask", "masquerade", "bat_mask", "cat_mask", "fox_mask", "mustache", "pirate_patch", "heart_eyes", "glow_eyes", "lion_roar", "avatar_mark")
+
 
 def draw_adornment(runtime, track, points, frame_index: int, height: int, envelope: float, layer: np.ndarray, event: MotionEvent | None) -> None:
     effect = runtime.effect
@@ -606,8 +611,9 @@ def draw_adornment(runtime, track, points, frame_index: int, height: int, envelo
             continue
         color = _color(style, person)
         line = max(1.4, style.thickness * scale)
+        halo = FACE_HALO if shape in FACE_SHAPES else 1.0  # sobre la cara, poco halo (no la lava de luz)
         for curve in adornment(shape, body, frame, scale, frame_index, seed, runtime, layer, color, envelope * grow, event):
-            strokes += neon_layers(curve, color, line, envelope * grow)
+            strokes += neon_layers(curve, color, line, envelope * grow, halo=halo)
     from vfxglow.engine.firebend import flush_fire
 
     from vfxglow.engine.critters import _phase

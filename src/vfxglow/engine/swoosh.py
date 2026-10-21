@@ -216,7 +216,12 @@ def set_resolution(frame_width: int) -> None:
     _core_px = max(frame_width * CORE_FRACTION, 1.5)
 
 
-def neon_layers(curve: np.ndarray, color: np.ndarray, width: float, alpha: float, core_scale: float = 1.0) -> list:
+# Halo de los neones que van sobre la cara (máscaras, toon, gafas, el león): con el halo entero,
+# muchos trazos juntos sobre la cara la lavan de luz y la arruinan.
+FACE_HALO = 0.3
+
+
+def neon_layers(curve: np.ndarray, color: np.ndarray, width: float, alpha: float, core_scale: float = 1.0, halo: float = 1.0) -> list:
     """Un tubo de neón como el de las referencias de baile: filamento blanco y el color en el halo.
 
     - Núcleo blanco de grosor fijo por resolución (90% de opacidad: el blanco puro satura).
@@ -224,14 +229,16 @@ def neon_layers(curve: np.ndarray, color: np.ndarray, width: float, alpha: float
     - Dos halos desenfocados del color (como las box-shadow de un neón en CSS), de 3,5x y 8x el
       núcleo como mínimo. `width` solo controla hasta dónde se extiende el halo.
     Trazos de menos de 1,5 px (chispas diminutas) conservan su grosor propio.
+    `halo` (0-1) atenúa y acorta los dos halos (FACE_HALO para lo que va sobre la cara).
     """
     color = np.asarray(color, dtype=np.float32)
     white = np.array([1.0, 1.0, 1.0], dtype=np.float32)
     core = (_core_px if width >= 1.5 else width) * core_scale
     spread = max(width, core)
+    reach = 0.5 + 0.5 * halo
     return [
-        (curve, color, max(spread * 3.0, core * 8.0), alpha * 0.35, max(spread * 1.8, core * 5.0)),
-        (curve, color, max(spread * 1.4, core * 3.5), alpha * 0.5, core * 1.5),
+        (curve, color, max(spread * 3.0, core * 8.0) * reach, alpha * 0.35 * halo, max(spread * 1.8, core * 5.0) * reach),
+        (curve, color, max(spread * 1.4, core * 3.5) * reach, alpha * 0.5 * (0.4 + 0.6 * halo), core * 1.5),
         (curve, color, core * 2.0, alpha * 0.85, core * 0.4),
         (curve, white, core, alpha * 0.9),
     ]

@@ -641,7 +641,7 @@ def _lion_roar(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
     lines = []
     for piece in parts["mane"]:  # la melena: masa tenue con su contorno
         shape = place(piece, c, size, up, across)
-        fill_polygon(layer, shape, rgb, alpha * 0.22, 0.9, feather=1.5)
+        fill_polygon(layer, shape, rgb, alpha * 0.12, 0.9, feather=1.5)  # tenue: va sobre la cara
         lines.append(np.vstack([shape, shape[:1]]))
     # Los rasgos: sin los ojos del diseño (quedan los de la persona), con el ceño encima.
     for piece in parts["features"] + parts["beard"] + parts["chin"]:
