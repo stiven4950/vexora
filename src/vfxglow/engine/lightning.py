@@ -249,7 +249,7 @@ def draw_lightning(
         return
     from vfxglow.engine.firebend import note_bolt
 
-    note_bolt(frame_index)
+    note_bolt(frame_index, sample_gradient(effect.style.colors, 0.5))
     params = effect.style.lightning
     tip = _edge_tip(origin, effect, points, track, layer.shape[:2]) if params.to_edge else None
     if tip is None:

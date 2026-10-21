@@ -67,6 +67,8 @@ class Pipeline:
         seed: int | None = None,
         take: int = 0,
         season: str | None = None,
+        fire_style: str | None = None,
+        bolt_style: str | None = None,
         pins: Path | None = None,
         wardrobe: dict[str, str] | None = None,
         deep: bool | None = None,
@@ -104,6 +106,12 @@ class Pipeline:
         self.config.director.take = max(int(take), 0)
         if season:
             self.config.director.season = season
+        if fire_style or bolt_style:
+            from vfxglow.director.looks import check
+
+            check(fire_style, bolt_style)
+            self.config.director.fire_style = fire_style or self.config.director.fire_style
+            self.config.director.bolt_style = bolt_style or self.config.director.bolt_style
         if self.config.director.provider == "catalog":
             self._apply_catalog_needs()
         if level:
@@ -367,6 +375,10 @@ class Pipeline:
         name = script.theme
         if self.config.director.pins:
             name += "__" + Path(self.config.director.pins).stem
+        # La temporada y los estilos de fuego y de rayo también: cada combinación su video.
+        for tag, value in (("", self.config.director.season), ("fuego-", self.config.director.fire_style), ("rayo-", self.config.director.bolt_style)):
+            if value:
+                name += f"__{tag}{value}"
         dest = self.run_dir / "output" / f"{name}.mp4"
         stage = f"compose:{name}"
         index_path = self.run_dir / "layers" / "index.json"

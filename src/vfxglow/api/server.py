@@ -121,6 +121,34 @@ def seasons() -> list[SeasonView]:
     ]
 
 
+class LookView(BaseModel):
+    id: str
+    title: str
+    description: str
+
+
+class LooksView(BaseModel):
+    fuego: list[LookView]
+    rayo: list[LookView]
+
+
+@app.get("/api/looks", response_model=LooksView)
+def looks() -> LooksView:
+    """Estilos de fuego y de rayo que el cliente puede elegir antes de renderizar."""
+    from vfxglow.director.looks import bolt_looks, fire_looks
+
+    return LooksView(fuego=[LookView(**x.model_dump()) for x in fire_looks()], rayo=[LookView(**x.model_dump()) for x in bolt_looks()])
+
+
+def _check_looks(fire: str | None, bolt: str | None) -> None:
+    from vfxglow.director.looks import check
+
+    try:
+        check(fire, bolt)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
 def _check_season(season: str | None) -> None:
     from vfxglow.director.seasons import find, load_seasons
 
@@ -221,6 +249,8 @@ def create_job(
     season: str | None = Form(None),
     wardrobe: str | None = Form(None),
     deep: bool = Form(False),
+    fire_style: str | None = Form(None),
+    bolt_style: str | None = Form(None),
     user: User = Depends(current_user),
 ) -> JobView:
     if Path(video.filename or "").suffix.lower() not in VIDEO_TYPES:
@@ -229,8 +259,9 @@ def create_job(
         raise HTTPException(413, f"El video supera {MAX_UPLOAD_MB} MB")
     style = _check_style(style_kind, style)
     _check_season(season or None)
+    _check_looks(fire_style or None, bolt_style or None)
     wear = _check_wardrobe(json.loads(wardrobe) if wardrobe and wardrobe.strip().startswith("{") else ({"*": wardrobe} if wardrobe else {}))
-    return view(jobs().create(video.filename or "video.mp4", video.file, style_kind, style, seed, season or None, owner=user.uid, wardrobe=wear, deep=deep))
+    return view(jobs().create(video.filename or "video.mp4", video.file, style_kind, style, seed, season or None, owner=user.uid, wardrobe=wear, deep=deep, fire_style=fire_style or None, bolt_style=bolt_style or None))
 
 
 class VariationRequest(BaseModel):
@@ -242,6 +273,9 @@ class VariationRequest(BaseModel):
     wardrobe: dict[str, str] | None = None
     # Análisis profundo; sin valor, el del trabajo de origen.
     deep: bool | None = None
+    # Estilos de fuego y de rayo; sin valor, los del trabajo de origen ("" = los del catálogo).
+    fire_style: str | None = None
+    bolt_style: str | None = None
 
 
 def _check_wardrobe(wardrobe: dict[str, str]) -> dict[str, str]:
@@ -258,7 +292,8 @@ def create_variation(job_id: str, body: VariationRequest, user: User = Depends(c
     style = _check_style(body.style_kind, body.style)
     _check_season(body.season)
     wear = _check_wardrobe(body.wardrobe) if body.wardrobe is not None else None
-    return view(jobs().variation(_job(job_id, user), body.style_kind, style, body.seed, body.season, wear, body.deep))
+    _check_looks(body.fire_style or None, body.bolt_style or None)
+    return view(jobs().variation(_job(job_id, user), body.style_kind, style, body.seed, body.season, wear, body.deep, body.fire_style, body.bolt_style))
 
 
 @app.get("/api/jobs/{job_id}", response_model=JobView)

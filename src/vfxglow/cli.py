@@ -62,6 +62,8 @@ def main(argv: list[str] | None = None) -> int:
         command.add_argument("--catalog", type=str, default=None, help="Coreografía por catálogo (configs/catalogs/<nombre>.yaml)")
         command.add_argument("--seed", type=int, default=None, help="Semilla exacta del catálogo (sin ella se elige sola la mejor coreografía)")
         command.add_argument("--season", type=str, default=None, help="Temporada encima del estilo (configs/seasons.yaml): halloween, navidad...")
+        command.add_argument("--fuego", type=str, default=None, help="Estilo de fuego (director/looks.py): clasico, plano, mixto, azul, verde, pixel")
+        command.add_argument("--rayo", type=str, default=None, help="Estilo de rayo (director/looks.py): cian, blanco, violeta, rojo, fuego")
         command.add_argument("--take", type=int, default=0, help="Sin --seed: 0 = la mejor coreografía; 1, 2... = otras versiones buenas")
         command.add_argument(
             "--pin",
@@ -123,6 +125,8 @@ def main(argv: list[str] | None = None) -> int:
         seed=args.seed,
         take=args.take,
         season=args.season,
+        fire_style=args.fuego,
+        bolt_style=args.rayo,
         pins=args.pin,
         wardrobe=parse_wardrobe(args.wardrobe),
         deep=True if args.deep else None,

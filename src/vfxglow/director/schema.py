@@ -245,6 +245,10 @@ class EffectStyle(_Strict):
     # resplandor (video_18); cel = amarillo plano y opaco con huecos y lenguas en gancho (video_51);
     # mix = la combinación (amarillo plano con el núcleo blanco en lo más grueso).
     look: Literal["hot", "cel", "mix"] = "hot"
+    # Paleta del fuego (engine/firebend.py PALETTES: naranja, azul, verde) y pixelado (0 = no; si no,
+    # el lado del píxel como fracción del alto). Los elige el cliente (director/looks.py).
+    fire_palette: str = "naranja"
+    fire_pixel: float = 0.0
     # Si no está vacío, el efecto solo se dibuja en estas personas (p. ej. quienes llevan gafas).
     people: list[str] = Field(default_factory=list)
     # Pareja: cada persona con su color (el color N de `colors` para person_N), también en los

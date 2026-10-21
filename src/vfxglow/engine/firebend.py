@@ -99,11 +99,48 @@ FAR_GLOW = np.array([1.0, 0.26, 0.0], np.float32)
 CEL_YELLOW = np.array([0.955, 0.93, 0.011], np.float32)
 # El estilo con que se dibuja el efecto en curso (style.look): hot, cel o mix. Lo fija
 # draw_adornment antes de dibujar; cel() lo anota en el fuego del efecto.
-LOOK = {"now": "hot"}
+LOOK = {"now": "hot", "palette": "naranja", "pixel": 0.0}
+
+# Paletas del fuego (director/looks.py: el estilo de fuego que elige el cliente). Cada una da los
+# colores de la pintura (cuerpo, borde, resplandor cercano y lejano, el plano del look cel), de las
+# escamas y brasas, y de la luz que el fuego echa sobre el cuadro. "naranja" es el fuego de
+# siempre (video_18).
+PALETTES: dict[str, dict] = {
+    "naranja": {
+        "body": np.array([1.0, 0.98, 0.9]) * 1.35, "rim": np.array([1.0, 0.78, 0.2]) * 1.6,
+        "near": np.array([1.0, 0.48, 0.04]), "far": np.array([1.0, 0.26, 0.0]),
+        "flat": np.array([0.955, 0.93, 0.011]), "mid": np.array([1.0, 0.66, 0.1]), "glow": np.array([1.0, 0.22, 0.0]),
+        "light": np.array([1.6, 0.74, 0.32]), "tint": np.array([1.0, 0.5, 0.26]),
+        "embers": [[1.0, 0.88, 0.45], [1.0, 0.6, 0.1], [1.0, 0.4, 0.04], [0.8, 0.15, 0.02]],
+    },
+    "azul": {
+        "body": np.array([0.82, 0.93, 1.0]) * 1.35, "rim": np.array([0.35, 0.72, 1.0]) * 1.6,
+        "near": np.array([0.1, 0.42, 1.0]), "far": np.array([0.0, 0.16, 0.95]),
+        "flat": np.array([0.2, 0.62, 1.0]), "mid": np.array([0.3, 0.66, 1.0]), "glow": np.array([0.04, 0.24, 1.0]),
+        "light": np.array([0.5, 0.85, 1.6]), "tint": np.array([0.35, 0.62, 1.05]),
+        "embers": [[0.75, 0.9, 1.0], [0.3, 0.65, 1.0], [0.15, 0.35, 1.0], [0.25, 0.08, 0.7]],
+    },
+    "verde": {
+        "body": np.array([0.9, 1.0, 0.82]) * 1.35, "rim": np.array([0.55, 1.0, 0.25]) * 1.6,
+        "near": np.array([0.25, 1.0, 0.1]), "far": np.array([0.05, 0.62, 0.1]),
+        "flat": np.array([0.5, 1.0, 0.1]), "mid": np.array([0.5, 1.0, 0.2]), "glow": np.array([0.1, 0.9, 0.1]),
+        "light": np.array([0.7, 1.5, 0.5]), "tint": np.array([0.55, 1.0, 0.42]),
+        "embers": [[0.85, 1.0, 0.6], [0.45, 1.0, 0.2], [0.2, 0.8, 0.1], [0.05, 0.4, 0.05]],
+    },
+}
 
 
-def set_look(look: str) -> None:
+def palette(name: str | None = None) -> dict:
+    return PALETTES.get(name or LOOK["palette"], PALETTES["naranja"])
+
+
+def set_look(look: str, palette_name: str = "naranja", pixel: float = 0.0) -> None:
+    """El estilo del fuego que se dibuja ahora (lo fija draw_adornment con el estilo del efecto):
+    la forma de pintarlo (hot, cel, mix), la paleta y el pixelado (0 = sin pixelar; si no, el lado
+    del píxel como fracción del alto)."""
     LOOK["now"] = look if look in ("hot", "cel", "mix") else "hot"
+    LOOK["palette"] = palette_name if palette_name in PALETTES else "naranja"
+    LOOK["pixel"] = max(float(pixel), 0.0)
 
 
 def note_frame(frame_index: int) -> None:
@@ -121,7 +158,7 @@ def _entry(layer) -> dict:
     if entry is not None and entry["ref"]() is not layer:
         entry = None  # quedó de otra capa ya liberada que tenía la misma dirección de memoria
     if entry is None:
-        entry = _FIELDS[id(layer)] = {"mask": np.zeros((height, width), np.float32), "field": None, "alpha": 0.0, "look": LOOK["now"], "ref": weakref.ref(layer)}
+        entry = _FIELDS[id(layer)] = {"mask": np.zeros((height, width), np.float32), "field": None, "alpha": 0.0, "look": LOOK["now"], "palette": LOOK["palette"], "pixel": LOOK["pixel"], "ref": weakref.ref(layer)}
     return entry
 
 
@@ -154,7 +191,7 @@ def cel(layer, make, color, alpha: float, runtime=None, heat: float = 1.0, core:
         lo, hi = poly.min(axis=0), poly.max(axis=0)
         size = float(np.linalg.norm(hi - lo))
         mid = (lo + hi) / 2
-        warm(layer, mid, max(size * 2.4, 0.45 * height), GLOW * 0.55, alpha * 0.07 * heat)  # ancha pero transparente
+        warm(layer, mid, max(size * 2.4, 0.45 * height), palette()["glow"].astype(np.float32) * 0.55, alpha * 0.07 * heat)  # ancha pero transparente
         _LIGHTS["now"].append((mid, size, float(alpha) * heat))
 
 
@@ -197,11 +234,12 @@ _EMBER_RAMP = np.array([
 ], np.float32)
 
 
-def _ember_color(age: np.ndarray) -> np.ndarray:
-    x = np.clip(age, 0.0, 1.0) * (len(_EMBER_RAMP) - 1)
-    i = np.minimum(np.floor(x).astype(int), len(_EMBER_RAMP) - 2)
+def _ember_color(age: np.ndarray, palette_name: str = "naranja") -> np.ndarray:
+    ramp = np.array(palette(palette_name)["embers"], np.float32)
+    x = np.clip(age, 0.0, 1.0) * (len(ramp) - 1)
+    i = np.minimum(np.floor(x).astype(int), len(ramp) - 2)
     f = (x - i)[:, None]
-    return _EMBER_RAMP[i] * (1 - f) + _EMBER_RAMP[i + 1] * f
+    return ramp[i] * (1 - f) + ramp[i + 1] * f
 
 
 def emit_embers(pool: dict, mask: np.ndarray, box: tuple[int, int], frame_index: int, rate: float, height: int) -> None:
@@ -267,7 +305,7 @@ def draw_embers(layer, pool: dict, frame_index: int, alpha: float) -> None:
         pool["pos"] = pos + pool["vel"]
     pos, vel = pool["pos"], pool["vel"]
     age = (frame_index - pool["born"]) / pool["life"]
-    colors = _ember_color(age)
+    colors = _ember_color(age, pool.get("palette", "naranja"))
     shrink = np.clip(1.0 - age, 0.0, 1.0) ** 1.2  # se consumen (antes casi no se achicaban)
     height, width = layer.shape[:2]
     lo = np.floor(pos.min(axis=0) - 12).astype(int)
@@ -280,7 +318,7 @@ def draw_embers(layer, pool: dict, frame_index: int, alpha: float) -> None:
     cover = np.zeros((y1 - y0, x1 - x0), np.float32)
     comma = pool.get("look", "hot") != "hot"
     if comma:  # estilo cel/mix: comas amarillas planas (video_51) en vez de rayitas
-        colors = np.where((age < 0.6)[:, None], CEL_YELLOW * 1.1, colors)
+        colors = np.where((age < 0.6)[:, None], palette(pool.get("palette"))["flat"].astype(np.float32) * 1.1, colors)
     for p, v, c, s, a in zip(pos, vel, colors, pool["size"], shrink):
         if comma:
             poly = _comma(p - np.array([x0, y0], np.float32), v, max(s * a * 1.6, 1.5))
@@ -338,6 +376,11 @@ def flush_fire(layer, frame_index: int, u: float | None = None, st: dict | None 
     x0, x1 = max(xs.min() - pad, 0), min(xs.max() + pad + 1, width)
     y0, y1 = max(ys.min() - pad, 0), min(ys.max() + pad + 1, height)
     m = mask[y0:y1, x0:x1]
+    if entry.get("pixel"):  # pixel art: la forma en bloques de un píxel grande
+        block = max(int(round(entry["pixel"] * height)), 2)
+        h_, w_ = m.shape
+        small = cv2.resize(m, (max(w_ // block, 1), max(h_ // block, 1)), interpolation=cv2.INTER_AREA)
+        m = cv2.resize((small > 0.45).astype(np.float32), (w_, h_), interpolation=cv2.INTER_NEAREST)
     if st is not None and u is not None and not entry.get("alive") and u > DIE_START:
         die = float(np.clip((u - DIE_START) / (1.0 - DIE_START), 0.0, 1.0))
         m = erode(m, (m > 0.5).astype(np.uint8), die, int(st.setdefault("seed", frame_index % 97)), (x0, y0, x1, y1), (height, width))
@@ -349,14 +392,15 @@ def flush_fire(layer, frame_index: int, u: float | None = None, st: dict | None 
     far = cv2.resize(cv2.GaussianBlur(small, (0, 0), max(0.045 * height / 4, 1.0)), (x1 - x0, y1 - y0), interpolation=cv2.INTER_LINEAR)
     a = np.float32(min(entry["alpha"], 1.0) * FIRE_INTENSITY)
     look = entry.get("look", "hot")
+    pal = {k: np.asarray(v, np.float32) for k, v in palette(entry.get("palette")).items() if k != "embers"}
     if look == "hot":
-        rgb = WHITE_HOT * m[..., None] + RIM * band[..., None] + NEAR_GLOW * (near * 0.375)[..., None] + FAR_GLOW * (far * 0.3)[..., None]
+        rgb = pal["body"] * m[..., None] + pal["rim"] * band[..., None] + pal["near"] * (near * 0.375)[..., None] + pal["far"] * (far * 0.3)[..., None]
         cover = np.clip(m + band + near * 0.3 + far * 0.2, 0.0, 1.0)
     else:
-        m, body = _cel_body(m, look, frame_index, (x0, y0, x1, y1), (height, width))
+        m, body = _cel_body(m, look, frame_index, (x0, y0, x1, y1), (height, width), pal)
         a = np.float32(min(entry["alpha"], 1.0))  # el plano no se atenúa: es opaco
         glow = 0.12 if look == "cel" else 0.3  # el cel casi no irradia: el brillo lo pone el tinte del cuadro
-        rgb = body * m[..., None] + NEAR_GLOW * (near * glow)[..., None] + FAR_GLOW * (far * glow * 0.8)[..., None]
+        rgb = body * m[..., None] + pal["near"] * (near * glow)[..., None] + pal["far"] * (far * glow * 0.8)[..., None]
         cover = np.clip(m + near * glow * 0.8 + far * glow * 0.5, 0.0, 1.0)
     dst = layer[y0:y1, x0:x1]
     dst[..., :3] += rgb * a
@@ -379,11 +423,12 @@ def flush_fire(layer, frame_index: int, u: float | None = None, st: dict | None 
         trend = 2.0 if mass < before * 0.9 else (0.6 if mass > before * 1.05 else 1.0)
         rate = min(mass / 15000.0 * (3.0 if dying else 1.0) * trend, 6.0)
         embers["look"] = look
+        embers["palette"] = entry.get("palette", "naranja")
         emit_embers(embers, m, (x0, y0), frame_index, rate, height)
         draw_embers(layer, embers, frame_index, 1.0)
 
 
-def _cel_body(m: np.ndarray, look: str, frame_index: int, box: tuple[int, int, int, int], size: tuple[int, int]) -> tuple[np.ndarray, np.ndarray]:
+def _cel_body(m: np.ndarray, look: str, frame_index: int, box: tuple[int, int, int, int], size: tuple[int, int], pal: dict | None = None) -> tuple[np.ndarray, np.ndarray]:
     """Máscara y color del fuego plano (cel y mix). Cel: amarillo puro con huecos en lo ancho, por
     donde se ve el fondo (glowing/video_51). Mix: el mismo amarillo con el núcleo blanco de
     video_18 solo a lo largo del centro de las partes gruesas."""
@@ -395,14 +440,16 @@ def _cel_body(m: np.ndarray, look: str, frame_index: int, box: tuple[int, int, i
         drift = _noise(height, width, frame_index, 41)[y0:y1, x0:x1]
         wide = np.clip((dist - 0.012 * height) / (0.008 * height), 0.0, 1.0)
         hole = np.clip((drift - 0.3) / 0.08, 0.0, 1.0) * wide
-        return m * (1.0 - hole), np.broadcast_to(CEL_YELLOW, m.shape + (3,))
+        flat = pal["flat"] if pal else CEL_YELLOW
+        return m * (1.0 - hole), np.broadcast_to(flat, m.shape + (3,))
     local = cv2.dilate(dist, np.ones((25, 25), np.uint8))
     center = dist / np.maximum(local, 1.0)  # 1 sobre la línea central de cada parte
     # Solo en grosores medios (cintas, chorros, gotas): en las masas muy anchas (alfombra, pared)
     # un núcleo blanco grande se veía como plastilina.
     thick = np.clip((dist - 0.008 * height) / (0.008 * height), 0.0, 1.0) * np.clip((0.04 * height - dist) / (0.015 * height), 0.0, 1.0)
     core = (np.clip((center - 0.75) / 0.2, 0.0, 1.0) * thick)[..., None]  # una franja fina por el centro
-    return m, CEL_YELLOW * (1.0 - core) + WHITE_HOT * core
+    flat, body = (pal["flat"], pal["body"]) if pal else (CEL_YELLOW, WHITE_HOT)
+    return m, flat * (1.0 - core) + body * core
 
 
 def erode(shape: np.ndarray, binary: np.ndarray, die: float, seed: int, box: tuple[int, int, int, int], size: tuple[int, int]) -> np.ndarray:
@@ -735,7 +782,7 @@ def living_ribbon(layer, spine: np.ndarray, widths: np.ndarray, u: float, st: di
         size = float(np.linalg.norm(hi - lo))
         mid = (lo + hi) / 2
         fade = 1.0 - die
-        warm(layer, mid, max(size * 2.4, 0.45 * height), GLOW * 0.55, alpha * 0.07 * fade)
+        warm(layer, mid, max(size * 2.4, 0.45 * height), palette()["glow"].astype(np.float32) * 0.55, alpha * 0.07 * fade)
         _LIGHTS["now"].append((mid, size, float(alpha) * fade))
 
 
@@ -793,7 +840,7 @@ def shed(layer, spine: np.ndarray, widths: np.ndarray, st: dict, frame_index: in
         inner = at + np.stack([np.cos(arc[::-1]), np.sin(arc[::-1])], axis=1) * size * fade * 0.6 + np.array([np.cos(a + 1.2), np.sin(a + 1.2)]) * size * 0.25
         crescent = np.vstack([outer, inner])
         # Opaca hasta el final: se consume achicándose, no volviéndose transparente (la referencia).
-        fill_polygon(layer, crescent, MID, alpha, 1.4, feather=0.8)
+        fill_polygon(layer, crescent, palette()["mid"].astype(np.float32), alpha, 1.4, feather=0.8)
     st["flakes"] = keep
 
 
@@ -1757,9 +1804,21 @@ ELEMENT_TINT = {
 }
 
 
-def note_bolt(frame_index: int) -> None:
-    """Un rayo dibujado en este cuadro: el plano se tiñe de cian (lo lee fire_light)."""
+def note_bolt(frame_index: int, color=None) -> None:
+    """Un rayo dibujado en este cuadro: el plano se tiñe del color del rayo (lo lee fire_light)."""
     _LIGHTS["bolt"] = frame_index
+    if color is not None:
+        _LIGHTS["bolt_color"] = np.asarray(color, np.float32)
+
+
+def _bolt_tint() -> np.ndarray:
+    """El multiplicador del cuadro durante un rayo: del color del rayo (el cian medido en video_51
+    da 0,26/0,84/1,1, cerca de lo medido 0,18/0,66/1,05)."""
+    c = _LIGHTS.get("bolt_color")
+    if c is None:
+        return ELEMENT_TINT["bolt"]
+    c = np.asarray(c, np.float32) / max(float(np.max(c)), 1e-3)
+    return (0.15 + 0.95 * c).astype(np.float32)
 
 
 def bolt_active(frame_index: int) -> bool:
@@ -1786,7 +1845,8 @@ def _chapter_tint(st: dict, frame_index: int, fire: bool, strength: float) -> np
         p = st.get(kind, 0.0)
         p += ((1.0 if on else 0.0) - p) * (0.35 if on else 0.12)
         st[kind] = p
-        mult *= 1.0 + np.float32(p * strength) * (ELEMENT_TINT[kind] - 1.0)
+        tint = palette()["tint"].astype(np.float32) if kind == "fire" else _bolt_tint()
+        mult *= 1.0 + np.float32(p * strength) * (tint - 1.0)
     return None if float(np.abs(mult - 1.0).max()) < 0.01 else mult
 
 
@@ -1816,7 +1876,7 @@ def _fire_light(runtime, layer, frame_index: int, alpha: float) -> list:
         amount += size * a
     light = cv2.resize(np.clip(light, 0.0, 1.0), (width, height), interpolation=cv2.INTER_LINEAR)
     cover = np.float32(min(amount / (0.5 * height), 1.0) * 0.45 * alpha)
-    straight = LIGHT_DARK * (1.0 - light)[..., None] + LIGHT_TINT * light[..., None]
+    straight = LIGHT_DARK * (1.0 - light)[..., None] + palette()["light"].astype(np.float32) * light[..., None]
     if chapter is None:
         layer[..., :3] = straight * cover
         layer[..., 3] = cover

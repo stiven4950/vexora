@@ -189,6 +189,10 @@ class DirectorConfig(_Strict):
     take: int = 0
     # Temporada (configs/seasons.yaml) que se aplica encima del estilo: paleta y decoración.
     season: str | None = None
+    # Estilos que elige el cliente (director/looks.py): el fuego (clasico, plano, mixto, azul, verde,
+    # pixel) y el rayo (cian, blanco, violeta, rojo, fuego). Sin valor, los del catálogo.
+    fire_style: str | None = None
+    bolt_style: str | None = None
     # Guion de prueba (director/pins.py): momentos fijados a mano que mandan sobre el sorteo.
     pins: str | None = None
     # Vestuario por persona (chaqueta, vestido, ambos, ninguno), que elige el usuario:

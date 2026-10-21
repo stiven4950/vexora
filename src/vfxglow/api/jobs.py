@@ -44,6 +44,9 @@ class Job(BaseModel):
     take: int = 0
     # Temporada encima del estilo (configs/seasons.yaml), o ninguna.
     season: str | None = None
+    # Estilos de fuego y de rayo que eligió el cliente (director/looks.py), o los del catálogo.
+    fire_style: str | None = None
+    bolt_style: str | None = None
     status: Status = "queued"
     stage: Stage = "queued"
     progress: float = 0.0
@@ -156,7 +159,7 @@ class JobStore:
 
     # ----- altas -----
 
-    def create(self, filename: str, data, style_kind: str, style: str, seed: int | None, season: str | None = None, owner: str | None = None, wardrobe: dict[str, str] | None = None, deep: bool = False) -> Job:
+    def create(self, filename: str, data, style_kind: str, style: str, seed: int | None, season: str | None = None, owner: str | None = None, wardrobe: dict[str, str] | None = None, deep: bool = False, fire_style: str | None = None, bolt_style: str | None = None) -> Job:
         job_id = uuid.uuid4().hex[:10]
         folder = self.uploads / job_id
         folder.mkdir(parents=True)
@@ -164,9 +167,9 @@ class JobStore:
         target = folder / safe
         with target.open("wb") as out:
             shutil.copyfileobj(data, out)
-        return self._enqueue(Job(id=job_id, created=time.time(), filename=filename, video_path=str(target), style_kind=style_kind, style=style, seed=seed, season=season, owner=owner, wardrobe=wardrobe or {}, deep=deep))
+        return self._enqueue(Job(id=job_id, created=time.time(), filename=filename, video_path=str(target), style_kind=style_kind, style=style, seed=seed, season=season, owner=owner, wardrobe=wardrobe or {}, deep=deep, fire_style=fire_style, bolt_style=bolt_style))
 
-    def variation(self, parent: Job, style_kind: str, style: str, seed: int | None, season: str | None = None, wardrobe: dict[str, str] | None = None, deep: bool | None = None) -> Job:
+    def variation(self, parent: Job, style_kind: str, style: str, seed: int | None, season: str | None = None, wardrobe: dict[str, str] | None = None, deep: bool | None = None, fire_style: str | None = None, bolt_style: str | None = None) -> Job:
         """Mismo video, otro estilo u otra versión: el análisis queda en caché y es rápido.
 
         Sin semilla, "otra versión" del mismo estilo es la siguiente del ranking (la mejor que no
@@ -174,10 +177,12 @@ class JobStore:
         root = parent.parent or parent.id
         wear = parent.wardrobe if wardrobe is None else wardrobe
         deep = parent.deep if deep is None else deep
+        fire_style = parent.fire_style if fire_style is None else (fire_style or None)
+        bolt_style = parent.bolt_style if bolt_style is None else (bolt_style or None)
         take = 0
         if seed is None:
             with self._lock:
-                done = [j.take for j in self._jobs.values() if (j.parent or j.id) == root and j.style == style and j.style_kind == style_kind and j.seed is None and j.season == season and j.wardrobe == wear]
+                done = [j.take for j in self._jobs.values() if (j.parent or j.id) == root and j.style == style and j.style_kind == style_kind and j.seed is None and j.season == season and j.wardrobe == wear and j.fire_style == fire_style and j.bolt_style == bolt_style]
             take = max(done) + 1 if done else 0
         return self._enqueue(
             Job(
@@ -192,6 +197,8 @@ class JobStore:
                 season=season,
                 wardrobe=wear,
                 deep=deep,
+                fire_style=fire_style,
+                bolt_style=bolt_style,
                 parent=root,
                 owner=parent.owner,
             )
@@ -260,6 +267,9 @@ class JobStore:
         try:
             kwargs = {"catalog": job.style, "seed": job.seed, "take": job.take} if job.style_kind == "catalog" else {"preset": job.style}
             kwargs["season"] = job.season
+            if job.style_kind == "catalog" and (job.fire_style or job.bolt_style):
+                kwargs["fire_style"] = job.fire_style
+                kwargs["bolt_style"] = job.bolt_style
             if job.style_kind == "catalog" and job.wardrobe:
                 kwargs["wardrobe"] = job.wardrobe
             if job.style_kind == "catalog" and job.deep:

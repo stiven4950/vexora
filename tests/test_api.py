@@ -106,6 +106,19 @@ def test_seasons_listed_and_used_by_jobs(client: TestClient) -> None:
     assert bad.status_code == 422
 
 
+def test_fire_and_bolt_looks_listed_and_passed_to_the_pipeline(client: TestClient) -> None:
+    looks = client.get("/api/looks").json()
+    assert {"clasico", "azul", "pixel"} <= {x["id"] for x in looks["fuego"]}
+    assert {"cian", "violeta"} <= {x["id"] for x in looks["rayo"]}
+    response = client.post("/api/jobs", files={"video": ("c.mp4", io.BytesIO(b"x"), "video/mp4")}, data={"style": "avatar", "fire_style": "azul", "bolt_style": "violeta"})
+    job = _wait(client, response.json()["id"])
+    assert (job["fire_style"], job["bolt_style"]) == ("azul", "violeta")
+    variation = client.post(f"/api/jobs/{job['id']}/variations", json={"style": "avatar", "fire_style": "pixel"}).json()
+    assert (variation["fire_style"], variation["bolt_style"]) == ("pixel", "violeta")  # el rayo, el del origen
+    bad = client.post("/api/jobs", files={"video": ("c.mp4", io.BytesIO(b"x"), "video/mp4")}, data={"style": "avatar", "fire_style": "lava"})
+    assert bad.status_code == 422
+
+
 # ----- cuentas (Firebase Auth) -----
 
 USERS = {"token-ana": ("uid-ana", "ana@example.com"), "token-beto": ("uid-beto", "beto@example.com")}

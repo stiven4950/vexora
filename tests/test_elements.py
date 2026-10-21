@@ -502,3 +502,36 @@ def test_lion_slashes_only_on_the_punch() -> None:
     assert "slash" not in _state(rt, "lion:p0:0")  # sin golpe, no hay zarpazo
     _m, rt = _beast_run("fire_lion", 30, punch_at=20)
     assert _state(rt, "lion:p0:0")["slash"][0] == 20  # el zarpazo sale en el golpe
+
+
+def test_fire_palette_and_pixel_change_how_the_fire_is_painted() -> None:
+    def paint(palette_name: str, pixel: float = 0.0) -> np.ndarray:
+        firebend.set_look("hot", palette_name, pixel)
+        layer = np.zeros((H, W, 4), np.float32)
+        spine = np.stack([np.full(40, 200.0), np.linspace(500, 100, 40)], axis=1)
+        poly = np.vstack([spine + [14.0, 0], (spine - [14.0, 0])[::-1]])
+        firebend.cel(layer, lambda k: poly, None, 1.0)
+        firebend.flush_fire(layer, 0)
+        firebend.set_look("hot")
+        return layer
+
+    orange, blue, green = paint("naranja"), paint("azul"), paint("verde")
+    rim = (300, 216)  # justo afuera del cuerpo: el borde
+    assert orange[rim][0] > orange[rim][2] and blue[rim][2] > blue[rim][0] and green[rim][1] > green[rim][2]
+    blocky = paint("naranja", 0.03)[..., 3] > 0.5
+    rows = np.nonzero(blocky.any(axis=1))[0]
+    assert (rows.max() - rows.min() + 1) % 18 == 0 or len(np.unique(blocky.sum(axis=1)[rows])) <= 3  # bloques de píxel
+
+
+def test_looks_apply_over_the_catalog_without_touching_it() -> None:
+    from pathlib import Path
+
+    from vfxglow.director.choreography import _effect, load_catalog
+    from vfxglow.director.looks import apply_looks
+
+    original = load_catalog(Path("configs/catalogs/avatar.yaml"))
+    themed = apply_looks(original, "azul", "violeta")
+    assert _effect(themed, themed.always[0], "x")["style"]["fire_palette"] == "azul"  # también la luz del fuego
+    colors = {o.name: e["style"]["colors"][1] for r in themed.reactions for o in r.options for e in o.effects if e.get("type") == "lightning"}
+    assert colors["rayo"] == [0.72, 0.3, 1.0] and colors["rayo_fuego"] == [1.0, 0.5, 0.1]  # el rayo de fuego no cambia
+    assert "fire_palette" not in original.defaults.get("style", {})  # el original intacto

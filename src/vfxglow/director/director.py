@@ -67,6 +67,11 @@ class CreativeDirector:
                 from vfxglow.director.seasons import apply_to_catalog
 
                 catalog = apply_to_catalog(catalog, season)
+            if self.config.fire_style or self.config.bolt_style:
+                # Los estilos de fuego y de rayo que eligió el cliente (encima de la temporada).
+                from vfxglow.director.looks import apply_looks
+
+                catalog = apply_looks(catalog, self.config.fire_style, self.config.bolt_style)
             pins = None
             if self.config.pins:
                 from vfxglow.director.pins import load_pins
