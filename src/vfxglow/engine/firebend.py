@@ -932,8 +932,12 @@ _FIRE_LIMBS: dict = {}
 
 
 def _limb_point(body, name: str) -> np.ndarray | None:
-    """La posición de una extremidad del fuego (`head` es la cabeza: la nariz)."""
-    return body.get("nose") if name == "head" else body.get(name)
+    """La posición de una extremidad del fuego (`head` es la cabeza: la nariz; `hips`, la cadera)."""
+    if name == "head":
+        return body.get("nose")
+    if name == "hips":
+        return body.mid("left_hip", "right_hip")
+    return body.get(name)
 
 
 def note_fire(body, names, frame_index: int) -> None:

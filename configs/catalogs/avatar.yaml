@@ -91,6 +91,14 @@ reactions:
           - *heat
 
   # Seg. 1,6: salto: remolinos de fuego y pantalla naranja.
+      # La kitsune: nueve colas de fuego que se abren en abanico con los brazos (una vez por video).
+      - name: kitsune
+        weight: 0.15
+        max_uses: 1
+        earns: {actions: [fast_swing, lunge, throw, intended_strike], within_s: [0.8, 2.4]}
+        effects:
+          - &kitsune {type: adornment, style: {shapes: [fire_kitsune]}, trigger: {hold: 72, fade_in: 1, fade_out: 4}}
+          - *heat
   - action: jump
     options:
       - name: remolinos
@@ -205,6 +213,14 @@ reactions:
           - &skull {type: adornment, style: {shapes: [fire_skull], thickness: 0.009}, trigger: {hold: 18, fade_in: 2, fade_out: 6}}
   - action: lunge
     options:
+      # El león: melena, rugido y, en el golpe, un zarpazo de tres cortes (una vez por video).
+      - name: leon
+        weight: 0.2
+        max_uses: 1
+        earns: {actions: [fast_swing, lunge, intended_strike], within_s: [0.3, 1.8]}
+        effects:
+          - &lion {type: adornment, style: {shapes: [fire_lion]}, trigger: {hold: 50, fade_in: 1, fade_out: 4}}
+          - *heat2
       # video_51, seg. 4,0-4,7: gira el fuego alrededor del cuerpo, lo atrapa y, al estirar el
       # brazo, lo lanza como una explosión.
       - name: orbita
@@ -364,6 +380,20 @@ reactions:
   # Giros: un aro de fuego o látigos en las dos manos.
   - action: spin_body
     options:
+      # Bestias del giro (una vez por video, solo si después hay un golpe que las use): la serpiente
+      # se enrosca en el brazo, rodea el cuerpo y vuelve a la mano; la kitsune abre nueve colas.
+      - name: serpiente_enroscada
+        weight: 0.3
+        max_uses: 1
+        earns: {actions: [fast_swing, lunge, throw, intended_strike], within_s: [0.8, 2.4]}
+        effects:
+          - &coil {type: adornment, style: {shapes: [fire_coil]}, trigger: {hold: 72, fade_in: 1, fade_out: 4}}
+          - *heat2
+      - name: kitsune
+        weight: 0.3
+        max_uses: 1
+        earns: {actions: [fast_swing, lunge, throw, intended_strike], within_s: [0.8, 2.4]}
+        effects: [*kitsune, *heat2]
       - name: viento
         element: aire
         weight: 0.4

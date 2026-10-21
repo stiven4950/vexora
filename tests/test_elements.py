@@ -455,3 +455,50 @@ def test_beasts_fly_an_arc_return_to_the_hand_and_burst_on_the_punch() -> None:
         assert 0 <= far[34] < 0.6 * max(far[8:22]), shape  # volvió: queda como una llama en la mano
         punch = _state(runtime, "beast:right_wrist:p0:0").get("punch", {})
         assert punch.get("thrown") == 40, shape  # el puñetazo la usa
+
+
+def _beast_run(shape: str, frames: int, punch_at: int | None = None) -> tuple[list[np.ndarray], SimpleNamespace]:
+    from vfxglow.engine.fire_creatures import fire_creature
+
+    body = _body()
+    body.update(right_elbow=np.array([260.0, 260.0]), right_wrist=np.array([300.0, 240.0]))
+    runtime = _runtime(0)
+    runtime.fps = 30.0
+    runtime.effect = SimpleNamespace(triggers=[SimpleNamespace(hold=72)])
+    event = SimpleNamespace(start_frame=0, end_frame=2, kind="right", target="p0:right_wrist", name="spin_body")
+    frame = (np.array([200.0, 200.0]), np.array([1.0, 0.0]), np.array([0.0, 1.0]))
+    masks = []
+    for f in range(frames):
+        if punch_at is not None and f == punch_at:
+            body.update(right_elbow=np.array([290.0, 205.0]), right_wrist=np.array([350.0, 210.0]))
+        runtime.active_frames = f + 1
+        layer = np.zeros((H, W, 4), np.float32)
+        fire_creature(shape, body, frame, 60.0, f, runtime, layer, None, 1.0, event)
+        firebend.flush_fire(layer, f)
+        masks.append(layer[..., 3] > 0.5)
+    return masks, runtime
+
+
+def test_coil_serpent_circles_the_body_and_returns_to_the_hand() -> None:
+    masks, _rt = _beast_run("fire_coil", 40)
+    xs = [np.nonzero(m)[1] for m in masks]
+    assert min(x.min() for x in xs[10:20] if len(x)) < 150 and max(x.max() for x in xs[10:20] if len(x)) > 250  # rodea el cuerpo
+    hand = np.array([300.0, 240.0])
+    ys, xx = np.nonzero(masks[38])
+    assert len(ys) and float(np.max(np.hypot(xx - hand[0], ys - hand[1]))) < 120  # vuelve: llama en la mano
+
+
+def test_kitsune_fans_nine_tails_upward() -> None:
+    masks, _rt = _beast_run("fire_kitsune", 12)
+    ys, _xs = np.nonzero(masks[10])
+    hips_y = 320.0
+    assert len(ys) and np.mean(ys < hips_y) > 0.8  # las colas van hacia arriba de la cadera (no como patas)
+
+
+def test_lion_slashes_only_on_the_punch() -> None:
+    from vfxglow.engine.critters import _state
+
+    _m, rt = _beast_run("fire_lion", 30)
+    assert "slash" not in _state(rt, "lion:p0:0")  # sin golpe, no hay zarpazo
+    _m, rt = _beast_run("fire_lion", 30, punch_at=20)
+    assert _state(rt, "lion:p0:0")["slash"][0] == 20  # el zarpazo sale en el golpe

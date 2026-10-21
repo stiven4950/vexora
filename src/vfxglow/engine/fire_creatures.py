@@ -8,6 +8,13 @@
 - `fire_phoenix` / `fire_dragon_launch`: bestias con un objetivo (video_51, seg. 7,0-7,7): salen
   del puño, hacen un arco sobre la persona, vuelven en picada a la mano y quedan como una llama que
   se usa en el puñetazo siguiente (explosión en estrella).
+- `fire_coil`: una serpiente de fuego sale de la mano, se enrosca en el brazo, rodea el cuerpo
+  siguiendo el giro, sube en espiral y vuelve a la mano para el golpe.
+- `fire_kitsune`: nueve colas de fuego salen de la cadera, siguen el giro del cuerpo, se abren en
+  abanico con los brazos abiertos y se recogen en una llama que va a la mano para el golpe; dos
+  orejas de fuego en la cabeza.
+- `fire_lion`: melena de fuego alrededor de la cabeza, el rugido (un anillo que sale de la boca) y,
+  en el golpe, un zarpazo de tres cortes en la dirección del brazo.
 - `fire_splash`: el fuego que choca contra el piso se expande en olas con crestas enroscadas que
   tiemblan como gelatina y se aplanan en una línea con escamas (seg. 5,0-5,2).
 - `fire_breath`: el fuego sube por el costado hasta la cabeza, la envuelve, estalla una bola de
@@ -29,7 +36,7 @@ from vfxglow.engine.critters import TAU, WHITE, _activation, _ease, _phase, _seg
 from vfxglow.engine.firebend import CORE, MID, _floor, _unit, _wrist, cel, flame_physics, note_fire, note_frame, ribbon, rim, shed, teardrop, transfer_fire, warm
 from vfxglow.engine.raster import fill_polygon, splat
 
-FIRE_CREATURES = ("fire_skull", "fire_bird", "fire_serpent", "fire_splash", "fire_breath", "fire_dragon", "fire_phoenix", "fire_dragon_launch")
+FIRE_CREATURES = ("fire_skull", "fire_bird", "fire_serpent", "fire_splash", "fire_breath", "fire_dragon", "fire_phoenix", "fire_dragon_launch", "fire_coil", "fire_kitsune", "fire_lion")
 
 
 def ink(layer, curves: list[np.ndarray], color, alpha: float, width: int = 2) -> None:
@@ -330,6 +337,22 @@ def _fire_bird(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
 # ----- bestias que se lanzan -----
 
 
+def _dragon_head(layer, pos: np.ndarray, d: np.ndarray, h: float, frame_index: int, color, alpha: float, runtime) -> None:
+    """Cabeza de dragón oriental de perfil hacia `d`: mandíbulas que se abren y se cierran, cuernos
+    hacia atrás separados de la cabeza y el ojo encendido (`h` = largo de la cabeza)."""
+    n = np.array([-d[1], d[0]])
+    jaw = 0.35 + 0.15 * np.sin(frame_index * 0.6)
+    upper = np.array([pos - d * h * 0.5 + n * h * 0.35, pos + d * h * 0.4 + n * h * 0.4, pos + d * h * 1.3 + n * h * jaw * 0.5, pos + d * h * 0.3, pos - d * h * 0.5])
+    lower = np.array([pos - d * h * 0.4, pos + d * h * 0.3 - n * h * 0.05, pos + d * h * 1.1 - n * h * jaw * 0.6, pos + d * h * 0.3 - n * h * 0.35, pos - d * h * 0.4 - n * h * 0.3])
+    cel(layer, lambda k: upper, color, alpha, runtime)
+    cel(layer, lambda k: lower, color, alpha, None)
+    for s_ in (1, -1):
+        root = pos - d * h * 0.35 + n * s_ * h * 0.3
+        cel(layer, teardrop(root, -d * 0.8 + n * s_ * 0.6, h * 1.1, h * 0.12 + 0.5, frame_index, 5.1 + s_, 0.3 * s_), color, alpha, None)
+    eye = pos + d * h * 0.15 + n * h * 0.25
+    splat(layer, float(eye[0]), float(eye[1]), 0.07 * h + 1, WHITE * 2.0, alpha, runtime.kernels)
+
+
 BEAST_OUT, BEAST_ARC, BEAST_BACK = 0.15, 0.33, 0.55  # segundos (medidos en video_51, 6,93-7,5 s): sale, hace su arco, vuelve a la mano
 
 
@@ -410,17 +433,7 @@ def _launched_beast(body, frame, scale, frame_index, runtime, layer, color, alph
         for j in range(4, len(spine) - 3, 3):  # crestas del lomo, inclinadas hacia la cola
             tip_dir = normals[j] * 0.8 - (spine[j + 1] - spine[j - 1]) / max(float(np.linalg.norm(spine[j + 1] - spine[j - 1])), 1e-6) * 0.6
             cel(layer, teardrop(spine[j] + normals[j] * widths[j] * 0.8, tip_dir / max(float(np.linalg.norm(tip_dir)), 1e-6), widths[j] * 2.2, widths[j] * 0.3 + 0.5, frame_index, j * 0.7), color, alpha, None)
-        h = 0.42 * size
-        jaw = 0.35 + 0.15 * np.sin(frame_index * 0.6)  # la boca se abre y se cierra
-        upper = np.array([pos - d * h * 0.5 + n * h * 0.35, pos + d * h * 0.4 + n * h * 0.4, pos + d * h * 1.3 + n * h * jaw * 0.5, pos + d * h * 0.3, pos - d * h * 0.5])
-        lower = np.array([pos - d * h * 0.4, pos + d * h * 0.3 - n * h * 0.05, pos + d * h * 1.1 - n * h * jaw * 0.6, pos + d * h * 0.3 - n * h * 0.35, pos - d * h * 0.4 - n * h * 0.3])
-        cel(layer, lambda k, upper=upper: upper, color, alpha, runtime)
-        cel(layer, lambda k, lower=lower: lower, color, alpha, None)
-        for s_ in (1, -1):  # los cuernos, hacia atrás y separados de la cabeza
-            root = pos - d * h * 0.35 + n * s_ * h * 0.3
-            cel(layer, teardrop(root, -d * 0.8 + n * s_ * 0.6, h * 1.1, h * 0.12 + 0.5, frame_index, 5.1 + s_, 0.3 * s_), color, alpha, None)
-        eye = pos + d * h * 0.15 + n * h * 0.25
-        splat(layer, float(eye[0]), float(eye[1]), 0.07 * h + 1, WHITE * 2.0, alpha, runtime.kernels)
+        _dragon_head(layer, pos, d, 0.42 * size, frame_index, color, alpha, runtime)
     else:
         flap = np.sin(frame_index * 0.8)
         cel(layer, _bird_shape(pos, heading, 1.1 * size, flap, frame_index), color, alpha, runtime)
@@ -428,6 +441,204 @@ def _launched_beast(body, frame, scale, frame_index, runtime, layer, color, alph
             spine = np.array(trail)
             q = np.linspace(0, 1, len(spine))
             cel(layer, ribbon(spine, (0.02 + 0.12 * q) * size, frame_index, 5.0, 1.1), color, alpha, None)
+    return []
+
+
+# ----- bestias del giro y de la estocada: serpiente, kitsune y león -----
+
+
+def _arm_points(body, name: str) -> list[np.ndarray]:
+    return [p for p in (body.get(name.replace("wrist", j)) for j in ("wrist", "elbow", "shoulder")) if p is not None]
+
+
+def _smooth_path(points: np.ndarray, n: int) -> np.ndarray:
+    """La polilínea suavizada (Chaikin) y remuestreada a `n` puntos parejos."""
+    pts = points.astype(np.float64)
+    for _ in range(3):
+        if len(pts) < 3:
+            break
+        q = pts[:-1] * 0.75 + pts[1:] * 0.25
+        r = pts[:-1] * 0.25 + pts[1:] * 0.75
+        pts = np.vstack([pts[:1], np.stack([q, r], axis=1).reshape(-1, 2), pts[-1:]])
+    seg = np.linalg.norm(np.diff(pts, axis=0), axis=1)
+    d = np.concatenate([[0.0], np.cumsum(seg)])
+    t = np.linspace(0, d[-1], n)
+    return np.stack([np.interp(t, d, pts[:, 0]), np.interp(t, d, pts[:, 1])], axis=1)
+
+
+def _fire_coil(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
+    """Serpiente de fuego (giros): la cabeza sale de la mano, se enrosca subiendo por el brazo
+    (en perspectiva, más chica por detrás), rodea el cuerpo siguiendo el giro, sube en espiral y
+    vuelve en picada a la mano; queda como una llama para el golpe (fire_punch). El cuerpo es el
+    recorrido reciente de la cabeza."""
+    from vfxglow.engine.firebend import fire_punch
+
+    center, across, down = frame
+    up = -down
+    found = _wrist(body, event, scale)
+    if found is None:
+        return []
+    name, hand = found
+    st = _activation(runtime, event, f"coil:{name}", body)
+    unit = _unit(scale, layer)
+    t = max(runtime.active_frames - 1, 0) / max(runtime.fps, 1.0)
+    u = _phase(runtime, event)
+    if t >= 1.15:
+        fire_punch(body, name, scale, frame_index, runtime, layer, color, alpha, event, st.setdefault("punch", {}), u)
+        return []
+    hips = body.mid("left_hip", "right_hip")
+    mid = center + ((hips - center) * 0.3 if hips is not None else down * 0.3 * scale)
+    arm = _arm_points(body, name)
+    if t < 0.3 and len(arm) == 3:  # se enrosca por el brazo, de la mano al hombro
+        k = t / 0.3
+        along = hand + (arm[2] - hand) * k
+        axis = (arm[2] - hand) / max(float(np.linalg.norm(arm[2] - hand)), 1e-6)
+        n = np.array([-axis[1], axis[0]])
+        a = k * TAU * 2.0
+        pos = along + n * np.cos(a) * 0.35 * unit
+        depth = 0.5 + 0.5 * np.sin(a)
+    elif t < 0.7:  # rodea el cuerpo (elipse en perspectiva)
+        k = (t - 0.3) / 0.4
+        a = st.setdefault("a0", float(np.arctan2((hand - mid)[1], (hand - mid)[0]))) + k * TAU
+        pos = mid + np.array([np.cos(a) * 1.4 * unit, np.sin(a) * 0.4 * unit])
+        depth = 0.5 + 0.5 * np.sin(a)
+    elif t < 0.9:  # sube en espiral sobre la cabeza
+        k = (t - 0.7) / 0.2
+        a = k * TAU * 1.2
+        pos = mid + up * (0.5 + 3.0 * k) * unit + np.array([np.cos(a) * 0.8 * unit * (1 - 0.5 * k), 0.0])
+        depth = 0.5 + 0.5 * np.sin(a)
+    else:  # baja en picada a la mano
+        k = _ease((t - 0.9) / 0.25)
+        top = st.setdefault("top", st.get("pos", hand))
+        pos = top + (hand - top) * k
+        depth = 1.0
+    prev = st.get("pos", pos)
+    heading = pos - prev if float(np.linalg.norm(pos - prev)) > 0.5 else st.get("heading", up)
+    st.update(pos=pos, heading=heading)
+    trail = st.setdefault("trail", [])
+    trail.append(pos.copy())
+    del trail[:-16]
+    grow = _ease(min(t / 0.12, 1.0)) * (0.6 + 0.4 * depth)
+    if len(trail) > 3:
+        spine = _smooth_path(np.array(trail), 40)  # curva suave (las rectas entre cuadros la hacían angulosa)
+        q = np.linspace(0, 1, len(spine))
+        widths = (0.04 + 0.16 * np.sin(np.pi * np.clip(q * 0.85 + 0.1, 0, 1)) ** 0.6) * unit * grow
+        cel(layer, ribbon(spine, widths, frame_index, 6.0, 4.1), color, alpha * (0.6 + 0.4 * depth), runtime)
+    d = heading / max(float(np.linalg.norm(heading)), 1e-6)
+    _dragon_head(layer, pos, d, 0.45 * unit * grow, frame_index, color, alpha * (0.6 + 0.4 * depth), runtime)
+    return []
+
+
+KITSUNE_TAILS = 9
+
+
+def _fire_kitsune(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
+    """Kitsune de nueve colas (giros o brazos abiertos): nueve cintas de fuego salen de la cadera
+    en abanico, se mecen siguiendo el giro (con inercia, cada una con su desfase) y se abren más
+    cuanto más abiertos están los brazos; dos orejas de fuego en la cabeza. Al final las colas se
+    recogen en una llama que viaja a la mano y espera el golpe (fire_punch)."""
+    from vfxglow.engine.firebend import fire_punch, transfer_fire
+
+    center, across, down = frame
+    up = -down
+    hips = body.mid("left_hip", "right_hip")
+    if hips is None:
+        return []
+    st = _activation(runtime, event, "kitsune", body)
+    unit = _unit(scale, layer)
+    t = max(runtime.active_frames - 1, 0) / max(runtime.fps, 1.0)
+    u = _phase(runtime, event)
+    gather = _seg(t, 1.0, 1.25)  # las colas se recogen
+    if gather >= 1.0:
+        name = st.setdefault("hand", _leader_name(body) or "right_wrist")
+        lit = transfer_fire(body, (name,), frame_index, scale, layer, color, alpha, runtime, st.setdefault("transfer", {}))[name]
+        if lit >= 1.0:
+            fire_punch(body, name, scale, frame_index, runtime, layer, color, alpha, event, st.setdefault("punch", {}), u)
+        return []
+    note_fire(body, ("hips",), frame_index)  # el fuego está en la cadera (de ahí viaja a la mano)
+    wrists = [p for p in (body.get("left_wrist"), body.get("right_wrist")) if p is not None]
+    open_ = float(np.clip(np.linalg.norm(wrists[0] - wrists[1]) / (2.5 * scale), 0.3, 1.0)) if len(wrists) == 2 else 0.5
+    # El giro del cuerpo mece las colas con inercia (la velocidad de la cadera).
+    swing = st.get("swing", 0.0)
+    prev = st.get("hips", hips)
+    st["hips"] = hips
+    swing = swing * 0.8 + float((hips - prev)[0]) / max(scale, 1e-6) * 0.2
+    st["swing"] = swing
+    grow = _ease(min(t / 0.3, 1.0)) * (1.0 - gather)
+    spread = (0.6 + 0.75 * open_) * grow  # radianes a cada lado: el abanico va hacia arriba (hacia abajo parecía una araña)
+    for i in range(KITSUNE_TAILS):
+        f = (i / (KITSUNE_TAILS - 1)) * 2 - 1  # -1..1
+        a = -np.pi / 2 + f * spread - swing * 2.0 * (1 - abs(f) * 0.3)
+        q = np.linspace(0, 1, 22)
+        length = (3.0 - 0.7 * abs(f)) * unit * grow
+        wave = np.sin(q * 5.0 - frame_index * 0.3 + i * 0.9) * 0.18 * unit * q
+        d = np.array([np.cos(a), np.sin(a)])
+        n = np.array([-d[1], d[0]])
+        bend = np.outer(q ** 2 * 0.35 * length * (1 if f >= 0 else -1), n)  # se curvan hacia afuera
+        root = hips + d * 0.35 * unit * grow  # cada cola nace aparte (juntas en la cadera eran una mancha)
+        spine = root + np.outer(q * length, d) + np.outer(wave, n) + bend
+        widths = (0.03 + 0.17 * np.sin(np.pi * np.clip(q, 0, 1) ** 0.7) ** 1.2) * unit * grow  # tupida hacia la punta
+        cel(layer, ribbon(spine, widths, frame_index, 4.0, i * 1.3), color, alpha, runtime if i == 0 else None)
+    nose = body.get("nose")
+    if nose is not None and grow > 0.05:  # las orejas de fuego
+        for side in (-1, 1):
+            base = nose + up * 0.55 * scale + across * side * 0.22 * scale
+            ear = up * 0.9 + across * side * 0.35
+            cel(layer, teardrop(base, ear / float(np.linalg.norm(ear)), 0.6 * unit * grow, 0.13 * unit * grow + 0.5, frame_index, 7.0 + side), color, alpha, None)
+    return []
+
+
+def _fire_lion(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
+    """León de fuego (estocada o golpe con el cuerpo hacia adelante): una melena de lenguas
+    enroscadas nace alrededor de la cabeza, ruge (un anillo de fuego que sale de la boca y se
+    abre) y, cuando la mano golpea, un zarpazo de tres cortes de fuego en la dirección del brazo."""
+    from vfxglow.engine.firebend import _punching
+
+    center, across, down = frame
+    up = -down
+    face = _face(body, frame, scale)
+    if face is None:
+        return []
+    nose, r, _up, _across = face
+    st = _activation(runtime, event, "lion", body)
+    unit = _unit(scale, layer)
+    t = max(runtime.active_frames - 1, 0) / max(runtime.fps, 1.0)
+    u = _phase(runtime, event)
+    grow = _ease(min(t / 0.25, 1.0)) * (1.0 - _seg(u, 0.85, 1.0))
+    head = nose + up * 0.2 * r
+    for i in range(14):  # la melena: lenguas hacia afuera, enroscadas, alrededor de la cabeza
+        a = i * TAU / 14 + 0.1 * np.sin(frame_index * 0.2 + i)
+        d = np.array([np.cos(a), np.sin(a)])
+        base = head + d * r * 1.05
+        cel(layer, teardrop(base, d, (0.55 + 0.2 * np.sin(i * 1.7)) * unit * grow, 0.13 * unit * grow + 0.5, frame_index, i * 0.9, 0.3 * (1 if i % 2 else -1)), color, alpha, runtime if i == 0 else None)
+    roar = _seg(t, 0.2, 0.55)  # el rugido: un anillo que sale de la boca y se abre
+    if 0 < roar < 1:
+        mouth = nose + down * 0.35 * r
+        ring = 0.4 * unit + roar * 1.5 * unit
+        a = np.linspace(0, TAU, 40)
+        spine = mouth + np.stack([np.cos(a) * ring, np.sin(a) * ring * 0.55], axis=1)
+        cel(layer, ribbon(spine, np.full(40, 0.09 * unit * (1 - roar) + 0.5), frame_index, 6.0, 5.5), color, alpha, None)
+    found = _wrist(body, event, scale)
+    name = st.setdefault("hand", found[0] if found is not None else (_leader_name(body) or "right_wrist"))
+    hand = body.get(name)
+    punching = hand is not None and _punching(body, name, scale)
+    if not punching:
+        st["armed"] = True
+    if hand is not None and st.get("armed") and punching and "slash" not in st:
+        elbow = body.get(name.replace("wrist", "elbow"))
+        aim = (hand - elbow) if elbow is not None and float(np.linalg.norm(hand - elbow)) > 1 else across
+        st["slash"] = (frame_index, hand.copy(), aim / float(np.linalg.norm(aim)))
+    if "slash" in st:  # el zarpazo: tres cortes en medialuna que se abren y se consumen
+        f0, at, aim = st["slash"]
+        age = frame_index - f0
+        if age <= 8:
+            n = np.array([-aim[1], aim[0]])
+            draw = min(age / 2.0, 1.0)
+            for k in (-1, 0, 1):
+                q = np.linspace(0, draw, 16)
+                spine = at + aim * 0.5 * unit + np.outer((q - 0.5) * 2.4 * unit, n) + np.outer(np.sin(np.pi * q) * 0.6 * unit + k * 0.45 * unit, aim)
+                widths = np.sin(np.pi * np.clip(q / max(draw, 1e-3), 0, 1)) * 0.12 * unit * (1 - age / 9.0) + 0.5
+                cel(layer, ribbon(spine, widths, frame_index, 3.0, 6.1 + k), color, alpha, None)
     return []
 
 
@@ -600,6 +811,12 @@ def fire_creature(shape, body, frame, scale, frame_index, runtime, layer, color,
         return _fire_skull(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape in ("fire_bird", "fire_serpent"):
         return _fire_bird(body, frame, scale, frame_index, runtime, layer, color, alpha, event, shape == "fire_serpent")
+    if shape == "fire_coil":
+        return _fire_coil(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape == "fire_kitsune":
+        return _fire_kitsune(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape == "fire_lion":
+        return _fire_lion(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape in ("fire_phoenix", "fire_dragon_launch"):
         return _launched_beast(body, frame, scale, frame_index, runtime, layer, color, alpha, event, shape == "fire_dragon_launch")
     if shape == "fire_splash":
