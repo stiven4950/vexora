@@ -588,7 +588,7 @@ def unclutter(catalog: Catalog, chosen: dict, decisions: list, always: list[dict
         picks = chosen.get((action, name), [])
         if (d.frame, d.target) in picks:
             picks.remove((d.frame, d.target))
-        d.choice = f"nada (cede al efecto pesado {clash[4]})"
+        d.choice = f"nada (cede al efecto pesado {clash[4]})" if clash[2] == "pesado" else f"nada (es pesado y ya está encendido {clash[4]})"
         d.until = d.frame
 
 
