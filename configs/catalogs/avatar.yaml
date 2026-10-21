@@ -156,6 +156,13 @@ reactions:
   # Seg. 2,0 y 12,4: cae al piso o pisa fuerte: fuego a ras del piso.
   - action: landing
     options:
+      # video_51, seg. 2,4: si el fuego venía en los pies (una voltereta), al caer se desbarata en
+      # el suelo; si no, el golpe de piso.
+      - name: desbarate
+        weight: 0.6
+        effects:
+          - &landing {type: adornment, style: {shapes: [fire_landing]}, trigger: {hold: 12, fade_in: 1, fade_out: 4}}
+          - *heat2
       # Seg. 5,0: el fuego choca contra el piso y se expande en olas que tiemblan como gelatina.
       - name: golpe_piso
         weight: 0.5
@@ -407,6 +414,9 @@ reactions:
         effects: [*halo]
   - action: tumble
     options:
+      - name: desbarate
+        weight: 0.3
+        effects: [*landing]
       # Rodando por el piso la atención está en los pies: el fuego sale de ellos.
       - name: estelas
         weight: 0.4

@@ -367,3 +367,32 @@ def test_no_transfer_when_the_fire_is_already_there() -> None:
     firebend.note_fire(body, ("right_wrist",), 0)
     layer = np.zeros((H, W, 4), np.float32)
     assert firebend.transfer_fire(body, ("right_wrist",), 1, 60.0, layer, None, 1.0, _runtime(1), {}) == {"right_wrist": 1.0}
+
+
+def _landing(feet_fire: bool) -> tuple[np.ndarray, SimpleNamespace]:
+    body = _body()
+    firebend._FIRE_LIMBS.clear()
+    if feet_fire:
+        firebend.note_fire(body, firebend.FEET, 10)  # venía con el fuego en los pies (voltereta)
+    else:
+        firebend.note_fire(body, firebend.HANDS, 10)
+    runtime = _runtime(4)
+    runtime.fps = 30.0
+    event = SimpleNamespace(start_frame=14, end_frame=16, kind="", target="p0", name="landing")
+    frame = (np.array([200.0, 200.0]), np.array([1.0, 0.0]), np.array([0.0, 1.0]))
+    layer = np.zeros((H, W, 4), np.float32)
+    firebend.firebend("fire_landing", body, frame, 60.0, 18, runtime, layer, None, 1.0, event)
+    firebend.flush_fire(layer, 18)
+    return layer[..., 3] > 0.5, runtime
+
+
+def test_fire_breaks_up_on_the_floor_only_if_it_came_in_the_feet() -> None:
+    from vfxglow.engine.critters import _state
+
+    mask, runtime = _landing(True)
+    ys, xs = np.nonzero(mask)
+    assert len(ys) and ys.mean() > 380 and xs.max() - xs.min() > 100  # se desbarata alrededor de los pies
+    assert "p0" not in firebend._FIRE_LIMBS  # el fuego se gastó en el piso
+    assert _state(runtime, "landing:p0:14").get("feet") is True
+    _mask, runtime = _landing(False)
+    assert _state(runtime, "landing:p0:14").get("feet") is False  # si no, el golpe de piso

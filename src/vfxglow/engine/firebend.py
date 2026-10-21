@@ -17,6 +17,8 @@ blanco) con lenguas definidas, no como un brillo difuso.
   de fuego desde el puño, alfombra de lenguas en el piso y aro grande alrededor del cuerpo.
 - `fire_trail`: swoosh de fuego: la mano lleva la llama prendida y, al moverse, la estela de fuego
   la persigue por su recorrido (lo que queda atrás sube y se achica); al frenar se recoge.
+- `fire_landing`: al caer al piso con el fuego en los pies, el fuego choca y se desbarata en el
+  suelo (video_51, seg. 2,4-2,7); si no venía de los pies, el golpe de piso de siempre.
 - `fire_carpet_end`: cierre con la alfombra: en los últimos segundos, solo si la persona lleva más
   de 2 s de frente (y no hay pared). Se usa en `always`.
 - `fire_wall`: cierre: en el último tramo una pared de fuego sube desde el piso hasta llenar el
@@ -32,7 +34,7 @@ import numpy as np
 from vfxglow.engine.critters import TAU, WHITE, _activation, _ease, _phase, _seg
 from vfxglow.engine.raster import fill_polygon, splat
 
-FIREBEND = ("fire_whip", "hand_fire", "candle", "floor_fire", "fire_ring", "avatar_mark", "body_blaze", "fire_wall", "fire_light", "fire_blast", "fire_carpet", "fire_halo", "fire_carpet_end", "fire_trail")
+FIREBEND = ("fire_whip", "hand_fire", "candle", "floor_fire", "fire_ring", "avatar_mark", "body_blaze", "fire_wall", "fire_light", "fire_blast", "fire_carpet", "fire_halo", "fire_carpet_end", "fire_trail", "fire_landing")
 MID = np.array([1.0, 0.66, 0.1], np.float32)
 # La luz que el fuego echa sobre el escenario: naranja profundo (con más verde, al sumarse sobre el
 # cuadro y el bloom, se iba al amarillo).
@@ -1197,7 +1199,7 @@ def _fire_blast(body, scale, frame_index, runtime, layer, color, alpha, event) -
     return []
 
 
-def _fire_carpet(body, scale, frame_index, runtime, layer, color, alpha, event, u: float | None = None) -> list:
+def _fire_carpet(body, scale, frame_index, runtime, layer, color, alpha, event, u: float | None = None, size: float = 1.0) -> list:
     """Alfombra de fuego en el piso (video_51, seg. 2,7): gotas gordas en gancho repartidas al azar
     sobre una elipse del piso alrededor de los pies, todas inclinadas hacia el mismo lado y más
     grandes cuanto más cerca de la cámara (más abajo en el cuadro). Al encimarse forman una masa
@@ -1211,7 +1213,7 @@ def _fire_carpet(body, scale, frame_index, runtime, layer, color, alpha, event, 
         st["x"] = float(np.mean([f[0] for f in feet]))
         st["lean"] = 1.0 if (st["x"] < layer.shape[1] / 2) else -1.0  # hacia el centro del cuadro
     u = _phase(runtime, event) if u is None else u
-    scale = _unit(scale, layer)
+    scale = _unit(scale, layer) * size
     grow = _ease_out(u / GROW_END) if u < DIE_START else 1.0
     rng = np.random.default_rng(int(st["x"]) * 7 + 3)
     count = 22
@@ -1230,6 +1232,29 @@ def _fire_carpet(body, scale, frame_index, runtime, layer, color, alpha, event, 
         curl = (0.25 + 0.25 * rng.random()) * st["lean"]
         cel(layer, teardrop(np.array([xs[j], ys[j]]), d, tall, (0.3 + 0.18 * rng.random()) * depth * scale, frame_index, j * 1.1, curl), color, alpha, runtime, 0.4)
     return []
+
+
+LANDING_FEET_S = 1.0  # el fuego tenía que estar en los pies hace menos de esto
+
+
+def _fire_landing(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
+    """El fuego que se desbarata al caer (video_51, seg. 2,4-2,7): si hace poco el fuego iba en los
+    pies (una voltereta), al tocar el piso choca y se deshace en una alfombra chica de lenguas
+    alrededor de los pies, que nace en 2-3 cuadros y muere enseguida en trozos (la vida del
+    efecto). El fuego queda gastado: lo que siga no lo traspasa. Si no venía de los pies, el golpe
+    de piso de siempre."""
+    st = _activation(runtime, event, "landing", body)
+    key = getattr(body, "prefix", "") or "person"
+    if "feet" not in st:
+        last = _FIRE_LIMBS.get(key)
+        st["feet"] = bool(last is not None and any(n.endswith("_ankle") for n in last[0]) and 0 <= frame_index - last[2] <= runtime.fps * LANDING_FEET_S)
+        if st["feet"]:
+            _FIRE_LIMBS.pop(key, None)  # el fuego se gastó en el piso
+    if not st["feet"]:
+        from vfxglow.engine.fire_creatures import _fire_splash
+
+        return _fire_splash(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    return _fire_carpet(body, scale, frame_index, runtime, layer, color, alpha, event, size=0.8)
 
 
 # Cierres del fuego en el piso: la pared (si se enciende) gana y la alfombra no sale.
@@ -1660,6 +1685,8 @@ def firebend(shape, body, frame, scale, frame_index, runtime, layer, color, alph
         return _fire_carpet(body, scale, frame_index, runtime, layer, color, alpha, event)
     if shape == "fire_halo":
         return _fire_halo(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape == "fire_landing":
+        return _fire_landing(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape == "fire_trail":
         return _fire_trail(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape == "fire_carpet_end":
