@@ -27,3 +27,4 @@ Lectura de la referencia en `docs/referencias/video_18.md`. Los `.mp4` no van a 
 | `2026-10-19_avatar_v21_capitulos.mp4` | Capítulos de elemento (tramo de rayo limpio en 3,2-5,3 s), swoosh más frecuente, pared final |
 | `2026-10-19_avatar_halloween_v1.mp4` | Temporada Halloween sobre avatar, con los objetos dibujados en código: arañazos en los tajos (1,3 y 4,8 s), murciélagos que escapan de la mano (4,0 y 4,8 s), fantasma al pisar (3,9 y 11,7 s), araña que baja en la pausa final y telaraña en la esquina |
 | `2026-10-20_avatar_v22_bestias.mp4` | Kitsune (1,0 s), fénix con su ciclo (3,2 s), voltereta con el fuego en los pies y desbarate (8,3 s), trocitos calibrados |
+| `2026-10-21_avatar_v23_piso_encaje.mp4` | Lo mismo que video_51 v8: fuego de piso en encaje, extinción desde arriba, estela continua, pesados sin combinar |
