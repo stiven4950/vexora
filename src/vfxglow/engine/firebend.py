@@ -195,6 +195,17 @@ def cel(layer, make, color, alpha: float, runtime=None, heat: float = 1.0, core:
         _LIGHTS["now"].append((mid, size, float(alpha) * heat))
 
 
+def carve(layer, poly: np.ndarray) -> None:
+    """Recorta una forma del fuego acumulado (los ojos y las ranuras de la cabeza de león): por
+    ahí se ve el fondo."""
+    entry = _entry(layer)
+    if len(poly) < 3:
+        return
+    hole = np.zeros(entry["mask"].shape, np.uint8)
+    cv2.fillPoly(hole, [np.round(poly).astype(np.int32)], 255, lineType=cv2.LINE_AA)
+    entry["mask"] *= 1.0 - hole.astype(np.float32) / 255.0
+
+
 _NOISE: dict = {}
 
 

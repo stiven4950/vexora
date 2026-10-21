@@ -622,37 +622,40 @@ def _mind_blown(body, frame, scale, frame_index, runtime, layer, color, alpha, e
 
 
 def _lion_roar(body, frame, scale, frame_index, runtime, layer, color, alpha, event, head) -> list[np.ndarray]:
+    """Máscara de león tribal de neón sobre la cara (engine/lion_head.py): la melena en mechones
+    enmarca la cabeza, el ceño, la nariz y la barba se alinean con la cara de la persona (sus ojos
+    quedan a la vista) y, al rugir, la boca se abre y salen ondas de la boca."""
     from vfxglow.engine.characters import text_outline
+    from vfxglow.engine.firebend import _smooth_noise
+    from vfxglow.engine.lion_head import lion_head, place
 
     c, r, up, across = _face(body, frame, scale, head)
     u = _phase(runtime, event)
     grow = _ease(_seg(u, 0.0, 0.2))
-    spikes = 16
-    a = np.linspace(0, TAU, spikes * 2 + 1)
-    flicker = 1 + 0.08 * np.sin(frame_index * 1.7 + np.arange(len(a)))
-    radius = np.where(np.arange(len(a)) % 2 == 0, 1.85, 1.3) * r * flicker * (0.6 + 0.4 * grow)
-    mane = c + np.outer(np.cos(a) * radius, across) + np.outer(np.sin(a) * radius, up)
-    fill_polygon(layer, mane, np.asarray(color, np.float32), alpha * 0.25, 0.9, feather=2.0)
-    lines = [mane]
-    for s in (-1, 1):  # orejas redondas y bigotes
-        ear = c + up * 1.05 * r + across * s * 0.75 * r
-        t = np.linspace(0, np.pi, 12)
-        lines.append(ear + np.outer(np.cos(t) * 0.22 * r, across) + np.outer(np.sin(t) * 0.22 * r, up))
-        for k in (-1, 0, 1):
-            root = c - up * 0.15 * r + across * s * 0.25 * r
-            lines.append(np.array([root, root + across * s * 0.55 * r + up * k * 0.15 * r]))
-    nose = c + up * 0.05 * r
-    lines.append(np.array([nose - across * 0.12 * r, nose + across * 0.12 * r, nose - up * 0.14 * r, nose - across * 0.12 * r]))
-    mouth = c - up * 0.5 * r
     roar = _seg(u, 0.25, 0.9)
+    size = r * (0.75 + 0.25 * grow)
+    count = 1 + 9  # copete y mechones de un lado (el diseño los espeja)
+    sway = np.stack([_smooth_noise(np.arange(count) * 1.7 + frame_index * 0.12, 3.0), _smooth_noise(np.arange(count) * 2.3 + frame_index * 0.1, 7.0)], axis=1) * 0.06
+    parts = lion_head(np.sin(np.pi * roar) if roar > 0 else 0.0, sway)
+    rgb = np.asarray(color, np.float32)
+    lines = []
+    for piece in parts["mane"]:  # la melena: masa tenue con su contorno
+        shape = place(piece, c, size, up, across)
+        fill_polygon(layer, shape, rgb, alpha * 0.22, 0.9, feather=1.5)
+        lines.append(np.vstack([shape, shape[:1]]))
+    # Los rasgos: sin los ojos del diseño (quedan los de la persona), con el ceño encima.
+    for piece in parts["features"] + parts["beard"] + parts["chin"]:
+        shape = place(piece, c, size, up, across)
+        lines.append(np.vstack([shape, shape[:1]]))
     if roar > 0:  # el rugido: ondas que salen de la boca y el texto que tiembla
+        mouth = c - up * 0.7 * size
         for k in range(3):
             age = (frame_index * 0.06 + k / 3) % 1.0
-            rr = (0.4 + 2.2 * age) * r
+            rr = (0.6 + 2.2 * age) * size
             arc = np.linspace(-np.pi * 0.75, -np.pi * 0.25, 18)
             lines.append(mouth + np.outer(np.cos(arc) * rr, across) + np.outer(np.sin(arc) * rr, up))
-        shake = across * np.sin(frame_index * 2.9) * 0.05 * r + up * np.cos(frame_index * 3.3) * 0.05 * r
-        lines += text_outline("ROAR!", c + up * 2.4 * r + shake, 0.55 * r)
+        shake = across * np.sin(frame_index * 2.9) * 0.04 * size + up * np.cos(frame_index * 3.3) * 0.04 * size
+        lines += text_outline("ROAR!", c + up * 2.85 * size + shake, 0.4 * size)
     return lines
 
 

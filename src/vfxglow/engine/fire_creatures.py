@@ -588,11 +588,17 @@ def _fire_kitsune(body, frame, scale, frame_index, runtime, layer, color, alpha,
     return []
 
 
+LION_SIZE = 0.8  # radio de la cara del león de fuego, en unidades del fuego (la cabeza mide ~4,4)
+
+
 def _fire_lion(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
-    """León de fuego (estocada o golpe con el cuerpo hacia adelante): una melena de lenguas
-    enroscadas nace alrededor de la cabeza, ruge (un anillo de fuego que sale de la boca y se
-    abre) y, cuando la mano golpea, un zarpazo de tres cortes de fuego en la dirección del brazo."""
-    from vfxglow.engine.firebend import _punching
+    """León de fuego (estocada o golpe con el cuerpo hacia adelante): una cabeza de león tribal de
+    fuego (engine/lion_head.py) aparece como espíritu sobre la cabeza de la persona, ruge (la boca
+    se abre y un anillo de fuego sale de ella) y, cuando la mano golpea, un zarpazo de tres cortes
+    de fuego en la dirección del brazo. Lo negro de la referencia es fuego; la cara, los ojos y
+    las ranuras entre mechones quedan vacíos."""
+    from vfxglow.engine.firebend import _punching, _smooth_noise, carve
+    from vfxglow.engine.lion_head import ink_steps, lion_head, place
 
     center, across, down = frame
     up = -down
@@ -605,19 +611,29 @@ def _fire_lion(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
     t = max(runtime.active_frames - 1, 0) / max(runtime.fps, 1.0)
     u = _phase(runtime, event)
     grow = _ease(min(t / 0.25, 1.0)) * (1.0 - _seg(u, 0.85, 1.0))
-    head = nose + up * 0.2 * r
-    for i in range(14):  # la melena: lenguas hacia afuera, enroscadas, alrededor de la cabeza
-        a = i * TAU / 14 + 0.1 * np.sin(frame_index * 0.2 + i)
-        d = np.array([np.cos(a), np.sin(a)])
-        base = head + d * r * 1.05
-        cel(layer, teardrop(base, d, (0.55 + 0.2 * np.sin(i * 1.7)) * unit * grow, 0.13 * unit * grow + 0.5, frame_index, i * 0.9, 0.3 * (1 if i % 2 else -1)), color, alpha, runtime if i == 0 else None)
-    roar = _seg(t, 0.2, 0.55)  # el rugido: un anillo que sale de la boca y se abre
-    if 0 < roar < 1:
-        mouth = nose + down * 0.35 * r
-        ring = 0.4 * unit + roar * 1.5 * unit
-        a = np.linspace(0, TAU, 40)
-        spine = mouth + np.stack([np.cos(a) * ring, np.sin(a) * ring * 0.55], axis=1)
-        cel(layer, ribbon(spine, np.full(40, 0.09 * unit * (1 - roar) + 0.5), frame_index, 6.0, 5.5), color, alpha, None)
+    roar = _seg(t, 0.2, 0.55)  # el rugido: la boca se abre y sale un anillo de fuego
+    # La cabeza: sobre la de la persona (sin taparle la cara), un poco hacia el lado del golpe.
+    size = LION_SIZE * unit * (0.6 + 0.4 * grow)
+    side = st.setdefault("side", 1.0 if (body.get("right_wrist") is not None and body.get("left_wrist") is not None and float(np.dot(body.get("right_wrist") - body.get("left_wrist"), across)) > 0) else -1.0)
+    center = nose + up * (r * 1.1 + size * 2.3) + across * side * 0.3 * size
+    count = 1 + 9  # copete y mechones de un lado (el diseño los espeja)
+    sway = np.stack([_smooth_noise(np.arange(count) * 1.7 + frame_index * 0.12, 3.0), _smooth_noise(np.arange(count) * 2.3 + frame_index * 0.1, 7.0)], axis=1) * 0.08
+    first = True
+    for poly, ink in ink_steps(lion_head(np.sin(np.pi * roar) if 0 < roar < 1 else 0.0, sway)):
+        shape = place(poly, center, size, up, across)
+        if ink:
+            cel(layer, lambda k, shape=shape: shape, color, alpha, runtime if first else None)
+            first = False
+        else:
+            carve(layer, shape)
+    if 0 < roar < 1:  # el sonido del rugido: arcos que salen a los costados, por fuera de la melena
+        for k in range(3):
+            reach = size * (2.5 + 0.55 * k + 1.2 * roar)
+            for sign in (-1.0, 1.0):
+                a = np.linspace(-0.55, 0.55, 18)
+                spine = center - up * 0.3 * size + np.outer(np.cos(a) * reach * sign, across) + np.outer(np.sin(a) * reach, up)
+                q = np.linspace(0, 1, 18)
+                cel(layer, ribbon(spine, np.sin(np.pi * q) * 0.07 * size * (1 - roar) * (1 - 0.25 * k) + 0.5, frame_index, 2.0, 5.5 + k), color, alpha, None)
     found = _wrist(body, event, scale)
     name = st.setdefault("hand", found[0] if found is not None else (_leader_name(body) or "right_wrist"))
     hand = body.get(name)

@@ -619,3 +619,34 @@ def test_the_floor_fire_is_a_wide_lace_that_dies_in_pieces() -> None:
     alive = [k for k, a in enumerate(areas) if a > 0.05 * areas[peak]]
     assert alive[-1] - peak <= 14 and alive[-1] < frames - 1  # se apaga en pocos cuadros
     assert max(pieces[peak:]) >= 8  # al morir se parte en trozos
+
+
+def _lion_ink(open_mouth: float = 0.0) -> np.ndarray:
+    from vfxglow.engine.lion_head import ink_steps, lion_head, place
+
+    img = np.zeros((500, 500), np.uint8)
+    for poly, ink in ink_steps(lion_head(open_mouth)):
+        q = place(poly, np.array([250.0, 250.0]), 100.0, np.array([0.0, -1.0]), np.array([1.0, 0.0]))
+        cv2.fillPoly(img, [np.round(q).astype(np.int32)], 255 if ink else 0)
+    return img > 0
+
+
+def test_the_lion_head_is_symmetric_with_a_face_carved_in_the_ink() -> None:
+    ink = _lion_ink()
+    mirrored = ink[:, ::-1]
+    assert (ink & mirrored).sum() / max(ink.sum(), 1) > 0.95  # simétrica (el copete en S apenas se corre)
+    assert cv2.connectedComponents(ink.astype(np.uint8))[0] - 1 >= 20  # mechones separados por ranuras
+    assert not ink[148:158, 242:258].any() and not ink[230:250, 160:180].any()  # frente y mejilla, vacías (la cara)
+    assert (_lion_ink(1.0) ^ ink).sum() > 300  # al rugir, la boca se abre
+
+
+def test_the_neon_lion_draws_the_tribal_mask() -> None:
+    from vfxglow.engine.stories import _lion_roar
+
+    body = _body()
+    frame = (np.array([200.0, 300.0]), np.array([1.0, 0.0]), np.array([0.0, 1.0]))
+    runtime = _runtime(0)
+    event = SimpleNamespace(start_frame=0, end_frame=30, kind="", target="person_0", name="spotlight")
+    layer = np.zeros((H, W, 4), np.float32)
+    lines = _lion_roar(body, frame, 60.0, 10, runtime, layer, (0.3, 0.9, 1.0), 1.0, event, None)
+    assert len(lines) > 20 and layer[..., 3].max() > 0  # mechones, rasgos y la masa tenue de la melena
