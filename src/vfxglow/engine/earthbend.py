@@ -31,7 +31,7 @@ import numpy as np
 from vfxglow.engine.critters import TAU, _activation, _ease, _phase, _seg
 from vfxglow.engine.waterbend import GRAVITY, LIGHT, _floor, _limb, _unit
 
-EARTHBEND = ("earth_slam", "earth_shield", "earth_fist", "earth_orbit", "earth_boulder")
+EARTHBEND = ("earth_slam", "earth_shield", "earth_fist", "earth_orbit", "earth_boulder", "earth_crystals")
 
 AMBER = np.array([1.0, 0.62, 0.15], np.float32)
 DUST = np.array([0.62, 0.56, 0.47], np.float32)  # gris beige
@@ -42,11 +42,20 @@ PALETTE = {
     "rim": np.array([0.88, 0.85, 0.78], np.float32),
     "outline": np.array([0.06, 0.04, 0.03], np.float32),
 }
+# Cristal de jade (la variante cristalina de la tierra): verde profundo en la sombra, menta en la luz.
+CRYSTAL = {
+    "dark": np.array([0.02, 0.2, 0.12], np.float32),
+    "base": np.array([0.08, 0.55, 0.34], np.float32),
+    "light": np.array([0.55, 0.96, 0.72], np.float32),
+    "rim": np.array([0.85, 1.0, 0.92], np.float32),
+    "outline": np.array([0.01, 0.1, 0.06], np.float32),
+}
+JADE = np.array([0.3, 1.0, 0.6], np.float32)  # la energía del cristal (grietas, destellos)
 COVER = 0.95  # la roca es opaca
 FLAT = 0.35  # las grietas del piso se aplastan en vertical (perspectiva)
 REST = 0.3  # restitución del rebote
 FRICTION = 0.7  # lo que conserva de la velocidad en x al rebotar
-FADE_FROM, FADE_TO = 30, 55  # edad (cuadros) en que el escombro se achica y se va
+FADE_FROM, FADE_TO = 40, 70  # edad (cuadros) en que el escombro se achica y se va
 DUST_LIFE = 26
 GROUND_FRAMES = 3  # cuadros seguidos parado antes de partir el piso
 SPARK_LIFE = 7
@@ -180,11 +189,11 @@ def ground_cracks(origin, unit: float, seed: int, grow: float, subs: bool = True
         return []
     rng = np.random.default_rng(int(seed) & 0x7FFFFFFF)
     origin = np.asarray(origin, np.float64)
-    n = int(rng.integers(5, 9))
+    n = int(rng.integers(7, 11))
     base = rng.uniform(0.0, TAU)
     mains, branches = [], []
     for i in range(n):
-        length = 2.5 * unit * rng.uniform(0.5, 1.0)
+        length = 3.4 * unit * rng.uniform(0.5, 1.0)
         main = _walk(origin, base + (i + rng.uniform(-0.3, 0.3)) * TAU / n, length, unit, rng)
         mains.append(main)
         for _ in range(int(rng.integers(1, 3))):
@@ -199,7 +208,7 @@ def ground_cracks(origin, unit: float, seed: int, grow: float, subs: bool = True
     return out
 
 
-def _stroke(layer, lines: list, fades: list, dark_w: int, core_w: int, alpha: float, dark: bool = True) -> None:
+def _stroke(layer, lines: list, fades: list, dark_w: int, core_w: int, alpha: float, dark: bool = True, color=AMBER) -> None:
     """Trazos con una línea oscura y un núcleo ámbar fino, más brillante según `fades` (por punto)."""
     lines = [l for l in lines if len(l) >= 2]
     if not lines or alpha <= 0:
@@ -225,17 +234,17 @@ def _stroke(layer, lines: list, fades: list, dark_w: int, core_w: int, alpha: fl
     glow = cv2.GaussianBlur(core_f, (0, 0), max(core_w * 1.2, 1.0))
     energy = np.clip(core_f + glow * 0.5, 0.0, 1.0) * a
     dst = layer[y0:y1, x0:x1]
-    dst[..., :3] += AMBER * energy[..., None]
+    dst[..., :3] += np.asarray(color, np.float32) * energy[..., None]
     dst[..., 3] = 1.0 - (1.0 - dst[..., 3]) * (1.0 - np.minimum(energy, 1.0))
 
 
-def draw_cracks(layer, cracks: list, origin, unit: float, alpha: float, amber: float = 1.0) -> None:
+def draw_cracks(layer, cracks: list, origin, unit: float, alpha: float, amber: float = 1.0, color=AMBER) -> None:
     """Pinta las grietas: línea oscura con el núcleo ámbar, más vivo junto al origen y apagándose a lo largo."""
     origin = np.asarray(origin, np.float64)
-    reach = 2.3 * unit
-    fades = [np.clip(1.0 - np.linalg.norm(c - origin, axis=1) / reach, 0.0, 1.0) ** 1.3 * amber for c in cracks]
-    dark_w = max(int(round(unit * 0.045)), 2)
-    _stroke(layer, cracks, fades, dark_w, max(dark_w // 2, 1), alpha)
+    reach = 3.0 * unit
+    fades = [np.clip(1.0 - np.linalg.norm(c - origin, axis=1) / reach, 0.0, 1.0) ** 1.2 * amber for c in cracks]
+    dark_w = max(int(round(unit * 0.06)), 2)
+    _stroke(layer, cracks, fades, dark_w, max(dark_w // 2, 1), alpha, color=color)
 
 
 # ----- partículas -----
@@ -306,7 +315,7 @@ def _puffs(st: dict, origin, unit: float, rng, count: int, ring: bool = True) ->
     for k in range(count):
         side = (1.0 if k % 2 else -1.0) if ring else rng.uniform(-1, 1)
         vel = np.array([side * unit * rng.uniform(0.03, 0.07), -unit * rng.uniform(0.0, 0.01)])
-        st.setdefault("dust", []).append([np.array(origin, np.float64) + [side * unit * rng.uniform(0.0, 0.3), 0.0], vel, unit * rng.uniform(0.18, 0.3), 0, DUST_LIFE])
+        st.setdefault("dust", []).append([np.array(origin, np.float64) + [side * unit * rng.uniform(0.0, 0.5), 0.0], vel, unit * rng.uniform(0.28, 0.5), 0, DUST_LIFE])
 
 
 def step_dust(st: dict) -> list:
@@ -326,26 +335,28 @@ def _draw_dust(layer, puffs: list, alpha: float) -> None:
         _blob(layer, pos, radius * 0.55, DUST, min(0.3 * alpha, 0.35) * (1.0 - age / life), add=False)
 
 
-def _sparks(st: dict, pos, unit: float, rng, count: int) -> None:
+def _sparks(st: dict, pos, unit: float, rng, count: int, color=AMBER) -> None:
     for _ in range(count):
         ang = rng.uniform(0, TAU)
-        st.setdefault("sparks", []).append([np.array(pos, np.float64), np.array([np.cos(ang), np.sin(ang) - 0.8]) * unit * rng.uniform(0.02, 0.07), 0])
+        st.setdefault("sparks", []).append([np.array(pos, np.float64), np.array([np.cos(ang), np.sin(ang) - 0.8]) * unit * rng.uniform(0.02, 0.07), 0, color])
 
 
 def _step_sparks(st: dict, height: int) -> list:
     keep = []
-    for pos, vel, age in st.get("sparks", []):
+    for pos, vel, age, *color in st.get("sparks", []):
         vel = vel * 0.85 + np.array([0.0, GRAVITY * height * 0.4])
         if age + 1 < SPARK_LIFE:
-            keep.append([pos + vel, vel, age + 1])
+            keep.append([pos + vel, vel, age + 1, *color])
     st["sparks"] = keep
     return keep
 
 
 def _draw_sparks(layer, sparks: list, alpha: float) -> None:
     sigma = max(0.0025 * layer.shape[0], 1.0)
-    for pos, _vel, age in sparks:
-        _blob(layer, pos, sigma, AMBER, min(alpha, 1.0) * (1.0 - age / SPARK_LIFE) * 1.2, add=True)
+    for spark in sparks:
+        pos, _vel, age = spark[:3]
+        color = spark[3] if len(spark) > 3 else AMBER
+        _blob(layer, pos, sigma, color, min(alpha, 1.0) * (1.0 - age / SPARK_LIFE) * 1.2, add=True)
 
 
 def _before(st: dict, layer, alpha: float) -> None:
@@ -372,6 +383,15 @@ def _tick(st: dict, event, point, frame_index: int):
 
 
 # ----- las figuras -----
+
+
+def _own_phase(runtime, event, wait: int) -> float:
+    """La vida del efecto contada desde que la persona apoyó (lo que esperó en el aire no se le
+    descuenta: si no, el piso se partía y se apagaba enseguida)."""
+    triggers = runtime.effect.triggers
+    hold = triggers[0].hold if triggers else 20
+    span = (event.end_frame - event.start_frame + 1 + hold) if event is not None else 60
+    return float(np.clip((runtime.active_frames - 1 - wait) / max(span - wait, 12), 0.0, 1.0))
 
 
 def _grounded(body, scale: float, layer) -> bool:
@@ -406,21 +426,65 @@ def _earth_slam(body, scale, frame_index, runtime, layer, alpha, event) -> None:
             return  # en el aire (una voltereta): el piso se parte cuando apoye, no en el cielo
         foot = max(feet, key=lambda p: p[1])
         st["origin"] = np.array([float(foot[0]), float(floor)])
+        st["wait"] = runtime.active_frames - 1
     origin, unit, height = st["origin"], _unit(scale, layer), layer.shape[0]
     rng = _tick(st, event, origin, frame_index)
-    age, u = st["age"], _phase(runtime, event)
+    age, u = st["age"], _own_phase(runtime, event, st["wait"])
     _before(st, layer, alpha)
     if age == 0:
         _sparks(st, origin, unit, rng, 6)
     if age == 3:  # tras la pausa de las grietas salen los escombros y el polvo
-        _burst(st, origin, int(rng.integers(8, 15)), unit, height, rng, cone=1.0)
-        _puffs(st, origin, unit, rng, 8)
+        _burst(st, origin, int(rng.integers(18, 27)), unit, height, rng, cone=1.1, reach=(0.7, 2.0), size=(0.14, 0.34))
+        _burst(st, origin, 4, unit, height, rng, cone=0.7, reach=(0.4, 1.0), size=(0.38, 0.55))  # unos trozos grandes
+        _puffs(st, origin, unit, rng, 16)
     grow = min(max(0.1 + 0.07 * age, _ease(_seg(u, 0.0, 0.4))), 1.0)
     cracks = ground_cracks(origin, unit, st["seed"], grow)
     draw_cracks(layer, cracks, origin, unit, alpha * (1.0 - _seg(u, 0.9, 1.0)), amber=1.0 - _seg(u, 0.7, 1.0))
     if age < 3:
-        _blob(layer, origin, 0.25 * unit, AMBER, alpha * 0.7 * (1.0 - age / 3.0), add=True)
+        _blob(layer, origin, 0.35 * unit, AMBER, alpha * 0.7 * (1.0 - age / 3.0), add=True)
+    _spikes(st, layer, origin, unit, rng, age, u, alpha, cracks)
     _after(st, layer, alpha, origin[1])
+
+
+def _spikes(st: dict, layer, origin, unit: float, rng, age: int, u: float, alpha: float, cracks: list) -> None:
+    """Picos de roca que brotan del piso por las grietas, inclinados hacia afuera: le dan masa al
+    pisotón. Salen tras la pausa, se sostienen y al final se desmoronan en escombros."""
+    if "spikes" not in st:
+        r = np.random.default_rng(st["seed"] + 5)
+        spikes = []
+        for k in range(int(r.integers(5, 8))):
+            side = -1.0 if k % 2 else 1.0
+            dist = unit * r.uniform(0.35, 1.5)
+            base = np.asarray(origin, np.float64) + [side * dist, r.uniform(-0.12, 0.2) * unit]
+            spikes.append((base, unit * r.uniform(0.7, 1.5) * (1.25 - 0.35 * dist / (1.5 * unit)), unit * r.uniform(0.28, 0.42), side * r.uniform(0.15, 0.45), int(r.integers(0, 10**6))))
+        spikes.sort(key=lambda sp: sp[0][1])  # los de atrás (más arriba en el cuadro) primero
+        st["spikes"] = spikes
+    if u >= 0.78:
+        if not st.get("crumbled"):
+            st["crumbled"] = True
+            for base, tall, wide, tilt, seed in st["spikes"]:
+                for k in range(4):
+                    at = base + np.array([np.sin(tilt), -np.cos(tilt)]) * tall * (0.2 + 0.2 * k)
+                    st.setdefault("debris", []).append([at, rng.normal(0, 0.015 * unit, 2), wide * rng.uniform(0.4, 0.7), rng.uniform(0, TAU), rng.normal(0, 0.15), 0])
+        return
+    rise = _ease(_seg(age, 3, 7))
+    if rise <= 0.02:
+        return
+    for base, tall, wide, tilt, seed in st["spikes"]:
+        draw_rock(layer, spike_facets(base, tall * rise, wide, tilt, seed), alpha)
+
+
+def spike_facets(base, tall: float, wide: float, tilt: float, seed: int) -> list:
+    """Un pico de roca: una roca estirada y afilada hacia arriba, con la base en el piso."""
+    facets, _ = rock_polygon(np.zeros(2), 1.0, seed)
+    out = []
+    rot = np.array([[np.cos(tilt), -np.sin(tilt)], [np.sin(tilt), np.cos(tilt)]])
+    for poly, shade in facets:
+        y = poly[:, 1]
+        taper = np.clip((y + 1.0) / 2.0, 0.15, 1.0)  # arriba (y=-1) fino, abajo ancho
+        local = np.stack([poly[:, 0] * wide * 0.5 * taper, (y - 1.0) * tall * 0.5], axis=1)
+        out.append((local @ rot.T + np.asarray(base, np.float64), shade))
+    return out
 
 
 def _earth_shield(body, scale, frame_index, runtime, layer, alpha, event) -> None:
@@ -431,14 +495,15 @@ def _earth_shield(body, scale, frame_index, runtime, layer, alpha, event) -> Non
     st = _activation(runtime, event, "earth:shield", body)
     rng = _tick(st, event, center, frame_index)
     unit, height, u, age = _unit(scale, layer), layer.shape[0], _phase(runtime, event), st["age"]
-    n = st.setdefault("n", 3 + st["seed"] % 3)
+    n = st.setdefault("n", 5 + st["seed"] % 3)
     hands = [p for p in (body.get("left_wrist"), body.get("right_wrist")) if p is not None]
     start_y = min(max(max([h[1] for h in hands], default=center[1]), center[1]) + 0.8 * unit, 0.98 * layer.shape[0])
-    radius, spacing, mid = 0.32 * unit, 0.54 * unit, (n - 1) / 2
+    radius, spacing, mid = 0.5 * unit, 0.72 * unit, (n - 1) / 2
     plates = []
     for i in range(n):
         x = center[0] + (i - mid) * spacing
-        final = np.array([x, center[1] + 0.12 * unit * ((i - mid) / max(mid, 1)) ** 2])
+        row = i % 2  # dos filas: las impares un poco más arriba y atrás (un muro, no una fila)
+        final = np.array([x, center[1] + 0.15 * unit * ((i - mid) / max(mid, 1)) ** 2 - row * 0.55 * unit])
         t = _seg(u, 0.03 * i, 0.3 + 0.03 * i)
         rise = 1.0 - (1.0 - t) ** 3  # sale frenando (ease-out)
         pos = np.array([x, start_y]) + (final - np.array([x, start_y])) * rise
@@ -481,12 +546,12 @@ def _earth_fist(body, scale, frame_index, runtime, layer, alpha, event) -> None:
     perp = np.array([-along[1], along[0]])
     speed = float(np.linalg.norm(wrist - st.get("last", wrist))) / max(unit, 1.0)
     st["last"] = wrist.copy()
-    n = st.setdefault("n", 4 + st["seed"] % 3)
+    n = st.setdefault("n", 7 + st["seed"] % 3)
     plates = []
     for i in range(n):
-        off = (i / max(n - 1, 1) - 0.5) * 0.34 * unit - 0.04 * unit
-        side = (1.0 if i % 2 else -1.0) * 0.09 * unit * (0.6 + 0.4 * ((i * 37) % 5) / 4)
-        plates.append((wrist + along * off + perp * side, unit * (0.11 + 0.06 * ((i * 53) % 7) / 6)))
+        off = (i / max(n - 1, 1) - 0.5) * 0.6 * unit - 0.05 * unit
+        side = (1.0 if i % 2 else -1.0) * 0.15 * unit * (0.6 + 0.4 * ((i * 37) % 5) / 4)
+        plates.append((wrist + along * off + perp * side, unit * (0.18 + 0.1 * ((i * 53) % 7) / 6)))
     _before(st, layer, alpha)
     if u >= 0.75:
         if not st.get("broke"):  # se desprende el guantelete
@@ -500,7 +565,7 @@ def _earth_fist(body, scale, frame_index, runtime, layer, alpha, event) -> None:
                 facets, _ = rock_polygon(pos, r * grow, st["seed"] + i * 17, float(np.arctan2(along[1], along[0])))
                 draw_rock(layer, facets, alpha)
         if speed > 0.06 and st["age"] % 2 == 0:  # con el golpe suelta lascas y chispas
-            _burst(st, wrist + rng.normal(0, 0.1 * unit, 2), 1, unit, layer.shape[0], rng, cone=1.2, reach=(0.05, 0.2), size=(0.03, 0.06), up=np.pi / 2)
+            _burst(st, wrist + rng.normal(0, 0.1 * unit, 2), 2, unit, layer.shape[0], rng, cone=1.2, reach=(0.05, 0.2), size=(0.05, 0.1), up=np.pi / 2)
             if speed > 0.1:
                 _sparks(st, wrist, unit, rng, 2)
     _after(st, layer, alpha, _floor(body, scale))
@@ -514,12 +579,13 @@ def _earth_orbit(body, scale, frame_index, runtime, layer, alpha, event) -> None
     st = _activation(runtime, event, "earth:orbit", body)
     rng = _tick(st, event, center, frame_index)
     unit, u = _unit(scale, layer), _phase(runtime, event)
-    n = st.setdefault("n", 6 + st["seed"] % 4)
-    sizes = [unit * (0.1 + 0.1 * ((i * 41) % 7) / 6) for i in range(n)]
+    n = st.setdefault("n", 10 + st["seed"] % 4)
+    sizes = [unit * (0.18 + 0.24 * ((i * 41) % 7) / 6) for i in range(n)]
     rocks = []
     for i in range(n):
         a = i * TAU / n + u * TAU * 1.5
-        rocks.append((a, center + np.array([np.cos(a) * 1.8 * unit, np.sin(a) * 0.5 * unit]), sizes[i], i))
+        ring = 1.0 + 0.25 * ((i * 29) % 3)  # tres anillos: no una sola fila de piedras
+        rocks.append((a, center + np.array([np.cos(a) * 2.0 * unit * ring, np.sin(a) * 0.55 * unit * ring - (i % 3) * 0.35 * unit]), sizes[i], i))
     _before(st, layer, alpha)
     if u >= 0.8:
         if not st.get("flung"):  # salen disparadas por la tangente
@@ -551,7 +617,7 @@ def _earth_boulder(body, scale, frame_index, runtime, layer, alpha, event) -> No
     elbow = body.get(name.replace("wrist", "elbow").replace("ankle", "knee"))
     along = (wrist - elbow) if elbow is not None and float(np.linalg.norm(wrist - elbow)) > 1 else np.array([1.0, 0.0])
     along = along / max(float(np.linalg.norm(along)), 1e-9)
-    radius = 1.0 * unit  # una roca de verdad (con 0,55 parecía un dado)
+    radius = 1.3 * unit  # una roca de verdad (con 0,55 parecía un dado)
     _before(st, layer, alpha)
     if not st.get("shattered"):
         if u < 0.4:  # sube del piso y flota a la altura de la mano
@@ -575,15 +641,120 @@ def _earth_boulder(body, scale, frame_index, runtime, layer, alpha, event) -> No
         outside = not (0.03 * width < pos[0] < 0.97 * width and 0.03 * height < pos[1] < 0.97 * height)
         if "vel" in st and (u >= 0.7 or outside):  # revienta en trizas
             st["shattered"] = True
-            _burst(st, pos, 14, unit, height, rng, cone=np.pi, reach=(0.3, 1.0), size=(0.05, 0.14))
-            for sh in st["debris"][-14:]:
+            _burst(st, pos, 26, unit, height, rng, cone=np.pi, reach=(0.3, 1.2), size=(0.1, 0.3))
+            for sh in st["debris"][-26:]:
                 sh[1] = sh[1] * 0.8 + st["vel"] * 0.3
-            _puffs(st, pos, unit, rng, 6, ring=False)
+            _puffs(st, pos, unit, rng, 10, ring=False)
             _sparks(st, pos, unit, rng, 5)
         else:
             facets, _ = rock_polygon(pos, radius * grow, st["seed"], st.get("angle", 0.0))
             draw_rock(layer, facets, alpha)
     _after(st, layer, alpha, floor)
+
+
+# ----- cristales de jade -----
+
+
+def crystal_facets(base, tall: float, wide: float, tilt: float) -> list:
+    """Un prisma de cristal con la base en el piso: tres caras (sombra, centro y luz) y la punta
+    tallada en tres triángulos. Devuelve (polígono, sombra) como las rocas, para draw_rock."""
+    w, h = wide * 0.5, tall
+    left, mid, right = -w, -0.12 * w, 0.42 * w
+    shoulder = 0.78 * h
+    faces = [
+        (np.array([[left, 0], [left, -shoulder], [mid, -shoulder - 0.06 * h], [mid, 0]]), 0.18),  # cara de sombra
+        (np.array([[mid, 0], [mid, -shoulder - 0.06 * h], [right, -shoulder - 0.03 * h], [right, 0]]), 0.55),
+        (np.array([[right, 0], [right, -shoulder - 0.03 * h], [w, -shoulder], [w, 0]]), 0.9),  # cara de luz
+        (np.array([[left, -shoulder], [0.0, -h], [mid, -shoulder - 0.06 * h]]), 0.3),  # la punta
+        (np.array([[mid, -shoulder - 0.06 * h], [0.0, -h], [right, -shoulder - 0.03 * h]]), 0.7),
+        (np.array([[right, -shoulder - 0.03 * h], [0.0, -h], [w, -shoulder]]), 1.0),
+    ]
+    rot = np.array([[np.cos(tilt), -np.sin(tilt)], [np.sin(tilt), np.cos(tilt)]])
+    base = np.asarray(base, np.float64)
+    out = []
+    for poly, shade in faces:
+        local = poly.astype(np.float64)
+        center = local.mean(axis=0)
+        # draw_rock toma el primer punto como el centro de la faceta (de ahí parte las costuras).
+        out.append((np.vstack([center, local]) @ rot.T + base, shade))
+    return out
+
+
+def _glint(layer, pos, size: float, a: float) -> None:
+    """Un destello en estrella (cruz fina y brillante) sobre una cara del cristal."""
+    for d in (np.array([1.0, 0.0]), np.array([0.0, 1.0])):
+        for k in np.linspace(-1, 1, 7):
+            _blob(layer, pos + d * k * size, max(size * 0.12, 0.6), np.array([0.9, 1.0, 0.95], np.float32), a * (1 - abs(k)) ** 2, add=True)
+
+
+def _earth_crystals(body, scale, frame_index, runtime, layer, alpha, event) -> None:
+    """Cristales de jade que brotan del piso en racimo alrededor del pie (o delante de la persona),
+    con grietas verdes en la base, destellos que recorren las caras y, al final, se quiebran en
+    esquirlas verdes."""
+    st = _activation(runtime, event, "earth:crystals", body)
+    unit, height = _unit(scale, layer), layer.shape[0]
+    if "origin" not in st:
+        feet = [p for p in (body.get("left_ankle"), body.get("right_ankle")) if p is not None]
+        floor = _floor(body, scale)
+        st["ground"] = st.get("ground", 0) + 1 if feet and floor is not None and _grounded(body, scale, layer) else 0
+        if st["ground"] < GROUND_FRAMES:
+            return  # brotan del piso: con la persona en el aire no hay piso donde
+        foot = max(feet, key=lambda p: p[1])
+        st["origin"] = np.array([float(foot[0]), float(floor)])
+        st["wait"] = runtime.active_frames - 1
+    origin = st["origin"]
+    u = _own_phase(runtime, event, st["wait"])
+    rng = _tick(st, event, origin, frame_index)
+    age = st["age"]
+    if "crystals" not in st:
+        r = np.random.default_rng(st["seed"] + 11)
+        crystals = []
+        for k in range(int(r.integers(7, 11))):
+            side = (k % 2) * 2 - 1.0 if k else 0.0
+            dist = unit * (0.15 + 0.32 * k) * r.uniform(0.8, 1.15)
+            base = origin + [side * dist, r.uniform(-0.1, 0.25) * unit]
+            tall = unit * r.uniform(0.9, 2.1) * (1.3 - 0.45 * min(dist / (2.5 * unit), 1.0))  # los del centro, más altos
+            crystals.append((base, tall, tall * r.uniform(0.3, 0.42), side * r.uniform(0.08, 0.5) + r.uniform(-0.1, 0.1), k * 0.37))
+        crystals.sort(key=lambda c: c[0][1])  # de atrás hacia adelante
+        st["crystals"] = crystals
+    _before(st, layer, alpha)
+    cracks = ground_cracks(origin, unit * 0.8, st["seed"], min(0.15 + 0.12 * age, 1.0))
+    draw_cracks(layer, cracks, origin, unit, alpha * (1.0 - _seg(u, 0.85, 1.0)), amber=1.0 - _seg(u, 0.75, 1.0), color=JADE)
+    if age < 4:
+        _blob(layer, origin, 0.5 * unit, JADE, alpha * 0.6 * (1.0 - age / 4.0), add=True)
+    if u >= 0.8:
+        if not st.get("shattered"):  # se quiebran: esquirlas verdes y destellos
+            st["shattered"] = True
+            for base, tall, wide, tilt, _delay in st["crystals"]:
+                for k in range(3):
+                    at = base + np.array([np.sin(tilt), -np.cos(tilt)]) * tall * (0.25 + 0.3 * k)
+                    ang = rng.uniform(-np.pi * 0.9, -np.pi * 0.1)
+                    st.setdefault("shards", []).append([at, np.array([np.cos(ang), np.sin(ang)]) * unit * rng.uniform(0.05, 0.12), wide * rng.uniform(0.25, 0.45), rng.uniform(0, TAU), rng.normal(0, 0.25), 0])
+                _sparks(st, base + [0.0, -tall * 0.5], unit, rng, 3, color=JADE)
+    else:
+        for base, tall, wide, tilt, delay in st["crystals"]:
+            rise = _ease(_seg(age, 1 + delay * 2, 6 + delay * 2))  # brotan escalonados, del centro afuera
+            if rise <= 0.02:
+                continue
+            draw_rock(layer, crystal_facets(base, tall * rise, wide, tilt), alpha * 0.92, palette=CRYSTAL)
+            # El brillo interior: una veta de energía por el centro del prisma.
+            axis = np.array([np.sin(tilt), -np.cos(tilt)])
+            vein = np.array([base + axis * tall * rise * f for f in np.linspace(0.1, 0.8, 6)])
+            _stroke(layer, [vein], [np.linspace(0.7, 0.2, 6)], 1, max(int(wide * 0.06), 1), alpha * 0.7, dark=False, color=JADE)
+            # Destellos que suben por la cara de luz.
+            t = (age * 0.07 + delay) % 1.0
+            if rise > 0.9 and t < 0.5:
+                at = base + axis * tall * (0.2 + 0.6 * t * 2) + np.array([np.cos(tilt), np.sin(tilt)]) * wide * 0.3
+                _glint(layer, at, wide * 0.35, alpha * np.sin(np.pi * t * 2))
+    shards = {"debris": st.get("shards", [])}
+    step_debris(shards, height, origin[1])
+    st["shards"] = shards["debris"]
+    for pos, _vel, size, angle, _spin, a_age in st["shards"]:
+        k = _seg(a_age, FADE_FROM, FADE_TO)
+        if size * (1 - 0.6 * k) >= 1.0:
+            facets, _ = rock_polygon(pos, size * (1 - 0.6 * k), int(size * 1000) % 9973, angle)
+            draw_rock(layer, facets, alpha * (1 - k), palette=CRYSTAL)
+    _after(st, layer, alpha, origin[1])
 
 
 def earthbend(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
@@ -593,6 +764,7 @@ def earthbend(shape, body, frame, scale, frame_index, runtime, layer, color, alp
         "earth_fist": _earth_fist,
         "earth_orbit": _earth_orbit,
         "earth_boulder": _earth_boulder,
+        "earth_crystals": _earth_crystals,
     }.get(shape)
     if figure is not None:
         figure(body, scale, frame_index, runtime, layer, alpha, event)

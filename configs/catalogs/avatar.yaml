@@ -105,6 +105,12 @@ reactions:
           - *heat
   - action: jump
     options:
+      # Tierra en el aire (volteretas, saltos): rocas que orbitan; la tierra no necesita piso.
+      - name: orbita_tierra
+        element: tierra
+        weight: 0.9
+        effects:
+          - &earth_orbit {type: adornment, style: {shapes: [earth_orbit]}, render: {blend: over, motion_blur: 0.0, group: glow, glow_layers: 1}, trigger: {hold: 34, fade_in: 1, fade_out: 3}}
       # Las piernas en el aire dejan la estela (no la medialuna, que es solo de abrir los brazos).
       - name: remolinos
         weight: 0.7
@@ -138,6 +144,12 @@ reactions:
   # Seg. 1,2: brazos arriba: llamas que suben de las manos.
   - action: arms_up
     options:
+      # Cristales de jade que brotan del piso (la variante cristalina de la tierra).
+      - name: cristales
+        element: tierra
+        weight: 0.5
+        effects:
+          - &earth_crystals {type: adornment, style: {shapes: [earth_crystals]}, render: {blend: over, motion_blur: 0.0, group: glow, glow_layers: 1}, trigger: {hold: 48, fade_in: 1, fade_out: 3}}
       # Tierra: un escudo de roca que se alza frente a las manos.
       - name: escudo_tierra
         element: tierra
@@ -180,12 +192,16 @@ reactions:
   # Seg. 2,0 y 12,4: cae al piso o pisa fuerte: fuego a ras del piso.
   - action: landing
     options:
+      - name: cristales
+        element: tierra
+        weight: 0.5
+        effects: [*earth_crystals]
       # Tierra (capítulo de tierra): roca con energía mineral (engine/earthbend.py).
       - name: golpe_tierra
         element: tierra
         weight: 0.8
         effects:
-          - &earth_slam {type: adornment, style: {shapes: [earth_slam]}, render: {blend: over, motion_blur: 0.0, group: glow, glow_layers: 1}, trigger: {hold: 26, fade_in: 1, fade_out: 3}}
+          - &earth_slam {type: adornment, style: {shapes: [earth_slam]}, render: {blend: over, motion_blur: 0.0, group: glow, glow_layers: 1}, trigger: {hold: 48, fade_in: 1, fade_out: 3}}
       # Aire: el golpe de presión, un anillo fino que se abre desde el pie y empuja motas.
       - name: rafaga
         element: aire
@@ -222,6 +238,10 @@ reactions:
           - *heat
   - action: stomp
     options:
+      - name: cristales
+        element: tierra
+        weight: 0.5
+        effects: [*earth_crystals]
       - name: golpe_tierra
         element: tierra
         weight: 0.8
@@ -478,8 +498,7 @@ reactions:
       - name: orbita_tierra
         element: tierra
         weight: 0.8
-        effects:
-          - &earth_orbit {type: adornment, style: {shapes: [earth_orbit]}, render: {blend: over, motion_blur: 0.0, group: glow, glow_layers: 1}, trigger: {hold: 34, fade_in: 1, fade_out: 3}}
+        effects: [*earth_orbit]
       - name: anillo_agua
         element: agua
         weight: 0.8
@@ -570,6 +589,10 @@ reactions:
   # Volteretas y rodadas por el piso: el cuerpo arde o un aro de fuego.
   - action: flip
     options:
+      - name: orbita_tierra
+        element: tierra
+        weight: 0.9
+        effects: [*earth_orbit]
       - name: viento
         element: aire
         weight: 0.3
@@ -598,6 +621,10 @@ reactions:
         effects: [*halo]
   - action: tumble
     options:
+      - name: orbita_tierra
+        element: tierra
+        weight: 0.9
+        effects: [*earth_orbit]
       - name: desbarate
         cooldown: 60  # una vez por caída, no en cada rebote
         weight: 0.3
@@ -708,6 +735,17 @@ reactions:
   # Lo que más se mueve, entre gesto y gesto: llamas en las manos, fuego en el piso o la mirada.
   - action: spotlight
     options:
+      # En un capítulo de tierra, entre gesto y gesto: el puño de roca o los cristales al pie.
+      - name: tierra
+        element: tierra
+        weight: 0.6
+        kinds: [left_arm, right_arm]
+        effects: [*earth_fist]
+      - name: tierra_piso
+        element: tierra
+        weight: 0.5
+        kinds: [legs, feet]
+        effects: [*earth_crystals]
       # En un capítulo de agua, entre gesto y gesto: el látigo en la mano o la salpicadura al pie.
       - name: agua
         element: agua

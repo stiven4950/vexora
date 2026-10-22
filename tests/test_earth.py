@@ -75,7 +75,7 @@ def test_cracks_start_at_the_contact_and_grow_monotonically() -> None:
     origin = np.array([200.0, 480.0])
     for grow in (0.05, 0.5, 1.0):
         mains = earthbend.ground_cracks(origin, 60.0, 7, grow, subs=False)
-        assert 5 <= len(mains) <= 8
+        assert 7 <= len(mains) <= 10  # muchas grietas: el piso se parte de verdad
         assert all(float(np.linalg.norm(c[0] - origin)) <= 2.0 for c in mains)  # nacen en el contacto
     totals = []
     for grow in np.linspace(0.05, 1.0, 12):
