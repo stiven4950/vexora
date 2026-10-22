@@ -46,8 +46,8 @@ def test_every_adornment_draws(shape: str) -> None:
         pytest.skip("se encienden solas (el cierre, o la luz del fuego de los demás efectos): se prueban con video")
     if shape in ("fire_phoenix", "fire_dragon_launch"):
         pytest.skip("nacen al lanzar (crecen en los primeros cuadros del gesto): se prueban en test_elements")
-    if shape in ("water_ribbon", "water_stream", "water_ring", "water_splash", "water_refract", "air_slash", "air_dash", "air_vortex", "air_burst", "air_refract"):
-        pytest.skip("crecen en los primeros cuadros, o refractan el agua o el aire de otro efecto: se prueban en test_water y test_air")
+    if shape in ("water_ribbon", "water_stream", "water_ring", "water_splash", "water_refract", "air_slash", "air_dash", "air_vortex", "air_burst", "air_refract", "earth_fist", "earth_orbit"):
+        pytest.skip("crecen en los primeros cuadros, o refractan el agua o el aire de otro efecto: se prueban en test_water, test_air y test_earth")
     if shape in FACE + NECK + ("battery", "hero_text", "venom", "iron_man"):
         # Van sobre la cara o el pecho: de frente (la pose de prueba está de espaldas).
         points = {name.replace("left", "@").replace("right", "left").replace("@", "right"): p for name, p in points.items()}

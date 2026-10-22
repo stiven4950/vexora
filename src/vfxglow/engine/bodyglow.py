@@ -595,9 +595,10 @@ def draw_adornment(runtime, track, points, frame_index: int, height: int, envelo
     from vfxglow.engine.fire_creatures import FIRE_CREATURES
     from vfxglow.engine.firebend import FIREBEND
     from vfxglow.engine.airbend import AIRBEND
+    from vfxglow.engine.earthbend import EARTHBEND
     from vfxglow.engine.waterbend import WATERBEND
 
-    if shape in FIREBEND or shape in FIRE_CREATURES or shape in WATERBEND or shape in AIRBEND:
+    if shape in FIREBEND or shape in FIRE_CREATURES or shape in WATERBEND or shape in AIRBEND or shape in EARTHBEND:
         # El fuego nace creciendo en forma y opaco: con el fundido quedaba gris y transparente
         # los primeros cuadros (piezas grises a 6,3 s en marcial_arts).
         grow = 1.0

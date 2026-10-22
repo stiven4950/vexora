@@ -562,7 +562,7 @@ def _earned(option: Option) -> bool:
 HEAVY_SHAPES = {
     "fire_landing", "fire_carpet", "fire_carpet_end", "fire_wall", "fire_halo", "fire_orbit", "body_blaze",
     "fire_dragon", "fire_skull", "fire_bird", "fire_serpent", "fire_breath", "fire_phoenix", "fire_dragon_launch",
-    "fire_coil", "fire_kitsune", "fire_lion", "water_orb",
+    "fire_coil", "fire_kitsune", "fire_lion", "water_orb", "earth_shield", "earth_boulder", "earth_orbit",
 }
 LIGHT_SHAPES = {"sparks", "droplets", "avatar_mark", "cracks", "glow_eyes"}
 LIGHT_TYPES = {"sparks", "droplets", "grade"}
