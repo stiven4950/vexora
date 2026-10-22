@@ -80,7 +80,7 @@ EffectType = Literal[
     "rising_sparks",
 ]
 TargetKind = Literal["joint", "chain", "face_region", "mask", "object", "event_point", "contour"]
-BlendMode = Literal["add", "screen", "over", "multiply", "tint"]
+BlendMode = Literal["add", "screen", "over", "multiply", "tint", "refract"]
 LayerGroup = Literal["grade", "glow", "particles", "interaction", "lightning"]
 
 EVENT_NAMES: tuple[str, ...] = (

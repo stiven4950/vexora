@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import cv2
 import numpy as np
 
 from vfxglow.composite.color import linear_to_srgb, shoulder, srgb_to_linear
@@ -38,6 +39,20 @@ def _blend(base: np.ndarray, rgb: np.ndarray, alpha: np.ndarray, mode: str) -> n
     return rgb + base * (1.0 - a)
 
 
+def _refract(acc: np.ndarray, layer: np.ndarray) -> np.ndarray:
+    """Refracción: la capa lleva desplazamientos (R=dx, G=dy en px) y máscara (A), no luz.
+
+    Dentro de la máscara muestrea `acc` en (x+dx, y+dy); fuera queda idéntico.
+    """
+    h, w = acc.shape[:2]
+    xs, ys = np.meshgrid(np.arange(w, dtype=np.float32), np.arange(h, dtype=np.float32))
+    map_x = xs + layer[..., 0].astype(np.float32)
+    map_y = ys + layer[..., 1].astype(np.float32)
+    warped = cv2.remap(acc, map_x, map_y, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+    a = np.clip(layer[..., 3], 0.0, 1.0).astype(np.float32)[..., None]
+    return acc * (1.0 - a) + warped * a
+
+
 def composite_frame(
     plate_bgr: np.ndarray,
     layers: list[tuple[Effect, np.ndarray]],
@@ -62,6 +77,11 @@ def composite_frame(
     for effect, layer in ordered:
         if effect_group(effect) == "grade":
             acc = _blend(acc, layer[..., :3], layer[..., 3], "multiply")
+            coverage = np.maximum(coverage, np.clip(layer[..., 3], 0.0, 1.0))
+            continue
+        if effect.render.blend == "refract":
+            # Lleva desplazamientos, no luz: sin bloom ni shoulder.
+            acc = _refract(acc, layer)
             coverage = np.maximum(coverage, np.clip(layer[..., 3], 0.0, 1.0))
             continue
         # Un tinte de pantalla completa (type grade) no tiene núcleo que irradie: sin bloom.
