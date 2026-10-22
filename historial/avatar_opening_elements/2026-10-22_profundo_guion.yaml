@@ -1,0 +1,93 @@
+catalogo: avatar
+momentos:
+- seg: 0.17
+  opcion: viento
+  accion: fast_swing
+  exacto: true
+  color: '#00bfff'
+  nota: '[nuevo: latigo_agua] patada circular inicial que abre la corriente de agua'
+- seg: 0.83
+  opcion: viento
+  accion: flip
+  dur: 0.8
+  exacto: true
+  color: '#00bfff'
+  nota: '[nuevo: latigo_agua] voltereta aérea envolviendo el cuerpo en una ola'
+- seg: 1.6
+  opcion: golpe_piso
+  accion: tumble
+  dur: 0.9
+  exacto: true
+  color: '#00bfff'
+  nota: deslizamiento al suelo como agua que se expande en olas
+- seg: 2.7
+  opcion: estelas
+  accion: flip
+  dur: 0.8
+  exacto: true
+  color: '#7cfc00'
+  nota: salto con giro preparando el impacto de tierra
+- seg: 3.57
+  opcion: golpe_piso
+  accion: landing
+  dur: 0.7
+  exacto: true
+  color: '#7cfc00'
+  nota: '[nuevo: sismo_roca] puñetazo al suelo al caer en el capítulo de tierra'
+- seg: 4.3
+  opcion: piso
+  accion: spotlight
+  exacto: true
+  color: '#7cfc00'
+  nota: '[nuevo: sismo_roca] pose de bloqueo firme arraigada al suelo'
+- seg: 5.1
+  opcion: estelas
+  accion: flip
+  exacto: true
+  color: '#ff4500'
+  nota: rueda lateral encendiendo las llamas en los pies
+- seg: 5.5
+  opcion: aro_grande
+  accion: flip
+  dur: 0.8
+  exacto: true
+  color: '#ff4500'
+  nota: mortal con giro creando un aro de fuego que rodea todo el cuerpo
+- seg: 6.3
+  opcion: latigos
+  accion: arms_open
+  dur: 0.7
+  exacto: true
+  color: '#ff4500'
+  nota: aterrizaje y apertura de brazos desplegando látigos de fuego
+- seg: 7.13
+  opcion: viento
+  accion: jump
+  dur: 1.1
+  exacto: true
+  color: '#e0ffff'
+  nota: salto alto con patadas giratorias envuelto en ráfagas de aire
+- seg: 8.13
+  opcion: viento
+  accion: spin_body
+  dur: 1.1
+  exacto: true
+  color: '#e0ffff'
+  nota: patada final y guardia cerrando con corrientes de viento
+capitulos:
+- inicio: 0.0
+  fin: 2.5
+  elemento: agua
+  voz: Water
+- inicio: 2.5
+  fin: 4.8
+  elemento: tierra
+  voz: Earth
+- inicio: 4.8
+  fin: 7.0
+  elemento: fuego
+  voz: Fire
+- inicio: 7.0
+  fin: 9.4
+  elemento: aire
+  voz: Air

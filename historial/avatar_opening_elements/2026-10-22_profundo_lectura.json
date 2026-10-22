@@ -1,0 +1,262 @@
+{
+ "protagonista": "hombre atlético sin camiseta, descalzo, con rastas; cambia de pantalón por elemento (shorts azules, pantalón camuflado, shorts rojos, shorts blancos)",
+ "publico": "ninguno",
+ "lectura": [
+  {
+   "inicio": 0.0,
+   "fin": 0.6,
+   "cuerpo": "en el césped con shorts azules, gira y lanza una patada circular alta con la pierna derecha",
+   "intencion": "fluidez inicial del agua",
+   "camara": "fija"
+  },
+  {
+   "inicio": 0.6,
+   "fin": 1.6,
+   "cuerpo": "toma impulso y ejecuta una voltereta lateral sin manos en el aire",
+   "intencion": "ola que rompe en el aire",
+   "camara": "fija"
+  },
+  {
+   "inicio": 1.6,
+   "fin": 2.5,
+   "cuerpo": "aterriza, desliza el cuerpo al suelo y posa recostado de lado con la mano arriba",
+   "intencion": "reposo líquido",
+   "camara": "fija"
+  },
+  {
+   "inicio": 2.5,
+   "fin": 3.5,
+   "cuerpo": "corte a pantalón camuflado; salta en giro horizontal pateando en el aire",
+   "intencion": "roca suspendida que va a impactar",
+   "camara": "fija"
+  },
+  {
+   "inicio": 3.5,
+   "fin": 4.2,
+   "cuerpo": "cae de rodilla y golpea el césped con el puño izquierdo en pose de superhéroe",
+   "intencion": "impacto sísmico contra la tierra",
+   "camara": "fija"
+  },
+  {
+   "inicio": 4.2,
+   "fin": 4.8,
+   "cuerpo": "se levanta y alza la rodilla izquierda con los brazos en guardia firme",
+   "intencion": "muro de piedra y defensa",
+   "camara": "fija"
+  },
+  {
+   "inicio": 4.8,
+   "fin": 5.5,
+   "cuerpo": "corte a shorts rojos; entra con rueda lateral a una mano",
+   "intencion": "chispa que enciende el fuego",
+   "camara": "fija"
+  },
+  {
+   "inicio": 5.5,
+   "fin": 6.3,
+   "cuerpo": "encadena un mortal hacia atrás con giro completo en el aire",
+   "intencion": "torbellino de llamas",
+   "camara": "fija"
+  },
+  {
+   "inicio": 6.3,
+   "fin": 7.0,
+   "cuerpo": "aterriza en cuclillas, gira y abre ambos brazos hacia atrás en pose",
+   "intencion": "explosión y apertura de fuego",
+   "camara": "fija"
+  },
+  {
+   "inicio": 7.0,
+   "fin": 8.2,
+   "cuerpo": "corte a shorts blancos; gira y salta muy alto dando dos patadas en giro en el aire",
+   "intencion": "ascenso ligero como un tornado",
+   "camara": "fija"
+  },
+  {
+   "inicio": 8.2,
+   "fin": 9.4,
+   "cuerpo": "aterriza, lanza una patada lateral y se levanta en guardia abierta mirando a cámara",
+   "intencion": "control del viento al cerrar",
+   "camara": "fija"
+  }
+ ],
+ "historia": {
+  "arco": "Cuatro capítulos marcados por la voz del narrador (Water, Earth, Fire, Air) y el cambio de ropa: fluidez en agua, peso e impacto en tierra, explosividad en fuego y altura aérea al final.",
+  "motivo": "Las acrobacias aéreas seguidas de una pose en el suelo que define la personalidad de cada elemento.",
+  "contrastes": "La suavidad recostada del agua frente al golpe seco de puño en tierra; la furia del fuego frente a la ligereza suspendida del aire.",
+  "colores": "Azul cian (#00bfff) para agua, verde tierra (#7cfc00) para tierra, naranja fuego (#ff4500) para fuego y blanco celeste (#e0ffff) para aire."
+ },
+ "momentos": [
+  {
+   "seg": 0.1,
+   "dur": 0.6,
+   "accion": "fast_swing",
+   "opcion": "viento",
+   "figura": "wind",
+   "color": "#00bfff",
+   "quien": "protagonista",
+   "intencion": "patada circular inicial que abre la corriente de agua",
+   "nuevo": "latigo_agua"
+  },
+  {
+   "seg": 0.8,
+   "dur": 0.8,
+   "accion": "flip",
+   "opcion": "viento",
+   "figura": "wind",
+   "color": "#00bfff",
+   "quien": "protagonista",
+   "intencion": "voltereta aérea envolviendo el cuerpo en una ola",
+   "nuevo": "latigo_agua"
+  },
+  {
+   "seg": 1.6,
+   "dur": 0.9,
+   "accion": "tumble",
+   "opcion": "golpe_piso",
+   "figura": "fire_splash",
+   "color": "#00bfff",
+   "quien": "protagonista",
+   "intencion": "deslizamiento al suelo como agua que se expande en olas",
+   "nuevo": null
+  },
+  {
+   "seg": 2.7,
+   "dur": 0.8,
+   "accion": "flip",
+   "opcion": "estelas",
+   "figura": "fire_trail",
+   "color": "#7cfc00",
+   "quien": "protagonista",
+   "intencion": "salto con giro preparando el impacto de tierra",
+   "nuevo": null
+  },
+  {
+   "seg": 3.5,
+   "dur": 0.7,
+   "accion": "landing",
+   "opcion": "golpe_piso",
+   "figura": "fire_splash",
+   "color": "#7cfc00",
+   "quien": "protagonista",
+   "intencion": "puñetazo al suelo al caer en el capítulo de tierra",
+   "nuevo": "sismo_roca"
+  },
+  {
+   "seg": 4.2,
+   "dur": 0.6,
+   "accion": "spotlight",
+   "opcion": "piso",
+   "figura": "floor_fire",
+   "color": "#7cfc00",
+   "quien": "protagonista",
+   "intencion": "pose de bloqueo firme arraigada al suelo",
+   "nuevo": "sismo_roca"
+  },
+  {
+   "seg": 4.9,
+   "dur": 0.6,
+   "accion": "flip",
+   "opcion": "estelas",
+   "figura": "fire_trail",
+   "color": "#ff4500",
+   "quien": "protagonista",
+   "intencion": "rueda lateral encendiendo las llamas en los pies",
+   "nuevo": null
+  },
+  {
+   "seg": 5.5,
+   "dur": 0.8,
+   "accion": "flip",
+   "opcion": "aro_grande",
+   "figura": "fire_halo",
+   "color": "#ff4500",
+   "quien": "protagonista",
+   "intencion": "mortal con giro creando un aro de fuego que rodea todo el cuerpo",
+   "nuevo": null
+  },
+  {
+   "seg": 6.3,
+   "dur": 0.7,
+   "accion": "arms_open",
+   "opcion": "latigos",
+   "figura": "fire_whip",
+   "color": "#ff4500",
+   "quien": "protagonista",
+   "intencion": "aterrizaje y apertura de brazos desplegando látigos de fuego",
+   "nuevo": null
+  },
+  {
+   "seg": 7.1,
+   "dur": 1.1,
+   "accion": "jump",
+   "opcion": "viento",
+   "figura": "wind",
+   "color": "#e0ffff",
+   "quien": "protagonista",
+   "intencion": "salto alto con patadas giratorias envuelto en ráfagas de aire",
+   "nuevo": null
+  },
+  {
+   "seg": 8.2,
+   "dur": 1.1,
+   "accion": "spin_body",
+   "opcion": "viento",
+   "figura": "wind",
+   "color": "#e0ffff",
+   "quien": "protagonista",
+   "intencion": "patada final y guardia cerrando con corrientes de viento",
+   "nuevo": null
+  }
+ ],
+ "capitulos": [
+  {
+   "inicio": 0.0,
+   "fin": 2.5,
+   "elemento": "agua",
+   "voz": "Water"
+  },
+  {
+   "inicio": 2.5,
+   "fin": 4.8,
+   "elemento": "tierra",
+   "voz": "Earth"
+  },
+  {
+   "inicio": 4.8,
+   "fin": 7.0,
+   "elemento": "fuego",
+   "voz": "Fire"
+  },
+  {
+   "inicio": 7.0,
+   "fin": 9.4,
+   "elemento": "aire",
+   "voz": "Air"
+  }
+ ],
+ "efectos_nuevos": [
+  {
+   "nombre": "latigo_agua",
+   "segundos": "0.1-1.6",
+   "escenario": "las piernas en arco durante la patada y la voltereta",
+   "nace": "del tobillo derecho al iniciar el barrido",
+   "recorrido": "sigue el arco de las piernas formando un anillo líquido con gotas desprendidas",
+   "conflicto": "la fuerza centrífuga del salto estira la corriente de agua en el aire",
+   "final": "salpica contra el césped al aterrizar y acostarse",
+   "fisica": "fluido continuo con tensión superficial, espuma blanca en los bordes y gotas por inercia",
+   "porque": "la voz nombra Water y el carácter水 preside el cielo; requiere agua real en vez de fuego o viento"
+  },
+  {
+   "nombre": "sismo_roca",
+   "segundos": "3.5-4.8",
+   "escenario": "el puño contra el suelo y la pierna que se levanta en guardia",
+   "nace": "bajo el puño izquierdo en el instante del impacto a los 3.6 s",
+   "recorrido": "ondas de choque en el suelo y pilares de roca geométrica que suben junto a su rodilla al levantarse",
+   "conflicto": "el golpe quiebra el suelo y levanta defensas de piedra",
+   "final": "las rocas quedan firmes junto a su guardia y se desmoronan al corte",
+   "fisica": "trazos angulares rígidos, grietas luminosas y escombros con gravedad pesada",
+   "porque": "la voz dice Earth y el golpe de puño al suelo pide rocas y grietas de tierra"
+  }
+ ]
+}
