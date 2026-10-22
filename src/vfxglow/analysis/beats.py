@@ -123,9 +123,11 @@ def _gesture_boundaries(frames: list[FrameRecord], min_beat: int) -> list[int]:
 
 def _scene_cuts(video_path: Path, frame_count: int, correlation: float) -> list[int]:
     detected = _scenedetect_cuts(video_path, frame_count)
-    if detected is not None:
-        return detected
-    return _histogram_cuts(video_path, frame_count, correlation)
+    if detected is None:
+        detected = _histogram_cuts(video_path, frame_count, correlation)
+    # Tomas del mismo lugar (el mismo cielo y el mismo pasto) tienen casi el mismo histograma: el
+    # corte se ve en la forma de la imagen.
+    return sorted(set(detected) | set(_structure_cuts(video_path, frame_count)))
 
 
 def _scenedetect_cuts(video_path: Path, frame_count: int) -> list[int] | None:
@@ -149,6 +151,34 @@ def _scenedetect_cuts(video_path: Path, frame_count: int) -> list[int] | None:
     except Exception as exc:  # el fallback de histograma cubre videos raros
         log.warning("PySceneDetect no pudo leer el video (%s); uso el histograma", exc)
         return None
+
+
+CUT_JUMP = 8.0  # salto medio de gris (0-255) entre dos cuadros para que pueda ser un corte...
+CUT_RATIO = 4.0  # ...y cuántas veces más grande que el movimiento normal de los cuadros vecinos
+
+
+def _structure_cuts(video_path: Path, frame_count: int) -> list[int]:
+    """Cortes por la forma de la imagen: un salto de diferencia entre dos cuadros muy por encima
+    del de los cuadros vecinos (el movimiento de la persona cambia poco de un cuadro al otro)."""
+    cap = cv2.VideoCapture(str(video_path))
+    jumps: list[float] = []
+    previous = None
+    while len(jumps) < frame_count:
+        ok, frame = cap.read()
+        if not ok:
+            break
+        gray = cv2.GaussianBlur(cv2.cvtColor(cv2.resize(frame, (96, 54)), cv2.COLOR_BGR2GRAY).astype(np.float32), (3, 3), 0)
+        if previous is not None:
+            jumps.append(float(np.abs(gray - previous).mean()))
+        previous = gray
+    cap.release()
+    d = np.array(jumps)
+    cuts = []
+    for i in range(len(d)):
+        near = np.concatenate([d[max(i - 6, 0) : i], d[i + 1 : i + 7]])
+        if d[i] > CUT_JUMP and d[i] > CUT_RATIO * max(float(np.median(near)) if len(near) else 0.0, 1.0):
+            cuts.append(i + 1)
+    return [c for c in cuts if c < frame_count - 3]  # el último fundido a negro no es un corte
 
 
 def _histogram_cuts(video_path: Path, frame_count: int, correlation: float) -> list[int]:
