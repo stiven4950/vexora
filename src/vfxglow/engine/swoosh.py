@@ -35,6 +35,7 @@ MAX_GAP = 2
 # Caída por fotograma de la actividad cuando la extremidad frena.
 RELEASE = 0.8
 SEGMENTS = 8
+WIND_MIN_WIDTH = 0.012  # ancho mínimo del viento (fracción del alto del cuadro), como el fuego (_unit)
 # Cuerda / longitud mínima de la estela para dibujarla como contorno de pintura.
 PAINT_STRAIGHTNESS = 0.6
 PAINT_KEEP = 0.4
@@ -99,6 +100,8 @@ def draw_swoosh(runtime, track: FrameRecord | None, points: dict[str, np.ndarray
         # El tracker de la muñeca tiembla; un swoosh dibujado es un arco limpio.
         curve = catmull_rom(_smooth(np.stack([p for _f, p in trail])), samples_per_seg=6)
         width = max(1.2, style.thickness * torso)
+        if "wind" in style.shapes:  # el viento, visible aunque la persona ocupe poco del cuadro
+            width = max(width, WIND_MIN_WIDTH * height)
         # Line boil: el arco entero se desplaza un poco cada N fotogramas, sin rizarse.
         curve = curve + boil_jitter(effect, frame_index, 1, width * 0.6)
         length = float(np.linalg.norm(np.diff(curve, axis=0), axis=1).sum())

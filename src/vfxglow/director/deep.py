@@ -28,7 +28,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from vfxglow.config import DeepConfig
-from vfxglow.director.pins import Pin, PinFile, hex_color
+from vfxglow.director.pins import Capitulo, Pin, PinFile, hex_color
 
 log = logging.getLogger(__name__)
 
@@ -156,6 +156,7 @@ Responde SOLO este JSON (sin texto fuera de él):
   "historia": {{"arco": "", "motivo": "", "contrastes": "", "colores": ""}},
   "momentos": [{{"seg": 4.1, "dur": 1.1, "accion": "point", "opcion": "munequito", "figura": null,
                  "color": "#39ff14", "quien": "protagonista", "intencion": "por qué este efecto aquí", "nuevo": null}}],
+  "capitulos": [{{"inicio": 0.0, "fin": 2.5, "elemento": "agua", "voz": "lo que dice la voz"}}],
   "efectos_nuevos": [{{"nombre": "trampa_chispa", "segundos": "8.9-10.1", "escenario": "", "nace": "",
                        "recorrido": "", "conflicto": "", "final": "", "fisica": "", "porque": ""}}]
 }}
@@ -165,6 +166,8 @@ Responde SOLO este JSON (sin texto fuera de él):
 - color: hexadecimal, el del acto o el momento.
 - quien: "protagonista" si baila una sola persona; con dos o más, "izquierda", "derecha" o
   "ambos" (como se ve en pantalla en ese segundo).
+- capitulos: solo si una voz del video nombra elementos (tramo de cada uno, en segundos); si no,
+  lista vacía.
 - nuevo: el nombre del efecto nuevo que ese momento debería tener (descrito en efectos_nuevos),
   o null. En ese caso accion/opcion son el sustituto más parecido del catálogo.
 """
@@ -255,6 +258,10 @@ AVATAR_RULES = """Reglas del estilo Avatar (respétalas: lo que tú fijas pasa p
   de esa mano que la use, y cada una como mucho una vez por video. Por gesto: lanzamiento → fénix
   o dragón; giro → serpiente o kitsune; estocada → león.
 - Cadenas: una voltereta con el fuego en los pies y, si cae al piso enseguida, el desbarate.
+- Si una voz del video nombra un elemento (agua, tierra, fuego, aire, rayo), desde ese segundo el
+  tramo es de ese elemento hasta que nombre otro; los gestos de ese tramo usan los efectos de ese
+  elemento y la voz manda sobre el reparto automático de capítulos. Si el catálogo no tiene
+  efectos de ese elemento, repórtalo igual en "capitulos".
 - No fijes cierres en el piso: la pared o la alfombra de fuego del final las pone el sistema solo
   si la persona termina quieta y de frente."""
 
@@ -463,7 +470,22 @@ def to_pins(
             espejo=True if both else None,
         ))
     pins.sort(key=lambda pin: pin.seg)
-    return PinFile(catalogo=catalog.name, solo_estos=not fill, momentos=pins), warnings
+    chapters: list[Capitulo] = []
+    for raw in answer.get("capitulos") or []:
+        if not isinstance(raw, dict):
+            continue
+        try:
+            start, end = round(float(raw.get("inicio")), 2), round(float(raw.get("fin")), 2)
+        except (TypeError, ValueError):
+            warnings.append(f"capítulo sin tiempos válidos: {raw}")
+            continue
+        element = str(raw.get("elemento") or "").strip().lower()
+        if end <= start or not element:
+            warnings.append(f"capítulo inválido: {raw}")
+            continue
+        chapters.append(Capitulo(inicio=start, fin=end, elemento=element, voz=str(raw.get("voz") or "").strip()))
+    chapters.sort(key=lambda c: c.inicio)
+    return PinFile(catalogo=catalog.name, solo_estos=not fill, momentos=pins, capitulos=chapters), warnings
 
 
 def sides_from_tracks(frames, fps: float) -> Callable[[float, str], tuple[str | None, bool]]:

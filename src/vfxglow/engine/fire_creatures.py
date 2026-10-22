@@ -386,15 +386,20 @@ def _launched_beast(body, frame, scale, frame_index, runtime, layer, color, alph
         fire_punch(body, name, scale, frame_index, runtime, layer, color, alpha, event, st.setdefault("punch", {}), u)
         return []
     # El recorrido: del puño a un punto alto adelante (arco) y de vuelta a donde esté la mano ahora.
-    peak = origin + aim * 2.6 * unit + up * 3.2 * unit
+    # Todo el vuelo dentro del cuadro (con la persona en un borde se iba por fuera y no se veía).
+    margin = (2.2 if dragon else 1.6) * unit
+    def inside(point: np.ndarray) -> np.ndarray:
+        return np.clip(point, [margin, margin], [layer.shape[1] - margin, layer.shape[0] - margin])
+
+    peak = inside(origin + aim * 2.6 * unit + up * 3.2 * unit)
     side = np.array([-aim[1], aim[0]])
     if t < BEAST_ARC:
         k = _ease(t / BEAST_ARC)
-        ctrl = origin + aim * 3.2 * unit + up * 1.0 * unit
+        ctrl = inside(origin + aim * 3.2 * unit + up * 1.0 * unit)
         pos = (1 - k) ** 2 * origin + 2 * (1 - k) * k * ctrl + k ** 2 * peak
     else:
         k = _ease((t - BEAST_ARC) / (BEAST_BACK - BEAST_ARC))
-        ctrl = peak + aim * -0.6 * unit + up * 0.6 * unit
+        ctrl = inside(peak + aim * -0.6 * unit + up * 0.6 * unit)
         pos = (1 - k) ** 2 * peak + 2 * (1 - k) * k * ctrl + k ** 2 * hand
     prev = st.get("pos", pos)
     heading = pos - prev if float(np.linalg.norm(pos - prev)) > 0.5 else st.get("heading", up)

@@ -9,7 +9,7 @@ from vfxglow.analysis.schema import MotionBrief, VideoMeta
 from vfxglow.config import DirectorConfig
 from vfxglow.director.choreography import choreograph, load_catalog, pin_chapters
 from vfxglow.director.deep import build_prompt, record_proposals, to_pins
-from vfxglow.director.pins import Pin, PinFile, hex_color
+from vfxglow.director.pins import Capitulo, Pin, PinFile, chapter_plan, hex_color, load_pins, save_pins
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = load_catalog(ROOT / "configs" / "catalogs" / "baile.yaml")
@@ -191,3 +191,35 @@ def test_point_becomes_the_detected_finger_gun() -> None:
     assert (gun.accion, gun.opcion, gun.exacto) == ("finger_gun", "revolver", False)
     assert (plain.accion, plain.opcion, plain.exacto) == ("point", "munequito", True)
     assert any("revolver" in w for w in warnings)
+
+
+def test_voice_chapters_become_pins_and_skip_malformed() -> None:
+    answer = {
+        "capitulos": [
+            {"inicio": 2.5, "fin": 5.0, "elemento": " Tierra ", "voz": "tierra"},
+            {"inicio": 0.0, "fin": 2.5, "elemento": "AGUA", "voz": "agua"},
+            {"inicio": 6.0, "fin": 5.0, "elemento": "fuego"},
+            {"inicio": "x", "fin": 7.0, "elemento": "aire"},
+        ]
+    }
+    pins, warnings = to_pins(answer, CATALOG, 32.4)
+    assert [(c.inicio, c.elemento) for c in pins.capitulos] == [(0.0, "agua"), (2.5, "tierra")]
+    assert len(warnings) == 2
+
+
+def test_chapter_plan_frames() -> None:
+    pins = PinFile(capitulos=[Capitulo(inicio=2.5, fin=5.0, elemento="tierra"), Capitulo(inicio=0.0, fin=2.5, elemento="agua")])
+    assert chapter_plan(pins, 30) == [(0, 75, "agua"), (75, 150, "tierra")]
+    assert chapter_plan(PinFile(), 30) == []
+
+
+def test_chapters_round_trip_yaml(tmp_path: Path) -> None:
+    pins = PinFile(capitulos=[Capitulo(inicio=0.0, fin=2.5, elemento="agua", voz="agua")])
+    save_pins(pins, tmp_path / "g.yaml")
+    assert load_pins(tmp_path / "g.yaml").capitulos == pins.capitulos
+
+
+def test_prompt_asks_for_voice_chapters() -> None:
+    avatar = load_catalog(ROOT / "configs" / "catalogs" / "avatar.yaml")
+    prompt = build_prompt(avatar, 10.0)
+    assert "capitulos" in prompt and "nombra un elemento" in prompt

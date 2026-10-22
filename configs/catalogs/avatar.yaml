@@ -266,6 +266,7 @@ reactions:
     options:
       # Bestias que se lanzan (video_51, seg. 7,0): salen del puño y se van sin volver.
       - name: fenix
+        heavy_s: 0.8  # el vuelo (medio segundo); después es una llama en la mano
         leads: true  # la bestia es el foco del momento
         group: bestia
         weight: 0.08
@@ -275,6 +276,7 @@ reactions:
           - &phoenix {type: adornment, style: {shapes: [fire_phoenix]}, trigger: {hold: 72, fade_in: 1, fade_out: 4}}
           - *heat2
       - name: dragon_lanzado
+        heavy_s: 0.8  # el vuelo (medio segundo); después es una llama en la mano
         leads: true  # la bestia es el foco del momento
         group: bestia
         weight: 0.06
@@ -366,6 +368,7 @@ reactions:
     options:
       # video_51, seg. 7,0: lanza una bestia de fuego que se va sin volver (una vez cada una).
       - name: fenix
+        heavy_s: 0.8  # el vuelo (medio segundo); después es una llama en la mano
         leads: true  # la bestia es el foco del momento
         group: bestia
         weight: 0.3
@@ -373,6 +376,7 @@ reactions:
         earns: {actions: [fast_swing, lunge, throw, intended_strike], within_s: [0.6, 2.0]}
         effects: [*phoenix, *heat2]
       - name: dragon_lanzado
+        heavy_s: 0.8  # el vuelo (medio segundo); después es una llama en la mano
         leads: true  # la bestia es el foco del momento
         group: bestia
         weight: 0.25

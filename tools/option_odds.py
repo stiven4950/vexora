@@ -12,7 +12,7 @@ from collections import Counter
 from pathlib import Path
 
 from vfxglow.analysis.schema import MotionBrief
-from vfxglow.director.choreography import _chained_pair, choreograph, load_catalog, weight_class
+from vfxglow.director.choreography import _chained_pair, choreograph, heavy_end, load_catalog, weight_class
 
 
 def main() -> None:
@@ -35,7 +35,15 @@ def main() -> None:
     for seed in range(args.semillas):
         _, log = choreograph(catalog, brief, seed)
         picks = [(d.frame, d.action, d.choice.split(" ")[0]) for d in log.decisions if not d.choice.startswith("nada")]
-        lit = [(d.frame, d.until, weight_class(options[(d.action, d.choice.split(" (")[0])]), d.action, d.choice.split(" (")[0]) for d in log.decisions if not d.choice.startswith("nada") and (d.action, d.choice.split(" (")[0]) in options]
+        lit = []
+        for d in log.decisions:
+            option = options.get((d.action, d.choice.split(" (")[0]))
+            if option is None or d.choice.startswith("nada"):
+                continue
+            weight = weight_class(option)
+            # De un pesado cuenta su parte pesada (el vuelo de la bestia, no la llama que queda).
+            until = heavy_end(option, d.frame, d.until, fps) if weight == "pesado" else d.until
+            lit.append((d.frame, until, weight, d.action, option.name))
         clashes += any(
             a[2] == "pesado" and b[2] != "ligero" and a[0] <= b[1] and b[0] <= a[1] and not _chained_pair(options[a[3:]], options[b[3:]], a[3], b)
             for i, a in enumerate(lit)

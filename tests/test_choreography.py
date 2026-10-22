@@ -412,3 +412,76 @@ def test_right_after_a_heavy_effect_another_one_takes_over() -> None:
     assert (120, "nada (cede al efecto pesado bestia)") in {(d.frame, d.choice) for d in log.decisions}  # nada encima
     relay = min(lit, key=lambda d: d.frame)
     assert relay.frame <= heavy.until + 4 and relay.choice == "llama"  # enseguida, y no algo ligero
+
+
+def test_light_accents_do_not_take_a_focus_slot() -> None:
+    catalog = Catalog.model_validate(
+        {
+            "name": "t",
+            "defaults": {"type": "swoosh", "target": {"kind": "joint", "id": "right_wrist"}},
+            "reactions": [
+                {"action": "lunge", "options": [{"name": "chispas", "weight_class": "ligero", "effects": [{"trigger": {"hold": 30}}]}]},
+                {"action": "fast_swing", "options": [{"name": "estela", "effects": [{"trigger": {"hold": 6}}]}]},
+            ],
+        }
+    )
+    events = [_ev("lunge", 100 + k) for k in range(4)] + [_ev("fast_swing", 110)]
+    log = choreograph(catalog, _brief(events))[1]
+    assert (110, "estela") in {(d.frame, d.choice) for d in log.decisions}  # las chispas no llenan el tope de focos
+
+
+def test_a_heavy_effect_that_does_not_fit_before_the_end_is_skipped() -> None:
+    catalog = Catalog.model_validate(
+        {
+            "name": "t",
+            "defaults": {"type": "swoosh", "target": {"kind": "joint", "id": "right_wrist"}},
+            "reactions": [{"action": "throw", "options": [{"name": "bestia", "weight_class": "pesado", "effects": [{"trigger": {"hold": 72}}]}]}],
+        }
+    )
+    events = [_ev("throw", 100), _ev("throw", 860)]  # el video dura 900 cuadros
+    choices = {(d.frame, d.choice) for d in choreograph(catalog, _brief(events))[1].decisions}
+    assert (100, "bestia") in choices and (860, "nada (el pesado no cabe antes del final)") in choices
+
+
+def test_the_voice_chapters_choose_the_element() -> None:
+    from vfxglow.director.choreography import voice_plan
+    from vfxglow.director.pins import Capitulo, PinFile
+
+    catalog = Catalog.model_validate(
+        {
+            "name": "t",
+            "element": "fuego",
+            "defaults": {"type": "swoosh", "target": {"kind": "joint", "id": "right_wrist"}},
+            "reactions": [
+                {
+                    "action": "fast_swing",
+                    "options": [
+                        {"name": "estela", "effects": [{"trigger": {"hold": 6}}]},
+                        {"name": "rayo", "element": "rayo", "effects": [{"trigger": {"hold": 6}}]},
+                    ],
+                }
+            ],
+        }
+    )
+    pins = PinFile(capitulos=[Capitulo(inicio=1.0, fin=3.0, elemento="rayo"), Capitulo(inicio=3.0, fin=5.0, elemento="agua")])
+    plan = voice_plan(catalog, pins, 900, 30.0)
+    assert plan[:3] == [(0, 30, "fuego"), (30, 90, "rayo"), (90, 150, "fuego")]  # sin efectos de agua: el de la casa
+    log = choreograph(catalog, _brief([_ev("fast_swing", 45), _ev("fast_swing", 300)]), pins=pins)[1]
+    choices = {d.frame: d.choice for d in log.decisions}
+    assert choices[45] == "rayo" and choices[300] == "estela"  # la voz dijo rayo a los 1-3 s
+
+
+def test_a_heavy_effect_does_not_cross_a_shot_cut() -> None:
+    from vfxglow.analysis.schema import Beat
+
+    catalog = Catalog.model_validate(
+        {
+            "name": "t",
+            "defaults": {"type": "swoosh", "target": {"kind": "joint", "id": "right_wrist"}},
+            "reactions": [{"action": "throw", "options": [{"name": "bestia", "weight_class": "pesado", "effects": [{"trigger": {"hold": 72}}]}]}],
+        }
+    )
+    brief = _brief([_ev("throw", 100), _ev("throw", 400)])
+    brief.beats = [Beat(id=0, start_frame=0, end_frame=149, kind="gesture"), Beat(id=1, start_frame=150, end_frame=899, kind="cut")]
+    choices = {(d.frame, d.choice) for d in choreograph(catalog, brief)[1].decisions}
+    assert (100, "nada (el pesado cruzaría un corte de toma)") in choices and (400, "bestia") in choices

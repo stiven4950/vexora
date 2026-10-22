@@ -91,6 +91,9 @@ class Option(_Strict):
     # "medio" (estelas, chorro, rayo) o "ligero" (chispas, la mirada). Un pesado no comparte su
     # tramo con nada que no sea ligero (unclutter). Vacío: según sus figuras (weight_class).
     weight_class: str = ""
+    # Segundos que dura la parte pesada (0 = toda su ventana). La bestia lanzada vuela medio
+    # segundo y después queda como una llama en la mano esperando el golpe: eso ya no tapa nada.
+    heavy_s: float = 0.0
     # Subtipos de la acción admitidos (MotionEvent.kind; p. ej. intent: hand_to_chest).
     kinds: list[str] = Field(default_factory=list)
     # La persona de la acción debe llevar uno de estos accesorios (gafas, máscara...). Si la
@@ -244,6 +247,10 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
     # (al empezar) y los momentos clave que se crucen con su ventana: como mucho MAX_TOGETHER.
     lit: list[tuple[int, int]] = []
     exclusive_until = -1
+    heavy_starts: list[int] = []  # inicio de cada pesado elegido (en un video corto, separados)
+    from vfxglow.analysis.beats import cut_frames
+
+    cuts = cut_frames(brief.beats)
     duet = brief.duet if catalog.duet else []
     mirrored: dict[tuple[str, str], list[tuple[int, str]]] = {}
     # Último fotograma de un efecto copiado en cada persona (por grupo: el movimiento, o cada
@@ -272,6 +279,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
     spent: dict[str, int] = {}  # usos de cada opción en el video (para max_uses)
     history: list[tuple[int, str, str]] = []  # (cuadro, acción, opción) de lo que ya salió (cadenas)
     plan = element_plan(catalog, events, brief.video.frame_count, fps, seed)
+    if pins is not None and pins.capitulos:
+        plan = voice_plan(catalog, pins, brief.video.frame_count, fps)
     elements: list[tuple[int, int, str]] = []  # tramos encendidos de cada elemento (capítulos)
     pad = int(round(catalog.element_pad_s * fps))
     closings = {"fire_wall", "fire_carpet_end"}
@@ -310,8 +319,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                     key_windows.append((start, end))
                 if reaction.action in FACE_ACTIONS:
                     face_windows.append((start, end))
-                if reaction.action not in AMBIENT_ACTIONS and reaction.action not in KEY_ACTIONS:
-                    lit.append((start, end))
+                if reaction.action not in AMBIENT_ACTIONS and reaction.action not in KEY_ACTIONS and weight_class(option) != "ligero":
+                    lit.append((start, end))  # lo ligero (chispas, la mirada) no ocupa lugar de foco
                 whole_scene = all(raw.get("type") in SCENE_TYPES for raw in option.effects)
                 partner = _partner(person, span, brief)
                 mirror = pin.espejo if pin.espejo is not None else (span is not None and span.mode == "unison")
@@ -376,6 +385,20 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 and sum(1 for ls, le in lit if ls <= start <= le) + sum(1 for ks, ke in key_windows if ks <= end and start <= ke) >= MAX_TOGETHER
             ):
                 option = Option(name="nada (ya hay dos focos encendidos)")
+            if option.effects and weight_class(option) == "pesado":
+                total = brief.video.frame_count
+                heavy_until = heavy_end(option, start, end, fps)  # la ventana del efecto (end) no cambia
+                if heavy_until > total - 1 - int(round(RELAY_S * fps)):
+                    # Su ciclo (la bestia que vuelve a la mano) no termina antes del final: el
+                    # final quedaba solo con ella.
+                    option = Option(name="nada (el pesado no cabe antes del final)")
+                elif any(start < cut <= heavy_until for cut in cuts):
+                    # Un corte de toma lo partiría: la bestia sale en una toma y "vuelve" en otra.
+                    option = Option(name="nada (el pesado cruzaría un corte de toma)")
+                elif total < SHORT_VIDEO_S * fps and any(abs(event.start_frame - f) < HEAVY_EVERY_S * fps for f in heavy_starts):
+                    option = Option(name="nada (un pesado cada 5 s en un video corto)")
+                else:
+                    heavy_starts.append(event.start_frame)
             if option.effects:
                 memo["last"] = event.start_frame
                 memo["used"][option.name] = event.start_frame
@@ -392,8 +415,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                     key_windows.append((start, end))
                 if reaction.action in FACE_ACTIONS:
                     face_windows.append((start, end))
-                if reaction.action not in AMBIENT_ACTIONS and reaction.action not in KEY_ACTIONS:
-                    lit.append((start, end))
+                if reaction.action not in AMBIENT_ACTIONS and reaction.action not in KEY_ACTIONS and weight_class(option) != "ligero":
+                    lit.append((start, end))  # lo ligero (chispas, la mirada) no ocupa lugar de foco
                 partner = _partner(person, span, brief)
                 whole_scene = all(raw.get("type") in SCENE_TYPES for raw in option.effects)
                 twin = (
@@ -539,6 +562,8 @@ LIGHT_SHAPES = {"sparks", "droplets", "avatar_mark", "cracks", "glow_eyes"}
 LIGHT_TYPES = {"sparks", "droplets", "grade"}
 UNCLUTTER_MARGIN_S = 0.3  # aire antes de un efecto pesado (lo anterior se apaga antes de que nazca)
 RELAY_S = 0.1  # al terminar un pesado, lo siguiente entra enseguida (la escena no queda vacía)
+SHORT_VIDEO_S = 15.0  # en un video más corto que esto...
+HEAVY_EVERY_S = 5.0  # ...como mucho un pesado cada tantos segundos (si no, ocupan casi todo)
 RELAY_KINDS = ("right_arm", "left_arm", "legs", "feet", "torso", "head")  # regiones que prueba un relevo
 
 
@@ -554,6 +579,11 @@ def weight_class(option: Option) -> str:
         return raw.get("type") in LIGHT_TYPES or bool(figures) and figures <= LIGHT_SHAPES
 
     return "ligero" if all(light(raw) for raw in option.effects) else "medio"
+
+
+def heavy_end(option: Option, start: int, end: int, fps: float) -> int:
+    """Último cuadro de la parte pesada de la opción (Option.heavy_s)."""
+    return min(end, start + int(round(option.heavy_s * fps))) if option.heavy_s > 0 else end
 
 
 def unclutter(catalog: Catalog, chosen: dict, decisions: list, always: list[dict], total: int, fps: float) -> list[tuple[int, int]]:
@@ -583,7 +613,7 @@ def unclutter(catalog: Catalog, chosen: dict, decisions: list, always: list[dict
             continue
         pinned = d.choice.endswith("(fijado)")
         rank = (0 if pinned else 1 if option.leads else 2 if heavy == "pesado" else 3, d.frame)
-        items.append((rank, d.frame, max(d.until, d.frame), heavy, d.action, name, d))
+        items.append((rank, d.frame, heavy_end(option, d.frame, max(d.until, d.frame), fps), heavy, d.action, name, d))
     accepted = []
     if any("fire_wall" in (raw.get("style") or {}).get("shapes", []) for raw in always):
         from vfxglow.engine.firebend import closing_frames
@@ -625,6 +655,25 @@ ELEMENT_CUES = {
     "rayo": ("throw", "point", "finger_gun", "arms_open"),
     "aire": ("spin_body", "jump", "flip"),
 }
+
+
+def voice_plan(catalog: Catalog, pins, total: int, fps: float) -> list[tuple[int, int, str]]:
+    """El reparto de elementos que dice la voz del video (pins.capitulos): cada tramo, del elemento
+    nombrado; si el catálogo no tiene efectos de ese elemento, o entre capítulos, el del catálogo."""
+    from vfxglow.director.pins import chapter_plan
+
+    known = {element_of(catalog, o) for r in catalog.reactions for o in r.options if o.effects} - {""}
+    plan, cursor = [], 0
+    for start, end, element in chapter_plan(pins, fps):
+        start, end = max(start, cursor), min(end, total)
+        if start > cursor:
+            plan.append((cursor, start, catalog.element))
+        if end > start:
+            plan.append((start, end, element if element in known else catalog.element))
+            cursor = end
+    if cursor < total:
+        plan.append((cursor, total, catalog.element))
+    return plan
 
 
 def element_plan(catalog: Catalog, events: list[MotionEvent], total: int, fps: float, seed: int) -> list[tuple[int, int, str]]:
@@ -747,7 +796,9 @@ def fill_gaps(catalog: Catalog, brief: MotionBrief, events, extra, chosen, decis
     for d in decisions:
         option = options.get((d.action, d.choice.split(" (")[0]))
         if option is not None and option.effects and not d.choice.startswith("nada") and weight_class(option) != "ligero":
-            strong[max(d.frame, 0) : min(d.until, total) + 1] = True
+            # De un pesado solo cuenta su parte pesada: la llama que queda en la mano no llena.
+            until = heavy_end(option, d.frame, d.until, fps) if weight_class(option) == "pesado" else d.until
+            strong[max(d.frame, 0) : min(until, total) + 1] = True
     before, after = int(round(UNCLUTTER_MARGIN_S * fps)), int(round(RELAY_S * fps))
 
     def fits(first: int, last: int) -> bool:

@@ -71,10 +71,28 @@ class Pin(_Strict):
     nota: str | None = None
 
 
+class Capitulo(_Strict):
+    """Un tramo que una voz del video asigna a un elemento ("agua", "tierra", "fuego", "aire")."""
+
+    inicio: float
+    fin: float
+    elemento: str
+    # Lo que dice la voz (para revisar a mano).
+    voz: str = ""
+
+
 class PinFile(_Strict):
     catalogo: str | None = None
     solo_estos: bool = False
     momentos: list[Pin] = Field(default_factory=list)
+    # Capítulos que marca la voz del video; mandan sobre el reparto automático.
+    capitulos: list[Capitulo] = Field(default_factory=list)
+
+
+def chapter_plan(pins: PinFile, fps: float) -> list[tuple[int, int, str]]:
+    """[(cuadro_inicio, cuadro_fin, elemento)] de los capítulos de voz, en orden. Vacío si no hay."""
+    plan = [(int(round(c.inicio * fps)), int(round(c.fin * fps)), c.elemento) for c in pins.capitulos]
+    return sorted(plan)
 
 
 def hex_color(text: str | None) -> tuple[float, float, float] | None:
