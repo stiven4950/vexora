@@ -282,9 +282,13 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
     if pins is not None and pins.capitulos:
         plan = voice_plan(catalog, pins, brief.video.frame_count, fps)
     elements: list[tuple[int, int, str]] = []  # tramos encendidos de cada elemento (capítulos)
-    pad = int(round(catalog.element_pad_s * fps))
+    # Aire entre elementos; los capítulos de la voz caen en cortes de toma y no lo necesitan.
+    voiced = pins is not None and bool(pins.capitulos)
+    pad = int(round((RELAY_S if voiced else catalog.element_pad_s) * fps))
     closings = {"fire_wall", "fire_carpet_end"}
-    if catalog.element and any(closings & set(raw.get("style", {}).get("shapes", [])) for raw in catalog.always):
+    # Si la voz dice que el final es de otro elemento (el aire), no hay cierre de fuego en el piso.
+    fire_end = chapter_element(plan, brief.video.frame_count - 2) in ("", catalog.element)
+    if catalog.element and fire_end and any(closings & set(raw.get("style", {}).get("shapes", [])) for raw in catalog.always):
         # El cierre de fuego en el piso (pared o alfombra) ocupa el tramo final: es de fuego, así
         # que el rayo no sale ahí (se veía un rayo cian sobre la alfombra).
         from vfxglow.engine.firebend import closing_frames
@@ -343,8 +347,9 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
             resting |= {o.name for o in reaction.options if o.group and spent.get(f"grupo:{o.group}", 0) >= catalog.group_limits.get(o.group, 10**6)}
             resting |= other_elements(catalog, reaction.options, elements, event, pad)
             chapter = chapter_element(plan, event.start_frame)
-            if chapter:  # solo el elemento del capítulo (y lo neutro)
+            if chapter:  # solo el elemento del capítulo (y lo neutro), sin meterse en el siguiente
                 resting |= {o.name for o in reaction.options if element_of(catalog, o) and element_of(catalog, o) != chapter}
+                resting |= {o.name for o in reaction.options if element_of(catalog, o) and crosses_chapter(plan, element_of(catalog, o), *_window(o, event), int(round(RELAY_S * fps)))}
             resting |= {o.name for o in reaction.options if o.earns and not _earns_ok(o.earns, event, events, fps)}
             option = _draw(_chained(reaction, event, history, fps, resting), event, seed, resting, brief, catalog.wardrobe)
             if option.yields_to and _yields(option, event, brief, seed, fps):
@@ -469,7 +474,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
         if not d.choice.startswith("nada") and (d.action, d.choice.split(" (")[0]) in opts and element_of(catalog, opts[(d.action, d.choice.split(" (")[0])])
     ]
     if catalog.max_gap_s > 0 and not (pins is not None and pins.solo_estos):
-        fill_gaps(catalog, brief, events, extra, chosen, decisions, seed, fps, elements, plan, heavies)
+        fill_gaps(catalog, brief, events, extra, chosen, decisions, seed, fps, elements, plan, heavies, pad if voiced else None)
     effects: list[dict] = list(always)
     for number, (reaction, option, picked, pin) in enumerate(pinned_out):
         for index, raw in enumerate(option.effects):
@@ -711,8 +716,16 @@ def element_plan(catalog: Catalog, events: list[MotionEvent], total: int, fps: f
     return plan
 
 
+def crosses_chapter(plan: list[tuple[int, int, str]], element: str, start: int, end: int, slack: int) -> bool:
+    """Si la ventana [start, end] se mete (más de `slack` cuadros) en un capítulo de otro elemento:
+    un chorro de fuego que sigue encendido en el capítulo de aire bloqueaba todo el aire."""
+    return any(el != element and s <= end - slack and start <= e for s, e, el in plan if s > start)
+
+
 def chapter_element(plan: list[tuple[int, int, str]], frame: int) -> str:
-    return next((el for s, e, el in plan if s <= frame <= e), "")
+    """El elemento del capítulo en `frame`. Los capítulos son [inicio, fin): en el borde manda el
+    que empieza (en el borde entraba una estela de fuego en el capítulo de aire)."""
+    return next((el for s, e, el in plan if s <= frame < e), plan[-1][2] if plan and frame >= plan[-1][1] else "")
 
 
 def _limb(target: str) -> str:
@@ -771,7 +784,7 @@ def other_elements(catalog: Catalog, options: list[Option], elements: list[tuple
     return out
 
 
-def fill_gaps(catalog: Catalog, brief: MotionBrief, events, extra, chosen, decisions, seed: int, fps: float, elements: list | None = None, plan: list | None = None, heavies: list[tuple[int, int]] | None = None) -> None:
+def fill_gaps(catalog: Catalog, brief: MotionBrief, events, extra, chosen, decisions, seed: int, fps: float, elements: list | None = None, plan: list | None = None, heavies: list[tuple[int, int]] | None = None, element_pad: int | None = None) -> None:
     """Rellena los tramos sin ningún efecto más largos que `catalog.max_gap_s`: en cada hueco, un
     efecto del foco de ese momento (un `spotlight`), sorteado entre las opciones que dibujan algo y
     no son de escena ni pesadas. Si en el hueco no hay foco, se crea uno con la región de la línea
@@ -821,7 +834,8 @@ def fill_gaps(catalog: Catalog, brief: MotionBrief, events, extra, chosen, decis
                                 confidence=1.0, detail="Relleno: ningún tramo sin efecto.", kind=region)
             events.append(event)
             extra.append(event)
-        blocked = other_elements(catalog, spot.options, elements or [], event, int(round(catalog.element_pad_s * fps)) if pad is None else pad)
+        default_pad = int(round(catalog.element_pad_s * fps)) if element_pad is None else element_pad
+        blocked = other_elements(catalog, spot.options, elements or [], event, default_pad if pad is None else pad)
         chapter = chapter_element(plan or [], event.start_frame) if chapters else ""
         if chapter:
             blocked |= {o.name for o in spot.options if element_of(catalog, o) and element_of(catalog, o) != chapter}
@@ -879,7 +893,9 @@ def fill_gaps(catalog: Catalog, brief: MotionBrief, events, extra, chosen, decis
         if gap is None:
             return
         start, end = gap
-        if not place(start, attempt):
+        # Si al principio del hueco no cabe nada (el aire entre elementos), se prueba más adelante.
+        step = max(int(round(catalog.element_pad_s * fps)), 1)
+        if not any(place(at, attempt) for at in range(start, max(end - step, start) + 1, step)):
             covered[start : end + 1] = True  # nada que poner aquí: no insistir
 
 
@@ -1227,9 +1243,11 @@ def chapter_always(catalog: Catalog, always: list[dict], plan: list[tuple[int, i
         else:
             spans.append([start, end])
     out = []
+    fire_end = chapter_element(plan, total - 2) in ("", catalog.element)
     for effect in always:
         if set(effect.get("style", {}).get("shapes", [])) & CLOSING_SHAPES:
-            out.append(effect)
+            if fire_end:  # el cierre de fuego, solo si el final es de fuego
+                out.append(effect)
             continue
         for k, (start, end) in enumerate(spans):
             piece = copy.deepcopy(effect)

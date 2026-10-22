@@ -46,6 +46,8 @@ GRAVITY = 0.0035  # px por cuadro² en fracción del alto del cuadro (la persona
 DAMPING = 0.9  # cuánto de la velocidad conserva la cadena de un cuadro al otro
 TENSION = 0.22  # alisado de la tensión superficial por iteración
 BREAKUP = np.pi  # Plateau-Rayleigh: un tramo más largo que π veces su grosor se corta en gotas
+STREAM_ON = 0.7  # fracción de su vida en que la mano echa agua (después el chorro cae en gotas)
+STREAM_PIECES = 36  # trozos del chorro (dos por cuadro: ~0,6 s de agua en el aire)
 LIGHT = np.array([-0.6, -0.8])  # de dónde viene la luz (arriba a la izquierda)
 
 DEEP = np.array([0.03, 0.2, 0.62], np.float32)  # el azul de lo grueso
@@ -383,7 +385,7 @@ def _water_stream(body, scale, frame_index, runtime, layer, alpha, event) -> Non
         aim = aim / max(float(np.linalg.norm(aim)), 1e-6) + np.array([0.0, -0.45])  # sale algo hacia arriba y cae en arco
         st["aim"] = aim / max(float(np.linalg.norm(aim)), 1e-6)
     jet = st.setdefault("jet", [])
-    if u < 0.45:  # la mano echa agua: cada cuadro salen trozos del chorro (dos, para que sea continuo)
+    if u < STREAM_ON:  # la mano echa agua: cada cuadro salen trozos del chorro (dos, para que sea continuo)
         rng = np.random.default_rng(frame_index)
         last = st.get("hand", np.asarray(hand, np.float64))
         for f in (0.5, 1.0):
@@ -391,12 +393,14 @@ def _water_stream(body, scale, frame_index, runtime, layer, alpha, event) -> Non
             jet.append([at.copy(), st["aim"] * 0.024 * height + rng.normal(0, 0.0015 * height, 2), 0.32 * unit])
         st["hand"] = np.asarray(hand, np.float64).copy()
     for piece in jet:
-        piece[1] = piece[1] * 0.985 + np.array([0.0, GRAVITY * height])
+        # Un chorro con presión: la gravedad lo curva de a poco (no cae como una gota suelta).
+        piece[1] = piece[1] * 0.99 + np.array([0.0, GRAVITY * height * 0.35])
         piece[0] = piece[0] + piece[1]
         piece[2] *= 0.985
+    del jet[:-STREAM_PIECES]  # largo máximo: lo más viejo ya cayó
     # El chorro es la línea por los trozos (del más viejo al de la mano); se corta en gotas desde
     # la punta cuando la mano deja de echar agua.
-    if u >= 0.45 and jet:
+    if u >= STREAM_ON and jet:
         old = jet.pop(0)
         st.setdefault("drops", []).append([old[0], old[1], old[2] * 0.9, 0])
     if len(jet) >= 3:

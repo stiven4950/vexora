@@ -314,8 +314,8 @@ reactions:
           - *heat2
       - name: viento
         element: aire
-        weight: 0.15
-        cooldown: 120
+        weight: 1.2
+        # En un capítulo de aire es el swoosh principal (como la estela en el de fuego): sin enfriamiento.
         effects: [*wind]
       # El swoosh de fuego es el efecto más recurrente del catálogo.
       - name: estela
