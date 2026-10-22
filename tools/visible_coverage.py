@@ -15,7 +15,7 @@ import cv2
 import numpy as np
 
 ANCHO_ANALISIS = 270  # ancho al que se reducen los cuadros antes de comparar
-UMBRAL_PIXEL = 40  # cuánto más brillante (0-255) tiene que quedar un píxel para contar como efecto
+UMBRAL_PIXEL = 40  # cuánto tiene que cambiar (0-255) un píxel, fuera del tinte parejo, para contar como efecto
 MAX_ACCIONES = 5  # acciones máximas a listar por tramo vacío
 
 
@@ -25,12 +25,16 @@ def _reducir(cuadro: np.ndarray) -> np.ndarray:
 
 
 def _fraccion_cambiada(render: np.ndarray, original: np.ndarray) -> float:
-    """Fracción del cuadro con luz agregada. Solo cuenta lo que se aclara: el tinte de la luz del
-    fuego (fire_light) cambia todo el cuadro y no es un efecto que se vea."""
+    """Fracción del cuadro con un efecto: píxeles que cambian mucho (aclarando, como el fuego o el
+    neón, u oscureciendo, como la roca sobre el cielo), descontado el tinte parejo de todo el
+    cuadro (la luz del fuego tiñe todo y no es un efecto que se vea)."""
     if original.shape[:2] != render.shape[:2]:
         original = cv2.resize(original, (render.shape[1], render.shape[0]), interpolation=cv2.INTER_AREA)
-    luz = cv2.cvtColor(_reducir(render), cv2.COLOR_BGR2GRAY).astype(np.int16) - cv2.cvtColor(_reducir(original), cv2.COLOR_BGR2GRAY).astype(np.int16)
-    return np.count_nonzero(luz > UMBRAL_PIXEL) / luz.size
+    a, b = _reducir(render).astype(np.int16), _reducir(original).astype(np.int16)
+    diff = a - b
+    tint = np.median(diff.reshape(-1, 3), axis=0)  # el cambio parejo de todo el cuadro
+    local = np.abs(diff - tint).max(axis=2)
+    return np.count_nonzero(local > UMBRAL_PIXEL) / local.size
 
 
 def _comparar(ruta_render: Path, ruta_original: Path, umbral: float) -> tuple[list[bool], float]:

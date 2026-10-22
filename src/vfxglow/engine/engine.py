@@ -134,6 +134,12 @@ class EffectEngine:
             if self.script.attention and effect.style.focus and gain > 0:
                 gain *= focus_gain(runtime, effect, event, focus_at(self.script.attention, frame_index))
             gain *= gain_for(effect, state, points, self.config.min_point_confidence)
+            # Un efecto disparado no sobrevive a un corte de toma: lo que empezó en la toma anterior
+            # (la tierra que se partió, la bestia que vuela) no sigue dibujándose en la nueva.
+            if cut and runtime.active_frames > 0 and effect.triggers and event is not None:
+                runtime.cut_event = event.start_frame
+            if effect.triggers and event is not None and getattr(runtime, "cut_event", None) == event.start_frame:
+                gain = 0.0
             if cut:
                 runtime.swoosh.clear()
             if cut or gain <= 0:

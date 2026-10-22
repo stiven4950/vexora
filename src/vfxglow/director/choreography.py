@@ -320,11 +320,11 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 if option.exclusive:
                     exclusive_until = max(exclusive_until, end)
                 if reaction.action in KEY_ACTIONS:
-                    key_windows.append((start, end))
+                    key_windows.append((start, until_cut(start, end, cuts)))
                 if reaction.action in FACE_ACTIONS:
-                    face_windows.append((start, end))
+                    face_windows.append((start, until_cut(start, end, cuts)))
                 if reaction.action not in AMBIENT_ACTIONS and reaction.action not in KEY_ACTIONS and weight_class(option) != "ligero":
-                    lit.append((start, end))  # lo ligero (chispas, la mirada) no ocupa lugar de foco
+                    lit.append((start, until_cut(start, end, cuts)))  # lo ligero no ocupa lugar de foco; el corte lo apaga
                 whole_scene = all(raw.get("type") in SCENE_TYPES for raw in option.effects)
                 partner = _partner(person, span, brief)
                 mirror = pin.espejo if pin.espejo is not None else (span is not None and span.mode == "unison")
@@ -345,11 +345,11 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
             resting = {name for name, frame in memo["used"].items() if event.start_frame - frame < _option(reaction, name).cooldown}
             resting |= {o.name for o in reaction.options if o.max_uses and spent.get(o.name, 0) >= o.max_uses}
             resting |= {o.name for o in reaction.options if o.group and spent.get(f"grupo:{o.group}", 0) >= catalog.group_limits.get(o.group, 10**6)}
-            resting |= other_elements(catalog, reaction.options, elements, event, pad)
+            resting |= other_elements(catalog, reaction.options, elements, event, pad, cuts)
             chapter = chapter_element(plan, event.start_frame)
             if chapter:  # solo el elemento del capítulo (y lo neutro), sin meterse en el siguiente
                 resting |= {o.name for o in reaction.options if element_of(catalog, o) and element_of(catalog, o) != chapter}
-                resting |= {o.name for o in reaction.options if element_of(catalog, o) and crosses_chapter(plan, element_of(catalog, o), *_window(o, event), int(round(RELAY_S * fps)))}
+                resting |= {o.name for o in reaction.options if element_of(catalog, o) and crosses_chapter(plan, element_of(catalog, o), *_window(o, event), int(round(RELAY_S * fps)), cuts)}
             resting |= {o.name for o in reaction.options if o.earns and not _earns_ok(o.earns, event, events, fps)}
             option = _draw(_chained(reaction, event, history, fps, resting), event, seed, resting, brief, catalog.wardrobe)
             if option.yields_to and _yields(option, event, brief, seed, fps):
@@ -417,11 +417,11 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 if option.exclusive:
                     exclusive_until = end
                 if reaction.action in KEY_ACTIONS:
-                    key_windows.append((start, end))
+                    key_windows.append((start, until_cut(start, end, cuts)))
                 if reaction.action in FACE_ACTIONS:
-                    face_windows.append((start, end))
+                    face_windows.append((start, until_cut(start, end, cuts)))
                 if reaction.action not in AMBIENT_ACTIONS and reaction.action not in KEY_ACTIONS and weight_class(option) != "ligero":
-                    lit.append((start, end))  # lo ligero (chispas, la mirada) no ocupa lugar de foco
+                    lit.append((start, until_cut(start, end, cuts)))  # lo ligero no ocupa lugar de foco; el corte lo apaga
                 partner = _partner(person, span, brief)
                 whole_scene = all(raw.get("type") in SCENE_TYPES for raw in option.effects)
                 twin = (
@@ -716,10 +716,15 @@ def element_plan(catalog: Catalog, events: list[MotionEvent], total: int, fps: f
     return plan
 
 
-def crosses_chapter(plan: list[tuple[int, int, str]], element: str, start: int, end: int, slack: int) -> bool:
+def crosses_chapter(plan: list[tuple[int, int, str]], element: str, start: int, end: int, slack: int, cuts: list[int] | None = None) -> bool:
     """Si la ventana [start, end] se mete (más de `slack` cuadros) en un capítulo de otro elemento:
-    un chorro de fuego que sigue encendido en el capítulo de aire bloqueaba todo el aire."""
-    return any(el != element and s <= end - slack and start <= e for s, e, el in plan if s > start)
+    un chorro de fuego que sigue encendido en el capítulo de aire bloqueaba todo el aire. Un
+    capítulo que empieza en un corte de toma no cuenta: el motor apaga el efecto en el corte."""
+
+    def at_cut(frame: int) -> bool:
+        return any(abs(frame - c) <= slack for c in cuts or [])
+
+    return any(el != element and s <= end - slack and start <= e and not at_cut(s) for s, e, el in plan if s > start)
 
 
 def chapter_element(plan: list[tuple[int, int, str]], frame: int) -> str:
@@ -770,15 +775,23 @@ def element_of(catalog: Catalog, option: Option) -> str:
     return catalog.element if option.element is None else option.element
 
 
-def other_elements(catalog: Catalog, options: list[Option], elements: list[tuple[int, int, str]], event: MotionEvent, pad: int) -> set[str]:
+def until_cut(start: int, end: int, cuts: list[int] | None) -> int:
+    """El fin de una ventana que empieza en `start`: el motor apaga el efecto en el siguiente corte
+    de toma, así que más allá no ocupa nada."""
+    return min([end] + [c - 1 for c in cuts or [] if start < c <= end])
+
+
+def other_elements(catalog: Catalog, options: list[Option], elements: list[tuple[int, int, str]], event: MotionEvent, pad: int, cuts: list[int] | None = None) -> set[str]:
     """Las opciones cuyo tramo (con `pad` de margen) se encima con uno de otro elemento ya
-    encendido (capítulos de elemento)."""
+    encendido (capítulos de elemento). Cada tramo termina, a más tardar, en el corte de toma."""
     out = set()
+    elements = [(s, until_cut(s, e, cuts), el) for s, e, el in elements]
     for o in options:
         mine = element_of(catalog, o)
         if not mine or not o.effects:
             continue
         start, end = _window(o, event)
+        end = until_cut(start, end, cuts)
         if any(el != mine and s - pad <= end and start <= e + pad for s, e, el in elements):
             out.add(o.name)
     return out
@@ -799,9 +812,12 @@ def fill_gaps(catalog: Catalog, brief: MotionBrief, events, extra, chosen, decis
     total = brief.video.frame_count
     longest = int(round(catalog.max_gap_s * fps))
     covered = np.zeros(total + 1, dtype=bool)
+    from vfxglow.analysis.beats import cut_frames
+
+    shot_cuts = cut_frames(brief.beats)
     for d in decisions:
         if not d.choice.startswith("nada") and d.action not in AMBIENT_ACTIONS and d.until >= d.frame:
-            covered[max(d.frame, 0) : min(d.until, total) + 1] = True
+            covered[max(d.frame, 0) : min(until_cut(d.frame, d.until, shot_cuts), total) + 1] = True
     people = brief.people or [brief.person_id]
     heavies = heavies or []
     options = {(r.action, o.name): o for r in catalog.reactions for o in r.options}
@@ -812,6 +828,7 @@ def fill_gaps(catalog: Catalog, brief: MotionBrief, events, extra, chosen, decis
         if option is not None and option.effects and not d.choice.startswith("nada") and weight_class(option) != "ligero":
             # De un pesado solo cuenta su parte pesada: la llama que queda en la mano no llena.
             until = heavy_end(option, d.frame, d.until, fps) if weight_class(option) == "pesado" else d.until
+            until = until_cut(d.frame, until, shot_cuts)  # el motor lo apaga en el corte de toma
             strong[max(d.frame, 0) : min(until, total) + 1] = True
     before, after = int(round(UNCLUTTER_MARGIN_S * fps)), int(round(RELAY_S * fps))
 
@@ -835,7 +852,7 @@ def fill_gaps(catalog: Catalog, brief: MotionBrief, events, extra, chosen, decis
             events.append(event)
             extra.append(event)
         default_pad = int(round(catalog.element_pad_s * fps)) if element_pad is None else element_pad
-        blocked = other_elements(catalog, spot.options, elements or [], event, default_pad if pad is None else pad)
+        blocked = other_elements(catalog, spot.options, elements or [], event, default_pad if pad is None else pad, shot_cuts)
         chapter = chapter_element(plan or [], event.start_frame) if chapters else ""
         if chapter:
             blocked |= {o.name for o in spot.options if element_of(catalog, o) and element_of(catalog, o) != chapter}

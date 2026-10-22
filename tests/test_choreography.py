@@ -485,3 +485,12 @@ def test_a_heavy_effect_does_not_cross_a_shot_cut() -> None:
     brief.beats = [Beat(id=0, start_frame=0, end_frame=149, kind="gesture"), Beat(id=1, start_frame=150, end_frame=899, kind="cut")]
     choices = {(d.frame, d.choice) for d in choreograph(catalog, brief)[1].decisions}
     assert (100, "nada (el pesado cruzaría un corte de toma)") in choices and (400, "bestia") in choices
+
+
+def test_an_effect_may_run_into_the_next_chapter_only_across_a_shot_cut() -> None:
+    from vfxglow.director.choreography import crosses_chapter
+
+    plan = [(0, 100, "tierra"), (100, 200, "fuego")]
+    assert crosses_chapter(plan, "tierra", 80, 130, 3)  # se metería en el fuego
+    assert not crosses_chapter(plan, "tierra", 80, 130, 3, cuts=[100])  # el corte lo apaga ahí
+    assert not crosses_chapter(plan, "tierra", 20, 60, 3)

@@ -35,6 +35,7 @@ LAVENDER = np.array([0.82, 0.76, 1.0], np.float32)  # acento mínimo (las motas)
 
 TRAIL = 9  # cuadros del recorrido que forman una corriente (el aire se apaga rápido)
 STRETCH = 1.7  # la corriente, más larga que el recorrido real
+BLADE_LIFE = 14  # cuadros que vuela la cuchilla antes de apagarse
 SHARP_TURN = np.radians(95)  # un giro así de brusco corta la corriente (no hace rulos)
 
 _FIELDS: dict = {}
@@ -262,20 +263,20 @@ def _air_slash(body, scale, frame_index, runtime, layer, alpha, event) -> None:
     if "blade" in st:
         spine, vel, born = st["blade"]
         age = frame_index - born
-        if age <= 9:
-            moved = spine + vel * age * (1.0 - age / 20.0)
-            fade = 1.0 - _seg(age, 4, 9)
+        if age <= BLADE_LIFE:
+            moved = spine + vel * age * (1.0 - age / 30.0)
+            fade = 1.0 - _seg(age, BLADE_LIFE * 0.5, BLADE_LIFE)
             streak(layer, moved, 0.2 * unit * (1.0 + 0.15 * age / 9), alpha * fade, belly=0.5)
             # El filo de atrás: una medialuna más chica y fina por dentro de la curva.
             inner = moved + (moved.mean(axis=0) - moved) * 0.22
             streak(layer, inner, 0.06 * unit, alpha * fade * 0.55, belly=0.5)
             _motes(st, moved, frame_index, unit, 2 if age < 4 else 0)
     else:
-        if len(path) >= 3:  # mientras golpea: la corriente fina que lo sigue
-            spine = _chaikin(path)
-            streak(layer, spine, 0.06 * unit, alpha * 0.7)
         _motes(st, path, frame_index, unit, 0)
     _draw_motes(layer, st)
+    # Todo el golpe va acompañado de las corrientes de las extremidades que se mueven (antes de
+    # soltarse la cuchilla solo había una corriente finita y casi no se veía).
+    _air_dash(body, scale, frame_index, runtime, layer, alpha * 0.8, event)
 
 
 def _air_vortex(body, scale, frame_index, runtime, layer, alpha, event) -> None:
