@@ -303,6 +303,12 @@ def _refract(layer, frame_index: int, strength: float) -> None:
 # ----- las figuras -----
 
 
+def velocity(body, name: str) -> np.ndarray | None:
+    """La velocidad (px por cuadro) de una articulación: la clave es vel:<persona>:<articulación>
+    (body.get la armaba al revés y siempre daba None)."""
+    return body.points.get(f"vel:{getattr(body, 'prefix', '')}{name}") if hasattr(body, "points") else body.get(f"vel:{name}")
+
+
 def _limb(body, event, names=("left_wrist", "right_wrist")):
     """La extremidad del evento o, sin ella, la más rápida."""
     if event is not None and event.target:
@@ -314,7 +320,8 @@ def _limb(body, event, names=("left_wrist", "right_wrist")):
         point = body.get(name)
         if point is None:
             continue
-        speed = float(np.linalg.norm(body.get(f"vel:{name}") if body.get(f"vel:{name}") is not None else np.zeros(2)))
+        vel = velocity(body, name)
+        speed = float(np.linalg.norm(vel)) if vel is not None else 0.0
         if best is None or speed > best[2]:
             best = (name, point, speed)
     return (best[0], best[1]) if best else None

@@ -48,6 +48,7 @@ REST = 0.3  # restitución del rebote
 FRICTION = 0.7  # lo que conserva de la velocidad en x al rebotar
 FADE_FROM, FADE_TO = 30, 55  # edad (cuadros) en que el escombro se achica y se va
 DUST_LIFE = 26
+GROUND_FRAMES = 3  # cuadros seguidos parado antes de partir el piso
 SPARK_LIFE = 7
 
 
@@ -292,7 +293,7 @@ def _draw_debris(layer, debris: list, alpha: float) -> None:
         draw_rock(layer, facets, alpha * (1.0 - k))
 
 
-def _burst(st: dict, origin, count: int, unit: float, height: int, rng, cone: float = 1.0, reach=(0.5, 1.4), size=(0.06, 0.16), up: float = -np.pi / 2) -> None:
+def _burst(st: dict, origin, count: int, unit: float, height: int, rng, cone: float = 1.0, reach=(0.5, 1.4), size=(0.1, 0.24), up: float = -np.pi / 2) -> None:
     """Escombros que salen hacia arriba y afuera desde `origin`."""
     gravity = GRAVITY * height
     for _ in range(count):
@@ -373,13 +374,36 @@ def _tick(st: dict, event, point, frame_index: int):
 # ----- las figuras -----
 
 
+def _grounded(body, scale: float, layer) -> bool:
+    """Si la persona está parada: los pies bien por debajo de la cadera (en una voltereta el
+    pisotón se detectaba con los pies arriba y las grietas salían en el cielo)."""
+    hips = [p for p in (body.get("left_hip"), body.get("right_hip")) if p is not None]
+    feet = [p for p in (body.get("left_ankle"), body.get("right_ankle")) if p is not None]
+    if not hips or not feet:
+        return True
+    unit = _unit(scale, layer)
+    if max(f[1] for f in feet) <= np.mean([h[1] for h in hips]) + 0.5 * unit:
+        return False
+    shoulders = [p for p in (body.get("left_shoulder"), body.get("right_shoulder")) if p is not None]
+    if shoulders and np.mean([p[1] for p in shoulders]) > np.mean([h[1] for h in hips]) - 0.3 * unit:
+        return False  # el torso no está derecho (de costado o de cabeza)
+    # Y el pie más bajo apoyado: casi quieto (en el aire, de costado, también queda bajo la cadera).
+    low = max(("left_ankle", "right_ankle"), key=lambda n: body.get(n)[1] if body.get(n) is not None else -1e9)
+    from vfxglow.engine.waterbend import velocity
+
+    vel = velocity(body, low)
+    return vel is None or float(np.linalg.norm(vel)) < 0.12 * unit
+
+
 def _earth_slam(body, scale, frame_index, runtime, layer, alpha, event) -> None:
     st = _activation(runtime, event, "earth:slam", body)
     if "origin" not in st:  # el punto de contacto se fija una sola vez: el pie más bajo, en el piso
         feet = [p for p in (body.get("left_ankle"), body.get("right_ankle")) if p is not None]
         floor = _floor(body, scale)
-        if not feet or floor is None:
-            return
+        # Parado varios cuadros seguidos (en lo alto de un salto el pie queda quieto un instante).
+        st["ground"] = st.get("ground", 0) + 1 if feet and floor is not None and _grounded(body, scale, layer) else 0
+        if st["ground"] < GROUND_FRAMES:
+            return  # en el aire (una voltereta): el piso se parte cuando apoye, no en el cielo
         foot = max(feet, key=lambda p: p[1])
         st["origin"] = np.array([float(foot[0]), float(floor)])
     origin, unit, height = st["origin"], _unit(scale, layer), layer.shape[0]
@@ -527,7 +551,7 @@ def _earth_boulder(body, scale, frame_index, runtime, layer, alpha, event) -> No
     elbow = body.get(name.replace("wrist", "elbow").replace("ankle", "knee"))
     along = (wrist - elbow) if elbow is not None and float(np.linalg.norm(wrist - elbow)) > 1 else np.array([1.0, 0.0])
     along = along / max(float(np.linalg.norm(along)), 1e-9)
-    radius = 0.55 * unit
+    radius = 1.0 * unit  # una roca de verdad (con 0,55 parecía un dado)
     _before(st, layer, alpha)
     if not st.get("shattered"):
         if u < 0.4:  # sube del piso y flota a la altura de la mano

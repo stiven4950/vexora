@@ -195,7 +195,9 @@ def _draw_motes(layer, st: dict) -> None:
 
 
 def _speed(body, name: str, unit: float) -> float:
-    vel = body.get(f"vel:{name}")
+    from vfxglow.engine.waterbend import velocity
+
+    vel = velocity(body, name)
     return float(np.linalg.norm(vel)) / max(unit, 1.0) if vel is not None else 0.0
 
 
