@@ -249,6 +249,9 @@ class EffectStyle(_Strict):
     # el lado del píxel como fracción del alto). Los elige el cliente (director/looks.py).
     fire_palette: str = "naranja"
     fire_pixel: float = 0.0
+    # Agua (engine/waterbend.py): cristalina (volumen transparente, contorno cian, reflejos y
+    # refracción aparte) o neon (contorno y líneas de flujo, casi sin volumen).
+    water_look: Literal["cristalina", "neon"] = "cristalina"
     # Si no está vacío, el efecto solo se dibuja en estas personas (p. ej. quienes llevan gafas).
     people: list[str] = Field(default_factory=list)
     # Pareja: cada persona con su color (el color N de `colors` para person_N), también en los

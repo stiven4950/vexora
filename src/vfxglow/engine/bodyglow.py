@@ -594,8 +594,9 @@ def draw_adornment(runtime, track, points, frame_index: int, height: int, envelo
     grow = float(np.clip(runtime.active_frames / 5.0, 0.0, 1.0))
     from vfxglow.engine.fire_creatures import FIRE_CREATURES
     from vfxglow.engine.firebend import FIREBEND
+    from vfxglow.engine.waterbend import WATERBEND
 
-    if shape in FIREBEND or shape in FIRE_CREATURES:
+    if shape in FIREBEND or shape in FIRE_CREATURES or shape in WATERBEND:
         # El fuego nace creciendo en forma y opaco: con el fundido quedaba gris y transparente
         # los primeros cuadros (piezas grises a 6,3 s en marcial_arts).
         grow = 1.0
@@ -627,6 +628,9 @@ def draw_adornment(runtime, track, points, frame_index: int, height: int, envelo
         flush_fire(layer, frame_index, _phase(runtime, event), runtime.swoosh.setdefault("_firelife", {}), embers)
     else:
         flush_fire(layer, frame_index, embers=embers)
+    from vfxglow.engine.waterbend import flush_water
+
+    flush_water(layer, frame_index, style.water_look)  # el agua acumulada (engine/waterbend.py)
     stroke_batch(layer, strokes, style.hdr_gain)
 
 

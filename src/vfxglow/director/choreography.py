@@ -456,6 +456,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 )
             )
     always = [] if pins is not None and pins.solo_estos else always_effects(catalog, events, brief.video.frame_count, fps, seed)
+    always = chapter_always(catalog, always, plan, brief.video.frame_count)
     opts = {(r.action, o.name): o for r in catalog.reactions for o in r.options}
     # Primero ceden los que se enciman con un pesado; después se rellena lo que quedó vacío, con un
     # relevo apenas termina cada pesado (sin pesado no hay que esperar: la escena no queda sola).
@@ -556,7 +557,7 @@ def _earned(option: Option) -> bool:
 HEAVY_SHAPES = {
     "fire_landing", "fire_carpet", "fire_carpet_end", "fire_wall", "fire_halo", "fire_orbit", "body_blaze",
     "fire_dragon", "fire_skull", "fire_bird", "fire_serpent", "fire_breath", "fire_phoenix", "fire_dragon_launch",
-    "fire_coil", "fire_kitsune", "fire_lion",
+    "fire_coil", "fire_kitsune", "fire_lion", "water_orb",
 }
 LIGHT_SHAPES = {"sparks", "droplets", "avatar_mark", "cracks", "glow_eyes"}
 LIGHT_TYPES = {"sparks", "droplets", "grade"}
@@ -1206,6 +1207,36 @@ def ends_still(events: list[MotionEvent], frame_count: int, fps: float, seconds:
         if event.name in ("still", "lull"):
             calm[max(event.start_frame - start, 0) : max(event.end_frame + 1 - start, 0)] = True
     return float(calm.mean()) >= 0.6
+
+
+CLOSING_SHAPES = {"fire_wall", "fire_carpet_end"}  # se cronometran solos al final
+
+
+def chapter_always(catalog: Catalog, always: list[dict], plan: list[tuple[int, int, str]], total: int) -> list[dict]:
+    """Lo que está siempre (la luz del fuego, las brasas) es del elemento del catálogo: con
+    capítulos de otro elemento (agua, aire), se enciende solo en los tramos del suyo. Si no, en un
+    capítulo de agua salían brasas naranjas."""
+    if not catalog.element or all(el == catalog.element for _s, _e, el in plan):
+        return always
+    spans: list[list[int]] = []
+    for start, end, el in sorted(plan):
+        if el != catalog.element:
+            continue
+        if spans and start <= spans[-1][1] + 1:
+            spans[-1][1] = max(spans[-1][1], end)
+        else:
+            spans.append([start, end])
+    out = []
+    for effect in always:
+        if set(effect.get("style", {}).get("shapes", [])) & CLOSING_SHAPES:
+            out.append(effect)
+            continue
+        for k, (start, end) in enumerate(spans):
+            piece = copy.deepcopy(effect)
+            piece["id"] = f"{effect['id']}_tramo{k}"
+            piece["time"] = {**effect.get("time", {}), "start_frame": start, "end_frame": min(end, total - 1), "fade_in": 3, "fade_out": 6}
+            out.append(piece)
+    return out
 
 
 def always_effects(catalog: Catalog, events: list[MotionEvent], frame_count: int, fps: float, seed: int | None = None) -> list[dict]:

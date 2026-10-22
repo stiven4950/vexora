@@ -19,7 +19,7 @@ import numpy as np
 from vfxglow.analysis.schema import MotionBrief
 from vfxglow.composite.composite import composite_frame
 from vfxglow.config import EngineConfig
-from vfxglow.director.choreography import always_effects, choreograph, load_catalog
+from vfxglow.director.choreography import always_effects, chapter_always, choreograph, load_catalog, voice_plan
 from vfxglow.director.pins import load_pins
 from vfxglow.director.schema import Effect, resolve_timing
 from vfxglow.engine.engine import EffectEngine
@@ -54,8 +54,12 @@ def main() -> None:
         from vfxglow.director.seasons import apply_to_catalog, find, load_seasons
 
         catalog = apply_to_catalog(catalog, find(load_seasons(Path("configs/seasons.yaml")), args.season))
-    script, _ = choreograph(catalog, brief, 1, load_pins(args.pins))
-    extra = [Effect.model_validate(raw) for raw in always_effects(catalog, list(brief.events), count, fps, 1)]
+    pins = load_pins(args.pins)
+    script, _ = choreograph(catalog, brief, 1, pins)
+    always = always_effects(catalog, list(brief.events), count, fps, 1)
+    if pins.capitulos:  # con capítulos de voz, lo de siempre (brasas, luz del fuego) solo en los del fuego
+        always = chapter_always(catalog, always, voice_plan(catalog, pins, count, fps), count)
+    extra = [Effect.model_validate(raw) for raw in always]
     script = resolve_timing(script.model_copy(update={"effects": extra + list(script.effects)}), count)
     by_id = {e.id: e for e in script.effects}
     wanted = sorted({int(round(s * fps)) for s in args.seconds})

@@ -46,6 +46,8 @@ def test_every_adornment_draws(shape: str) -> None:
         pytest.skip("se encienden solas (el cierre, o la luz del fuego de los demás efectos): se prueban con video")
     if shape in ("fire_phoenix", "fire_dragon_launch"):
         pytest.skip("nacen al lanzar (crecen en los primeros cuadros del gesto): se prueban en test_elements")
+    if shape in ("water_ribbon", "water_stream", "water_ring", "water_splash", "water_refract"):
+        pytest.skip("crecen en los primeros cuadros, o refractan el agua de otro efecto: se prueban en test_water")
     if shape in FACE + NECK + ("battery", "hero_text", "venom", "iron_man"):
         # Van sobre la cara o el pecho: de frente (la pose de prueba está de espaldas).
         points = {name.replace("left", "@").replace("right", "left").replace("@", "right"): p for name, p in points.items()}
@@ -54,6 +56,9 @@ def test_every_adornment_draws(shape: str) -> None:
     runtime = EffectRuntime(effect, 1, 10)
     layer = np.zeros((200, 200, 4), np.float32)
     lines = adornment(shape, body, body.frame(), 40.0, 0, 1, runtime, layer, np.array([1, 0, 1], np.float32), 1.0)
+    from vfxglow.engine.waterbend import flush_water
+
+    flush_water(layer, 0)  # el agua se pinta al final, como el fuego
     assert lines or layer[..., 3].max() > 0
 
 
