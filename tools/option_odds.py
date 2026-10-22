@@ -31,6 +31,7 @@ def main() -> None:
     firsts: Counter = Counter()
     options = {(r.action, o.name): o for r in catalog.reactions for o in r.options}
     clashes = 0  # coreografías con un pesado encimado a algo que no es ligero
+    waits: list[float] = []  # segundos sin ningún efecto (no ligero) al terminar cada pesado
     for seed in range(args.semillas):
         _, log = choreograph(catalog, brief, seed)
         picks = [(d.frame, d.action, d.choice.split(" ")[0]) for d in log.decisions if not d.choice.startswith("nada")]
@@ -41,6 +42,16 @@ def main() -> None:
             for j, b in enumerate(lit)
             if i != j
         )
+        on = [False] * (brief.video.frame_count + 1)  # cuadros con algo no ligero encendido
+        for b in lit:
+            if b[2] != "ligero":
+                on[max(b[0], 0) : b[1] + 1] = [True] * (min(b[1], brief.video.frame_count) + 1 - max(b[0], 0))
+        for a in lit:
+            if a[2] == "pesado" and a[1] < brief.video.frame_count - fps:
+                f = a[1] + 1
+                while f < brief.video.frame_count and not on[f]:
+                    f += 1
+                waits.append((f - a[1] - 1) / fps)
         for name in {c for _f, _a, c in picks}:
             seen[name] += 1
         for chain in args.cadena:
@@ -53,6 +64,8 @@ def main() -> None:
     print(f"{args.run.name}: {n} coreografías")
     for name in wanted:
         print(f"  {name:20s} {100 * seen[name] // n:3d}%")
+    if waits:
+        print(f"  vacío tras un pesado: mediana {sorted(waits)[len(waits) // 2]:.2f} s, peor {max(waits):.2f} s ({len(waits)} pesados)")
     print(f"  choques pesado+otro: {clashes} de {n} (sin contar una consecuencia con su causa)")
     for chain in args.cadena:
         print(f"  cadena {chain}: la primera {100 * firsts[chain] // n}%; con la segunda después {100 * chains[chain] // max(firsts[chain], 1)}% de esas")

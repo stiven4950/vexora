@@ -384,3 +384,31 @@ def test_a_heavy_effect_is_not_combined_with_anything_but_light_ones() -> None:
     assert (120, "nada (cede al efecto pesado bestia)") in lit  # la estela encimada cede
     assert (300, "estela") in lit  # lejos del pesado, sale
     assert (400, "voltereta") in lit and (410, "caida") in lit  # la consecuencia no choca con su causa
+
+
+def test_right_after_a_heavy_effect_another_one_takes_over() -> None:
+    catalog = Catalog.model_validate(
+        {
+            "name": "t",
+            "max_gap_s": 3.0,  # el relleno común no actuaría en un hueco de 1 s: lo hace el relevo
+            "defaults": {"type": "swoosh", "target": {"kind": "joint", "id": "right_wrist"}},
+            "reactions": [
+                {"action": "throw", "options": [{"name": "bestia", "weight_class": "pesado", "effects": [{"trigger": {"hold": 40}}]}]},
+                {"action": "fast_swing", "options": [{"name": "estela", "effects": [{"trigger": {"hold": 6}}]}]},
+                {
+                    "action": "spotlight",
+                    "options": [
+                        {"name": "chispas", "weight_class": "ligero", "weight": 5.0, "effects": [{"trigger": {"hold": 6}}]},
+                        {"name": "llama", "effects": [{"trigger": {"hold": 10}}]},
+                    ],
+                },
+            ],
+        }
+    )
+    events = [_ev("throw", 100), _ev("fast_swing", 120), _ev("fast_swing", 190)]
+    log = choreograph(catalog, _brief(events))[1]
+    heavy = next(d for d in log.decisions if d.choice == "bestia")
+    lit = [d for d in log.decisions if not d.choice.startswith("nada") and d.choice != "chispas" and d.frame > heavy.frame]
+    assert (120, "nada (cede al efecto pesado bestia)") in {(d.frame, d.choice) for d in log.decisions}  # nada encima
+    relay = min(lit, key=lambda d: d.frame)
+    assert relay.frame <= heavy.until + 4 and relay.choice == "llama"  # enseguida, y no algo ligero

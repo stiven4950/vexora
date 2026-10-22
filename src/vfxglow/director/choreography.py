@@ -432,10 +432,20 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                     until=end if option.effects else event.start_frame,
                 )
             )
-    if catalog.max_gap_s > 0 and not (pins is not None and pins.solo_estos):
-        fill_gaps(catalog, brief, events, extra, chosen, decisions, seed, fps, elements, plan)
     always = [] if pins is not None and pins.solo_estos else always_effects(catalog, events, brief.video.frame_count, fps, seed)
-    unclutter(catalog, chosen, decisions, always, brief.video.frame_count, fps)
+    opts = {(r.action, o.name): o for r in catalog.reactions for o in r.options}
+    # Primero ceden los que se enciman con un pesado; después se rellena lo que quedó vacío, con un
+    # relevo apenas termina cada pesado (sin pesado no hay que esperar: la escena no queda sola).
+    heavies = unclutter(catalog, chosen, decisions, always, brief.video.frame_count, fps)
+    # Los tramos de cada elemento, solo con lo que quedó (lo que cedió ya no bloquea a otro elemento).
+    closing = [el for el in elements if el[1] == brief.video.frame_count and el[2] == catalog.element][:1]
+    elements = closing + [
+        (d.frame, d.until, element_of(catalog, opts[(d.action, d.choice.split(" (")[0])]))
+        for d in decisions
+        if not d.choice.startswith("nada") and (d.action, d.choice.split(" (")[0]) in opts and element_of(catalog, opts[(d.action, d.choice.split(" (")[0])])
+    ]
+    if catalog.max_gap_s > 0 and not (pins is not None and pins.solo_estos):
+        fill_gaps(catalog, brief, events, extra, chosen, decisions, seed, fps, elements, plan, heavies)
     effects: list[dict] = list(always)
     for number, (reaction, option, picked, pin) in enumerate(pinned_out):
         for index, raw in enumerate(option.effects):
@@ -527,7 +537,9 @@ HEAVY_SHAPES = {
 }
 LIGHT_SHAPES = {"sparks", "droplets", "avatar_mark", "cracks", "glow_eyes"}
 LIGHT_TYPES = {"sparks", "droplets", "grade"}
-UNCLUTTER_MARGIN_S = 0.3  # aire entre un efecto pesado y el siguiente
+UNCLUTTER_MARGIN_S = 0.3  # aire antes de un efecto pesado (lo anterior se apaga antes de que nazca)
+RELAY_S = 0.1  # al terminar un pesado, lo siguiente entra enseguida (la escena no queda vacía)
+RELAY_KINDS = ("right_arm", "left_arm", "legs", "feet", "torso", "head")  # regiones que prueba un relevo
 
 
 def weight_class(option: Option) -> str:
@@ -544,14 +556,22 @@ def weight_class(option: Option) -> str:
     return "ligero" if all(light(raw) for raw in option.effects) else "medio"
 
 
-def unclutter(catalog: Catalog, chosen: dict, decisions: list, always: list[dict], total: int, fps: float) -> None:
-    """Los efectos pesados no se combinan: mientras uno está encendido (y UNCLUTTER_MARGIN_S antes
-    y después) no sale nada que no sea ligero, para no saturar la escena. Mandan, en orden, lo
-    fijado a mano, la pared del cierre, lo que lleva la atención (leads), los pesados y lo que
-    empieza antes; lo que choca con algo ya aceptado cede. Una consecuencia no choca con lo que
-    la causa (la caída que desbarata el fuego de la voltereta)."""
+def unclutter(catalog: Catalog, chosen: dict, decisions: list, always: list[dict], total: int, fps: float) -> list[tuple[int, int]]:
+    """Los efectos pesados no se combinan: mientras uno está encendido (con UNCLUTTER_MARGIN_S de
+    aire antes y RELAY_S después) no sale nada que no sea ligero, para no saturar la escena.
+    Mandan, en orden, lo fijado a mano, la pared del cierre, lo que lleva la atención (leads), los
+    pesados y lo que empieza antes; lo que choca con algo ya aceptado cede. Una consecuencia no
+    choca con lo que la causa (la caída que desbarata el fuego de la voltereta).
+
+    Devuelve los tramos de los pesados: al terminar cada uno tiene que entrar otro efecto enseguida
+    y ningún relleno se les puede encimar (fill_gaps, `heavies`)."""
     options = {(r.action, o.name): o for r in catalog.reactions for o in r.options}
-    margin = int(round(UNCLUTTER_MARGIN_S * fps))
+    before, after = int(round(UNCLUTTER_MARGIN_S * fps)), int(round(RELAY_S * fps))
+
+    def too_close(a: tuple, b: tuple) -> bool:
+        first, second = (a, b) if a[0] <= b[0] else (b, a)
+        return second[0] <= first[1] + (after if first[2] == "pesado" else before)
+
     items = []  # (rango, inicio, fin, peso, acción, opción, decisión)
     for d in decisions:
         name = d.choice.split(" (")[0]
@@ -576,8 +596,7 @@ def unclutter(catalog: Catalog, chosen: dict, decisions: list, always: list[dict
                 other
                 for other in accepted
                 if (heavy == "pesado" or other[2] == "pesado")
-                and other[0] - margin <= end
-                and start <= other[1] + margin
+                and too_close((start, end, heavy), other)
                 and not _chained_pair(option, options.get((other[3], other[4])), action, other)
             ),
             None,
@@ -590,6 +609,7 @@ def unclutter(catalog: Catalog, chosen: dict, decisions: list, always: list[dict
             picks.remove((d.frame, d.target))
         d.choice = f"nada (cede al efecto pesado {clash[4]})" if clash[2] == "pesado" else f"nada (es pesado y ya está encendido {clash[4]})"
         d.until = d.frame
+    return sorted((start, end) for start, end, heavy, _action, _name in accepted if heavy == "pesado")
 
 
 def _chained_pair(option: Option, other: Option | None, action: str, other_item: tuple) -> bool:
@@ -701,11 +721,15 @@ def other_elements(catalog: Catalog, options: list[Option], elements: list[tuple
     return out
 
 
-def fill_gaps(catalog: Catalog, brief: MotionBrief, events, extra, chosen, decisions, seed: int, fps: float, elements: list | None = None, plan: list | None = None) -> None:
+def fill_gaps(catalog: Catalog, brief: MotionBrief, events, extra, chosen, decisions, seed: int, fps: float, elements: list | None = None, plan: list | None = None, heavies: list[tuple[int, int]] | None = None) -> None:
     """Rellena los tramos sin ningún efecto más largos que `catalog.max_gap_s`: en cada hueco, un
     efecto del foco de ese momento (un `spotlight`), sorteado entre las opciones que dibujan algo y
-    no son de escena. Si en el hueco no hay foco, se crea uno con la región de la línea de
-    atención (o el cuerpo entero). Se repite hasta que no queden huecos o no haya qué poner."""
+    no son de escena ni pesadas. Si en el hueco no hay foco, se crea uno con la región de la línea
+    de atención (o el cuerpo entero). Se repite hasta que no queden huecos o no haya qué poner.
+
+    `heavies`: los tramos de los efectos pesados (unclutter). Al terminar cada uno entra un efecto
+    enseguida (RELAY_S), aunque el hueco que sigue sea corto: después de una figura grande la
+    escena no queda vacía. Ningún relleno se encima con un pesado (ni en el aire de antes)."""
     spot = next((r for r in catalog.reactions if r.action == "spotlight"), None)
     if spot is None:
         return
@@ -716,33 +740,61 @@ def fill_gaps(catalog: Catalog, brief: MotionBrief, events, extra, chosen, decis
         if not d.choice.startswith("nada") and d.action not in AMBIENT_ACTIONS and d.until >= d.frame:
             covered[max(d.frame, 0) : min(d.until, total) + 1] = True
     people = brief.people or [brief.person_id]
-    for attempt in range(200):
-        gap = _first_gap(covered, longest)
-        if gap is None:
-            return
-        start, end = gap
-        # Un foco que empiece justo al abrirse el hueco (si empieza más tarde, el tramo de antes
-        # quedaría vacío): si no lo hay, se crea uno ahí mismo.
+    heavies = heavies or []
+    options = {(r.action, o.name): o for r in catalog.reactions for o in r.options}
+    # Lo que ya está encendido sin contar lo ligero (la mirada, las chispas): eso no llena la escena.
+    strong = np.zeros(total + 1, dtype=bool)
+    for d in decisions:
+        option = options.get((d.action, d.choice.split(" (")[0]))
+        if option is not None and option.effects and not d.choice.startswith("nada") and weight_class(option) != "ligero":
+            strong[max(d.frame, 0) : min(d.until, total) + 1] = True
+    before, after = int(round(UNCLUTTER_MARGIN_S * fps)), int(round(RELAY_S * fps))
+
+    def fits(first: int, last: int) -> bool:
+        """Que el relleno no se encime con un pesado ni con el aire de antes de que nazca."""
+        return not any(first <= end + after - 1 and start - before <= last for start, end in heavies)
+
+    def place(start: int, attempt: int, pad: int | None = None, length: int | None = None, chapters: bool = True, light: bool = True) -> bool:
+        """Un efecto del foco que empieza en `start`. False si no hay nada que poner. `pad`: aire
+        entre elementos (por defecto el del catálogo); `length`: cuadros del foco que se crea
+        (por defecto un segundo); `chapters`: respetar el elemento del capítulo; `light`: admitir
+        lo ligero (un relevo no: no llena la escena)."""
+        # Un foco que empiece justo ahí (si empieza más tarde, el tramo de antes quedaría vacío):
+        # si no lo hay, se crea uno ahí mismo.
         candidates = [e for e in events if e.name == "spotlight" and start <= e.start_frame <= start + 3]
         event = min(candidates, key=lambda e: (e.start_frame, -e.confidence)) if candidates else None
         if event is None:
             region = next((a.primary for a in brief.attention if a.start_frame <= start <= a.end_frame and a.primary != "prop"), "")
-            event = MotionEvent(name="spotlight", target=people[attempt % len(people)], start_frame=start, end_frame=min(start + int(fps), total - 1),
+            event = MotionEvent(name="spotlight", target=people[attempt % len(people)], start_frame=start, end_frame=min(start + (int(fps) if length is None else length), total - 1),
                                 confidence=1.0, detail="Relleno: ningún tramo sin efecto.", kind=region)
             events.append(event)
             extra.append(event)
-        blocked = other_elements(catalog, spot.options, elements or [], event, int(round(catalog.element_pad_s * fps)))
-        chapter = chapter_element(plan or [], event.start_frame)
+        blocked = other_elements(catalog, spot.options, elements or [], event, int(round(catalog.element_pad_s * fps)) if pad is None else pad)
+        chapter = chapter_element(plan or [], event.start_frame) if chapters else ""
         if chapter:
             blocked |= {o.name for o in spot.options if element_of(catalog, o) and element_of(catalog, o) != chapter}
-        pool = Reaction(action="spotlight", options=[o for o in spot.options if o.effects and not o.exclusive and o.name not in blocked])
+        # Ni de escena ni pesadas: un relleno no tapa la escena ni se encima con lo que sigue.
+        pool = Reaction(
+            action="spotlight",
+            options=[
+                o
+                for o in spot.options
+                if o.effects and not o.exclusive and weight_class(o) not in ("pesado", "" if light else "ligero") and o.name not in blocked and fits(*_window(o, event))
+            ],
+        )
         option = _draw(pool, event, seed + 7919 * (attempt + 1), frozenset(), brief, catalog.wardrobe)
         if not option.effects:
             # Sin opción para esa región: el cuerpo entero sí admite casi todas.
             option = _draw(pool, event.model_copy(update={"kind": ""}), seed + 7919 * (attempt + 1), frozenset(), brief, catalog.wardrobe)
+        if not option.effects and not light:
+            # Un relevo no se queda sin nada: prueba las otras partes del cuerpo.
+            for kind in RELAY_KINDS:
+                option = _draw(pool, event.model_copy(update={"kind": kind}), seed + 7919 * (attempt + 1), frozenset(), brief, catalog.wardrobe)
+                if option.effects:
+                    event.kind = kind
+                    break
         if not option.effects:
-            covered[start : end + 1] = True  # nada que poner aquí: no insistir
-            continue
+            return False
         first, last = _window(option, event)
         if elements is not None and element_of(catalog, option):
             elements.append((first, last, element_of(catalog, option)))
@@ -751,6 +803,32 @@ def fill_gaps(catalog: Catalog, brief: MotionBrief, events, extra, chosen, decis
             Decision(frame=event.start_frame, second=round(event.start_frame / fps, 2), action="spotlight", target=event.target, choice=option.name, until=last)
         )
         covered[max(first, 0) : min(last, total) + 1] = True
+        strong[max(first, 0) : min(last, total) + 1] = True
+        return True
+
+    attempt = 0
+    for _start, end in heavies:
+        frame = end + after
+        if frame < total - 1 and not strong[frame]:  # nadie tomó el relevo: entra uno ya
+            # El pesado ya se apagó: el relevo puede ser de otro elemento (el capítulo que sigue)
+            # sin esperar el aire entre elementos.
+            # Hasta lo que viene (hasta un segundo), con su propio hold. Si el capítulo no tiene nada
+            # que poner ahí (el rayo pide un gesto fuerte), sigue el elemento que venía, sin
+            # encimarse con otro.
+            later = np.nonzero(strong[frame:])[0]
+            length = int(np.clip((later[0] if len(later) else total - frame) - int(0.5 * fps), 2, fps))
+            # Si el largo no cabe (choca con otro elemento o con un pesado), uno corto.
+            for size, chapters in ((length, True), (2, True), (length, False), (2, False)):
+                if place(frame, attempt, 0, size, chapters=chapters, light=False):
+                    break
+            attempt += 1
+    for attempt in range(attempt, attempt + 200):
+        gap = _first_gap(covered, longest)
+        if gap is None:
+            return
+        start, end = gap
+        if not place(start, attempt):
+            covered[start : end + 1] = True  # nada que poner aquí: no insistir
 
 
 def _first_gap(covered: np.ndarray, longest: int) -> tuple[int, int] | None:
