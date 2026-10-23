@@ -326,9 +326,10 @@ def _upload(video: Path, key: str, timeout: float) -> dict:
     return info
 
 
-def ask_gemini(video: Path, prompt: str, cfg: DeepConfig) -> tuple[dict, dict]:
-    """(respuesta JSON, uso de tokens). Sin clave en el entorno es un error: el usuario pidió el
-    análisis profundo y no debe salir el económico sin avisar."""
+def ask_gemini(video: Path, prompt: str, cfg: DeepConfig) -> tuple[dict, dict, str]:
+    """(respuesta JSON, uso de tokens, modelo que respondió). Si el modelo principal sigue saturado
+    tras sus reintentos, responde el de respaldo. Sin clave en el entorno es un error: el usuario
+    pidió el análisis profundo y no debe salir el económico sin avisar."""
     key = os.environ.get(cfg.api_key_env, "").strip()
     if not key:
         raise RuntimeError(f"El análisis profundo necesita {cfg.api_key_env} en el entorno (.env)")
@@ -343,7 +344,15 @@ def ask_gemini(video: Path, prompt: str, cfg: DeepConfig) -> tuple[dict, dict]:
             }],
             "generationConfig": {"responseMimeType": "application/json"},
         }
-        raw = _generate(cfg, key, body)
+        try:
+            raw = _generate(cfg, key, body)
+            model = cfg.model
+        except Saturated:
+            if not cfg.fallback_model:
+                raise
+            log.warning("%s sigue saturado tras %d reintentos; se pide la respuesta a %s", cfg.model, cfg.retries, cfg.fallback_model)
+            model = cfg.fallback_model
+            raw = _generate(cfg.model_copy(update={"model": model}), key, body)
     finally:
         try:
             _request(f"{API}/v1beta/{info['name']}", key, method="DELETE").close()
@@ -351,13 +360,17 @@ def ask_gemini(video: Path, prompt: str, cfg: DeepConfig) -> tuple[dict, dict]:
             log.warning("No se pudo borrar el video subido a Gemini (%s); vence solo en 48 h", info.get("name"))
     parts = raw["candidates"][0]["content"]["parts"]
     text = "".join(part.get("text", "") for part in parts if not part.get("thought"))
-    return json.loads(text), raw.get("usageMetadata", {})
+    return json.loads(text), raw.get("usageMetadata", {}), model
 
 
 # Saturación pasajera (503 "high demand", 429 por cuota por minuto, 500/504): se reintenta con
-# espera creciente, sin volver a subir el video.
+# espera corta, sin volver a subir el video. Agotados los reintentos, se pasa al modelo de respaldo.
 RETRY_CODES = (429, 500, 503, 504)
-RETRY_WAITS_S = (15, 45, 90, 180)
+RETRY_WAITS_S = (5, 10, 20)
+
+
+class Saturated(RuntimeError):
+    """El modelo sigue respondiendo con saturación después de todos los reintentos."""
 
 
 def _generate(cfg: DeepConfig, key: str, body: dict, sleep=time.sleep) -> dict:
@@ -374,8 +387,10 @@ def _generate(cfg: DeepConfig, key: str, body: dict, sleep=time.sleep) -> dict:
                 return json.loads(response.read())
         except urllib.error.HTTPError as exc:
             detail = exc.read()[:400].decode(errors="replace")
-            if exc.code not in RETRY_CODES or not waits:
+            if exc.code not in RETRY_CODES:
                 raise RuntimeError(f"Gemini respondió {exc.code}: {detail}") from exc
+            if not waits:
+                raise Saturated(f"Gemini respondió {exc.code} en {cfg.model}: {detail}") from exc
             wait = waits.pop(0)
             log.warning("Gemini respondió %d (saturado); reintento en %d s (quedan %d)", exc.code, wait, len(waits))
             sleep(wait)
@@ -603,12 +618,16 @@ def deep_pins(video: Path, video_sha: str, catalog, duration: float, cfg: DeepCo
         log.info("Análisis profundo en caché (%s)", cfg.model)
     else:
         log.info("Análisis profundo con %s a %s fotogramas por segundo: subiendo el video completo (puede tardar unos minutos)", cfg.model, cfg.fps)
-        answer, usage = ask_gemini(video, prompt, cfg)
+        answer, usage, model = ask_gemini(video, prompt, cfg)
         log.info(
-            "Análisis profundo listo: %s tokens de entrada, %s de salida",
+            "Análisis profundo listo con %s: %s tokens de entrada, %s de salida",
+            model,
             usage.get("promptTokenCount", "?"),
             usage.get("candidatesTokenCount", "?"),
         )
+        # La respuesta se guarda bajo el modelo que de verdad contestó: así el respaldo no queda
+        # como si fuera Argon, y la próxima vez Argon vuelve a intentarse primero.
+        cache = out_dir / "deep_cache" / f"{answer_key(video_sha, prompt, cfg.model_copy(update={'model': model}))}.json"
         cache.parent.mkdir(parents=True, exist_ok=True)
         cache.write_text(json.dumps(answer, ensure_ascii=False, indent=1), encoding="utf-8")
     pins, warnings = to_pins(

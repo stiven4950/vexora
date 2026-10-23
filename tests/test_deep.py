@@ -106,7 +106,7 @@ def test_busy_model_is_retried(monkeypatch) -> None:
     monkeypatch.setattr(deep, "_request", fake)
     waits = []
     assert deep._generate(DeepConfig(), "k", {}, sleep=waits.append) == {"ok": True}
-    assert waits == [15, 45]
+    assert waits == [5, 10]
 
     calls.clear()
     monkeypatch.setattr(deep, "_request", lambda *a, **k: (_ for _ in ()).throw(urllib.error.HTTPError("u", 400, "bad", {}, io.BytesIO(b"bad"))))
@@ -114,6 +114,31 @@ def test_busy_model_is_retried(monkeypatch) -> None:
 
     with pytest.raises(RuntimeError, match="400"):
         deep._generate(DeepConfig(), "k", {}, sleep=waits.append)
+
+
+def test_busy_model_falls_back_after_retries(monkeypatch) -> None:
+    import io
+    import urllib.error
+
+    import pytest
+
+    from vfxglow.config import DeepConfig
+    from vfxglow.director import deep
+
+    models = []
+
+    def fake(url, key, data=None, headers=None, method=None, timeout=120.0):
+        models.append(url.split("/models/")[1].split(":")[0] if "/models/" in url else url)
+        if "argon" in url:
+            raise urllib.error.HTTPError(url, 503, "busy", {}, io.BytesIO(b"high demand"))
+        raise AssertionError("no debe llegar aquí")
+
+    monkeypatch.setattr(deep, "_request", fake)
+    cfg = DeepConfig(model="gemini-4-argon", retries=3)
+    with pytest.raises(deep.Saturated):
+        deep._generate(cfg, "k", {}, sleep=lambda s: None)
+    assert models == ["gemini-4-argon"] * 4  # 1 intento + 3 reintentos, y luego el respaldo lo decide ask_gemini
+    assert cfg.fallback_model == "gemini-3.8-flash"
 
 
 def test_prompt_lists_figures_not_style_flags() -> None:

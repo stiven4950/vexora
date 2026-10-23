@@ -172,7 +172,10 @@ class DeepConfig(_Strict):
     frame_budget: int = 450
     timeout_s: float = 600.0
     # Reintentos si el modelo está saturado (503) o se pasa la cuota por minuto (429).
-    retries: int = 4
+    retries: int = 3
+    # Si el modelo sigue saturado tras los reintentos, se pide la respuesta a este otro (mismo
+    # video, mismo prompt). None: no hay respaldo y el análisis falla.
+    fallback_model: str | None = "gemini-3.8-flash"
     # Mixto: el modelo pone la historia (momentos principales) y el coreógrafo económico rellena
     # alrededor (acentos, golpes de la música, la otra persona). false: solo lo del modelo.
     fill: bool = True

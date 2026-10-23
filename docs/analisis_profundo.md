@@ -21,9 +21,11 @@ Necesita `GEMINI_API_KEY` en el `.env` local (nunca en git).
 Un guion fijado a mano (`--pin`) manda sobre el análisis profundo.
 
 Si el modelo está saturado (error 503, "high demand") o se pasa la cuota por minuto (429), se
-reintenta solo 4 veces, esperando 15, 45, 90 y 180 s, sin volver a subir el video. Si sigue
-saturado, el error lo dice; el análisis de movimiento ya quedó guardado y reintentar más tarde es
-rápido.
+reintenta solo 3 veces, esperando 5, 10 y 20 s, sin volver a subir el video. Si Argon sigue
+saturado, se pide la misma respuesta a `gemini-3.8-flash` (`fallback_model` en la configuración;
+vacío para desactivarlo). La respuesta queda guardada con el modelo que la dio. Si también el de
+respaldo falla, el error lo dice; el análisis de movimiento ya quedó guardado y reintentar más tarde
+es rápido.
 
 ## Mixto: la historia de la IA y el relleno del económico
 
