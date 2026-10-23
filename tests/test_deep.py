@@ -248,3 +248,33 @@ def test_prompt_asks_for_voice_chapters() -> None:
     avatar = load_catalog(ROOT / "configs" / "catalogs" / "avatar.yaml")
     prompt = build_prompt(avatar, 10.0)
     assert "capitulos" in prompt and "nombra un elemento" in prompt
+
+
+def test_alternatives_keep_only_same_action_options() -> None:
+    answer = {
+        "momentos": [
+            {
+                "seg": 6.0, "accion": "hands_on_head", "opcion": "ovni",
+                "alternativas": [
+                    {"opcion": "diablo", "encaje": 7},  # válida, encaje al tope
+                    {"opcion": "senal", "encaje": 0.8},  # de otra acción
+                    {"opcion": "no_existe", "encaje": 0.8},
+                    {"opcion": "ovni", "encaje": 0.9},  # la principal
+                    {"opcion": "diablo", "encaje": 0.4},  # repetida
+                    "basura",
+                ],
+            },
+            {"seg": 9.0, "accion": "hands_on_head", "opcion": "ovni", "alternativas": [{"opcion": "aro_manos", "encaje": -2}]},
+        ]
+    }
+    pins, warnings = to_pins(answer, CATALOG, 32.4)
+    first, second = pins.momentos
+    assert [(a.opcion, a.encaje) for a in first.alternativas] == [("diablo", 1.0)]
+    assert [(a.opcion, a.encaje) for a in second.alternativas] == [("aro_manos", 0.05)]
+    assert any("senal" in w for w in warnings) and any("no_existe" in w for w in warnings) and any("mal formada" in w for w in warnings)
+
+
+def test_pins_without_alternatives_save_unchanged(tmp_path: Path) -> None:
+    path = tmp_path / "g.yaml"
+    save_pins(PinFile(momentos=[Pin(seg=1.0, opcion="ovni")]), path)
+    assert "alternativas" not in path.read_text(encoding="utf-8")

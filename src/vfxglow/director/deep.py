@@ -28,7 +28,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from vfxglow.config import DeepConfig
-from vfxglow.director.pins import Capitulo, Pin, PinFile, hex_color
+from vfxglow.director.pins import Alternativa, Capitulo, Pin, PinFile, hex_color
 
 log = logging.getLogger(__name__)
 
@@ -155,6 +155,7 @@ Responde SOLO este JSON (sin texto fuera de él):
   "lectura": [{{"inicio": 0.0, "fin": 0.5, "cuerpo": "qué hace exacto", "intencion": "qué transmite", "camara": "qué hace la cámara"}}],
   "historia": {{"arco": "", "motivo": "", "contrastes": "", "colores": ""}},
   "momentos": [{{"seg": 4.1, "dur": 1.1, "accion": "point", "opcion": "munequito", "figura": null,
+                 "alternativas": [{{"opcion": "aro", "figura": null, "encaje": 0.7}}],
                  "color": "#39ff14", "quien": "protagonista", "intencion": "por qué este efecto aquí", "nuevo": null}}],
   "capitulos": [{{"inicio": 0.0, "fin": 2.5, "elemento": "agua", "voz": "lo que dice la voz"}}],
   "efectos_nuevos": [{{"nombre": "trampa_chispa", "segundos": "8.9-10.1", "escenario": "", "nace": "",
@@ -163,6 +164,8 @@ Responde SOLO este JSON (sin texto fuera de él):
 - seg y dur en segundos con un decimal. accion y opcion: SOLO combinaciones del catálogo.
 - figura: opcional y SOLO una de las que aparecen entre corchetes en esa opción; si la que
   imaginas no está en la lista, usa null (no inventes nombres de figuras).
+- alternativas: 1 a 2 opciones de la MISMA acción que también cuentan esa intención (no otra
+  acción), con su encaje de 0 a 1 (qué tan bien la cuentan); la opción principal es la mejor.
 - color: hexadecimal, el del acto o el momento.
 - quien: "protagonista" si baila una sola persona; con dos o más, "izquierda", "derecha" o
   "ambos" (como se ve en pantalla en ese segundo).
@@ -414,6 +417,30 @@ def _match(catalog, accion: str | None, opcion: str | None):
     return found[0] if len(found) == 1 else None
 
 
+def _alternatives(raw, catalog, action: str, main: str, seg: float, warnings: list[str]) -> list[Alternativa]:
+    """Las alternativas del modelo que existen en la MISMA acción, sin repetidas ni la principal."""
+    out: list[Alternativa] = []
+    for item in raw if isinstance(raw, list) else []:
+        try:
+            name = item["opcion"]
+            fit = min(max(float(item.get("encaje", 0.5)), 0.05), 1.0)
+            figura = item.get("figura")
+            if not isinstance(name, str) or (figura is not None and not isinstance(figura, str)):
+                raise TypeError
+        except (KeyError, TypeError, ValueError, AttributeError):
+            warnings.append(f"{seg} s: alternativa mal formada: {item}")
+            continue
+        found = next((o for r in catalog.reactions if r.action == action for o in r.options if o.name == name and o.effects), None)
+        if found is None:
+            warnings.append(f"{seg} s: la alternativa {name} no es de {action}; se omite")
+            continue
+        if name == main or any(a.opcion == name and a.figura == figura for a in out):
+            continue
+        shapes = figures(found)
+        out.append(Alternativa(opcion=name, figura=figura if figura in shapes and len(shapes) > 1 else None, encaje=round(fit, 3)))
+    return out
+
+
 def to_pins(
     answer: dict,
     catalog,
@@ -473,6 +500,7 @@ def to_pins(
             nota = f"[nuevo: {raw['nuevo']}] {nota or ''}".strip()
         persona, both = who(seg, str(raw.get("quien") or "").strip().lower()) if who is not None else (None, False)
         pins.append(Pin(
+            alternativas=_alternatives(raw.get("alternativas"), catalog, reaction.action, option.name, seg, warnings),
             seg=seg,
             dur=round(min(max(dur, MIN_DUR), MAX_DUR, duration - seg), 2),
             accion=reaction.action,
