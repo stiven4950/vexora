@@ -13,3 +13,4 @@ Original: `api_data/uploads/3ed80f2b2a/avatar_opening_elements.mp4`. Cuatro toma
 | `2026-10-23_avatar_v6_profundo_aro_vivo_toma0.mp4` | Análisis profundo nuevo (con alternativas): Gemini usa los cuatro elementos por capítulo; el aro grande (6,2 s) nace barriendo, respira, se inclina con el cuerpo y se deshace en escamas. 73% visible |
 | `2026-10-23_avatar_v7_profundo_aro_vivo_toma1.mp4` | La otra toma del mismo análisis (sin otra llamada): cambia el escudo por cristales (4,3 s), el piso por estelas (5,1 s) y el viento azul por el viento (7,13 s). 73% visible |
 | `2026-10-23_profundo_alternativas_guion.yaml` | El guion de Gemini con sus alternativas por momento |
+| `2026-10-23_avatar_v8_aro_picos_escamas.mp4` | Como la v6, con el aro grande que al moverse en la voltereta saca picos doblados hacia atrás y suelta muchas escamas que flotan y se consumen (6,0-6,5 s) |
