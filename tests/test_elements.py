@@ -661,9 +661,10 @@ def test_neon_on_the_face_has_a_short_faint_halo() -> None:
     assert face[-1][3] == full[-1][3]  # el filamento blanco no cambia
 
 
-def _halo_masks(frames: int) -> list[np.ndarray]:
-    """El aro grande cuadro a cuadro con la persona quieta (máscaras de alfa > 0,5)."""
-    body = _body()
+def _halo_masks(frames: int, step: float = 0.0) -> list[np.ndarray]:
+    """El aro grande cuadro a cuadro (máscaras de alfa > 0,5); `step`: cuánto se corre la persona
+    por cuadro (px)."""
+    still = _body()
     frame = (np.array([200.0, 300.0]), np.array([1.0, 0.0]), np.array([0.0, 1.0]))
     runtime = SimpleNamespace(effect=SimpleNamespace(triggers=[SimpleNamespace(hold=40)]), active_frames=0, swoosh={}, silhouettes=[], kernels={}, fps=30.0)
     event = SimpleNamespace(start_frame=0, end_frame=10, kind="", target="person_0", name="flip")
@@ -671,6 +672,7 @@ def _halo_masks(frames: int) -> list[np.ndarray]:
     out = []
     for f in range(frames):
         runtime.active_frames = f + 1
+        body = _Body(**{name: point + np.array([step * f, 0.0]) for name, point in still.items()})
         layer = np.zeros((H, W, 4), np.float32)
         firebend._fire_halo(body, frame, 40.0, f, runtime, layer, (1.0, 0.4, 0.05), 1.0, event)
         firebend.flush_fire(layer, f)
@@ -688,3 +690,14 @@ def test_the_big_halo_sweeps_in_lives_and_peels_into_flakes() -> None:
     late_y = np.nonzero(masks[27])[0].mean()
     assert late_y < mid_y - 10  # la cola se desprende en escamas que suben (el aire caliente)
     assert areas[27] < 0.4 * max(areas)  # y se consumen
+
+
+def test_the_big_halo_spikes_and_sheds_flakes_when_it_moves() -> None:
+    still = _halo_masks(16)
+    moving = _halo_masks(16, step=7.0)
+
+    def count(mask: np.ndarray) -> int:
+        return cv2.connectedComponents(mask.astype(np.uint8))[0] - 1
+
+    assert sum(count(m) for m in moving[10:16]) > 1.5 * sum(count(m) for m in still[10:16])  # muchas escamas sueltas
+    assert sum(int(m.sum()) for m in moving[10:16]) > 1.1 * sum(int(m.sum()) for m in still[10:16])  # picos más largos

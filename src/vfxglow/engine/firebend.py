@@ -1636,6 +1636,29 @@ HALO_SWEEP_S = 0.35  # lo que tarda la cabeza en dar la vuelta (nace del pie, no
 HALO_PEEL_S = 0.45  # edad (s) desde la que un tramo de la cola se desprende en escamas...
 HALO_FLOAT_S = 0.6  # ...y lo que tarda en irse flotando y consumirse
 HALO_ARC = 1.7 * np.pi  # 306° de vuelta: abierto arriba de un lado
+HALO_FLAKES = 14  # escamas por cuadro con el aro en pleno movimiento
+
+
+def _halo_flakes(st: dict, layer, spine: np.ndarray, outward: np.ndarray, trail: np.ndarray, motion: float, unit: float, frame_index: int, color, alpha: float) -> None:
+    """Escamas que suelta el aro al moverse: salen del borde hacia afuera, quedan atrás en la
+    dirección del movimiento, suben, se achican y se consumen en 5-9 cuadros (comas, como las de
+    la cola)."""
+    flakes = st.setdefault("mflakes", [])
+    rng = np.random.default_rng(frame_index * 131 + len(flakes))
+    for _ in range(int(rng.poisson(HALO_FLAKES * motion))):
+        k = int(rng.integers(0, len(spine)))
+        vel = outward[k] * unit * rng.uniform(0.03, 0.07) + trail * unit * rng.uniform(0.04, 0.1) + np.array([0.0, -unit * 0.02])
+        flakes.append([spine[k] + outward[k] * unit * 0.15, vel, unit * rng.uniform(0.35, 0.7), 0, int(rng.integers(6, 11)), rng.uniform(0, 10)])
+    keep = []
+    for pos, vel, length, age, life, seed in flakes:
+        if age >= life:
+            continue
+        fade = 1.0 - age / life
+        speed = float(np.linalg.norm(vel))
+        if speed > 1e-6 and fade > 0.1:
+            cel(layer, teardrop(pos, -vel / speed, length * fade, length * 0.3 * fade + 0.5, frame_index, seed, 0.3), color, alpha, None)
+        keep.append([pos + vel, vel * 0.88 + np.array([0.0, -unit * 0.004]), length, age + 1, life, seed])
+    st["mflakes"] = keep[-120:]
 
 
 def _fire_halo(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
@@ -1671,6 +1694,13 @@ def _fire_halo(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
         tilt += float(np.angle(np.exp(1j * (target - tilt)))) * 0.18
         st["tilt"] = tilt
     tilt = st.get("tilt", 0.0)
+    # Cuánto se mueve el aro (se traslada con el cuerpo o gira con él): con movimiento le salen
+    # picos y suelta escamas; quieto, solo sus lenguas.
+    spin = abs(tilt - st.get("last_tilt", tilt))
+    st["last_tilt"] = tilt
+    raw_motion = float(np.linalg.norm(vel)) / max(unit, 1.0) * 3.0 + spin * 6.0
+    motion = st["motion"] = float(np.clip(st.get("motion", 0.0) * 0.6 + raw_motion * 0.4, 0.0, 1.0))
+    trail = -vel / max(float(np.linalg.norm(vel)), 1e-6) if float(np.linalg.norm(vel)) > 0.02 * unit else np.zeros(2)  # hacia atrás
     rot = np.array([[np.cos(tilt), -np.sin(tilt)], [np.sin(tilt), np.cos(tilt)]])
     ry = min(3.8 * unit, 0.33 * layer.shape[0])  # en video_51, un tercio del alto del cuadro
     rx = ry * 0.68
@@ -1707,11 +1737,11 @@ def _fire_halo(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
             out_dir = out_dir[::-1]  # la espina se dio vuelta para las lenguas de la cinta
         for k in range(2, len(body_spine) - 2, 3):
             grow_k = 0.5 + 0.5 * _smooth_noise(np.array([k * 0.7 + t * 3.0]), 9.0)[0]
-            reach = (0.45 + 1.25 * grow_k ** 1.6) * unit * (0.6 + 0.4 * k / len(body_spine))  # algunas largas
-            d = out_dir[k] + np.array([0.0, -0.3])  # hacia afuera y un poco arriba (el aire caliente)
+            reach = (0.45 + 1.25 * grow_k ** 1.6) * unit * (0.6 + 0.4 * k / len(body_spine)) * (1.0 + 1.15 * motion)  # algunas largas; con movimiento, picos
+            d = out_dir[k] + np.array([0.0, -0.3]) + trail * 1.2 * motion  # hacia afuera y arriba; el aire las dobla hacia atrás
             d /= max(float(np.linalg.norm(d)), 1e-6)
             base = body_spine[k] + out_dir[k] * body_w[k] * 0.5
-            cel(layer, teardrop(base, d, reach, max(float(body_w[k]) * 0.7, 0.07 * unit), frame_index, k * 0.9, 0.22 * turn), color, alpha, None)
+            cel(layer, teardrop(base, d, reach, max(float(body_w[k]) * 0.7 * (1.0 - 0.45 * motion), 0.05 * unit), frame_index, k * 0.9, 0.22 * turn), color, alpha, None)
     # La cola se desprende en escamas: cada tramo viejo, una coma que se aleja hacia afuera,
     # sube (el aire caliente), se achica y se consume.
     for k in range(4, n - 4, 4):
@@ -1725,6 +1755,8 @@ def _fire_halo(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
             continue
         thick = max(float(widths[k]) / max(1.0 - 0.9 * peel[k], 0.1), 0.12 * unit) * 0.55 * size
         cel(layer, teardrop(spine[k] + drift, along / length, length * 1.4 * size, thick, frame_index, k * 1.7, 0.3 * turn), color, alpha, None)
+    if u < DIE_START:
+        _halo_flakes(st, layer, spine, outward, trail, motion, unit, frame_index, color, alpha)
     if u < DIE_START and sweep < 1.0:  # la cabeza que avanza suelta chispas y trocitos
         k = int(np.argmax(q >= 0.9))
         shed(layer, spine[k:], widths[k:], st, frame_index, unit, color, alpha, 2.0)
