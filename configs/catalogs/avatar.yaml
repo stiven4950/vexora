@@ -541,8 +541,10 @@ reactions:
         effects: [*trail]
       # video_51, seg. 2,4: un aro grande de fuego que sube de un pie y rodea todo el cuerpo.
       - name: aro_grande
-        weight: 0.5
+        weight: 0.6
         cooldown: 200
+        heavy_s: 0.8  # el barrido y el aro entero; después se deshace en escamas y entra el relevo
+        leads: true  # un momento fuerte: se lleva la atención (no cede ante el tope de focos)
         effects:
           - &halo {type: adornment, style: {shapes: [fire_halo]}, trigger: {hold: 18, fade_in: 1, fade_out: 6}}
           - *heat2
@@ -616,8 +618,10 @@ reactions:
         effects:
           - {type: adornment, style: {shapes: [fire_ring]}, trigger: {hold: 12, fade_in: 1, fade_out: 5}}
       - name: aro_grande
-        weight: 0.15
+        weight: 0.35
         cooldown: 200
+        heavy_s: 0.8
+        leads: true
         effects: [*halo]
   - action: tumble
     options:

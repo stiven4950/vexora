@@ -159,6 +159,8 @@ class EffectEngine:
                 runtime.chapter_frame = frame_index
             runtime.chapter_colors = self._chapter_colors(runtime.chapter_frame if effect.triggers and gain > 0 else frame_index)
             runtime.frame_count = frame_count  # los efectos de cierre saben cuánto falta (firebend.fire_wall)
+            # El próximo corte de toma: un efecto largo (el aro grande) se apaga antes, no de golpe en él.
+            runtime.next_cut = next((c for c in sorted(self.cuts) if c > frame_index), None)
             runtime.contour_px = None
             runtime.tool_tip = None
             runtime.appearance = self.appearance

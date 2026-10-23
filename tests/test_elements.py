@@ -659,3 +659,32 @@ def test_neon_on_the_face_has_a_short_faint_halo() -> None:
     full, face = neon_layers(curve, np.ones(3), 3.0, 1.0), neon_layers(curve, np.ones(3), 3.0, 1.0, halo=FACE_HALO)
     assert face[0][3] < 0.4 * full[0][3] and face[0][2] < full[0][2]  # el halo ancho: tenue y más corto
     assert face[-1][3] == full[-1][3]  # el filamento blanco no cambia
+
+
+def _halo_masks(frames: int) -> list[np.ndarray]:
+    """El aro grande cuadro a cuadro con la persona quieta (máscaras de alfa > 0,5)."""
+    body = _body()
+    frame = (np.array([200.0, 300.0]), np.array([1.0, 0.0]), np.array([0.0, 1.0]))
+    runtime = SimpleNamespace(effect=SimpleNamespace(triggers=[SimpleNamespace(hold=40)]), active_frames=0, swoosh={}, silhouettes=[], kernels={}, fps=30.0)
+    event = SimpleNamespace(start_frame=0, end_frame=10, kind="", target="person_0", name="flip")
+    firebend.set_look("hot")
+    out = []
+    for f in range(frames):
+        runtime.active_frames = f + 1
+        layer = np.zeros((H, W, 4), np.float32)
+        firebend._fire_halo(body, frame, 40.0, f, runtime, layer, (1.0, 0.4, 0.05), 1.0, event)
+        firebend.flush_fire(layer, f)
+        out.append(layer[..., 3] > 0.5)
+    return out
+
+
+def test_the_big_halo_sweeps_in_lives_and_peels_into_flakes() -> None:
+    masks = _halo_masks(30)
+    areas = [int(m.sum()) for m in masks]
+    assert areas[3] < 0.6 * areas[11]  # nace barriendo (~0,35 s), no aparece de golpe
+    a, b = masks[14], masks[15]
+    assert (a & b).sum() / max((a | b).sum(), 1) < 0.95  # respira: no es una elipse tiesa
+    mid_y = np.nonzero(masks[12])[0].mean()
+    late_y = np.nonzero(masks[27])[0].mean()
+    assert late_y < mid_y - 10  # la cola se desprende en escamas que suben (el aire caliente)
+    assert areas[27] < 0.4 * max(areas)  # y se consumen

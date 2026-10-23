@@ -1632,68 +1632,105 @@ def _carpet_end(body, scale, frame_index, runtime, layer, color, alpha) -> list:
     return []
 
 
+HALO_SWEEP_S = 0.35  # lo que tarda la cabeza en dar la vuelta (nace del pie, no aparece de golpe)
+HALO_PEEL_S = 0.45  # edad (s) desde la que un tramo de la cola se desprende en escamas...
+HALO_FLOAT_S = 0.6  # ...y lo que tarda en irse flotando y consumirse
+HALO_ARC = 1.7 * np.pi  # 306° de vuelta: abierto arriba de un lado
+
+
 def _fire_halo(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
-    """Aro grande de fuego alrededor del cuerpo (video_51, seg. 2,4): nace en un pie, sube por un
-    lado, pasa sobre la cabeza y baja por el otro, abierto arriba de un lado; lenguas hacia afuera."""
+    """Aro grande de fuego alrededor del cuerpo (video_51, seg. 2,4): nace en un pie, la cabeza sube
+    por un lado, pasa sobre la cabeza y baja por el otro en HALO_SWEEP_S, abierto arriba de un lado,
+    con lenguas hacia afuera. Está vivo: el borde ondula, se inclina y gira con el cuerpo y su
+    centro lo sigue con un resorte (no un adorno pegado). La cola se desprende en escamas que se
+    alejan, suben y se consumen; al final muere desde arriba (erode)."""
     joints = [p for p in (body.get(j) for j in ("nose", "left_wrist", "right_wrist", "left_hip", "right_hip", "left_ankle", "right_ankle")) if p is not None]
     if len(joints) < 3:
         return []
     st = _activation(runtime, event, "halo", body)
     u = _phase(runtime, event)
-    # El centro del cuerpo, con inercia; el tamaño sale de la escala (en una voltereta la nariz y
-    # los pies no dicen dónde está arriba).
+    fps = max(getattr(runtime, "fps", 30.0), 1.0)
+    t = max(runtime.active_frames - 1, 0) / fps
+    cut_in = getattr(runtime, "next_cut", None)
+    if cut_in is not None and 0 <= cut_in - frame_index < 8:  # se apaga antes del corte de toma, no de golpe en él
+        u = max(u, DIE_START + (1 - DIE_START) * (1 - (cut_in - frame_index) / 8))
+    unit = _unit(scale, layer)
+    # El centro sigue al cuerpo con un resorte amortiguado: se atrasa y rebota apenas.
     now = np.mean(joints, axis=0)
-    st["mid"] = now if "mid" not in st else st["mid"] * 0.8 + now * 0.2
-    mid = st["mid"]
-    scale = _unit(scale, layer)
-    ry = min(3.8 * scale, 0.33 * layer.shape[0])  # en video_51, un tercio del alto del cuadro
+    center = st.get("c", now)
+    vel = st.get("cv", np.zeros(2)) * 0.72 + (now - center) * 0.22
+    center = center + vel
+    st["c"], st["cv"] = center, vel
+    # Se inclina con el eje del cuerpo (de la cadera a los hombros), con inercia; en una voltereta gira.
+    hips = [p for p in (body.get("left_hip"), body.get("right_hip")) if p is not None]
+    shoulders = [p for p in (body.get("left_shoulder"), body.get("right_shoulder")) if p is not None]
+    if hips and shoulders:
+        axis = np.mean(shoulders, axis=0) - np.mean(hips, axis=0)
+        target = float(np.arctan2(axis[0], -axis[1])) * 0.45  # parado: 0; acostado: ±0,7 rad
+        tilt = st.get("tilt", target)
+        tilt += float(np.angle(np.exp(1j * (target - tilt)))) * 0.18
+        st["tilt"] = tilt
+    tilt = st.get("tilt", 0.0)
+    rot = np.array([[np.cos(tilt), -np.sin(tilt)], [np.sin(tilt), np.cos(tilt)]])
+    ry = min(3.8 * unit, 0.33 * layer.shape[0])  # en video_51, un tercio del alto del cuadro
     rx = ry * 0.68
     turn = st.setdefault("turn", 1.0 if frame_index % 2 else -1.0)
-    a = np.pi / 2 + turn * np.linspace(0.15, 0.15 + 1.7 * np.pi, 48)  # de abajo, 306° de vuelta
-    spine = mid + np.stack([np.cos(a) * rx, np.sin(a) * ry], axis=1)
-    q = np.linspace(0, 1, 48)
-    widths = (0.03 + 0.45 * np.sin(np.pi * q) ** 0.7) * scale
-    if float(np.mean(np.sum(_normals(spine) * (spine - mid), axis=1))) < 0:  # lenguas hacia afuera
-        spine, widths = spine[::-1], widths[::-1]
-        grow_from_end = True
-    else:
-        grow_from_end = False
-    # No una C lisa: la cabeza es una cinta y lo que deja atrás se parte en escamas cada vez más
-    # chicas y finas (seg. 0,7 de marcial_arts se veía como una C acostada).
-    n = len(spine)
-    from_head = (n - 1 - np.arange(n)) / (n - 1) if grow_from_end else np.arange(n) / (n - 1)
-    reached = _ease_out(u / GROW_END)
-    for k, (t0, t1) in enumerate(_halo_scales()):
-        if k and t0 >= reached:  # la cabeza siempre (crece sola); las escamas, cuando llega
-            break
-        idx = np.nonzero((from_head >= t0) & (from_head <= t1))[0]
-        if len(idx) < 3:
+    sweep = _ease(min(t / HALO_SWEEP_S, 1.0))  # arranca, acelera y frena al cerrar (un gesto, no un golpe)
+    n = 56
+    q = np.linspace(0.0, 1.0, n)  # de la cola (el pie, 0) a la cabeza (1)
+    a = np.pi / 2 + turn * (0.15 + HALO_ARC * sweep * q)
+    # El borde respira: el radio ondula a lo largo y en el tiempo (no una elipse rígida).
+    breath = 1.0 + 0.12 * _smooth_noise(q * 3.2 + t * 1.7, 13.0) + 0.04 * np.sin(t * 7.0 + q * 9.0)
+    local = np.stack([np.cos(a) * rx, np.sin(a) * ry], axis=1) * breath[:, None]
+    spine = local @ rot.T + center
+    outward = local / np.maximum(np.linalg.norm(local, axis=1, keepdims=True), 1e-6) @ rot.T
+    # Cuándo pasó la cabeza por cada punto: lo más viejo de la cola se desprende primero.
+    born = HALO_SWEEP_S * np.clip(q * sweep, 0.0, 1.0) ** 0.5 if sweep < 1 else HALO_SWEEP_S * q ** 0.5
+    age = np.clip(t - born, 0.0, None)
+    peel = np.clip((age - HALO_PEEL_S) / HALO_FLOAT_S, 0.0, 1.0)
+    head = np.clip((q - 0.55) / 0.45, 0.0, 1.0)
+    widths = (0.14 + 0.32 * head ** 0.8 + 0.1 * np.sin(np.pi * q)) * unit * (1.0 - 0.9 * peel)
+    # El cuerpo: lo que todavía no se desprende, con lenguas hacia afuera que alternan.
+    solid = peel < 0.05
+    if solid.sum() >= 3:
+        idx = np.nonzero(solid)[0]
+        body_spine, body_w = spine[idx], widths[idx]
+        if float(np.mean(np.sum(_normals(body_spine) * outward[idx], axis=1))) < 0:
+            body_spine, body_w = body_spine[::-1], body_w[::-1]
+        tongues = 7.0 + 2.0 * _smooth_noise(np.array([t * 2.0]), 4.0)[0]  # las lenguas cambian
+        # Partido en tramos con huecos (el fuego de la referencia se corta), no una banda entera.
+        for j, (seg_spine, seg_w) in enumerate(pieces(body_spine, body_w, int(st.setdefault("cuts", frame_index % 97)), 0.035)):
+            cel(layer, ribbon(seg_spine, seg_w, frame_index, tongues, 2.7 + t + j), color, alpha, runtime if j == 0 else None)
+        # Lenguas hacia afuera a lo largo del aro, de largos distintos, que aletean y alternan S/C.
+        out_dir = outward[idx]
+        if body_spine is not spine[idx] and not np.allclose(body_spine[0], spine[idx][0]):
+            out_dir = out_dir[::-1]  # la espina se dio vuelta para las lenguas de la cinta
+        for k in range(2, len(body_spine) - 2, 3):
+            grow_k = 0.5 + 0.5 * _smooth_noise(np.array([k * 0.7 + t * 3.0]), 9.0)[0]
+            reach = (0.45 + 1.25 * grow_k ** 1.6) * unit * (0.6 + 0.4 * k / len(body_spine))  # algunas largas
+            d = out_dir[k] + np.array([0.0, -0.3])  # hacia afuera y un poco arriba (el aire caliente)
+            d /= max(float(np.linalg.norm(d)), 1e-6)
+            base = body_spine[k] + out_dir[k] * body_w[k] * 0.5
+            cel(layer, teardrop(base, d, reach, max(float(body_w[k]) * 0.7, 0.07 * unit), frame_index, k * 0.9, 0.22 * turn), color, alpha, None)
+    # La cola se desprende en escamas: cada tramo viejo, una coma que se aleja hacia afuera,
+    # sube (el aire caliente), se achica y se consume.
+    for k in range(4, n - 4, 4):
+        if not 0.05 <= peel[k] < 1.0:
             continue
-        if k == 0:
-            living_ribbon(layer, spine[idx], widths[idx], u, st, frame_index, color, alpha, runtime, grow_from_end=grow_from_end, tongues=8.0, phase=2.7)
-            if u < DIE_START:
-                shed(layer, spine[idx], widths[idx], st, frame_index, scale, color, alpha, 1.5)
-            continue
-        # Cada escama, una coma: gruesa del lado de la cabeza y en punta hacia la cola.
-        head_i, tail_i = idx[np.argmin(from_head[idx])], idx[np.argmax(from_head[idx])]
-        along = spine[tail_i] - spine[head_i]
+        drift = outward[k] * unit * 0.9 * peel[k] + np.array([0.0, -unit * 1.1 * peel[k]])
+        size = (1.0 - peel[k]) ** 0.8
+        along = spine[min(k + 3, n - 1)] - spine[k]
         length = float(np.linalg.norm(along))
-        if length < 2:
+        if length < 1 or size < 0.08:
             continue
-        thick = float(np.max(widths[idx])) * (1.0 - 0.5 * t0) * 0.7
-        cel(layer, teardrop(spine[head_i], along / length, length * 1.15, thick, frame_index, k * 1.7, 0.25 * turn), color, alpha, None)
+        thick = max(float(widths[k]) / max(1.0 - 0.9 * peel[k], 0.1), 0.12 * unit) * 0.55 * size
+        cel(layer, teardrop(spine[k] + drift, along / length, length * 1.4 * size, thick, frame_index, k * 1.7, 0.3 * turn), color, alpha, None)
+    if u < DIE_START and sweep < 1.0:  # la cabeza que avanza suelta chispas y trocitos
+        k = int(np.argmax(q >= 0.9))
+        shed(layer, spine[k:], widths[k:], st, frame_index, unit, color, alpha, 2.0)
+    elif u < DIE_START:
+        shed(layer, spine, widths, st, frame_index, unit, color, alpha, 0.8)
     return []
-
-
-def _halo_scales() -> list[tuple[float, float]]:
-    """Tramos del aro medidos desde la cabeza (0) a la cola (1): la cabeza larga y después escamas
-    que se acortan, separadas por huecos chicos."""
-    out, t, size = [(0.0, 0.4)], 0.43, 0.13
-    while t < 1.0:
-        out.append((t, min(t + size, 1.0)))
-        t += size + 0.03
-        size = max(size * 0.8, 0.04)
-    return out
 
 
 # ----- piso y aro -----
