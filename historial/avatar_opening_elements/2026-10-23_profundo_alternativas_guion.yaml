@@ -1,0 +1,126 @@
+catalogo: avatar
+momentos:
+- seg: 0.13
+  opcion: anillo_agua
+  accion: spin_body
+  dur: 0.7
+  exacto: true
+  color: '#00bfff'
+  nota: Las piernas dibujan un círculo amplio que levanta un anillo de agua continuo
+    alrededor del torso
+- seg: 0.8
+  opcion: latigo_agua
+  accion: fast_swing
+  dur: 0.8
+  exacto: true
+  color: '#00bfff'
+  nota: El mortal sin manos traza un látigo de agua arqueado siguiendo las piernas
+    en el aire
+- seg: 1.43
+  opcion: salpicadura
+  accion: landing
+  dur: 0.9
+  exacto: true
+  color: '#00bfff'
+  nota: Al deslizarse y recostarse en el césped, el agua se desparrama en una salpicadura
+    suave por el suelo
+- seg: 2.7
+  opcion: orbita_tierra
+  accion: flip
+  dur: 0.8
+  exacto: true
+  color: '#c89d54'
+  nota: En la patada voladora horizontal, rocas pesadas orbitan el cuerpo acompañando
+    el giro
+- seg: 3.57
+  opcion: golpe_tierra
+  accion: landing
+  dur: 0.7
+  exacto: true
+  color: '#c89d54'
+  nota: El puñetazo contra el suelo al aterrizar revienta el pasto con ondas de choque
+    y escombros
+  alternativas:
+  - opcion: cristales
+    encaje: 0.9
+- seg: 4.3
+  opcion: escudo_tierra
+  accion: arms_up
+  dur: 0.7
+  exacto: true
+  color: '#c89d54'
+  nota: Al incorporarse con los brazos en guardia y la rodilla arriba, levanta un
+    escudo sólido de roca frente a él
+  alternativas:
+  - opcion: cristales
+    encaje: 0.8
+- seg: 5.1
+  opcion: estelas
+  accion: tumble
+  dur: 0.7
+  exacto: true
+  color: '#ff4500'
+  nota: La media luna de entrada prende fuego en manos y pies dejando arcos de llamas
+  alternativas:
+  - opcion: piso
+    encaje: 0.7
+- seg: 5.83
+  opcion: aro_grande
+  accion: flip
+  dur: 0.8
+  exacto: true
+  color: '#ff4500'
+  nota: El mortal con giro en el aire envuelve todo el cuerpo en un gran anillo de
+    fuego rotatorio
+  alternativas:
+  - opcion: estelas
+    encaje: 0.9
+- seg: 6.5
+  opcion: latigos
+  accion: arms_open
+  exacto: true
+  color: '#ff4500'
+  nota: Al aterrizar de rodilla y abrir los brazos hacia atrás, despliega dos látigos
+    de fuego simétricos
+  alternativas:
+  - opcion: alas
+    encaje: 0.8
+- seg: 7.13
+  opcion: viento
+  accion: spin_body
+  dur: 1.1
+  exacto: true
+  figura: air_vortex
+  color: '#e0f7ff'
+  nota: El salto con doble patada giratoria crea un vórtice de viento blanco que lo
+    sostiene en el aire
+  alternativas:
+  - opcion: viento_azul
+    figura: air_refract
+    encaje: 0.8
+- seg: 8.2
+  opcion: rafaga
+  accion: landing
+  dur: 1.1
+  exacto: true
+  figura: air_burst
+  color: '#e0f7ff'
+  nota: Al tocar tierra y marcar la pose final de kung-fu, una ráfaga de aire se expande
+    limpia a su alrededor
+capitulos:
+- inicio: 0.0
+  fin: 2.6
+  elemento: agua
+  voz: Water
+- inicio: 2.6
+  fin: 4.9
+  elemento: tierra
+  voz: Earth
+- inicio: 4.9
+  fin: 7.0
+  elemento: fuego
+  voz: Fire
+- inicio: 7.0
+  fin: 9.4
+  elemento: aire
+  voz: Air
