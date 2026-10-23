@@ -96,10 +96,11 @@ def main() -> None:
     parser.add_argument("--salida", default="avatar.mp4", help="Nombre del archivo dentro de output/")
     parser.add_argument("--umbral", type=float, default=0.003, help="Fracción de píxeles cambiados para contar un cuadro con efecto")
     parser.add_argument("--vacio", type=float, default=0.4, help="Duración mínima en segundos de un tramo vacío a reportar")
+    parser.add_argument("--original", type=Path, default=None, help="Video original (si se movió de donde dice el manifiesto)")
     args = parser.parse_args()
 
     manifest = json.loads((args.run_dir / "manifest.json").read_text())
-    original = Path(manifest["video_path"])
+    original = args.original or Path(manifest["video_path"])
     if not original.is_absolute():
         original = Path.cwd() / original  # relativo a la raíz del repo
     render = args.run_dir / "output" / args.salida
