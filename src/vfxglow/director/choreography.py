@@ -262,7 +262,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
     if pins is not None:
         from vfxglow.director.pins import resolve_pins
 
-        for event, reaction, option, pin, made in resolve_pins(pins, catalog, events, brief, fps):
+        varied = any(p.alternativas for p in pins.momentos)  # sin alternativas, todo igual que siempre
+        for event, reaction, option, pin, made in resolve_pins(pins, catalog, events, brief, fps, seed=seed if varied else None):
             if made:
                 events.append(event)
                 extra.append(event)
@@ -1139,8 +1140,9 @@ def best_choreography(catalog: Catalog, brief: MotionBrief, take: int = 0, candi
     `take` (0 = la mejor). "Otra versión" es pedir el puesto siguiente: siempre una versión
     buena y distinta, sin que el usuario elija semillas."""
     results = []
-    # Solo lo fijado: no hay sorteo, todas las candidatas serían iguales.
-    for k in range(1 if pins is not None and pins.solo_estos else max(candidates, 1)):
+    # Solo lo fijado y sin alternativas: no hay sorteo, todas las candidatas serían iguales.
+    fixed = pins is not None and pins.solo_estos and not any(p.alternativas for p in pins.momentos)
+    for k in range(1 if fixed else max(candidates, 1)):
         seed = catalog.seed + 1009 * k
         script, choreo = choreograph(catalog, brief, seed, pins)
         results.append((score_choreography(choreo, brief), k, script, choreo))

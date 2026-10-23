@@ -494,3 +494,33 @@ def test_an_effect_may_run_into_the_next_chapter_only_across_a_shot_cut() -> Non
     assert crosses_chapter(plan, "tierra", 80, 130, 3)  # se metería en el fuego
     assert not crosses_chapter(plan, "tierra", 80, 130, 3, cuts=[100])  # el corte lo apaga ahí
     assert not crosses_chapter(plan, "tierra", 20, 60, 3)
+
+
+def _flip_catalog() -> Catalog:
+    return Catalog.model_validate(
+        {
+            "name": "t",
+            "defaults": {"type": "swoosh", "target": {"kind": "joint", "id": "right_wrist"}},
+            "reactions": [
+                {"action": "flip", "options": [{"name": n, "effects": [{"trigger": {"hold": 6}}]} for n in ("a", "b", "c")]}
+            ],
+        }
+    )
+
+
+def test_pin_alternatives_are_drawn_per_seed() -> None:
+    from vfxglow.director.pins import Alternativa, Pin, PinFile
+
+    brief = _brief([_ev("flip", 100)])
+    alts = [Alternativa(opcion="b", encaje=1.0), Alternativa(opcion="c", encaje=1.0)]
+    with_alts = PinFile(momentos=[Pin(seg=100 / 30, accion="flip", opcion="a", alternativas=alts)])
+    plain = PinFile(momentos=[Pin(seg=100 / 30, accion="flip", opcion="a")])
+
+    def chosen(pins, seed):
+        log = choreograph(_flip_catalog(), brief, seed=seed, pins=pins)[1]
+        return next(d.choice.removesuffix(" (fijado)") for d in log.decisions if d.action == "flip")
+
+    drawn = {chosen(with_alts, s) for s in range(12)}
+    assert len(drawn) >= 2 and drawn <= {"a", "b", "c"}
+    assert chosen(with_alts, 5) == chosen(with_alts, 5)
+    assert {chosen(plain, s) for s in range(12)} == {"a"}

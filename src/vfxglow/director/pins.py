@@ -20,8 +20,10 @@ salta en silencio.
 
 from __future__ import annotations
 
+import zlib
 from pathlib import Path
 
+import numpy as np
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -44,6 +46,14 @@ SIDED = ("point", "hand_ear", "throw", "face_touch", "neck_slash", "stomp", "ste
 
 class _Strict(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+class Alternativa(_Strict):
+    """Otra opción de la misma acción que cuenta la misma intención; `encaje` pesa en el sorteo."""
+
+    opcion: str
+    figura: str | None = None
+    encaje: float = 0.5
 
 
 class Pin(_Strict):
@@ -69,6 +79,9 @@ class Pin(_Strict):
     color: str | None = None
     # Qué quiere decir el gesto (la intención que leyó el análisis profundo); se ve en el panel.
     nota: str | None = None
+    # Otras opciones de la misma acción que el análisis profundo propone; cada toma sortea entre
+    # la principal y ellas.
+    alternativas: list[Alternativa] = Field(default_factory=list)
 
 
 class Capitulo(_Strict):
@@ -123,11 +136,32 @@ def _person(event: MotionEvent) -> str | None:
     return event.target.split(":", 1)[0] if event.target.startswith("person_") else None
 
 
-def resolve_pins(pins: PinFile, catalog, events: list[MotionEvent], brief: MotionBrief, fps: float):
-    """[(evento, reacción, opción, pin, creado)]: dónde y con qué se cumple cada momento."""
+def _draw(pin: Pin, catalog, seed: int) -> Pin:
+    """El momento con la opción sorteada entre la principal (peso 1) y sus alternativas válidas."""
+    valid = [
+        a for a in pin.alternativas
+        if any(o.name == a.opcion and o.effects for r in catalog.reactions if pin.accion is None or r.action == pin.accion for o in r.options)
+    ]
+    if not valid:
+        return pin
+    rng = np.random.default_rng(zlib.crc32(f"{seed}:{pin.seg}".encode()))
+    weights = np.array([1.0, *[max(a.encaje, 0.0) for a in valid]])
+    pick = int(rng.choice(len(weights), p=weights / weights.sum()))
+    if pick == 0:
+        return pin
+    chosen = valid[pick - 1]
+    return pin.model_copy(update={"opcion": chosen.opcion, "figura": chosen.figura})
+
+
+def resolve_pins(pins: PinFile, catalog, events: list[MotionEvent], brief: MotionBrief, fps: float, seed: int | None = None):
+    """[(evento, reacción, opción, pin, creado)]: dónde y con qué se cumple cada momento.
+
+    Con `seed`, los momentos con alternativas sortean su opción (determinista por semilla y segundo)."""
     out = []
     people = brief.people or [brief.person_id]
     for pin in pins.momentos:
+        if seed is not None and pin.alternativas:
+            pin = _draw(pin, catalog, seed)
         where = f"momento {pin.seg} s ({pin.opcion})"
         matches = [
             (reaction, option)
