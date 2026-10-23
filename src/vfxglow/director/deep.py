@@ -418,7 +418,13 @@ def _match(catalog, accion: str | None, opcion: str | None):
 
 
 def _alternatives(raw, catalog, action: str, main: str, seg: float, warnings: list[str]) -> list[Alternativa]:
-    """Las alternativas del modelo que existen en la MISMA acción, sin repetidas ni la principal."""
+    """Las alternativas del modelo que existen en la MISMA acción y son del MISMO elemento que la
+    principal (un viento como alternativa del látigo de agua metía aire en la toma de agua), sin
+    repetidas ni la principal."""
+    from vfxglow.director.choreography import element_of
+
+    main_option = next((o for r in catalog.reactions if r.action == action for o in r.options if o.name == main), None)
+    main_element = element_of(catalog, main_option) if main_option is not None else ""
     out: list[Alternativa] = []
     for item in raw if isinstance(raw, list) else []:
         try:
@@ -435,6 +441,9 @@ def _alternatives(raw, catalog, action: str, main: str, seg: float, warnings: li
             warnings.append(f"{seg} s: la alternativa {name} no es de {action}; se omite")
             continue
         if name == main or any(a.opcion == name and a.figura == figura for a in out):
+            continue
+        if element_of(catalog, found) not in (main_element, ""):
+            warnings.append(f"{seg} s: la alternativa {name} es de otro elemento que {main}; se omite")
             continue
         shapes = figures(found)
         out.append(Alternativa(opcion=name, figura=figura if figura in shapes and len(shapes) > 1 else None, encaje=round(fit, 3)))

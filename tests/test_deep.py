@@ -278,3 +278,14 @@ def test_pins_without_alternatives_save_unchanged(tmp_path: Path) -> None:
     path = tmp_path / "g.yaml"
     save_pins(PinFile(momentos=[Pin(seg=1.0, opcion="ovni")]), path)
     assert "alternativas" not in path.read_text(encoding="utf-8")
+
+
+def test_alternatives_keep_the_main_element() -> None:
+    from vfxglow.director.choreography import load_catalog
+    from vfxglow.director.deep import _alternatives
+
+    catalog = load_catalog(ROOT / "configs" / "catalogs" / "avatar.yaml")
+    warnings: list[str] = []
+    alts = _alternatives([{"opcion": "viento", "encaje": 0.4}, {"opcion": "puno_tierra", "encaje": 0.6}, {"opcion": "estela", "encaje": 0.9}], catalog, "fast_swing", "latigo_agua", 0.8, warnings)
+    assert alts == []  # viento (aire), puño (tierra) y estela (fuego): ninguno es agua
+    assert len(warnings) == 3
