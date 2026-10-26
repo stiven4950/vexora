@@ -27,6 +27,7 @@ import urllib.request
 from collections.abc import Callable
 from pathlib import Path
 
+from vfxglow import telemetry
 from vfxglow.config import DeepConfig
 from vfxglow.director.pins import Alternativa, Capitulo, Pin, PinFile, hex_color
 
@@ -653,14 +654,27 @@ def deep_pins(video: Path, video_sha: str, catalog, duration: float, cfg: DeepCo
     if cache.exists():
         answer = json.loads(cache.read_text(encoding="utf-8"))
         log.info("Análisis profundo en caché (%s)", cfg.model)
+        telemetry.llm_call("gemini", cfg.model, "deep", 0, 0, cache_hit=True)
     else:
         log.info("Análisis profundo con %s a %s fotogramas por segundo: subiendo el video completo (puede tardar unos minutos)", cfg.model, cfg.fps)
+        started = time.perf_counter()
         answer, usage, model = ask_gemini(video, prompt, cfg)
         log.info(
             "Análisis profundo listo con %s: %s tokens de entrada, %s de salida",
             model,
             usage.get("promptTokenCount", "?"),
             usage.get("candidatesTokenCount", "?"),
+        )
+        telemetry.llm_call(
+            "gemini",
+            model,
+            "deep",
+            usage.get("promptTokenCount"),
+            usage.get("candidatesTokenCount"),
+            round((time.perf_counter() - started) * 1000),
+            fallback_used=model != cfg.model,
+            video_seconds=round(duration, 2),
+            fps=cfg.fps,
         )
         # La respuesta se guarda bajo el modelo que de verdad contestó: así el respaldo no queda
         # como si fuera Argon, y la próxima vez Argon vuelve a intentarse primero.

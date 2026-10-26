@@ -126,7 +126,7 @@ def _classify(crops: list[np.ndarray], cache_dir: Path, scene: SceneConfig, key:
     if cached.exists():
         return json.loads(cached.read_text(encoding="utf-8"))
     try:
-        text, _usage = _ask(scene, key, [blob], _PROMPT.format(kinds=", ".join(KINDS)))
+        text, _usage = _ask(scene, key, [blob], _PROMPT.format(kinds=", ".join(KINDS)), purpose="accessories")
         raw = json.loads(text).get("crops", [])
     except (urllib.error.URLError, TimeoutError, ValueError, KeyError, json.JSONDecodeError) as exc:
         log.warning("El VLM no clasificó los accesorios (%s); se omiten", exc)

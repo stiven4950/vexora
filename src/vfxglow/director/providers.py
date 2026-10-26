@@ -6,10 +6,12 @@ import base64
 import json
 import logging
 import os
+import time
 import urllib.error
 import urllib.request
 from typing import Protocol
 
+from vfxglow import telemetry
 from vfxglow.analysis.models_store import ssl_context
 from vfxglow.config import DirectorConfig
 
@@ -93,6 +95,7 @@ def _openai(prompt: str, cfg: DirectorConfig, images: list[str], system: str | N
     else:
         payload["temperature"] = cfg.temperature
         payload["max_tokens"] = cfg.max_tokens
+    started = time.perf_counter()
     data = _post(
         f"{base}/chat/completions",
         payload,
@@ -108,6 +111,7 @@ def _openai(prompt: str, cfg: DirectorConfig, images: list[str], system: str | N
         usage.get("prompt_tokens", "?"),
         usage.get("completion_tokens", "?"),
     )
+    telemetry.llm_call("openai", cfg.model, "director", usage.get("prompt_tokens"), usage.get("completion_tokens"), round((time.perf_counter() - started) * 1000), images=len(images))
     return str(data["choices"][0]["message"]["content"] or "")
 
 
@@ -130,6 +134,7 @@ def _anthropic(prompt: str, cfg: DirectorConfig, images: list[str], system: str 
         "system": system or _system_prompt(),
         "messages": [{"role": "user", "content": content}],
     }
+    started = time.perf_counter()
     data = _post(
         f"{base}/v1/messages",
         payload,
@@ -146,6 +151,7 @@ def _anthropic(prompt: str, cfg: DirectorConfig, images: list[str], system: str 
         usage.get("input_tokens", "?"),
         usage.get("output_tokens", "?"),
     )
+    telemetry.llm_call("anthropic", cfg.model, "director", usage.get("input_tokens"), usage.get("output_tokens"), round((time.perf_counter() - started) * 1000), images=len(images))
     blocks = data.get("content", [])
     texts = [block.get("text", "") for block in blocks if block.get("type") == "text"]
     if not texts:

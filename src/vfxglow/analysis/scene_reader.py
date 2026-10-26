@@ -11,12 +11,14 @@ import hashlib
 import json
 import logging
 import os
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
 
 import cv2
 
+from vfxglow import telemetry
 from vfxglow.analysis.models_store import ssl_context
 from vfxglow.analysis.schema import Beat, SceneBeat
 from vfxglow.config import SceneConfig
@@ -103,12 +105,14 @@ def _sample(cap: cv2.VideoCapture, beat: Beat) -> list[bytes]:
     return blobs
 
 
-def _ask(cfg: SceneConfig, key: str, frames: list[bytes], prompt: str = _PROMPT) -> tuple[str, tuple[int, int]]:
+def _ask(cfg: SceneConfig, key: str, frames: list[bytes], prompt: str = _PROMPT, purpose: str = "scene") -> tuple[str, tuple[int, int]]:
     """Devuelve el texto de la respuesta y los tokens de entrada y salida."""
     images = [base64.b64encode(blob).decode("ascii") for blob in frames]
-    if cfg.provider == "gemini":
-        return _gemini(cfg.model, key, images, prompt)
-    return _openai(cfg.model, key, images, prompt)
+    started = time.perf_counter()
+    ask = _gemini if cfg.provider == "gemini" else _openai
+    text, (tokens_in, tokens_out) = ask(cfg.model, key, images, prompt)
+    telemetry.llm_call(cfg.provider, cfg.model, purpose, tokens_in, tokens_out, round((time.perf_counter() - started) * 1000), images=len(images))
+    return text, (tokens_in, tokens_out)
 
 
 def _openai(model: str, key: str, images: list[str], prompt: str = _PROMPT) -> tuple[str, tuple[int, int]]:
