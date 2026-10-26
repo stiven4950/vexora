@@ -518,3 +518,17 @@ def test_cancelling_a_queued_job_removes_it_at_once_and_only_its_owner_can(secur
 def test_there_is_nothing_to_cancel_once_a_job_finished(client: TestClient) -> None:
     job = _wait(client, client.post("/api/jobs", files={"video": ("clip.mp4", io.BytesIO(b"x"), "video/mp4")}, data={"style": "pelea"}).json()["id"])
     assert client.post(f"/api/jobs/{job['id']}/cancel").status_code == 409
+
+
+def test_styles_are_read_once_until_a_catalog_file_changes(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    from vfxglow.director import choreography
+
+    server._styles_for.cache_clear()
+    reads: list[str] = []
+    real = choreography.load_catalog
+    monkeypatch.setattr(choreography, "load_catalog", lambda path: (reads.append(path.name), real(path))[1])
+    first = client.get("/api/styles").json()
+    after_first = len(reads)
+    assert after_first >= 10 and {"fuego", "agua", "rayo", "tierra", "viento", "avatar"} <= {s["name"] for s in first}
+    assert client.get("/api/styles").json() == first and len(reads) == after_first  # la segunda, de la caché
+    server._styles_for.cache_clear()

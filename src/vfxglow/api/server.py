@@ -120,8 +120,16 @@ class Style(BaseModel):
     tags: list[str] = []
 
 
-@app.get("/api/styles", response_model=list[Style])
-def styles() -> list[Style]:
+def _styles_stamp() -> tuple[tuple[str, int], ...]:
+    """Qué archivos de catálogos y presets hay y de cuándo son: si algo cambia, se vuelve a leer."""
+    folders = (ROOT / "configs" / "catalogs", ROOT / "configs" / "presets")
+    return tuple((f"{folder.name}/{path.name}", path.stat().st_mtime_ns) for folder in folders for path in sorted(folder.glob("*.yaml")))
+
+
+@lru_cache(maxsize=1)
+def _styles_for(_stamp: tuple[tuple[str, int], ...]) -> list[Style]:
+    """Los estilos disponibles. Leer los catálogos (algunos extienden a otros) cuesta ~0,5 s, y los
+    piden el Estudio y la página de cada trabajo: se leen una vez por cambio de archivos."""
     from vfxglow.director.choreography import load_catalog
 
     out = []
@@ -149,6 +157,11 @@ def styles() -> list[Style]:
         colors = [tuple(c) for e in raw.get("effects", []) for c in e.get("style", {}).get("colors", [])][:4]
         out.append(Style(kind="preset", name=path.stem, title=raw.get("title", path.stem), description="Preset fijo: siempre los mismos efectos.", palette=colors, actions=[], needs=[]))
     return out
+
+
+@app.get("/api/styles", response_model=list[Style])
+def styles() -> list[Style]:
+    return _styles_for(_styles_stamp())
 
 
 # ----- temporadas -----
