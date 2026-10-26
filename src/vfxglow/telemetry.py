@@ -188,6 +188,10 @@ def _notify(kind: str, stage: str, **summary_fields: Any) -> None:
     if summary is None:
         return
     summary.update(summary_fields)
+    if kind == "started":
+        # Cuándo empezó cada etapa: con eso se sabe cuánto duró una que aún no cerró (la que
+        # contiene a otra) en cuanto empieza la siguiente.
+        summary.setdefault("started_at", {})[stage] = time.time()
     hook = _on_change.get()
     if hook is not None:
         hook(kind, stage, summary)

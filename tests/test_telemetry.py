@@ -106,6 +106,7 @@ def test_the_hook_follows_each_stage_and_the_current_one_is_in_the_summary() -> 
                 pass
     assert seen == [("started", "direct", "direct"), ("started", "deep", "deep"), ("finished", "deep", "direct"), ("finished", "direct", None)]
     assert summary["current"] is None and set(summary["stages"]) == {"direct", "deep"}
+    assert set(summary["started_at"]) == {"direct", "deep"} and summary["started_at"]["deep"] >= summary["started_at"]["direct"]
 
 
 def test_the_checkpoint_only_stops_a_job_that_was_asked_to_stop() -> None:
