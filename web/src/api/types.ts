@@ -9,6 +9,8 @@ export interface Style {
   name: string;
   title: string;
   description: string;
+  /** La idea en pocas palabras (la tarjeta del estilo). */
+  subtitle: string;
   palette: Rgb[];
   actions: string[];
   needs: string[];

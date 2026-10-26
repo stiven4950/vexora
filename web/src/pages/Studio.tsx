@@ -2,17 +2,51 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { api } from "../api/client";
-import { approx, rgb } from "../api/format";
+import { rgb } from "../api/format";
 import { askPermission } from "../api/notify";
-import { ROUTES } from "../routes";
 import { WARDROBES, type Limits, type Looks, type Season, type Style, type Wardrobe } from "../api/types";
-import { Button } from "../components/Button";
-import { Collapse } from "../components/Collapse";
+import { ChoiceCard } from "../components/ChoiceCard";
 import { Dropzone, problems, type VideoMeta } from "../components/Dropzone";
 import { Icon } from "../components/Icon";
+import { NeonPreview } from "../components/NeonPreview";
 import { Shell } from "../components/Shell";
-import { StyleCard } from "../components/StyleCard";
+import { StepCard } from "../components/StepCard";
+import { StudioAside } from "../components/StudioAside";
+import { StyleTile } from "../components/StyleTile";
+import { Tile } from "../components/Tile";
+import { SURPRISE_STYLES } from "../mocks/pendientes";
+import { ROUTES } from "../routes";
 import styles from "./Studio.module.css";
+
+/** Los filtros de estilo del diseño: cada elemento tiene su catálogo; "Otros" junta el resto. */
+const FILTERS = [
+  { id: "all", label: "Todos" },
+  { id: "avatar", label: "Avatar" },
+  { id: "fuego", label: "Fuego" },
+  { id: "agua", label: "Agua" },
+  { id: "rayo", label: "Rayo" },
+  { id: "tierra", label: "Tierra" },
+  { id: "viento", label: "Viento" },
+  { id: "other", label: "Otros" },
+] as const;
+type Filter = (typeof FILTERS)[number]["id"];
+
+const NAMED = new Set<string>(FILTERS.map((f) => f.id).filter((id) => id !== "all" && id !== "other"));
+
+/** El color de cada look, para su icono (director/looks.py los define por nombre). */
+const LOOK_COLOR: Record<string, string> = {
+  clasico: "#ff8a1f",
+  plano: "#ffd23f",
+  mixto: "#ff9a2e",
+  azul: "#4aa3ff",
+  verde: "#5be05b",
+  pixel: "#ff7a1a",
+  cian: "#35e0ff",
+  blanco: "#e8f1ff",
+  violeta: "#b06bff",
+  rojo: "#ff4d5e",
+  fuego: "#ff9a2e",
+};
 
 export function Studio() {
   const navigate = useNavigate();
@@ -20,16 +54,17 @@ export function Studio() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [chosen, setChosen] = useState<Style | null>(null);
+  const [filter, setFilter] = useState<Filter>("all");
   const [seasonList, setSeasonList] = useState<Season[]>([]);
   const [season, setSeason] = useState<string | null>(null);
   const [wardrobe, setWardrobe] = useState<Wardrobe>("ninguno");
+  const [wardrobeOpen, setWardrobeOpen] = useState(false);
   // Análisis profundo: opcional, más lento y de pago. Por defecto, el económico.
   const [deep, setDeep] = useState(false);
   // Estilos de fuego y de rayo (director/looks.py); null = los del estilo elegido.
   const [looks, setLooks] = useState<Looks>({ fuego: [], rayo: [] });
   const [fireStyle, setFireStyle] = useState<string | null>(null);
   const [boltStyle, setBoltStyle] = useState<string | null>(null);
-  const [showPresets, setShowPresets] = useState(false);
   const [limits, setLimits] = useState<Limits | null>(null);
   const [meta, setMeta] = useState<VideoMeta | null>(null);
   const [upload, setUpload] = useState<number | null>(null);
@@ -40,7 +75,7 @@ export function Studio() {
       .styles()
       .then((list) => {
         setStyleList(list);
-        setChosen((current) => current ?? list.find((s) => s.kind === "catalog") ?? null);
+        setChosen((current) => current ?? list.find((s) => s.name === "avatar") ?? list.find((s) => s.kind === "catalog") ?? null);
       })
       .catch((cause: unknown) => setLoadError(cause instanceof Error ? cause.message : String(cause)));
     // Las temporadas son opcionales: si la API no las tiene, simplemente no se muestran.
@@ -51,30 +86,28 @@ export function Studio() {
   }, []);
   const suggested = seasonList.find((s) => s.suggested) ?? null;
 
-  // Fuego y rayo solo en los estilos que los dibujan (el avatar).
-  const hasFire = chosen?.kind === "catalog" && chosen.tags.some((t) => t === "fuego" || t === "rayos") && looks.fuego.length > 0;
+  const isCatalog = chosen?.kind === "catalog";
+  // Fuego y rayo, cada uno en los estilos que lo dibujan.
+  const hasFire = isCatalog && !!chosen?.tags.includes("fuego") && looks.fuego.length > 0;
+  const hasBolt = isCatalog && !!chosen?.tags.some((t) => t === "rayo" || t === "rayos") && looks.rayo.length > 0;
   // El análisis profundo es de pago: solo las cuentas que el servidor permite, y solo en catálogos.
   const deepAllowed = limits?.deep_allowed ?? false;
-  const deepOn = deep && deepAllowed && chosen?.kind === "catalog";
+  const deepOn = deep && deepAllowed && isCatalog;
   const found = file ? problems(file, meta, limits) : [];
-  // Lo elegido en las opciones avanzadas, a la vista aunque estén plegadas.
-  const advancedSummary =
-    [
-      season ? seasonList.find((x) => x.id === season)?.title : null,
-      hasFire && fireStyle ? `fuego ${looks.fuego.find((l) => l.id === fireStyle)?.title.toLowerCase()}` : null,
-      hasFire && boltStyle ? `rayo ${looks.rayo.find((l) => l.id === boltStyle)?.title.toLowerCase()}` : null,
-      wardrobe !== "ninguno" ? WARDROBES.find((w) => w.id === wardrobe)?.label.toLowerCase() : null,
-      deepOn ? "análisis profundo" : null,
-    ]
-      .filter(Boolean)
-      .join(" · ") || "Temporada, fuego y rayo, vestuario y tipo de análisis (todo es opcional)";
-  // Tiempo estimado: con la duración del video y lo medido (20 s por segundo de video, un video nuevo).
-  const estimate = meta && Number.isFinite(meta.duration) ? approx(meta.duration * 20) : null;
-  const catalogs = useMemo(() => styleList.filter((s) => s.kind === "catalog"), [styleList]);
-  const presets = useMemo(() => styleList.filter((s) => s.kind === "preset"), [styleList]);
-  const aurora: [string, string] | undefined = chosen?.palette[0]
-    ? [rgb(chosen.palette[0], 0.2), rgb(chosen.palette[1] ?? chosen.palette[0], 0.16)]
-    : undefined;
+  const shown = useMemo(
+    () =>
+      styleList.filter((style) => {
+        if (filter === "all") return true;
+        if (filter === "other") return !NAMED.has(style.name);
+        return style.name === filter;
+      }),
+    [styleList, filter],
+  );
+  const aurora: [string, string] | undefined = chosen?.palette[0] ? [rgb(chosen.palette[0], 0.2), rgb(chosen.palette[1] ?? chosen.palette[0], 0.16)] : undefined;
+
+  // El número de cada paso: el de fuego y rayo solo cuenta si el estilo lo pide.
+  let n = 2;
+  const next = () => ++n;
 
   const launch = async () => {
     if (!file || !chosen) return;
@@ -84,8 +117,8 @@ export function Studio() {
     void askPermission();
     try {
       // Sin semilla: el servidor prueba varias coreografías y se queda con la mejor.
-      const wear: Record<string, Wardrobe> = chosen.kind === "catalog" && wardrobe !== "ninguno" ? { "*": wardrobe } : {};
-      const job = await api.create(file, chosen.kind, chosen.name, null, setUpload, season, wear, deepOn, hasFire ? fireStyle : null, hasFire ? boltStyle : null);
+      const wear: Record<string, Wardrobe> = isCatalog && wardrobe !== "ninguno" ? { "*": wardrobe } : {};
+      const job = await api.create(file, chosen.kind, chosen.name, null, setUpload, season, wear, deepOn, hasFire ? fireStyle : null, hasBolt ? boltStyle : null);
       navigate(ROUTES.job(job.id));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -93,217 +126,214 @@ export function Studio() {
     }
   };
 
+  // PENDIENTE(fase 2): la recomendación real de estilo (sin LLM, desde el análisis) necesita analizar
+  // al subir. Mientras tanto elige uno de una lista fija (mocks/pendientes.ts).
+  const surprise = () => {
+    const names = SURPRISE_STYLES.filter((name) => styleList.some((s) => s.name === name));
+    const pick = names[Math.floor(Math.random() * names.length)];
+    const style = styleList.find((s) => s.name === pick);
+    if (style) {
+      setChosen(style);
+      setFilter("all");
+    }
+  };
+
+  const seasonTitle = seasonList.find((s) => s.id === season)?.title ?? null;
+  const lookSummary = [hasFire && fireStyle && looks.fuego.find((l) => l.id === fireStyle)?.title, hasBolt && boltStyle && looks.rayo.find((l) => l.id === boltStyle)?.title].filter(Boolean).join(" / ");
+
   return (
     <Shell aurora={aurora}>
-      <section className={styles.hero}>
-        <span className="eyebrow">VEXORA Studio · efectos visuales con IA</span>
-        <h1>
-          Tu movimiento,
-          <br />
-          <span className="neon-text">más allá de lo real.</span>
-        </h1>
-        <p>
-          Sube un plano. La IA lee cada gesto, cada giro y hacia dónde va la energía, y crea encima los efectos que esa escena pide.
-          El video original no se toca.
-        </p>
-        <svg className={styles.swoosh} viewBox="0 0 600 160" aria-hidden="true">
-          <defs>
-            <linearGradient id="sw" x1="0" x2="1">
-              <stop offset="0" stopColor="#67e8f9" />
-              <stop offset="0.5" stopColor="#8b5cf6" />
-              <stop offset="1" stopColor="#ec4899" />
-            </linearGradient>
-          </defs>
-          <path d="M10 140 C 150 -20, 380 -10, 590 90" />
-          <path d="M40 150 C 190 20, 400 30, 580 120" className={styles.second} />
-        </svg>
-      </section>
+      <div className={styles.page}>
+        <div className={styles.main}>
+          <section className={styles.hero}>
+            <NeonPreview palette={chosen?.palette ?? [[0.25, 0.85, 1], [0.55, 0.4, 1]]} seed={5} active className={styles.heroArt} />
+            <div className={styles.heroText}>
+              <h1>
+                Tu movimiento,
+                <br />
+                <span>más allá de lo real.</span>
+              </h1>
+              <p>
+                Carga tu video y convierte tus movimientos en efectos visuales épicos. El video original nunca se toca, solo se le añaden capas de magia.
+              </p>
+            </div>
+            <ul className={styles.features}>
+              <li>
+                <Icon name="wand" size={18} /> Efectos automáticos
+              </li>
+              <li>
+                <Icon name="brain" size={18} /> IA que entiende tus movimientos
+              </li>
+              <li>
+                <Icon name="clock" size={18} /> Resultados en minutos
+              </li>
+            </ul>
+          </section>
 
-      <section className={styles.step}>
-        <header>
-          <span className={styles.num}>01</span>
-          <div>
-            <h2>El plano</h2>
-            <p>Un video vertical u horizontal. Mejor si se ve el cuerpo entero.</p>
-          </div>
-        </header>
-        <Dropzone file={file} onFile={setFile} onMeta={setMeta} limits={limits} />
-      </section>
+          <StepCard
+            n={1}
+            title="El plano"
+            note={`Sube tu video o arrástralo aquí. Admite: .mp4 .mov .m4v .webm .mkv${limits ? ` (máx. ${limits.max_upload_mb} MB)` : ""}.`}
+          >
+            <Dropzone file={file} onFile={setFile} onMeta={setMeta} limits={limits} />
+          </StepCard>
 
-      <section className={styles.step}>
-        <header>
-          <span className={styles.num}>02</span>
-          <div>
-            <h2>El estilo</h2>
-            <p>Una coreografía decide en cada momento qué efecto dispara y elige sola la mejor versión para tu video. Un preset aplica siempre lo mismo.</p>
-          </div>
-        </header>
-        {loadError && (
-          <div className={styles.error}>
-            <Icon name="alert" /> No se pudo leer la API: {loadError}. Arráncala con <code>vfxglow-api</code>.
-          </div>
-        )}
-        <div className={styles.grid}>
-          {catalogs.map((style) => (
-            <StyleCard key={style.name} style={style} selected={chosen?.name === style.name} onSelect={() => setChosen(style)} />
-          ))}
-        </div>
-        {presets.length > 0 && (
-          <div className={styles.presets}>
-            <button type="button" className={styles.toggle} onClick={() => setShowPresets((v) => !v)} aria-expanded={showPresets}>
-              {showPresets ? "Ocultar" : "Ver"} presets fijos ({presets.length})
-            </button>
-            {showPresets && (
-              <div className={styles.presetGrid}>
-                {presets.map((style) => (
-                  <StyleCard key={style.name} style={style} compact selected={chosen?.name === style.name} onSelect={() => setChosen(style)} />
-                ))}
+          <StepCard
+            n={2}
+            title="El estilo"
+            note="Elige un estilo o deja que la IA te sorprenda."
+            action={
+              <button type="button" className={styles.surprise} onClick={surprise} disabled={styleList.length === 0}>
+                <Icon name="sparkles" size={16} /> Sorpréndeme con IA
+              </button>
+            }
+          >
+            {loadError && (
+              <div className={styles.error}>
+                <Icon name="alert" /> No se pudo leer la API: {loadError}.
               </div>
             )}
-          </div>
-        )}
-      </section>
-
-      <div className={styles.last}>
-      <Collapse title="Opciones avanzadas" summary={advancedSummary}>
-        {seasonList.length > 0 && (
-          <div className={styles.opt}>
-            <h3>Toque de temporada</h3>
-            <p>
-              {suggested
-                ? `Estamos en temporada de ${suggested.title} ${suggested.emoji}. Puedes darle esa decoración y paleta a tu video.`
-                : "Opcional: una decoración y una paleta de época encima del estilo elegido."}
-            </p>
-            <div className={styles.seasons}>
-              <button type="button" className={`${styles.season} ${season === null ? styles.on : ""}`} onClick={() => setSeason(null)}>
-                Sin temporada
-              </button>
-              {[...seasonList]
-                .sort((a, b) => Number(b.suggested) - Number(a.suggested))
-                .map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    title={s.description}
-                    className={`${styles.season} ${season === s.id ? styles.on : ""}`}
-                    onClick={() => setSeason(s.id)}
-                  >
-                    <span aria-hidden="true">{s.emoji}</span> {s.title}
-                    {s.suggested && <span className={styles.badge}>de temporada</span>}
-                    <span className={styles.swatches}>
-                      {s.palette.slice(0, 4).map((c, i) => (
-                        <i key={i} style={{ background: rgb(c) }} />
-                      ))}
-                    </span>
-                  </button>
-                ))}
-            </div>
-          </div>
-        )}
-
-        {hasFire && (
-          <div className={styles.opt}>
-            <h3>Fuego y rayo</h3>
-            <p>Cómo se pintan el fuego y los rayos de este estilo. La coreografía es la misma: cambia el look.</p>
-            <div className={styles.seasons}>
-              <button type="button" className={`${styles.season} ${fireStyle === null ? styles.on : ""}`} onClick={() => setFireStyle(null)}>
-                Fuego del estilo
-              </button>
-              {looks.fuego
-                .filter((look) => look.id !== "clasico")
-                .map((look) => (
-                  <button key={look.id} type="button" title={look.description} className={`${styles.season} ${fireStyle === look.id ? styles.on : ""}`} onClick={() => setFireStyle(look.id)}>
-                    🔥 {look.title}
-                  </button>
-                ))}
-            </div>
-            <div className={styles.seasons}>
-              <button type="button" className={`${styles.season} ${boltStyle === null ? styles.on : ""}`} onClick={() => setBoltStyle(null)}>
-                Rayo del estilo
-              </button>
-              {looks.rayo
-                .filter((look) => look.id !== "cian")
-                .map((look) => (
-                  <button key={look.id} type="button" title={look.description} className={`${styles.season} ${boltStyle === look.id ? styles.on : ""}`} onClick={() => setBoltStyle(look.id)}>
-                    ⚡ {look.title}
-                  </button>
-                ))}
-            </div>
-          </div>
-        )}
-
-        {chosen?.kind === "catalog" && (
-          <div className={styles.opt}>
-            <h3>Vestuario</h3>
-            <p>Opcional: de vez en cuando se dibuja una prenda de cuerpo entero sobre las personas. Después, en la página del video, puedes elegirla para cada persona por separado.</p>
-            <div className={styles.seasons}>
-              {WARDROBES.map((w) => (
-                <button key={w.id} type="button" className={`${styles.season} ${wardrobe === w.id ? styles.on : ""}`} onClick={() => setWardrobe(w.id)}>
-                  {w.label}
+            <div className={styles.chips} role="group" aria-label="Filtrar estilos">
+              {FILTERS.map((item) => (
+                <button key={item.id} type="button" className={filter === item.id ? styles.on : ""} onClick={() => setFilter(item.id)} aria-pressed={filter === item.id}>
+                  {item.label}
                 </button>
               ))}
             </div>
-          </div>
-        )}
-
-        {chosen?.kind === "catalog" && (
-          <div className={styles.opt}>
-            <h3>Análisis</h3>
-            <p>
-              El económico reacciona a cada gesto y es el recomendado. El profundo (experimental) le pasa el video completo, con su
-              música, a una IA que lo lee como un animador y arma metáforas con historia. Es más lento y tiene costo.
-            </p>
-            <div className={styles.seasons}>
-              <button type="button" className={`${styles.season} ${!deepOn ? styles.on : ""}`} onClick={() => setDeep(false)}>
-                Económico
-              </button>
-              <button
-                type="button"
-                className={`${styles.season} ${deepOn ? styles.on : ""}`}
-                onClick={() => setDeep(true)}
-                disabled={!deepAllowed}
-                title={deepAllowed ? undefined : "Aún no está disponible para tu cuenta"}
-              >
-                ✦ Profundo con IA · experimental
-              </button>
+            <div className={styles.styles}>
+              {shown.map((style) => (
+                <StyleTile key={`${style.kind}:${style.name}`} style={style} selected={chosen?.name === style.name && chosen.kind === style.kind} onSelect={() => setChosen(style)} />
+              ))}
+              {shown.length === 0 && <p className={styles.none}>Ningún estilo en este filtro.</p>}
             </div>
-            {!deepAllowed && <p className={styles.hint}>El análisis profundo aún no está disponible para tu cuenta.</p>}
-          </div>
-        )}
-      </Collapse>
-      </div>
+          </StepCard>
 
-      <div className={styles.launch}>
-        <div className={styles.summary}>
-          <span className={`${styles.dot} ${file ? styles.ok : ""}`} />
-          <span>{file ? file.name : "Sin plano"}</span>
-          <span className={styles.sep}>/</span>
-          <span className={`${styles.dot} ${chosen ? styles.ok : ""}`} />
-          <span>{chosen ? chosen.title : "Sin estilo"}</span>
-          {estimate && (
-            <>
-              <span className={styles.sep}>/</span>
-              <span title="Estimado: depende del estilo y de lo ocupado que esté el servidor">≈ {estimate}</span>
-            </>
+          {seasonList.length > 0 && (
+            <StepCard
+              n={next()}
+              title="Toque de temporada"
+              optional
+              note={suggested ? `Estamos en temporada de ${suggested.title} ${suggested.emoji}: añade un toque especial a tu estilo.` : "Añade un toque especial a tu estilo."}
+            >
+              <div className={styles.seasons}>
+                <Tile selected={season === null} onSelect={() => setSeason(null)} icon={<span aria-hidden="true">✕</span>} label="Sin temporada" />
+                {[...seasonList]
+                  .sort((a, b) => Number(b.suggested) - Number(a.suggested))
+                  .map((s) => (
+                    <Tile
+                      key={s.id}
+                      selected={season === s.id}
+                      onSelect={() => setSeason(s.id)}
+                      icon={<span aria-hidden="true">{s.emoji}</span>}
+                      label={s.title}
+                      title={s.description}
+                      ribbon={s.suggested ? "De temporada" : undefined}
+                      swatches={s.palette.slice(0, 4).map((c) => rgb(c))}
+                    />
+                  ))}
+              </div>
+            </StepCard>
+          )}
+
+          {(hasFire || hasBolt) && (
+            <StepCard n={next()} title="Fuego y rayo" note="Personaliza el look de los elementos de este estilo. La coreografía es la misma: cambia cómo se pinta.">
+              <div className={styles.looks}>
+                {hasFire && (
+                  <div>
+                    <h3>Look del fuego</h3>
+                    <div className={styles.lookRow}>
+                      {looks.fuego.map((look) => (
+                        <Tile
+                          key={look.id}
+                          small
+                          selected={look.id === "clasico" ? fireStyle === null : fireStyle === look.id}
+                          onSelect={() => setFireStyle(look.id === "clasico" ? null : look.id)}
+                          icon={<span style={{ color: LOOK_COLOR[look.id] }}><Icon name="flame" size={26} /></span>}
+                          label={look.title}
+                          title={look.description}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {hasBolt && (
+                  <div>
+                    <h3>Look del rayo</h3>
+                    <div className={styles.lookRow}>
+                      {looks.rayo.map((look) => (
+                        <Tile
+                          key={look.id}
+                          small
+                          selected={look.id === "cian" ? boltStyle === null : boltStyle === look.id}
+                          onSelect={() => setBoltStyle(look.id === "cian" ? null : look.id)}
+                          icon={<span style={{ color: LOOK_COLOR[look.id] }}><Icon name="bolt" size={26} /></span>}
+                          label={look.id === "cian" ? "Del estilo" : look.title}
+                          title={look.description}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </StepCard>
+          )}
+
+          {isCatalog && (
+            <section className={styles.wardrobe}>
+              <button type="button" onClick={() => setWardrobeOpen((v) => !v)} aria-expanded={wardrobeOpen}>
+                <span className={styles.num}>{next()}</span>
+                <span className={styles.wardrobeText}>
+                  <strong>
+                    Vestuario <small>(solo catálogos)</small>
+                  </strong>
+                  <small>{WARDROBES.map((w) => w.label).join(" / ")}.</small>
+                </span>
+                <em>{wardrobe === "ninguno" ? "Opcional" : WARDROBES.find((w) => w.id === wardrobe)?.label}</em>
+              </button>
+              {wardrobeOpen && (
+                <div className={styles.wardrobeChoices}>
+                  {WARDROBES.map((w) => (
+                    <Tile key={w.id} small selected={wardrobe === w.id} onSelect={() => setWardrobe(w.id)} icon={<Icon name={w.id === "ninguno" ? "close" : "sparkles"} size={22} />} label={w.label} />
+                  ))}
+                  <p>Después, en la página del video, puedes elegir la prenda de cada persona por separado.</p>
+                </div>
+              )}
+            </section>
+          )}
+
+          {isCatalog && (
+            <StepCard n={next()} title="Análisis" note="Elige cómo quieres que se analice tu video.">
+              <div className={styles.analysis}>
+                <ChoiceCard selected={!deepOn} onSelect={() => setDeep(false)} icon="bolt" title="Económico" text="Reacciona a cada gesto detectado." />
+                {/* PENDIENTE(fase 3): el costo real del análisis profundo (créditos); hoy "+$" es el del diseño. */}
+                <ChoiceCard
+                  selected={deepOn}
+                  onSelect={() => setDeep(true)}
+                  icon="brain"
+                  title="Profundo con IA"
+                  price="+ $"
+                  text={deepAllowed ? "Ve el video completo, entiende la intención y crea una historia. Tarda unos minutos más (experimental)." : "Aún no está disponible para tu cuenta."}
+                  disabled={!deepAllowed}
+                  hint={deepAllowed ? undefined : "Aún no está disponible para tu cuenta"}
+                />
+              </div>
+            </StepCard>
           )}
         </div>
-        {upload !== null ? (
-          <div className={styles.uploading}>
-            <span className="mono">Subiendo {Math.round(upload * 100)}%</span>
-            <div className={styles.bar}>
-              <i style={{ width: `${upload * 100}%` }} />
-            </div>
-          </div>
-        ) : (
-          <Button icon="arrow" disabled={!file || !chosen || found.length > 0} onClick={launch}>
-            Crear mis efectos
-          </Button>
-        )}
-        {error && (
-          <div className={styles.launchError}>
-            <Icon name="alert" size={16} /> {error}
-          </div>
-        )}
+
+        <StudioAside
+          file={file}
+          meta={meta}
+          style={chosen}
+          season={seasonTitle}
+          wardrobe={WARDROBES.find((w) => w.id === wardrobe)?.label ?? "Sin prendas"}
+          analysis={deepOn ? "Profundo con IA" : "Económico"}
+          looks={lookSummary || null}
+          upload={upload}
+          error={error}
+          canLaunch={!!file && !!chosen && found.length === 0}
+          onLaunch={launch}
+        />
       </div>
     </Shell>
   );

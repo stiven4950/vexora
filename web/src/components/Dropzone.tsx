@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type DragEvent } from "react";
 
+import { mmss } from "../api/format";
 import type { Limits } from "../api/types";
 import { Icon } from "./Icon";
 import styles from "./Dropzone.module.css";
@@ -32,7 +33,7 @@ interface Props {
   limits?: Limits | null;
 }
 
-/** Zona de carga con forma de fotograma: arrastra un video o elígelo; muestra su vista previa. */
+/** Zona de carga del diseño: a la izquierda donde soltar o elegir el video; a la derecha, su ficha. */
 export function Dropzone({ file, onFile, onMeta, limits = null }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
@@ -59,60 +60,68 @@ export function Dropzone({ file, onFile, onMeta, limits = null }: Props) {
   };
 
   return (
-    <div
-      className={`${styles.zone} ${over ? styles.over : ""} ${file ? styles.filled : ""}`}
-      onDragOver={(event) => {
-        event.preventDefault();
-        setOver(true);
-      }}
-      onDragLeave={() => setOver(false)}
-      onDrop={drop}
-    >
-      <span className={styles.sprockets} aria-hidden="true" />
-      <span className={`${styles.sprockets} ${styles.right}`} aria-hidden="true" />
-      {preview ? (
-        <div className={styles.preview}>
-          <video
-            src={preview}
-            autoPlay
-            muted
-            loop
-            playsInline
-            onLoadedMetadata={(event) => {
-              const video = event.currentTarget;
-              const loaded = { duration: video.duration, width: video.videoWidth, height: video.videoHeight };
-              setMeta(loaded);
-              onMeta?.(loaded);
-            }}
-          />
-          <div className={styles.info}>
-            <div>
-              <span className="eyebrow">Plano cargado</span>
-              <strong>{file?.name}</strong>
-              <span className="mono">
-                {meta ? `${meta.width}×${meta.height} · ${meta.duration.toFixed(1)} s · ` : ""}
-                {file ? `${(file.size / 1e6).toFixed(1)} MB` : ""}
-              </span>
-            </div>
-            <button type="button" className={styles.change} onClick={() => input.current?.click()}>
-              Cambiar
-            </button>
-          </div>
-          {file && problems(file, meta, limits).map((text) => (
-            <p key={text} className={styles.problem} role="alert">
-              <Icon name="alert" size={16} /> {text}
-            </p>
-          ))}
-        </div>
-      ) : (
-        <button type="button" className={styles.empty} onClick={() => input.current?.click()}>
-          <span className={styles.orb}>
-            <Icon name="upload" size={26} />
-          </span>
-          <strong>Arrastra tu plano aquí</strong>
-          <span>o haz clic para elegir un video · MP4, MOV, WEBM</span>
+    <div className={styles.row}>
+      <div
+        className={`${styles.zone} ${over ? styles.over : ""}`}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setOver(true);
+        }}
+        onDragLeave={() => setOver(false)}
+        onDrop={drop}
+      >
+        <Icon name="upload" size={34} />
+        <strong>Arrastra tu video aquí</strong>
+        <span>o haz clic para seleccionar</span>
+        <button type="button" className={styles.pick} onClick={() => input.current?.click()}>
+          Seleccionar archivo
         </button>
+      </div>
+
+      {file && preview && (
+        <div className={styles.card}>
+          <div className={styles.thumb}>
+            <video
+              src={preview}
+              muted
+              loop
+              playsInline
+              autoPlay
+              onLoadedMetadata={(event) => {
+                const video = event.currentTarget;
+                const loaded = { duration: video.duration, width: video.videoWidth, height: video.videoHeight };
+                setMeta(loaded);
+                onMeta?.(loaded);
+              }}
+            />
+            <span className={styles.play}>
+              <Icon name="play" size={20} />
+            </span>
+          </div>
+          <div className={styles.info}>
+            <strong title={file.name}>{file.name}</strong>
+            <span className="mono">
+              {meta ? `${meta.width} × ${meta.height} · ${mmss(meta.duration)} · ` : ""}
+              {(file.size / 1e6).toFixed(1)} MB
+            </span>
+            <div className={styles.actions}>
+              <button type="button" onClick={() => onFile(null)} aria-label="Quitar el video" title="Quitar">
+                <Icon name="trash" size={16} />
+              </button>
+              <button type="button" className={styles.change} onClick={() => input.current?.click()}>
+                Cambiar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
+
+      {file && problems(file, meta, limits).map((text) => (
+        <p key={text} className={styles.problem} role="alert">
+          <Icon name="alert" size={16} /> {text}
+        </p>
+      ))}
+
       <input
         ref={input}
         type="file"

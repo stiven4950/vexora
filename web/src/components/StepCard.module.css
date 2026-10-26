@@ -1,0 +1,58 @@
+.card {
+  padding: 18px 22px 20px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(var(--cyan-rgb), 0.14);
+  background: rgba(10, 16, 32, 0.72);
+}
+
+.card header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.num {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--cyan);
+  color: #04141a;
+  font-weight: 700;
+  box-shadow: 0 0 18px rgba(var(--cyan-rgb), 0.5);
+}
+
+.card header > div:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+
+.card h2 {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.card h2 small {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.card header p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.action {
+  flex: none;
+}
+
+.body {
+  margin-top: 16px;
+}

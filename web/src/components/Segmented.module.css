@@ -1,0 +1,31 @@
+.bar {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: rgba(8, 11, 20, 0.6);
+}
+
+.bar button {
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.bar button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.bar .on {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  background: rgba(var(--cyan-rgb), 0.1);
+  box-shadow: 0 0 14px rgba(var(--cyan-rgb), 0.25);
+}

@@ -1,0 +1,54 @@
+.card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  background: rgba(8, 11, 20, 0.6);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.card:hover:not(:disabled) {
+  border-color: rgba(var(--cyan-rgb), 0.5);
+}
+
+.card:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.on {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 1px var(--cyan) inset, 0 0 24px rgba(var(--cyan-rgb), 0.25);
+}
+
+.icon {
+  flex: none;
+  color: var(--cyan);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.text strong {
+  font-size: 15px;
+}
+
+.text em {
+  margin-left: 6px;
+  font-style: normal;
+  color: var(--cyan);
+  font-size: 13px;
+}
+
+.text small {
+  color: var(--muted);
+  font-size: 12px;
+}
