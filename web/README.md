@@ -51,6 +51,8 @@ Atajos en el comparador: espacio (reproducir/pausar), flechas (fotograma a fotog
 | POST | `/api/jobs/{id}/variations` | JSON `{style_kind, style, seed}`: otra versión del mismo video |
 | GET | `/api/jobs/{id}/output` · `/original` · `/thumbnail` · `/choreography` | Videos (con rangos para adelantar), miniatura y decisiones |
 | POST | `/api/jobs/{id}/retry` | Vuelve a procesar un trabajo que falló (409 si no falló) |
+| POST | `/api/jobs/{id}/cancel` | Cancela un trabajo en cola (se borra ya) o en curso (se corta en unos segundos y se borra); 409 si ya terminó |
+| PATCH | `/api/jobs/{id}` | JSON `{title}`: renombra el proyecto (el video y todas sus versiones); vacío = el nombre del archivo |
 | DELETE | `/api/jobs/{id}` | Borra el trabajo, su MP4 y, si nadie más los usa, el video y su análisis (409 si se está procesando) |
 
 Los trabajos se procesan de uno en uno. Estado y videos subidos en `api_data/` (no se versiona).

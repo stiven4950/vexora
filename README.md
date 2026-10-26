@@ -40,6 +40,11 @@ vfxglow run --video clip.mp4 --config configs/default.yaml --preset avatar_storm
 
 Presets incluidos: `avatar_fire`, `neon_joints`, `body_aura`, `face_runes`, `avatar_storm`, `fight_comic`, `doodle_dance`, `paint_reveal`, `face_neon`.
 
+Catálogos de un solo elemento (`--catalog fuego|agua|rayo|tierra|viento`): salen de `avatar.yaml` con
+`extends` y `only_element` (y `keep` para conservar opciones neutras por nombre); el catálogo `avatar`
+sigue mezclando los cinco elementos en capítulos. Rayo y tierra son más sobrios porque la base tiene
+pocas opciones de esos elementos (5 y 16).
+
 `face_neon` usa la malla facial: delineado de cejas, ojos, labios, nariz y óvalo que se traza poco a poco y se queda, anillos que giran sobre cada iris y cambian de color, y la llama en la punta del pincel.
 
 Director artista (gpt-5, una llamada por video, unos centavos):
@@ -126,7 +131,10 @@ cuentas de `VEXORA_DEEP_ALLOW`.
 | `VEXORA_DAILY_DEEP_GLOBAL` | 20 | Análisis profundos de todos en 24 h |
 
 Una cuota agotada responde 429. Un trabajo que falló se reintenta con `POST /api/jobs/{id}/retry`
-(botón "Reintentar" en la web). La persona ve un mensaje claro (`error_code` + `error`); el
+(botón "Reintentar" en la web). `POST /api/jobs/{id}/cancel` cancela uno en cola (se borra ya) o en
+curso (se corta en unos segundos, en el siguiente punto de control del análisis o del render) y borra
+todo lo que se había hecho con él. `PATCH /api/jobs/{id}` renombra el proyecto (el video y sus
+versiones). La persona ve un mensaje claro (`error_code` + `error`); el
 detalle técnico queda solo en el registro del servidor.
 
 Borrar un trabajo borra también su MP4 (`api_data/outputs/<id>.mp4`) y, si ningún otro trabajo
