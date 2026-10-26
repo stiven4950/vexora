@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { api } from "../api/client";
+import { ROUTES } from "../routes";
 import { ago, groupVersions } from "../api/format";
 import type { Job } from "../api/types";
 import { Button } from "../components/Button";
@@ -53,7 +54,7 @@ export function Library() {
           <span className="eyebrow">Biblioteca</span>
           <h1>Tus revelados</h1>
         </div>
-        <Link to="/">
+        <Link to={ROUTES.studio}>
           <Button icon="spark">Nuevo revelado</Button>
         </Link>
       </header>
@@ -73,7 +74,7 @@ export function Library() {
           if (!cover) return null;
           return (
             <article key={group.id} className={styles.item} style={{ animationDelay: `${Math.min(index, 12) * 45}ms` }}>
-              <Link to={`/jobs/${cover.id}`} className={styles.thumb}>
+              <Link to={ROUTES.job(cover.id)} className={styles.thumb}>
                 {cover.thumbnail_url && <img src={`${cover.thumbnail_url}&v=${cover.status}`} alt="" loading="lazy" />}
                 {(cover.status === "running" || cover.status === "queued") && (
                   <div className={styles.progress}>
@@ -100,7 +101,7 @@ export function Library() {
                 <ul className={styles.versions}>
                   {group.jobs.map((job) => (
                     <li key={job.id}>
-                      <Link to={`/jobs/${job.id}`}>
+                      <Link to={ROUTES.job(job.id)}>
                         <span className={`${styles.dot} ${styles[job.status]}`} aria-label={STATUS[job.status]} />
                         <span className={styles.label}>{versionName(job)}</span>
                         <span className="mono">{ago(job.created)}</span>

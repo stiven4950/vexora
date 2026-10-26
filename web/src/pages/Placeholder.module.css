@@ -1,0 +1,35 @@
+.box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  max-width: 560px;
+  margin: 8vh auto;
+  padding: 36px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+}
+
+.box h1 {
+  color: var(--text);
+  font-size: clamp(28px, 4vw, 40px);
+}
+
+.box p {
+  margin: 0;
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--cyan);
+  font-weight: 600;
+}
+
+.legal {
+  min-height: 100vh;
+  padding: 24px clamp(16px, 4vw, 48px);
+}

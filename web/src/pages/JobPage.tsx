@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import { rgb, timecode } from "../api/format";
 import { notifyDone } from "../api/notify";
+import { ROUTES } from "../routes";
 import { WARDROBES, type Looks, type Moment, type Person, type Season, type Style, type Wardrobe } from "../api/types";
 import { Button } from "../components/Button";
 import { ChoreographyPanel } from "../components/ChoreographyPanel";
@@ -87,7 +88,7 @@ export function JobPage() {
       const fire = nextHasFire ? (nextFire ?? "") : "";
       const bolt = nextHasFire ? (nextBolt ?? "") : "";
       const next = await api.variation(job.id, kind, name, null, (nextSeason ?? job.season ?? "") || null, wear, deep, fire, bolt);
-      navigate(`/jobs/${next.id}`);
+      navigate(ROUTES.job(next.id));
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -131,7 +132,7 @@ export function JobPage() {
           <Icon name="alert" size={28} />
           <h2>No se encontró el trabajo</h2>
           <p>{error}</p>
-          <Link to="/">Volver al estudio</Link>
+          <Link to={ROUTES.studio}>Volver al estudio</Link>
         </div>
       </Shell>
     );
@@ -147,7 +148,7 @@ export function JobPage() {
   return (
     <Shell aurora={aurora}>
       <header className={styles.head}>
-        <Link to="/library" className={styles.back}>
+        <Link to={ROUTES.library} className={styles.back}>
           <Icon name="back" size={16} /> Biblioteca
         </Link>
         <div className={styles.title}>

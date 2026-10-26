@@ -1,12 +1,14 @@
 import { useState, type FormEvent, type ReactNode } from "react";
+import { Link, useNavigate } from "react-router-dom";
 
 import background from "../assets/login/background.jpg";
 import backgroundSmall from "../assets/login/background-900.jpg";
 import { useSession } from "../auth/AuthContext";
 import { LogoMark } from "../components/Logo";
+import { ROUTES } from "../routes";
 import styles from "./Login.module.css";
 
-type Mode = "signin" | "register" | "reset";
+export type Mode = "signin" | "register" | "reset";
 
 const FEATURES: { icon: ReactNode; title: string; text: string }[] = [
   { icon: <SparkleIcon />, title: "Efectos automáticos", text: "Detecta acciones, decide y crea." },
@@ -15,9 +17,9 @@ const FEATURES: { icon: ReactNode; title: string; text: string }[] = [
 ];
 
 /** Pantalla de entrada: la marca y lo que hace VEXORA a la izquierda, el acceso a la derecha. */
-export function Login() {
+export function Login({ mode }: { mode: Mode }) {
+  const navigate = useNavigate();
   const { signInEmail, signInGoogle, signInGitHub, register, resetPassword, error, clearError } = useSession();
-  const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -51,7 +53,7 @@ export function Login() {
   const switchTo = (next: Mode) => {
     clearError();
     setNotice(null);
-    setMode(next);
+    navigate({ signin: ROUTES.login, register: ROUTES.register, reset: ROUTES.forgot }[next]);
   };
 
   const copy = {
@@ -199,9 +201,9 @@ export function Login() {
           <span className={styles.version}>v{__APP_VERSION__}</span>
         </span>
         <nav>
-          <a href="#terminos">Términos de servicio</a>
-          <a href="#privacidad">Política de privacidad</a>
-          <a href="#soporte">Soporte</a>
+          <Link to={ROUTES.terms}>Términos de servicio</Link>
+          <Link to={ROUTES.privacy}>Política de privacidad</Link>
+          <Link to={ROUTES.support}>Soporte</Link>
         </nav>
       </footer>
     </div>

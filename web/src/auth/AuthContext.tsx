@@ -4,6 +4,7 @@ import {
   createUserWithEmailAndPassword,
   GithubAuthProvider,
   onAuthStateChanged,
+  sendEmailVerification,
   sendPasswordResetEmail,
   setPersistence,
   signInWithEmailAndPassword,
@@ -107,7 +108,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setError(null);
       try {
         await remember(true);
-        await createUserWithEmailAndPassword(auth, email.trim(), password);
+        const created = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        // Sin verificar, el correo no prueba que sea suyo (la API lo exige para adoptar trabajos viejos).
+        await sendEmailVerification(created.user).catch(() => undefined);
       } catch (cause) {
         setError(message(cause, "No se pudo crear la cuenta. Intenta de nuevo."));
       }

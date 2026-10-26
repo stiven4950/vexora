@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { approx, rgb } from "../api/format";
 import { askPermission } from "../api/notify";
+import { ROUTES } from "../routes";
 import { WARDROBES, type Limits, type Looks, type Season, type Style, type Wardrobe } from "../api/types";
 import { Button } from "../components/Button";
 import { Collapse } from "../components/Collapse";
@@ -85,7 +86,7 @@ export function Studio() {
       // Sin semilla: el servidor prueba varias coreografías y se queda con la mejor.
       const wear: Record<string, Wardrobe> = chosen.kind === "catalog" && wardrobe !== "ninguno" ? { "*": wardrobe } : {};
       const job = await api.create(file, chosen.kind, chosen.name, null, setUpload, season, wear, deepOn, hasFire ? fireStyle : null, hasFire ? boltStyle : null);
-      navigate(`/jobs/${job.id}`);
+      navigate(ROUTES.job(job.id));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
       setUpload(null);
