@@ -25,6 +25,8 @@ from functools import lru_cache
 from fastapi import Header, HTTPException
 from pydantic import BaseModel
 
+from vfxglow import telemetry
+
 log = logging.getLogger("vfxglow.api.auth")
 
 AUTH_ENV = "VEXORA_AUTH"
@@ -32,11 +34,14 @@ PROJECT_ENV = "VEXORA_FIREBASE_PROJECT"
 SECRET_ENV = "VEXORA_SECRET"
 LOCAL_UID = "local"
 MEDIA_TTL_S = 6 * 3600
+AUTH_FAILED = "security.auth_failed"
 
 
 class User(BaseModel):
     uid: str
     email: str | None = None
+    # Firebase deja registrar cualquier correo con contraseña: sin verificar no prueba que sea suyo.
+    email_verified: bool = False
     name: str | None = None
     picture: str | None = None
 
@@ -72,10 +77,18 @@ def verify(token: str) -> User:
         claims = id_token.verify_firebase_token(token, _transport(), audience=project, clock_skew_in_seconds=10)
     except Exception as error:  # firma, caducidad, proyecto equivocado...
         log.info("Token rechazado: %s", error)
+        telemetry.event(AUTH_FAILED, level=logging.WARNING, reason=type(error).__name__)
         raise HTTPException(401, "Sesión no válida o vencida. Vuelve a entrar.") from error
     if not claims or claims.get("iss") != f"https://securetoken.google.com/{project}" or not claims.get("sub"):
+        telemetry.event(AUTH_FAILED, level=logging.WARNING, reason="claims")
         raise HTTPException(401, "Sesión no válida o vencida. Vuelve a entrar.")
-    return User(uid=claims["sub"], email=claims.get("email"), name=claims.get("name"), picture=claims.get("picture"))
+    return User(
+        uid=claims["sub"],
+        email=claims.get("email"),
+        email_verified=bool(claims.get("email_verified", False)),
+        name=claims.get("name"),
+        picture=claims.get("picture"),
+    )
 
 
 def current_user(authorization: str | None = Header(default=None)) -> User:
@@ -83,6 +96,7 @@ def current_user(authorization: str | None = Header(default=None)) -> User:
     if not auth_enabled():
         return User(uid=LOCAL_UID, name="Local")
     if not authorization or not authorization.lower().startswith("bearer "):
+        telemetry.event(AUTH_FAILED, level=logging.INFO, reason="missing_token")
         raise HTTPException(401, "Inicia sesión para continuar.")
     return verify(authorization.split(" ", 1)[1].strip())
 
@@ -115,8 +129,10 @@ def media_owner(job_id: str, key: str | None, owner: str | None) -> None:
         expires_text, signature = (key or "").split(".", 1)
         expires = int(expires_text)
     except ValueError as error:
+        telemetry.event("security.media_key_invalid", level=logging.WARNING, job_id=job_id, reason="malformed")
         raise HTTPException(404, "Trabajo no encontrado") from error
     if expires < time.time() or not owner or not hmac.compare_digest(signature, _sign(job_id, owner, expires)):
+        telemetry.event("security.media_key_invalid", level=logging.WARNING, job_id=job_id, reason="expired" if expires < time.time() else "signature")
         raise HTTPException(404, "Trabajo no encontrado")
 
 
