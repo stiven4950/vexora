@@ -105,6 +105,55 @@ Detalles:
 - Los trabajos de antes de las cuentas los adopta, al entrar, el correo de `VEXORA_LEGACY_OWNER`.
 - `VEXORA_AUTH=off` desactiva la verificación (usuario local) para desarrollo; el servidor se
   niega a arrancar así fuera de `127.0.0.1`. Sin `VITE_FIREBASE_API_KEY`, la web no pide sesión.
+- La adopción de `VEXORA_LEGACY_OWNER` exige el correo verificado: cualquiera puede registrar un
+  correo ajeno con contraseña.
+
+## Límites de la API
+
+Cada video se lee con ffmpeg antes de encolarlo: un archivo que no es video, demasiado largo o
+demasiado grande se rechaza con un mensaje claro (`api/limits.py`). Con la autenticación activa,
+cada usuario tiene cuotas. El análisis profundo, que es de pago, está cerrado salvo para las
+cuentas de `VEXORA_DEEP_ALLOW`.
+
+| Variable | Por omisión | Qué limita |
+| --- | --- | --- |
+| `VEXORA_MAX_VIDEO_SECONDS` | 180 | Duración del video |
+| `VEXORA_MAX_VIDEO_SIDE` | 2160 | Píxeles del lado largo |
+| `VEXORA_MAX_ACTIVE_JOBS` | 2 | Trabajos en cola o procesando a la vez, por usuario |
+| `VEXORA_DAILY_JOBS` | 20 | Trabajos por usuario en 24 h |
+| `VEXORA_DEEP_ALLOW` | (nadie) | Uids o correos con análisis profundo, separados por comas; `*` = todos |
+| `VEXORA_DAILY_DEEP` | 2 | Análisis profundos por usuario en 24 h |
+| `VEXORA_DAILY_DEEP_GLOBAL` | 20 | Análisis profundos de todos en 24 h |
+
+Una cuota agotada responde 429. Un trabajo que falló se reintenta con `POST /api/jobs/{id}/retry`
+(botón "Reintentar" en la web). La persona ve un mensaje claro (`error_code` + `error`); el
+detalle técnico queda solo en el registro del servidor.
+
+Borrar un trabajo borra también su MP4 (`api_data/outputs/<id>.mp4`) y, si ningún otro trabajo
+los usa, el video subido y su carpeta de análisis en `runs/`. Un trabajo que se está procesando
+no se puede borrar (409).
+
+## Trazabilidad (eventos JSON)
+
+La API y la línea de comandos escriben un evento JSON por línea en `logs/events.jsonl` (rota a
+los 20 MB). La consola de la API también sale en JSON (`VEXORA_LOG_FORMAT=text` para leerla a ojo).
+Todos los eventos llevan hora UTC con milisegundos, `service`, `env` (`VEXORA_ENV`), `version`,
+`job_id` y `trace_id`. Los campos siguen OpenTelemetry y los atributos reservados de Datadog,
+para que Grafana (Loki) primero y Datadog después lean las mismas líneas.
+
+| Evento | Qué mide |
+| --- | --- |
+| `http.request` | Ruta plantilla, estado, duración, IP truncada (sin la llave `?k=`) |
+| `upload.received` | Bytes y cabecera del video (duración, resolución, fps, códec) |
+| `job.queued` / `job.started` / `job.finished` / `job.failed` / `job.retried` / `job.deleted` | Estilo y opciones, profundidad de la cola, espera en cola, duración total, resumen `metrics` |
+| `stage.started` / `stage.finished` | `analyze`, `direct`, `deep`, `render`, `compose`: duración, CPU, caché, resultado |
+| `llm.call` | Proveedor, modelo, nivel, propósito, tokens, latencia, caché, respaldo usado, costo estimado |
+| `security.*` | `auth_failed`, `media_key_invalid`, `quota_exceeded` |
+
+El costo estimado sale de `configs/llm_prices.yaml` (USD por millón de tokens). Con el precio vacío,
+el evento lleva `cost_usd_est: null`: el costo se mide, no se inventa. Nunca se registran correos,
+tokens, llaves de archivos ni prompts; el usuario va como hash de su uid. `VEXORA_ENV=prod` deja
+de servir `/docs` y `/openapi.json`.
 
 ## Guion de prueba: fijar qué efectos salen
 

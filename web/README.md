@@ -49,7 +49,8 @@ Atajos en el comparador: espacio (reproducir/pausar), flechas (fotograma a fotog
 | GET | `/api/jobs/{id}/events` | Server-Sent Events con el estado en vivo |
 | POST | `/api/jobs/{id}/variations` | JSON `{style_kind, style, seed}`: otra versión del mismo video |
 | GET | `/api/jobs/{id}/output` · `/original` · `/thumbnail` · `/choreography` | Videos (con rangos para adelantar), miniatura y decisiones |
-| DELETE | `/api/jobs/{id}` | Borra el trabajo |
+| POST | `/api/jobs/{id}/retry` | Vuelve a procesar un trabajo que falló (409 si no falló) |
+| DELETE | `/api/jobs/{id}` | Borra el trabajo, su MP4 y, si nadie más los usa, el video y su análisis (409 si se está procesando) |
 
 Los trabajos se procesan de uno en uno. Estado y videos subidos en `api_data/` (no se versiona).
 Si el servidor se reinicia a mitad de un trabajo, queda marcado como interrumpido.
