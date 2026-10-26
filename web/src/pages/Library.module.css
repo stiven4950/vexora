@@ -156,3 +156,67 @@
 .error {
   color: var(--danger);
 }
+
+.count {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  background: var(--action-gradient);
+  color: var(--ink);
+}
+
+.versions {
+  list-style: none;
+  margin: 0;
+  padding: 0 8px 10px 16px;
+  border-top: 1px solid var(--line);
+}
+
+.versions li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.versions a {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  color: var(--text);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.versions a:hover .label {
+  text-decoration: underline;
+}
+
+.label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.versions .mono {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
