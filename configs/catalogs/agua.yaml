@@ -2,6 +2,7 @@
 # chorros, esferas, anillos y salpicaduras).
 name: agua
 title: Agua
+subtitle: Flujos y olas
 description: 'Flujos y olas: agua cristalina que sigue tus brazos, látigos, chorros, esferas y salpicaduras.'
 tags: [agua, fluido, olas]
 extends: avatar

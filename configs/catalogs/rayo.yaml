@@ -1,6 +1,7 @@
 # Rayo: el rayo del catálogo Avatar solo (al lanzar, señalar y con la pistola de dedos).
 name: rayo
 title: Rayo
+subtitle: Energía y electricidad
 description: 'Energía y electricidad: rayos que salen de tus manos al lanzar, señalar o golpear.'
 tags: [rayo, luz, choque]
 extends: avatar

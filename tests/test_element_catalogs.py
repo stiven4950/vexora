@@ -56,3 +56,11 @@ def test_extends_needs_the_element_to_keep(tmp_path: Path) -> None:
     (tmp_path / "hijo.yaml").write_text("name: hijo\nextends: base\nonly_element: agua\n", encoding="utf-8")
     with pytest.raises(ValueError, match="no tiene opciones"):
         load_catalog(tmp_path / "hijo.yaml")
+
+
+def test_every_catalog_has_a_short_subtitle_for_its_card() -> None:
+    for path in sorted(CATALOGS.glob("*.yaml")):
+        if path.name.startswith("_"):
+            continue
+        catalog = load_catalog(path)
+        assert 0 < len(catalog.subtitle) <= 28, f"{path.name}: subtítulo de {len(catalog.subtitle)} letras"

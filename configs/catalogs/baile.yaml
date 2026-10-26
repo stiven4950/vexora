@@ -10,6 +10,7 @@
 #   se enciende quien lo lleva (analysis/duet.py, director/choreography.py).
 name: baile
 title: Baile neón
+subtitle: Solo o en pareja
 description: 'Para una persona o para dos: lo que más se mueve se enciende, rosas, cintas, notas y corazones, rayos y arcos 3D; en pareja, cada uno con su color y lo que hace uno se enciende en el otro cuando bailan igual.'
 tags: [baile, solista, pareja, dúo, fiesta]
 # Con dos personas: el color de cada una (persona 1, persona 2).

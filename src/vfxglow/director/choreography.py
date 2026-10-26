@@ -122,6 +122,8 @@ class Catalog(_Strict):
     title: str = ""
     # Una línea para mostrar al elegir estilo (interfaz web).
     description: str = ""
+    # La idea en pocas palabras, para la tarjeta del estilo.
+    subtitle: str = ""
     seed: int = 1
     colors: list[tuple[float, float, float]] = Field(default_factory=lambda: [(1.0, 0.55, 0.12), (0.18, 0.5, 1.0)])
     # Plantilla común de los efectos; cada efecto del catálogo solo escribe lo que cambia.

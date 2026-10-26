@@ -114,6 +114,7 @@ class Style(BaseModel):
     name: str
     title: str
     description: str
+    subtitle: str = ""
     palette: list[tuple[float, float, float]]
     actions: list[str]
     needs: list[str]
@@ -144,6 +145,7 @@ def _styles_for(_stamp: tuple[tuple[str, int], ...]) -> list[Style]:
                 name=catalog.name,
                 title=catalog.title or catalog.name,
                 description=catalog.description,
+                subtitle=catalog.subtitle,
                 palette=[tuple(c) for c in palette],
                 actions=[r.action for r in catalog.reactions],
                 needs=catalog.needs,

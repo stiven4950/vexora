@@ -2,6 +2,7 @@
 # piso que se parte, escudos y puños de roca).
 name: tierra
 title: Tierra
+subtitle: Rocas y cristales
 description: 'Rocas y cristales: rocas que orbitan, el piso que se parte al pisar y puños de piedra.'
 tags: [tierra, cristal, polvo]
 extends: avatar

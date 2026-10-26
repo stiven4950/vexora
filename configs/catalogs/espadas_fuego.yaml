@@ -4,6 +4,7 @@
 # y una nube de humo enorme cuando la hoja golpea el piso. Al final, calma: sin efectos.
 name: espadas_fuego
 title: Espadas fuego
+subtitle: Katanas en llamas
 description: "Katanas que se encienden de fuego en algunos tajos: mirada magenta, tajos con lenguas de fuego, bolas de fuego en las patadas y nubes de humo de cómic."
 seed: 39
 needs: [blades]

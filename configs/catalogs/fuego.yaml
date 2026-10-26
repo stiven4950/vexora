@@ -3,6 +3,7 @@
 # elementos. Las opciones salen de avatar.yaml (`extends`), solo las del elemento.
 name: fuego
 title: Fuego
+subtitle: Llama y calor
 description: 'Llama y calor: látigos de fuego con la forma de cada golpe, llamas en las manos, fuego a ras del piso y bestias de fuego.'
 tags: [fuego, calor, chispas]
 extends: avatar
