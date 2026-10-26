@@ -414,8 +414,11 @@ def test_queue_position_counts_only_what_goes_before(client: TestClient) -> None
     _wait(client, first.id)
     store._update(first.id, status="running")
     waiting = store.create("b.mp4", io.BytesIO(b"x"), "catalog", "pelea", None)
-    store._update(waiting.id, status="queued")
     later = store.create("c.mp4", io.BytesIO(b"x"), "catalog", "pelea", None)
+    # Que el trabajador de fondo termine antes de forzar los estados: si no, pisa lo que pongo aquí.
+    _wait(client, waiting.id)
+    _wait(client, later.id)
+    store._update(waiting.id, status="queued")
     store._update(later.id, status="queued", created=waiting.created + 1)
     view = client.get(f"/api/jobs/{later.id}").json()
     assert view["queue_ahead"] == 2 and view["estimate_s"] is None  # sin duración (create sin check)
@@ -430,3 +433,26 @@ def test_limits_tell_the_web_what_it_can_warn_about(secure: TestClient, monkeypa
     monkeypatch.setenv("VEXORA_DEEP_ALLOW", "ana@example.com")
     assert secure.get("/api/limits", headers=_as("token-ana")).json()["deep_allowed"] is True
     assert secure.get("/api/limits", headers=_as("token-beto")).json()["deep_allowed"] is False
+
+
+# ----- Mis proyectos: ficha del video, nombre del proyecto y etiquetas -----
+
+
+def test_the_video_card_the_tags_and_the_project_name(client: TestClient) -> None:
+    first = _wait(client, client.post("/api/jobs", files={"video": ("clip.mp4", io.BytesIO(b"x" * 300), "video/mp4")}, data={"style": "avatar", "season": "halloween"}).json()["id"])
+    assert (first["video_width"], first["video_height"], first["video_bytes"]) == (720, 1280, 300)
+    assert "avatar" in first["tags"] and "halloween" in first["tags"] and first["title"] is None
+    second = _wait(client, client.post(f"/api/jobs/{first['id']}/variations", json={"style": "avatar"}).json()["id"])
+    assert second["video_height"] == 1280  # la versión hereda la ficha del video
+    renamed = client.patch(f"/api/jobs/{second['id']}", json={"title": "  Poderes de Avatar  "})
+    assert renamed.status_code == 200 and renamed.json()["title"] == "Poderes de Avatar"
+    assert client.get(f"/api/jobs/{first['id']}").json()["title"] == "Poderes de Avatar"  # es del proyecto
+    client.patch(f"/api/jobs/{first['id']}", json={"title": " "})
+    assert client.get(f"/api/jobs/{second['id']}").json()["title"] is None  # vacío: vuelve al nombre del archivo
+    assert client.patch("/api/jobs/nada", json={"title": "x"}).status_code == 404
+
+
+def test_only_the_owner_renames_a_project(secure: TestClient) -> None:
+    ana = _upload(secure, "token-ana")
+    assert secure.patch(f"/api/jobs/{ana['id']}", json={"title": "mío"}, headers=_as("token-beto")).status_code == 404
+    assert secure.patch(f"/api/jobs/{ana['id']}", json={"title": "mío"}, headers=_as("token-ana")).status_code == 200

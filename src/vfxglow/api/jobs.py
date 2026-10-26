@@ -82,6 +82,13 @@ class Job(BaseModel):
     metrics: dict = Field(default_factory=dict)
     # Duración del video subido: con ella y el historial se estima cuánto tardará (JobStore.estimate).
     video_seconds: float | None = None
+    # Ficha del video subido (la muestran Mis proyectos y la pantalla de proceso).
+    video_width: int | None = None
+    video_height: int | None = None
+    video_bytes: int | None = None
+    # Nombre del proyecto que pone la persona; sin él, el del archivo. Es de todo el proyecto
+    # (el video y sus versiones): JobStore.rename lo pone en todos.
+    title: str | None = None
 
 
 # Fallos, en palabras de quien usa la web. El detalle técnico va solo al registro del servidor.
@@ -236,6 +243,19 @@ class JobStore:
                 for other in self._jobs.values()
             )
 
+    def rename(self, job_id: str, title: str) -> Job | None:
+        """El nombre del proyecto: se pone en el video y en todas sus versiones. Vacío = el del archivo."""
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None:
+                return None
+            root = job.parent or job.id
+            for other in self._jobs.values():
+                if (other.parent or other.id) == root:
+                    other.title = title or None
+            self._save()
+            return job.model_copy(deep=True)
+
     def adopt(self, owner: str) -> int:
         """Los trabajos sin dueño (de antes de las cuentas) pasan a `owner`. Devuelve cuántos."""
         with self._lock:
@@ -298,6 +318,9 @@ class JobStore:
             fire_style=fire_style,
             bolt_style=bolt_style,
             video_seconds=getattr(info, "duration_s", None),
+            video_width=getattr(info, "width", None),
+            video_height=getattr(info, "height", None),
+            video_bytes=target.stat().st_size,
         )
         telemetry.event(
             "upload.received",
@@ -358,6 +381,10 @@ class JobStore:
                 parent=root,
                 owner=parent.owner,
                 video_seconds=parent.video_seconds,
+                video_width=parent.video_width,
+                video_height=parent.video_height,
+                video_bytes=parent.video_bytes,
+                title=parent.title,
             )
         )
 

@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import time
+from functools import lru_cache
 from pathlib import Path
 
 import cv2
@@ -35,6 +36,7 @@ ROOT = Path(os.environ.get("VFXGLOW_ROOT", Path.cwd()))
 CONFIG = ROOT / "configs" / "default.yaml"
 VIDEO_TYPES = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
 MAX_UPLOAD_MB = 500
+JOB_NOT_FOUND = "Trabajo no encontrado"
 
 app = FastAPI(title="VFX Glow", version="1.0", description="Edición de video con efectos de neón guiados por el movimiento.")
 app.add_middleware(
@@ -215,6 +217,8 @@ def _check_season(season: str | None) -> None:
 
 
 class JobView(Job):
+    # Etiquetas del estilo (y de la temporada) para las tarjetas de Mis proyectos.
+    tags: list[str] = []
     duration: float | None = None
     # Segundos que se espera que tarde, y cuántos trabajos van antes en la cola (un solo trabajador).
     estimate_s: float | None = None
@@ -230,6 +234,20 @@ class JobView(Job):
     style_kind_current: str = ""
 
 
+@lru_cache(maxsize=64)
+def _catalog_tags(name: str) -> list[str]:
+    """Las etiquetas de un catálogo, leídas una vez (view() corre por cada trabajo en cada consulta)."""
+    from vfxglow.director.choreography import load_catalog
+
+    path = ROOT / "configs" / "catalogs" / f"{name}.yaml"
+    return list(load_catalog(path).tags) if path.exists() else []
+
+
+def _tags(job: Job) -> list[str]:
+    tags = _catalog_tags(catalog_name(job.style)) if job.style_kind == "catalog" else []
+    return [*tags, job.season.replace("_", " ")] if job.season else tags
+
+
 def view(job: Job) -> JobView:
     data = job.model_dump()
     data["owner"] = None  # el uid no sale de la API
@@ -241,6 +259,7 @@ def view(job: Job) -> JobView:
     waiting = job.status in ("queued", "running")
     return JobView(
         **data,
+        tags=_tags(job),
         estimate_s=jobs().estimate(job) if waiting else None,
         queue_ahead=jobs().queue_ahead(job) if job.status == "queued" else 0,
         duration=(job.finished or 0) - job.started if job.started and job.finished else None,
@@ -270,7 +289,7 @@ def _job(job_id: str, user: User) -> Job:
     """El trabajo, solo si es de `user`. El de otro da 404 (no se revela que existe)."""
     job = jobs().get(job_id)
     if job is None or not owns(job, user.uid):
-        raise HTTPException(404, "Trabajo no encontrado")
+        raise HTTPException(404, JOB_NOT_FOUND)
     return job
 
 
@@ -278,7 +297,7 @@ def _media_job(job_id: str, key: str | None) -> Job:
     """El trabajo de un archivo pedido con la llave corta (?k=)."""
     job = jobs().get(job_id)
     if job is None:
-        raise HTTPException(404, "Trabajo no encontrado")
+        raise HTTPException(404, JOB_NOT_FOUND)
     media_owner(job_id, key, job.owner or "local")
     return job
 
@@ -419,6 +438,20 @@ def get_job(job_id: str, user: User = Depends(current_user)) -> JobView:
     return view(_job(job_id, user))
 
 
+class RenameRequest(BaseModel):
+    title: str
+
+
+@app.patch("/api/jobs/{job_id}", response_model=JobView)
+def rename_job(job_id: str, body: RenameRequest, user: User = Depends(current_user)) -> JobView:
+    """Renombra el proyecto (el video y todas sus versiones)."""
+    _job(job_id, user)
+    renamed = jobs().rename(job_id, body.title.strip()[:80])
+    if renamed is None:
+        raise HTTPException(404, JOB_NOT_FOUND)
+    return view(renamed)
+
+
 @app.delete("/api/jobs/{job_id}", status_code=204)
 def delete_job(job_id: str, user: User = Depends(current_user)) -> Response:
     _job(job_id, user)
@@ -427,7 +460,7 @@ def delete_job(job_id: str, user: User = Depends(current_user)) -> Response:
     except JobBusy as error:
         raise HTTPException(409, "Este video se está procesando. Espera a que termine para borrarlo.") from error
     if not deleted:
-        raise HTTPException(404, "Trabajo no encontrado")
+        raise HTTPException(404, JOB_NOT_FOUND)
     return Response(status_code=204)
 
 
