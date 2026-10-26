@@ -1,0 +1,28 @@
+# Tarifas de los modelos de IA, para el costo estimado de cada llamada (telemetry.llm_call).
+#
+# USD por millón de tokens. Un precio vacío (null) = el evento llm.call sale con
+# cost_usd_est: null. Llenar con la tarifa vigente de la página de precios de cada proveedor y
+# anotar la fecha: un costo inventado es peor que uno ausente.
+#
+# tier: el nivel del modelo (economico | estandar | premium), para comparar costo y calidad por
+# nivel y decidir qué tarea puede bajar a un modelo más barato
+# (docs/analisis_mejoras_y_seguridad.md, §6).
+#
+# Otro archivo: VEXORA_LLM_PRICES=/ruta/precios.yaml
+models:
+  gpt-5-mini:            # lector de escena y accesorios (analysis.scene)
+    tier: economico
+    input_per_mtok: null
+    output_per_mtok: null
+  gpt-5:                 # director remoto (solo línea de comandos)
+    tier: premium
+    input_per_mtok: null
+    output_per_mtok: null
+  gemini-4-argon:        # análisis profundo
+    tier: premium
+    input_per_mtok: null
+    output_per_mtok: null
+  gemini-3.8-flash:      # respaldo del análisis profundo
+    tier: estandar
+    input_per_mtok: null
+    output_per_mtok: null

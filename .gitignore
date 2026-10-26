@@ -31,3 +31,6 @@ graphify-out/
 # Configuración local de la web (Firebase): web/.env.example es la plantilla.
 .env.local
 *.local
+
+# Eventos JSON de la API y la línea de comandos (telemetry.py)
+logs/
