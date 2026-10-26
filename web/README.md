@@ -31,11 +31,24 @@ vfxglow-api                    # sirve también el front compilado en http://127
 
 ## Pantallas
 
+Los diseños de referencia están en [`docs/disenos/`](../docs/disenos/README.md); el resultado debe quedar fiel a ellos.
+Las rutas viven en `src/routes.ts`. Lo que un diseño muestra y aún no tiene función (créditos, campana, "Con
+efectos", "Sorpréndeme", "Compartir"…) lee datos fijos de `src/mocks/pendientes.ts`, cada uno marcado
+`PENDIENTE(fase N)`: `grep -rn "PENDIENTE(" web/src` lista lo que falta. Los testimonios con nombre solo se ven
+con `VITE_SHOW_PENDING=1` (o en desarrollo).
+
 | Ruta | Qué hace |
 | --- | --- |
-| `/` Estudio | 01 subir el plano (arrastrar o elegir; avisa de duración y tamaño antes de subir), 02 elegir coreografía o preset (cada tarjeta anima sus colores). Temporada, fuego y rayo, vestuario y tipo de análisis están en "Opciones avanzadas", plegadas, con lo elegido a la vista. La barra inferior resume archivo, estilo y tiempo estimado, y "Crear mis efectos" pide permiso de avisos. No hay semilla: el servidor prueba varias coreografías y usa la mejor. El análisis profundo (experimental) solo se activa en las cuentas que lo tienen |
-| `/jobs/:id` | Mientras procesa: anillo de progreso, etapas (lectura del movimiento → coreografía → revelado), posición en la cola y tiempo estimado, el avance en el título de la pestaña y un aviso del navegador al terminar; el registro técnico queda tras "Ver detalles técnicos". Si falla: mensaje claro y "Reintentar". Al terminar: comparador antes/después con cortina arrastrable, línea de tiempo con cada reacción de la coreografía (clic para saltar), descarga MP4 y "Probar otra versión" (la siguiente mejor coreografía, u otro estilo, sobre el mismo video; el análisis queda en caché) |
-| `/library` | Un video por tarjeta, con sus versiones debajo (portada, estado y progreso) |
+| `/` Inicio | Página pública: comparador antes/después, beneficios, estilos destacados (de `/api/styles`) y cierre. Con sesión va al estudio, salvo con `?inicio=1` |
+| `/login` · `/register` · `/forgot-password` | Acceso con correo, Google o GitHub; al registrarse se envía el correo de verificación |
+| `/terms` · `/privacy` · `/support` | Documentos legales y ayuda (el texto lo redacta el negocio) |
+| `/app/studio` Estudio | 1 El plano (soltar o elegir, con su ficha y avisos de duración y tamaño), 2 El estilo (filtros por elemento y "Sorpréndeme"), 3 Temporada, 4 Fuego y rayo (solo en los estilos que lo dibujan), 5 Vestuario, 6 Análisis (el profundo, deshabilitado sin acceso). Columna fija con vista previa, datos del video, resumen y "Crear mis efectos" con el tiempo estimado |
+| `/app/jobs/:id` | En cola o proceso: las 4 etapas con su tiempo, el anillo general, el detalle por etapa, la actividad reciente, la ficha y la configuración aplicada, y "Cancelar procesamiento". Aviso del navegador al terminar y avance en el título de la pestaña. Si falla: mensaje claro y "Reintentar". Al terminar: comparador antes/después, línea de tiempo con cada reacción, descarga MP4 y "Probar otra versión" |
+| `/app/library` Mis proyectos | Un video por tarjeta con estado, etiquetas, fecha y resolución; búsqueda, filtros por estado con contador, descarga, reintento, renombrar y borrar por versión; paginación |
+| `/app/settings` | Perfil, estado del correo (con reenvío de la verificación) y cerrar sesión |
+| `/app/explore` · `/app/plan` · `/app/projects/:id` | En desarrollo (fases 2 y 3) |
+
+Las rutas viejas `/jobs/:id` y `/library` redirigen a las nuevas.
 
 Atajos en el comparador: espacio (reproducir/pausar), flechas (fotograma a fotograma).
 
@@ -64,7 +77,9 @@ Si el servidor se reinicia a mitad de un trabajo, queda marcado como interrumpid
 web/src/
   api/          tipos, cliente y formato (alineados con src/vfxglow/api/server.py)
   hooks/        useJob: estado en vivo por SSE con respaldo de sondeo
-  components/   Shell, Dropzone, StyleCard, NeonPreview (lienzo animado), Darkroom, CompareViewer, Button, Icon
-  pages/        Studio, JobPage, Library
+  components/   Shell (barra superior + barras laterales), Dropzone, StyleTile, ProcessingView, ProjectCard,
+                CompareViewer, ChoreographyPanel, NeonPreview (lienzo animado), Icon…
+  mocks/        datos fijos de lo que aún no tiene función (pendientes.ts)
+  pages/        Landing, Login, Studio, JobPage, Library, Settings, Placeholder
   styles/       tokens de diseño, grano de película y auroras
 ```
