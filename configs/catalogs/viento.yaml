@@ -1,0 +1,12 @@
+# Viento: el elemento aire del catálogo Avatar solo (cintas translúcidas, remolinos y ráfagas que
+# doblan el fondo donde pasan).
+name: viento
+title: Viento
+description: 'Corrientes de aire: cintas translúcidas, remolinos y ráfagas que siguen cada giro y salto.'
+tags: [viento, aire, remolino]
+extends: avatar
+only_element: aire
+colors:
+  - [0.8, 0.95, 1.0]
+  - [0.55, 0.8, 1.0]
+seed: 45

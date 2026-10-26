@@ -193,12 +193,40 @@ class Choreography(_Strict):
     candidates: int = 1
 
 
+def _element_catalog(path: Path, raw: dict) -> dict:
+    """Un catálogo de un solo elemento sacado de otro (`extends: avatar`, `only_element: agua`):
+    lleva las acciones y opciones de la base que son de ese elemento, sin capítulos de otros
+    elementos y sin los efectos permanentes de la base (la luz del fuego, las brasas), que son de
+    su elemento. Lo que el catálogo escribe (nombre, título, colores, `always`...) manda sobre la
+    base. `keep: [mirada]` conserva opciones neutras (sin elemento) por nombre."""
+    base_name, only = raw.pop("extends"), raw.pop("only_element", None)
+    if not only:
+        raise ValueError(f"{path.name}: extends pide only_element (el elemento que se queda)")
+    keep = set(raw.pop("keep", None) or [])
+    base = yaml.safe_load((path.parent / f"{base_name}.yaml").read_text(encoding="utf-8"))
+    reactions = []
+    for reaction in base["reactions"]:
+        options = [
+            option
+            for option in reaction["options"]
+            if (base.get("element", "") if option.get("element") is None else option["element"]) == only or option["name"] in keep
+        ]
+        if options:
+            reactions.append({**reaction, "options": [{**option, "element": only} for option in options]})
+    if not reactions:
+        raise ValueError(f"{path.name}: {base_name} no tiene opciones del elemento {only}")
+    return {**base, "always": [], "element_mix": {}, "group_limits": {}, **raw, "element": only, "reactions": reactions}
+
+
 def load_catalog(path: Path) -> Catalog:
     """Lee un catálogo y le suma sus `include`: fragmentos (`configs/catalogs/_<nombre>.yaml`, solo
     con `reactions`) cuyas opciones se agregan a las de la misma acción, con el peso multiplicado
     por el `weight` del include (1 si se da solo el nombre). Una acción que el catálogo no tiene se
-    agrega entera. Dos opciones con el mismo nombre en la misma acción son un error."""
+    agrega entera. Dos opciones con el mismo nombre en la misma acción son un error. Con `extends`,
+    el catálogo es un solo elemento de otro (ver `_element_catalog`)."""
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if "extends" in raw:
+        raw = _element_catalog(path, raw)
     for item in raw.pop("include", None) or []:
         name, scale = (item, 1.0) if isinstance(item, str) else (item["name"], float(item.get("weight", 1.0)))
         fragment = yaml.safe_load((path.parent / f"{name}.yaml").read_text(encoding="utf-8")) or {}

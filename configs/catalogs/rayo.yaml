@@ -1,0 +1,13 @@
+# Rayo: el rayo del catálogo Avatar solo (al lanzar, señalar y con la pistola de dedos).
+name: rayo
+title: Rayo
+description: 'Energía y electricidad: rayos que salen de tus manos al lanzar, señalar o golpear.'
+tags: [rayo, luz, choque]
+extends: avatar
+only_element: rayo
+# Opciones neutras de avatar.yaml que encajan con el elemento.
+keep: [mirada, grietas]
+colors:
+  - [0.35, 0.92, 1.0]
+  - [0.72, 0.3, 1.0]
+seed: 43

@@ -1,0 +1,12 @@
+# Agua: el elemento agua del catálogo Avatar solo (agua cristalina con física de cinta, látigos y
+# chorros, esferas, anillos y salpicaduras).
+name: agua
+title: Agua
+description: 'Flujos y olas: agua cristalina que sigue tus brazos, látigos, chorros, esferas y salpicaduras.'
+tags: [agua, fluido, olas]
+extends: avatar
+only_element: agua
+colors:
+  - [0.2, 0.6, 1.0]
+  - [0.35, 0.85, 1.0]
+seed: 42

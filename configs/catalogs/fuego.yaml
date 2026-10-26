@@ -1,0 +1,13 @@
+# Fuego: el elemento fuego del catálogo Avatar solo (látigos con la forma del golpe, llamas en las
+# manos, fuego a ras del piso, bestias, la calavera y el cuerpo en llamas), sin capítulos de otros
+# elementos. Las opciones salen de avatar.yaml (`extends`), solo las del elemento.
+name: fuego
+title: Fuego
+description: 'Llama y calor: látigos de fuego con la forma de cada golpe, llamas en las manos, fuego a ras del piso y bestias de fuego.'
+tags: [fuego, calor, chispas]
+extends: avatar
+only_element: fuego
+colors:
+  - [1.0, 0.36, 0.03]
+  - [1.0, 0.36, 0.03]
+seed: 41
