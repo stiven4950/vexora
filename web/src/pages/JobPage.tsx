@@ -2,15 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { api } from "../api/client";
-import { rgb, timecode } from "../api/format";
+import { projectName, rgb, sheetDate, timecode } from "../api/format";
 import { notifyDone } from "../api/notify";
 import { ROUTES } from "../routes";
 import { WARDROBES, type Looks, type Moment, type Person, type Season, type Style, type Wardrobe } from "../api/types";
 import { Button } from "../components/Button";
 import { ChoreographyPanel } from "../components/ChoreographyPanel";
 import { CompareViewer, type CompareViewerHandle } from "../components/CompareViewer";
-import { Darkroom } from "../components/Darkroom";
 import { Icon } from "../components/Icon";
+import { ProcessingView, type AppliedConfig } from "../components/ProcessingView";
+import { ProjectSidebar } from "../components/ProjectSidebar";
 import { Shell } from "../components/Shell";
 import { useJob } from "../hooks/useJob";
 import styles from "./JobPage.module.css";
@@ -25,7 +26,11 @@ function versionLabel(job: { seed: number | null; take: number }): string {
 export function JobPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { job, error } = useJob(id);
+  const { job: loaded, error } = useJob(id);
+  // El nombre que la persona acaba de poner: se ve ya, sin esperar al siguiente aviso del servidor.
+  const [renamed, setRenamed] = useState<string | null>(null);
+  const job = loaded && renamed !== null ? { ...loaded, title: renamed || null } : loaded;
+  const [cancelling, setCancelling] = useState(false);
   const [moments, setMoments] = useState<Moment[]>([]);
   const [styleList, setStyleList] = useState<Style[]>([]);
   const [nextStyle, setNextStyle] = useState<string>("");
@@ -125,6 +130,31 @@ export function JobPage() {
     }
   };
 
+  const rename = async () => {
+    if (!job) return;
+    const title = window.prompt("Nombre del proyecto", projectName(job));
+    if (title === null) return;
+    try {
+      const updated = await api.rename(job.id, title);
+      setRenamed(updated.title ?? "");
+    } catch (cause) {
+      window.alert(cause instanceof Error ? cause.message : String(cause));
+    }
+  };
+
+  // Cancelar borra el video y todo lo que se hizo con él: se pide confirmación.
+  const cancel = async () => {
+    if (!job || !window.confirm("¿Cancelar el procesamiento? Se borrará este video y lo que se haya hecho con él.")) return;
+    setCancelling(true);
+    try {
+      await api.cancel(job.id);
+      navigate(ROUTES.library);
+    } catch (cause) {
+      setCancelling(false);
+      window.alert(cause instanceof Error ? cause.message : String(cause));
+    }
+  };
+
   if (error) {
     return (
       <Shell>
@@ -145,8 +175,38 @@ export function JobPage() {
     );
   }
 
+  const waiting = job.status === "queued" || job.status === "running";
+  const config: AppliedConfig = {
+    style: current?.title ?? job.style,
+    season: seasonList.find((s) => s.id === job.season)?.title ?? "Sin temporada",
+    looks:
+      [job.fire_style && looks.fuego.find((l) => l.id === job.fire_style)?.title, job.bolt_style && looks.rayo.find((l) => l.id === job.bolt_style)?.title].filter(Boolean).join(" / ") || "Los del estilo",
+    wardrobe: Object.keys(job.wardrobe).length > 1 ? "Por persona" : (WARDROBES.find((w) => w.id === (job.wardrobe["*"] ?? Object.values(job.wardrobe)[0] ?? "ninguno"))?.label ?? "Sin prendas"),
+    analysis: job.deep ? "Profundo con IA" : "Económico",
+  };
+  const sidebar = (
+    <ProjectSidebar
+      projectId={job.parent ?? job.id}
+      title={projectName(job)}
+      when={sheetDate(job.created)}
+      thumbnail={job.thumbnail_url ? `${job.thumbnail_url}&original=true&first=true` : null}
+      active={waiting ? "processing" : "result"}
+      state={waiting ? "processing" : "result"}
+      onRename={rename}
+      onDownload={job.status === "done" && job.output_url ? () => window.location.assign(`${job.output_url}&download=true`) : undefined}
+    />
+  );
+
+  if (waiting) {
+    return (
+      <Shell aurora={aurora} sidebar={sidebar} footer={false}>
+        <ProcessingView job={job} config={config} onCancel={cancel} onRename={rename} cancelling={cancelling} />
+      </Shell>
+    );
+  }
+
   return (
-    <Shell aurora={aurora}>
+    <Shell aurora={aurora} sidebar={sidebar} footer={false}>
       <header className={styles.head}>
         <Link to={ROUTES.library} className={styles.back}>
           <Icon name="back" size={16} /> Biblioteca
@@ -166,8 +226,6 @@ export function JobPage() {
           {{ queued: "En cola", running: "Procesando", done: "Listo", failed: "Falló" }[job.status]}
         </span>
       </header>
-
-      {(job.status === "queued" || job.status === "running") && <Darkroom job={job} />}
 
       {job.status === "failed" && (
         <div className={styles.failed}>

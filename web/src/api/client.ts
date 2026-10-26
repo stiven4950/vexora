@@ -41,6 +41,8 @@ export const api = {
   choreography: (id: string) => request<Moment[]>(`/api/jobs/${id}/choreography`),
   people: (id: string) => request<Person[]>(`/api/jobs/${id}/people`),
   remove: (id: string) => request<void>(`/api/jobs/${id}`, { method: "DELETE" }),
+  /** Cancela un trabajo: en cola se borra ya; en curso se corta en unos segundos. */
+  cancel: (id: string) => request<{ status: "removed" | "stopping" }>(`/api/jobs/${id}/cancel`, { method: "POST" }),
   /** Renombra el proyecto (el video y todas sus versiones); vacío = el nombre del archivo. */
   rename: (id: string, title: string) =>
     request<Job>(`/api/jobs/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title }) }),

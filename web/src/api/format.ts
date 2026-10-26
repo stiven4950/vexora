@@ -134,3 +134,16 @@ export function groupStatus(jobs: { status: "queued" | "running" | "done" | "fai
   if (jobs.some((job) => job.status === "queued" || job.status === "running")) return "processing";
   return jobs.some((job) => job.status === "done") ? "done" : "failed";
 }
+
+/** "14:16" — la hora del día de un instante (la actividad reciente). */
+export const clock = (epoch: number): string => new Date(epoch * 1000).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit", hour12: false });
+
+/** "23 oct 2026 · 02:14 p. m." — la fecha de la ficha del proyecto. */
+export const sheetDate = (epoch: number): string => {
+  const date = new Date(epoch * 1000);
+  const day = date.toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" }).replace(/\./g, "");
+  return `${day} · ${date.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit", hour12: true })}`;
+};
+
+/** "42.3 MB" */
+export const megabytes = (bytes: number): string => `${(bytes / 1e6).toFixed(1)} MB`;

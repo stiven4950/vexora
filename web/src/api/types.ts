@@ -95,6 +95,8 @@ export interface Job {
   title: string | null;
   /** Etiquetas del estilo y de la temporada. */
   tags: string[];
+  /** Lo que fue pasando, en orden: "Video recibido", "Inicio del procesamiento", cada etapa. */
+  activity: ActivityLine[];
   /** Segundos que se espera que tarde el revelado (mientras espera o procesa). */
   estimate_s: number | null;
   /** Cuántos trabajos van antes en la cola (hay un solo trabajador). */
@@ -134,4 +136,24 @@ export interface Moment {
   choice: string;
   /** La intención del gesto (solo con análisis profundo). */
   note?: string;
+}
+
+/** Una línea de la actividad reciente de un trabajo (hora en segundos epoch). */
+export interface ActivityLine {
+  at: number;
+  text: string;
+  detail: string;
+}
+
+/** Lo que el servidor mide de un trabajo mientras corre (`job.metrics`). */
+export interface JobMetrics {
+  /** Milisegundos de cada etapa ya terminada (analyze, direct, deep, compose, finalize). */
+  stages?: Record<string, number>;
+  /** La etapa en curso (la más interna) y desde cuándo (epoch). */
+  current?: string | null;
+  current_started?: number | null;
+  /** Cuándo empezó cada etapa (epoch). */
+  started_at?: Record<string, number>;
+  queue_wait_ms?: number;
+  total_ms?: number;
 }
