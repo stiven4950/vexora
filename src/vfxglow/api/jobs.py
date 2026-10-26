@@ -15,6 +15,7 @@ import os
 import queue
 import re
 import shutil
+import statistics
 import threading
 import time
 import uuid
@@ -34,6 +35,10 @@ Stage = Literal["queued", "analyze", "direct", "render", "done"]
 # Peso de cada etapa en la barra de progreso (el análisis domina el tiempo).
 _ANALYZE, _DIRECT = 0.55, 0.05
 LOG_LINES = 80
+# Segundos de proceso por segundo de video medidos en api_data (mediana de 85 trabajos): un video
+# nuevo (análisis + render) y una "otra versión" (análisis en caché). Hasta tener historial propio.
+DEFAULT_RATIO = {"first": 20.0, "version": 11.0}
+MIN_SAMPLES = 3
 
 
 class Job(BaseModel):
@@ -75,6 +80,8 @@ class Job(BaseModel):
     error_code: str | None = None
     # Resumen medido del trabajo: espera en cola, duración por etapa, tokens y costo de IA.
     metrics: dict = Field(default_factory=dict)
+    # Duración del video subido: con ella y el historial se estima cuánto tardará (JobStore.estimate).
+    video_seconds: float | None = None
 
 
 # Fallos, en palabras de quien usa la web. El detalle técnico va solo al registro del servidor.
@@ -202,6 +209,33 @@ class JobStore:
             mine = [job for job in self._jobs.values() if owner is None or _owner(job) == owner]
             return sorted(mine, key=lambda job: job.created, reverse=True)
 
+    def estimate(self, job: Job) -> float | None:
+        """Segundos que tardará el trabajo: la mediana de lo que tardaron los terminados del mismo
+        estilo y tipo (primer video o versión, con o sin análisis profundo) por segundo de video, o
+        los valores medidos en api_data cuando aún no hay tres. Un rango, no una promesa."""
+        if not job.video_seconds:
+            return None
+        with self._lock:
+            ratios = [
+                other.metrics["total_ms"] / 1000 / other.video_seconds
+                for other in self._jobs.values()
+                if other.status == "done"
+                and other.video_seconds
+                and other.metrics.get("total_ms")
+                and (other.style, bool(other.parent), other.deep) == (job.style, bool(job.parent), job.deep)
+            ]
+        ratio = statistics.median(ratios) if len(ratios) >= MIN_SAMPLES else (DEFAULT_RATIO["version"] if job.parent else DEFAULT_RATIO["first"])
+        return round(job.video_seconds * ratio)
+
+    def queue_ahead(self, job: Job) -> int:
+        """Cuántos trabajos van antes (hay un solo trabajador): el que se procesa y los que
+        llegaron antes. Solo el número, nunca de quién."""
+        with self._lock:
+            return sum(
+                other.id != job.id and (other.status == "running" or (other.status == "queued" and other.created < job.created))
+                for other in self._jobs.values()
+            )
+
     def adopt(self, owner: str) -> int:
         """Los trabajos sin dueño (de antes de las cuentas) pasan a `owner`. Devuelve cuántos."""
         with self._lock:
@@ -249,7 +283,22 @@ class JobStore:
         except BaseException:
             shutil.rmtree(folder, ignore_errors=True)
             raise
-        job = Job(id=job_id, created=time.time(), filename=filename, video_path=str(target), style_kind=style_kind, style=style, seed=seed, season=season, owner=owner, wardrobe=wardrobe or {}, deep=deep, fire_style=fire_style, bolt_style=bolt_style)
+        job = Job(
+            id=job_id,
+            created=time.time(),
+            filename=filename,
+            video_path=str(target),
+            style_kind=style_kind,
+            style=style,
+            seed=seed,
+            season=season,
+            owner=owner,
+            wardrobe=wardrobe or {},
+            deep=deep,
+            fire_style=fire_style,
+            bolt_style=bolt_style,
+            video_seconds=getattr(info, "duration_s", None),
+        )
         telemetry.event(
             "upload.received",
             job_id=job.id,
@@ -308,6 +357,7 @@ class JobStore:
                 bolt_style=bolt_style,
                 parent=root,
                 owner=parent.owner,
+                video_seconds=parent.video_seconds,
             )
         )
 

@@ -46,6 +46,14 @@ def _number(name: str, default: float) -> float:
         return default
 
 
+def max_video_seconds() -> float:
+    return _number(MAX_SECONDS_ENV, 180)
+
+
+def max_video_side() -> int:
+    return int(_number(MAX_SIDE_ENV, 2160))
+
+
 class VideoInfo(BaseModel):
     duration_s: float
     width: int
@@ -69,10 +77,10 @@ def probe_video(path: Path) -> VideoInfo:
     duration = float(meta.get("duration") or 0.0)
     if width <= 0 or height <= 0 or duration <= 0:
         raise HTTPException(422, "No pudimos leer el video. Expórtalo de nuevo en MP4 (H.264) y vuelve a subirlo.")
-    max_seconds = _number(MAX_SECONDS_ENV, 180)
+    max_seconds = max_video_seconds()
     if duration > max_seconds:
         raise HTTPException(422, f"El video dura {duration:.0f} s y el máximo es {max_seconds:.0f} s. Recórtalo y vuelve a subirlo.")
-    max_side = int(_number(MAX_SIDE_ENV, 2160))
+    max_side = max_video_side()
     if max(width, height) > max_side:
         raise HTTPException(422, f"El video mide {width}×{height} y el máximo es {max_side} px en el lado largo. Expórtalo a 1080p.")
     return VideoInfo(duration_s=round(duration, 2), width=width, height=height, fps=float(meta.get("fps") or 0.0), codec=str(meta.get("codec") or ""))

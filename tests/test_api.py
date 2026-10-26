@@ -389,3 +389,44 @@ def test_api_docs_are_not_served_in_production(client: TestClient, monkeypatch: 
     assert client.get("/openapi.json").status_code == 200
     monkeypatch.setenv("VEXORA_ENV", "prod")
     assert client.get("/openapi.json").status_code == 404 and client.get("/docs").status_code == 404
+
+
+# ----- Fase 1: tiempo estimado, cola y límites visibles -----
+
+
+def test_estimate_uses_measured_defaults_then_the_history_of_the_same_style(client: TestClient) -> None:
+    store = server.store
+    job = _wait(client, client.post("/api/jobs", files={"video": ("c.mp4", io.BytesIO(b"x"), "video/mp4")}, data={"style": "pelea"}).json()["id"])
+    assert store.get(job["id"]).video_seconds == 10.0
+    fresh = store.get(job["id"])
+    assert store.estimate(fresh) == 200  # 10 s × 20 s/s, sin historial propio todavía
+    assert store.estimate(fresh.model_copy(update={"parent": "otro"})) == 110  # una versión: 11 s/s
+    for _ in range(3):  # tres trabajos terminados del mismo estilo tardaron 5 s/s
+        done = _wait(client, client.post("/api/jobs", files={"video": ("c.mp4", io.BytesIO(b"x"), "video/mp4")}, data={"style": "pelea"}).json()["id"])
+        store._update(done["id"], metrics={"total_ms": 50_000})
+    assert store.estimate(store.get(done["id"])) == 50
+    assert store.estimate(fresh.model_copy(update={"video_seconds": None})) is None
+
+
+def test_queue_position_counts_only_what_goes_before(client: TestClient) -> None:
+    store = server.store
+    first = store.create("a.mp4", io.BytesIO(b"x"), "catalog", "pelea", None)
+    _wait(client, first.id)
+    store._update(first.id, status="running")
+    waiting = store.create("b.mp4", io.BytesIO(b"x"), "catalog", "pelea", None)
+    store._update(waiting.id, status="queued")
+    later = store.create("c.mp4", io.BytesIO(b"x"), "catalog", "pelea", None)
+    store._update(later.id, status="queued", created=waiting.created + 1)
+    view = client.get(f"/api/jobs/{later.id}").json()
+    assert view["queue_ahead"] == 2 and view["estimate_s"] is None  # sin duración (create sin check)
+    assert client.get(f"/api/jobs/{first.id}").json()["queue_ahead"] == 0
+
+
+def test_limits_tell_the_web_what_it_can_warn_about(secure: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    assert secure.get("/api/limits").status_code == 401
+    monkeypatch.setenv("VEXORA_MAX_VIDEO_SECONDS", "90")
+    ana = secure.get("/api/limits", headers=_as("token-ana")).json()
+    assert ana["max_video_seconds"] == 90 and ana["max_upload_mb"] == 500 and ana["deep_allowed"] is False
+    monkeypatch.setenv("VEXORA_DEEP_ALLOW", "ana@example.com")
+    assert secure.get("/api/limits", headers=_as("token-ana")).json()["deep_allowed"] is True
+    assert secure.get("/api/limits", headers=_as("token-beto")).json()["deep_allowed"] is False

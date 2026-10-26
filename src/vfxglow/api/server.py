@@ -39,7 +39,8 @@ MAX_UPLOAD_MB = 500
 app = FastAPI(title="VFX Glow", version="1.0", description="Edición de video con efectos de neón guiados por el movimiento.")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    # En producción: VEXORA_CORS_ORIGINS=https://app.ejemplo.com (separados por comas). Nunca "*".
+    allow_origins=[o.strip() for o in os.environ.get("VEXORA_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o.strip()],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -215,6 +216,9 @@ def _check_season(season: str | None) -> None:
 
 class JobView(Job):
     duration: float | None = None
+    # Segundos que se espera que tarde, y cuántos trabajos van antes en la cola (un solo trabajador).
+    estimate_s: float | None = None
+    queue_ahead: int = 0
     # URLs de los archivos, con la llave corta (?k=) que las abre sin cabeceras (auth.py).
     output_url: str | None = None
     original_url: str | None = None
@@ -234,8 +238,11 @@ def view(job: Job) -> JobView:
     data["log"] = [redact(line) for line in job.log[-20:]] if job.status in ("queued", "running") else []
     done = job.status == "done" and job.output
     key = f"?k={media_key(job.id, job.owner or 'local')}"
+    waiting = job.status in ("queued", "running")
     return JobView(
         **data,
+        estimate_s=jobs().estimate(job) if waiting else None,
+        queue_ahead=jobs().queue_ahead(job) if job.status == "queued" else 0,
         duration=(job.finished or 0) - job.started if job.started and job.finished else None,
         output_url=f"/api/jobs/{job.id}/output{key}" if done else None,
         original_url=f"/api/jobs/{job.id}/original{key}",
@@ -290,6 +297,25 @@ def _check_style(kind: str, name: str) -> str:
 def list_jobs(user: User = Depends(current_user)) -> list[JobView]:
     _adopt(user)
     return [view(job) for job in jobs().list(user.uid)]
+
+
+class LimitsView(BaseModel):
+    max_upload_mb: int
+    max_video_seconds: float
+    max_video_side: int
+    # El análisis profundo es de pago: solo las cuentas permitidas (limits.deep_allowed) lo usan.
+    deep_allowed: bool
+
+
+@app.get("/api/limits", response_model=LimitsView)
+def get_limits(user: User = Depends(current_user)) -> LimitsView:
+    """Lo que la web avisa antes de subir: duración, tamaño y si esta cuenta tiene análisis profundo."""
+    return LimitsView(
+        max_upload_mb=MAX_UPLOAD_MB,
+        max_video_seconds=limits.max_video_seconds(),
+        max_video_side=limits.max_video_side(),
+        deep_allowed=limits.deep_allowed(user) or not auth_enabled(),
+    )
 
 
 @app.get("/api/me", response_model=User)
