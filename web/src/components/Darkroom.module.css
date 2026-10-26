@@ -4,6 +4,7 @@
   grid-template-columns: minmax(260px, 1fr) minmax(280px, 1fr);
   grid-template-areas:
     "center stages"
+    "note note"
     "console console";
   gap: 28px;
   padding: clamp(20px, 4vw, 44px);
@@ -151,8 +152,35 @@
   }
 }
 
-.console {
+.note {
+  grid-area: note;
+  margin: 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.details {
   grid-area: console;
+}
+
+.details summary {
+  cursor: pointer;
+  color: var(--faint);
+  font-size: 13px;
+  text-align: center;
+  list-style: none;
+}
+
+.details summary:hover {
+  color: var(--muted);
+}
+
+.details[open] summary {
+  margin-bottom: 12px;
+}
+
+.console {
   height: 180px;
   overflow-y: auto;
   padding: 16px 18px;
@@ -195,6 +223,6 @@
 @media (max-width: 760px) {
   .room {
     grid-template-columns: 1fr;
-    grid-template-areas: "center" "stages" "console";
+    grid-template-areas: "center" "stages" "note" "console";
   }
 }

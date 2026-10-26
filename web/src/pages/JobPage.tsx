@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { api } from "../api/client";
 import { rgb, timecode } from "../api/format";
+import { notifyDone } from "../api/notify";
 import { WARDROBES, type Looks, type Moment, type Person, type Season, type Style, type Wardrobe } from "../api/types";
 import { Button } from "../components/Button";
 import { ChoreographyPanel } from "../components/ChoreographyPanel";
@@ -93,6 +94,20 @@ export function JobPage() {
       setBusy(false);
     }
   };
+
+  // El avance en el título de la pestaña, y un aviso del navegador cuando termina con la pestaña oculta.
+  const lastStatus = useRef<string | null>(null);
+  useEffect(() => {
+    if (!job) return;
+    const waiting = job.status === "queued" || job.status === "running";
+    document.title = waiting ? `${Math.round(job.progress * 100)}% · VEXORA` : "VEXORA";
+    if (lastStatus.current === "queued" || lastStatus.current === "running") {
+      if (job.status === "done") notifyDone("Tu video está listo", job.filename);
+      if (job.status === "failed") notifyDone("El revelado falló", `${job.filename}: abre VEXORA para reintentar.`);
+    }
+    lastStatus.current = job.status;
+  }, [job?.status, job?.progress]);
+  useEffect(() => () => void (document.title = "VEXORA"), []);
 
   // Mismo trabajo, misma petición: el servidor lo vuelve a encolar y la página sigue su progreso.
   const retry = async () => {

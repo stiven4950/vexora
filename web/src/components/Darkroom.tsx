@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 
+import { approx } from "../api/format";
 import type { Job } from "../api/types";
 import { Icon } from "./Icon";
 import styles from "./Darkroom.module.css";
@@ -12,7 +13,20 @@ const STAGES = [
 
 const ORDER = ["queued", "analyze", "direct", "render", "done"];
 
-/** Vista de proceso: el plano original desenfocado detrás, anillo de progreso, etapas y consola. */
+/** Lo que se le dice a la persona de la espera, sin tecnicismos. */
+export function waitNote(job: Job): string {
+  if (job.status === "queued") {
+    const ahead = job.queue_ahead;
+    const place = ahead === 0 ? "Eres el siguiente" : ahead === 1 ? "Hay 1 video antes del tuyo" : `Hay ${ahead} videos antes del tuyo`;
+    return job.estimate_s ? `${place}. Cuando empiece, tardará ${approx(job.estimate_s)}.` : `${place}.`;
+  }
+  if (!job.estimate_s) return "Puedes cerrar esta pestaña: el video sigue en tu biblioteca.";
+  // El avance se deduce de los mensajes del proceso y a veces va a saltos: es un rango, no un reloj.
+  const left = Math.max(job.estimate_s * (1 - job.progress), 20);
+  return `Faltan ${approx(left)}. Puedes cerrar esta pestaña: el video sigue en tu biblioteca.`;
+}
+
+/** Vista de proceso: el plano original desenfocado detrás, anillo de progreso, etapas y, si se pide, el detalle técnico. */
 export function Darkroom({ job }: { job: Job }) {
   const scroller = useRef<HTMLDivElement>(null);
   const percent = Math.round(job.progress * 100);
@@ -54,6 +68,9 @@ export function Darkroom({ job }: { job: Job }) {
           <span>{job.status === "queued" ? "En cola" : job.message}</span>
         </div>
       </div>
+      <p className={styles.note} role="status">
+        {waitNote(job)}
+      </p>
 
       <ol className={styles.stages}>
         {STAGES.map((stage, index) => {
@@ -71,18 +88,21 @@ export function Darkroom({ job }: { job: Job }) {
         })}
       </ol>
 
-      <div className={styles.console} ref={scroller} aria-live="polite">
-        {job.log.length === 0 ? (
-          <p className={styles.line}>Esperando turno en la cola…</p>
-        ) : (
-          job.log.map((line, index) => (
-            <p key={`${index}-${line}`} className={styles.line}>
-              <span>›</span> {line}
-            </p>
-          ))
-        )}
-        <p className={`${styles.line} ${styles.cursor}`}>▌</p>
-      </div>
+      <details className={styles.details}>
+        <summary>Ver detalles técnicos</summary>
+        <div className={styles.console} ref={scroller}>
+          {job.log.length === 0 ? (
+            <p className={styles.line}>Esperando turno en la cola…</p>
+          ) : (
+            job.log.map((line, index) => (
+              <p key={`${index}-${line}`} className={styles.line}>
+                <span>›</span> {line}
+              </p>
+            ))
+          )}
+          <p className={`${styles.line} ${styles.cursor}`}>▌</p>
+        </div>
+      </details>
     </div>
   );
 }
