@@ -96,3 +96,26 @@ def test_setup_writes_json_events_to_a_file(tmp_path: Path, monkeypatch: pytest.
             if handler not in before:
                 root.removeHandler(handler)
                 handler.close()
+
+
+def test_the_hook_follows_each_stage_and_the_current_one_is_in_the_summary() -> None:
+    seen: list[tuple[str, str, str | None]] = []
+    with telemetry.job_context("job1", "trace1", on_change=lambda kind, stage, summary: seen.append((kind, stage, summary["current"]))) as summary:
+        with telemetry.span("direct"):
+            with telemetry.span("deep"):
+                pass
+    assert seen == [("started", "direct", "direct"), ("started", "deep", "deep"), ("finished", "deep", "direct"), ("finished", "direct", None)]
+    assert summary["current"] is None and set(summary["stages"]) == {"direct", "deep"}
+
+
+def test_the_checkpoint_only_stops_a_job_that_was_asked_to_stop() -> None:
+    import threading
+
+    telemetry.checkpoint()  # sin trabajo: nada
+    stop = threading.Event()
+    with telemetry.job_context("job1", "trace1", cancel=stop):
+        telemetry.checkpoint()
+        stop.set()
+        with pytest.raises(telemetry.Cancelled):
+            telemetry.checkpoint()
+    telemetry.checkpoint()  # fuera del trabajo vuelve a no hacer nada

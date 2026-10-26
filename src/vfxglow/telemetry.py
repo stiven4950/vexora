@@ -9,7 +9,9 @@ traza. Los nombres siguen OpenTelemetry y los atributos reservados de Datadog, a
   CPU y resultado. `annotate(cache_hit=True)` añade campos al tramo en curso.
 - `llm_call(...)`: una llamada a un modelo, con tokens y costo estimado (configs/llm_prices.yaml).
 - `job_context(...)`: lo que pasa dentro de un trabajo hereda `job_id` y `trace_id`, y sus tramos y
-  llamadas se suman en un resumen (`metrics`) que el trabajo guarda.
+  llamadas se suman en un resumen (`metrics`) que el trabajo guarda. `on_change` avisa cada vez que
+  una etapa empieza o termina (la web muestra el avance por etapa en vivo) y `cancel` deja pedir
+  que el trabajo pare: `checkpoint()` lo comprueba donde el proceso ya informa su avance.
 
 Nunca se registran correos, tokens, llaves `?k=`, claves de API ni prompts: el usuario va como
 hash de su uid (`user_ref`).
@@ -29,9 +31,10 @@ import logging.handlers
 import os
 import re
 import sys
+import threading
 import time
 import uuid
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
@@ -53,6 +56,19 @@ _service = "vexora"
 _context: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar("vexora_context", default=None)
 _metrics: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar("vexora_metrics", default=None)
 _spans: contextvars.ContextVar[tuple[dict[str, Any], ...]] = contextvars.ContextVar("vexora_spans", default=())
+_on_change: contextvars.ContextVar[Callable[[str, str, dict[str, Any]], None] | None] = contextvars.ContextVar("vexora_on_change", default=None)
+_cancel: contextvars.ContextVar[threading.Event | None] = contextvars.ContextVar("vexora_cancel", default=None)
+
+
+class Cancelled(Exception):
+    """La persona pidió parar el trabajo: el proceso lo corta en el siguiente punto de control."""
+
+
+def checkpoint() -> None:
+    """Punto de control: levanta Cancelled si se pidió parar este trabajo. Sin trabajo, no hace nada."""
+    event = _cancel.get()
+    if event is not None and event.is_set():
+        raise Cancelled()
 
 _KEY = re.compile(r"([?&]k=)[^&\s]+")
 _PATH = re.compile(r"/(?:[^/\s:]+/)+")
@@ -86,14 +102,27 @@ def unbind(token: contextvars.Token) -> None:
 
 
 @contextmanager
-def job_context(job_id: str, trace_id: str, **fields: Any) -> Iterator[dict[str, Any]]:
-    """Lo que ocurra dentro lleva el trabajo y su traza; devuelve el resumen que se va llenando."""
+def job_context(
+    job_id: str,
+    trace_id: str,
+    on_change: Callable[[str, str, dict[str, Any]], None] | None = None,
+    cancel: threading.Event | None = None,
+    **fields: Any,
+) -> Iterator[dict[str, Any]]:
+    """Lo que ocurra dentro lleva el trabajo y su traza; devuelve el resumen que se va llenando.
+
+    `on_change(kind, stage, summary)` se llama al empezar ("started") y al terminar ("finished")
+    cada etapa; `summary["current"]` es la etapa en curso y `summary["current_started"]`, desde cuándo."""
     summary: dict[str, Any] = {"stages": {}, "llm": {"calls": 0, "tokens_in": 0, "tokens_out": 0, "cost_usd_est": None}}
     context = bind(job_id=job_id, trace_id=trace_id, **fields)
     metrics = _metrics.set(summary)
+    hook = _on_change.set(on_change)
+    stop = _cancel.set(cancel)
     try:
         yield summary
     finally:
+        _cancel.reset(stop)
+        _on_change.reset(hook)
         _metrics.reset(metrics)
         unbind(context)
 
@@ -117,9 +146,11 @@ def span(stage: str, **fields: Any) -> Iterator[None]:
     span_id = uuid.uuid4().hex[:16]
     parent = _spans.get()[-1]["span_id"] if _spans.get() else None
     attributes: dict[str, Any] = {"stage": stage, "span_id": span_id, "parent_span_id": parent, **fields}
+    parent_stage = _spans.get()[-1]["stage"] if _spans.get() else None
     stack = _spans.set(_spans.get() + (attributes,))
     started_wall, started_cpu = time.perf_counter(), time.process_time()
     event("stage.started", **attributes)
+    _notify("started", stage, current=stage, current_started=time.time())
     outcome, error = "ok", None
     try:
         yield
@@ -148,6 +179,18 @@ def span(stage: str, **fields: Any) -> Iterator[None]:
             stages[stage] = stages.get(stage, 0) + duration
             if attributes.get("cache_hit"):
                 summary.setdefault("cache_hits", []).append(stage)
+        _notify("finished", stage, current=parent_stage, current_started=time.time() if parent_stage else None)
+
+
+def _notify(kind: str, stage: str, **summary_fields: Any) -> None:
+    """Pone la etapa en curso en el resumen del trabajo y avisa a quien lo sigue (la API)."""
+    summary = _metrics.get()
+    if summary is None:
+        return
+    summary.update(summary_fields)
+    hook = _on_change.get()
+    if hook is not None:
+        hook(kind, stage, summary)
 
 
 # ----- llamadas a modelos -----

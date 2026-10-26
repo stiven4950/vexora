@@ -448,12 +448,17 @@ class Pipeline:
                             enabled_groups=self.config.composite.enabled_groups(),
                         )
                     )
+                    if (index + 1) % 10 == 0:
+                        telemetry.checkpoint()  # la persona pudo cancelar el trabajo
                     if (index + 1) % 50 == 0:
                         log.info("Compuestos %d/%d fotogramas", index + 1, meta.frame_count)
         except BaseException:
             encoder.abort()
             raise
-        encoder.close()
+        # Cerrar el archivo (ffmpeg termina de escribir y lo renombra) es la etapa de compresión
+        # y almacenamiento del diseño: se mide aparte del dibujo de los fotogramas.
+        with telemetry.span("finalize"):
+            encoder.close()
         self._mark(
             stage,
             key,

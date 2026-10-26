@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from vfxglow import telemetry
 from vfxglow.analysis.appearance import analyze_appearance, retag_paint_beats, tip_touch_events
 from vfxglow.analysis.beats import segment_beats
 from vfxglow.analysis.events import EventDetector
@@ -77,6 +78,7 @@ def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: st
                 previous = frame
                 raw.append(record)
                 if (index + 1) % 25 == 0:
+                    telemetry.checkpoint()  # la persona pudo cancelar el trabajo
                     log.info("Analizados %d/%d fotogramas", index + 1, meta.frame_count)
         finally:
             closer = getattr(detector, "close", None)
