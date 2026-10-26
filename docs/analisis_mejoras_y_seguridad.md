@@ -120,10 +120,11 @@ Leyenda de conveniencia: ★★★ hacer ya · ★★ siguiente fase · ★ desp
 
 | Fase | Contenido | Complejidad total | Modelo de IA sugerido para implementarlo |
 | --- | --- | --- | --- |
-| **0 · Bloqueantes** | Arreglo del §2. Críticas de seguridad 1–4 (§5). Validar con `ffprobe`. Mensajes de error clasificados con Reintentar. Eventos JSON de trabajo, etapa y `llm.call` (§7). | ~1,5–2 semanas | Sonnet. Opus solo para el diseño de cuotas |
-| **1 · Victorias rápidas** | Tiempo estimado y posición en la cola. Consola oculta. Estudio con opciones avanzadas plegadas y resumen. Validación de duración en el navegador. Biblioteca agrupada. Etiqueta del análisis profundo. Notificación del navegador. | ~1–1,5 semanas | Haiku para textos y UI simple; Sonnet para el resto |
-| **2 · Núcleo de valor** | Análisis al subir. Recomendación de estilo sin LLM. Alertas de calidad del seguimiento. Edición de coreografía por pines. Vista previa por ventana. Comparar versiones. Cancelar. | ~4–6 semanas | Sonnet; Opus para el rango de fotogramas del motor |
-| **3 · Comercial** | Cola multi-worker con prioridades. Firestore + Storage. Créditos, medición y topes. Marca de agua. Enlaces públicos revocables. Páginas legales. | > 6 semanas | Opus para la arquitectura; Sonnet para la implementación |
+| **0 · Bloqueantes** ✅ hecha | Arreglo del §2. Críticas de seguridad 1–4 (§5). Validar con `ffprobe`. Mensajes de error clasificados con Reintentar. Eventos JSON de trabajo, etapa y `llm.call` (§7). | ~1,5–2 semanas | Sonnet. Opus solo para el diseño de cuotas |
+| **1 · Victorias rápidas** ✅ hecha | Tiempo estimado y posición en la cola. Consola oculta. Estudio con opciones avanzadas plegadas y resumen. Validación de duración en el navegador. Biblioteca agrupada. Etiqueta del análisis profundo. Notificación del navegador. | ~1–1,5 semanas | Haiku para textos y UI simple; Sonnet para el resto |
+| **1b · Vistas base** (§9) | Rediseño fiel a los diseños: shell de la app y rutas `/app/*`. Mis proyectos, Trabajo en proceso, Estudio (vuelve a los pasos visibles del diseño), Inicio público, acceso en rutas, legales y configuración mínima. Backend S de cada vista: `title`, actividad, tiempos por etapa en vivo, ficha del video y cancelar. | ~3–4 semanas | Opus para el shell y las rutas; Sonnet para las vistas; Haiku para iconos y textos |
+| **2 · Núcleo de valor** | Análisis al subir. Recomendación de estilo sin LLM ("Sorpréndeme"). Alertas de calidad del seguimiento. **Editor de efectos (§9.5 E)** sobre la edición por pines. Vista previa por ventana ("Con efectos"). Comparar versiones. Explorar efectos. | ~5–7 semanas | Sonnet; Opus para el rango de fotogramas del motor y el editor |
+| **3 · Comercial** | Cola multi-worker con prioridades. Firestore + Storage. Créditos, medición y topes. Marca de agua. Enlaces públicos revocables ("Compartir"). Vistas Mi plan / Consumo, configuración completa y campana de notificaciones (§9.6). | > 6 semanas | Opus para la arquitectura; Sonnet para la implementación |
 | Después / investigar | Re-render parcial. Reencuadre a 1:1. Exportación con alfa. Publicación directa en redes. | L | Opus (investigación) |
 
 No recomendado: previews ilimitadas, prometer GPU < 30 s, ocultar estilos según la detección,
@@ -295,3 +296,333 @@ fijar cuotas y precios, y detectar abusos. `/metrics` y las trazas van en la Fas
 - Seguridad: pruebas de API para 404 entre usuarios, rechazo de un correo sin verificar en la adopción, cuota excedida → 429, video demasiado largo → 413/422 y borrado que limpia `runs/`. Además, `pip-audit` y `npm audit`.
 - Trazabilidad: correr un trabajo y una versión. Validar que cada línea de `logs/events.jsonl` sea JSON válido (`jq`). Comprobar que haya `stage.started`/`stage.finished` por etapa con `duration_ms` que sumen ≈ la duración total, y que `llm.call` traiga los tokens. Buscar con `grep` que no aparezcan correos ni `?k=`. Comprobar que `/metrics` responde y que Grafana local (docker compose con Loki + Prometheus) muestra el tablero.
 - Al aprobar: copiar este documento a `vfxglow/docs/analisis_mejoras_y_seguridad.md`.
+
+---
+
+## 9. Vistas de la web y diseños de referencia
+
+### 9.1 Estado y origen
+
+- **Ya hecho y subido** (rama `feature/SRR-phase0-security-and-tracing`): toda la Fase 0 y la parte de
+  la Fase 1 que no depende del rediseño. Eso incluye el tiempo estimado y la posición en la cola,
+  la consola plegada, los avisos de límites, la Biblioteca agrupada por versiones, las
+  notificaciones y `/api/limits`.
+- **Hoy hay 3 rutas** (`web/src/App.tsx`): `/` Estudio, `/jobs/:id` Trabajo y `/library` Biblioteca.
+  El login no es una ruta: se muestra cuando no hay sesión.
+- **Propuesta de vistas:** viene de ChatGPT y la adopto con los ajustes de §9.4. Se suman los
+  **5 diseños** que entregó el usuario. Esos diseños son la referencia visual obligatoria y el
+  resultado debe quedar **fiel**: misma estructura, jerarquía, espaciado, colores, tipografía e
+  iconografía.
+
+### 9.2 Imágenes de referencia (paso 0 de la implementación)
+
+Las imágenes están en una carpeta temporal que el sistema puede borrar:
+`/private/tmp/claude-502/-Users-omarrivera-Documents-IA/6a636f2f-00ec-4ca4-aada-4145f3c49a54/images/`.
+Al aprobar, lo primero es **copiarlas al repositorio** con nombre de vista y versionarlas:
+
+| Archivo temporal | Copia en el repo | Vista |
+| --- | --- | --- |
+| `1.png` | `docs/disenos/editor-efectos.png` | Editor de efectos (`/app/projects/:id/edit`) |
+| `2.png` | `docs/disenos/estudio.png` | Estudio (`/app/studio`) |
+| `3.png` | `docs/disenos/landing.png` | Inicio público (`/`) |
+| `4.png` | `docs/disenos/mis-proyectos.png` | Mis proyectos (`/app/library`) |
+| `5.png` | `docs/disenos/procesando.png` | Trabajo en proceso (`/app/jobs/:id`, estado en curso) |
+
+`docs/disenos/README.md` lista cada imagen con su ruta y su fase. Las descripciones de §9.5 dejan
+el diseño documentado aunque las imágenes se pierdan.
+
+### 9.3 Sistema visual común (sale de los 5 diseños)
+
+- **Paleta y tipografía:** ya existen en `web/src/styles/global.css` y en `index.html` (Obsidian
+  `--ink`, Electric Cyan, Neural Violet, Plasma Pink; Michroma para la marca, Sora, Inter, JetBrains
+  Mono). Los diseños usan esa misma paleta: se reutiliza, no se crea otra.
+- **Barra superior de la app** (diseños 1, 2, 4, 5):
+  - Logo VEXORA con su isotipo en "Y" cian.
+  - Pestañas "Estudio · Mis proyectos · Explorar efectos · Mi plan"; la activa va subrayada en cian.
+  - A la derecha, campana de notificaciones, avatar, nombre y menú desplegable.
+  - Reemplaza la barra actual de `components/Shell.tsx`.
+- **Barra lateral, dos variantes:**
+  - **App:** Inicio, Estudio, Mis proyectos, Explorar efectos, Mi plan y Configuración, cada uno
+    con icono y con el activo en una píldora cian brillante. Abajo, una tarjeta promocional con
+    imagen, título, texto y botón con borde ("Ver más ejemplos" / "Ir al estudio").
+  - **Proyecto** (diseños 1 y 5): "← Volver a mis proyectos", miniatura con título editable (✎) y
+    fecha, y el menú del proyecto: Resumen, Editar efectos, Versiones, Procesando, Resultado y
+    Descargar.
+- **Componentes compartidos nuevos:**
+  - `AppShell`, `ProjectSidebar`, `Card` (panel con borde de 1 px y radio de 18 px), `Segmented`
+    (Original / Con efectos), `Stepper`, `StatusBadge`, `KeyValueList` (filas "Estilo … Avatar").
+  - `ActivityTimeline`, `Toggle`, `ColorDot`, `Pagination`, `SearchInput` y `FilterChips` con
+    contador.
+  - Los que ya existen se reutilizan: `CompareViewer` (cortina antes/después y sincronía de dos
+    videos), `Darkroom` (anillo de progreso), `ChoreographyPanel` (momentos), `Dropzone`,
+    `StyleCard`, `NeonPreview` e `Icon`.
+- **Iconos de línea con brillo:** con el estilo de `pages/Login.tsx`. Se amplía el set de
+  `components/Icon.tsx` con agua, viento, rayo, fuego, rocas, campana, carpeta, tarjeta, engranaje,
+  cerebro, nube, lupa, filtro, compartir y menú (⋮).
+- **Breakpoints:** 1536 px, que es el tamaño de los diseños de app. Por debajo de 1280 px la
+  columna derecha baja; por debajo de 760 px la barra lateral se vuelve un menú. Los diseños solo
+  muestran escritorio; el móvil se resuelve con el mismo sistema.
+
+### 9.4 Mapa de rutas (propuesta de ChatGPT, ajustada al código)
+
+| Ruta | Vista | Fase | Diseño |
+| --- | --- | --- | --- |
+| `/` | Inicio público (landing) | 1b | ✅ `landing.png` |
+| `/login`, `/register`, `/forgot-password` | Acceso (hoy, modos dentro de `Login.tsx`: se separan en rutas, mismo diseño actual) | 1b | Existente |
+| `/reset-password` | Acción de Firebase (nueva contraseña) | 1b | Sin diseño: se usa el de Login |
+| `/terms`, `/privacy`, `/support` | Legales y ayuda | 1b (el **texto** lo redacta el negocio) | Sin diseño: plantilla de documento |
+| `/app/studio` | Estudio | 1b | ✅ `estudio.png` |
+| `/app/jobs/:jobId` | Trabajo: cola, proceso, resultado o error (una sola vista, según estado) | 1b | ✅ `procesando.png` (en curso); el resultado reutiliza el editor sin edición |
+| `/app/library` | Mis proyectos | 1b | ✅ `mis-proyectos.png` |
+| `/app/projects/:projectId` (+ `/edit`, `/versions`) | Proyecto: resumen, editor, versiones | 2 | ✅ `editor-efectos.png` |
+| `/app/explore` | Explorar efectos | 2 | Sin diseño |
+| `/app/plan`, `/app/usage` | Plan y consumo | 3 | Sin diseño |
+| `/app/settings/profile`, `/app/settings/security` | Cuenta | 3 (una mínima en 1b: perfil y cerrar sesión) | Sin diseño |
+
+Ajustes respecto a la propuesta de ChatGPT:
+- **"Proyecto" = un video y todas sus versiones.** `projectId` es el id del trabajo raíz (el que no
+  tiene `parent`), así que no hace falta una entidad nueva hasta migrar a Firestore.
+  `groupVersions` (`web/src/api/format.ts`) ya agrupa así.
+- **Las rutas viejas redirigen:** `/jobs/:id` → `/app/jobs/:id` y `/library` → `/app/library`.
+  Así no se rompen los enlaces ni las notificaciones ya enviadas.
+- **El usuario con sesión** que abre `/` va directo a `/app/studio`, salvo con `?inicio=1`.
+- **Las vistas sin diseño** (Explorar, Plan, Configuración, legales) no se inventan libremente:
+  usan el sistema común de §9.3 y se pide su diseño antes de su fase.
+
+### 9.5 Especificación de cada vista con diseño
+
+#### A. Inicio público — `landing.png` · Fase 1b · M
+
+- **Contenido:**
+  - Cabecera con Cómo funciona · Estilos · Ejemplos · Precios · Ayuda, y los botones "Iniciar
+    sesión" (borde) y "Crear mi primer efecto" (cian).
+  - Héroe: la antetítulo "TU VIDEO, OTRO MUNDO", el título "Convierte tus videos en experiencias
+    visuales **extraordinarias**", un texto, el CTA y "▶ Ver ejemplos", y a la derecha un
+    comparador Original / Con efectos Vexora con su tirador.
+  - Cuatro beneficios: Efectos únicos, Inteligencia artificial, Rápido y fácil, Comparte y
+    sorprende.
+  - "ESTILOS DESTACADOS — Efectos para cada historia": 5 tarjetas con imagen y "Ver todos los
+    estilos →".
+  - Banda de testimonios con un teléfono antes/después; CTA final "¿Listo para crear algo
+    increíble?"; pie con redes y legales.
+- **Reutiliza:** la cortina de `CompareViewer` con un video de demostración real; el resto es
+  marcado y CSS.
+- **Correcciones obligatorias** (fidelidad sí; contenido falso no):
+  - **Testimonios:** "Sofía M.", "Carlos T." y "Daniel R." con 5 estrellas no se publican si no
+    son reales. Hasta tener testimonios con permiso, el bloque conserva su composición (teléfono
+    antes/después + cita) y muestra un caso real de uso del producto.
+  - **Imágenes:** las de los diseños son ilustraciones. Se reemplazan por fotogramas y videos
+    **renderizados por Vexora** con material propio o con licencia (§3.1: los videos de
+    `glowing/data` son de otros creadores).
+  - **Tarjetas de estilo:** Naturaleza, Elementos, Fantasía, Ciencia ficción y Arte visual no
+    existen como estilos. Las tarjetas muestran los catálogos reales (Avatar, Baile, Pelea,
+    Espadas) con la misma composición, mapeados según §9.7 (decisión 3).
+  - **"Precios":** enlace con datos fijos `PENDIENTE(fase 3)` hasta que exista `/app/plan`.
+- **Datos:** `/api/styles` (ya existe) para las tarjetas.
+
+#### B. Estudio — `estudio.png` · Fase 1b · M (cambia lo hecho en la Fase 1)
+
+- **Columna principal**, con pasos numerados en círculos cian, **todos visibles**. Esto reemplaza
+  las "Opciones avanzadas" plegadas que se hicieron en la Fase 1, para ser fiel al diseño.
+  1. **El plano:** formatos y máximo con el dato de `/api/limits`. Dos columnas: la zona de
+     arrastre (botón "Seleccionar archivo") y la vista del video con nombre, resolución,
+     duración, peso, papelera y "Cambiar".
+  2. **El estilo:** chips de filtro (Todos · Avatar · Fuego · Agua · Rayo · Tierra · Viento ·
+     Otros), botón "✦ Sorpréndeme con IA" y tarjetas con imagen, título, subtítulo, etiquetas y
+     marca de selección.
+  3. **Toque de temporada (opcional):** tarjetas con icono, nombre, colores e insignia "De
+     temporada".
+  4. **Fuego y rayo (solo si el estilo lo requiere):** dos grupos, "Look del fuego" y "Look del
+     rayo", con tarjetas-icono de cada look.
+  5. **Vestuario (solo catálogos):** fila compacta con la insignia "Opcional" que se despliega.
+  6. **Análisis:** dos tarjetas, "⚡ Económico — reacciona a cada gesto" y "🧠 Profundo con IA
+     **+$** — ve el video completo…".
+- **Columna derecha fija:**
+  - **Vista previa** con Original / Con efectos y reproductor.
+  - **Información del video** (duración, resolución, tamaño).
+  - **Resumen del proyecto:** miniatura, "Avatar · Mixto", insignia Económico y lista con ✓ (video
+    cargado, estilo, temporada, vestuario, análisis).
+  - **CTA** "Crear mis efectos →" (decisión §9.7), "Tiempo estimado: 6 min" y "⓵ 1 crédito".
+- **Lo que ya existe y se reutiliza:** límites, avisos de duración y tamaño (`Dropzone.problems`),
+  tiempo estimado (`approx`), temporadas, looks, vestuario, el análisis profundo cerrado según la
+  cuenta, y `askPermission`.
+- **Lo que falta** (se construye ya con datos fijos `PENDIENTE` según §9.7, salvo lo marcado como
+  real):
+  - **Imágenes por estilo** (S, real): un fotograma de demostración por catálogo, servido por
+    `/api/styles`.
+  - **Imagen por look de fuego o rayo** (S, real): render de muestra con el motor.
+  - **Filtros por elemento** (real): los catálogos elementales de §9.7 (decisión 3).
+  - **"Con efectos" en la vista previa** (fijo hasta la Fase 2): la vista previa por ventana de
+    §3.1. Mientras tanto muestra un fotograma de demostración del estilo elegido, marcado
+    `PENDIENTE(fase 2)`.
+  - **"✦ Sorpréndeme con IA"** (fijo hasta la Fase 2): elige el primer estilo recomendado de una
+    lista fija `PENDIENTE(fase 2)`. La recomendación real (§3.1) requiere analizar al subir.
+  - **"1 crédito"** (fijo hasta la Fase 3): créditos.
+
+#### C. Trabajo en proceso — `procesando.png` · Fase 1b · M
+
+- **Encabezado** con imagen: "Tu video ya está **en proceso**" y un texto.
+- **Paso a paso horizontal** de 4 etapas, cada una con icono, título, descripción y estado
+  ("00:45 · Completado" / "En proceso…" / "Pendiente"): 1 Análisis del video, 2 IA y coreografía,
+  3 Renderizado, 4 Finalización.
+- **Bloque de avance:**
+  - Anillo con "42 % Proceso general" (el de `Darkroom`).
+  - Tarjeta de la etapa actual con icono, título, descripción, barra y "02:16 / 05:12"
+    (transcurrido / estimado).
+- **"Detalle del proceso":** tabla con Carga y preparación del video, Análisis de movimiento,
+  Selección de estilo y coreografía, Renderizado de efectos y Compresión y almacenamiento. Cada
+  fila lleva estado (✓ Completado / ◯ En proceso / Pendiente) y duración.
+- **"Actividad reciente":** línea de tiempo con hora y evento (Video recibido, Inicio del
+  procesamiento, Análisis de movimiento…).
+- **Aviso:** "💡 Puedes salir de esta página. Te notificaremos cuando esté listo", más el botón
+  rojo con borde "Cancelar procesamiento".
+- **Columna derecha:**
+  - Vista previa (baja resolución) con ▶.
+  - Ficha del proyecto: título editable, archivo, resolución, duración y tamaño.
+  - **Configuración aplicada:** Estilo, Temporada, Fuego y rayo, Vestuario, Análisis.
+  - **Actividad reciente.** El diseño la repite en dos paneles: se deja **una sola**, en la
+    columna derecha, para no duplicar.
+- **Lo que ya existe:** etapas y avance (SSE `useJob`), `estimate_s`, `queue_ahead`, `waitNote`,
+  notificación del navegador, eventos `stage.started/finished` con duración (telemetry).
+- **Backend que falta** (S cada uno):
+  1. **Tiempos por etapa en vivo:** guardar en `job.metrics` cada etapa al terminar su tramo
+     (hoy solo se guarda al final del trabajo).
+  2. **Actividad:** lista corta por trabajo (`job.activity`: hora y texto) que se llena con
+     `job.queued`, `job.started` y `stage.*`.
+  3. **Ficha del video:** guardar ancho, alto y peso del archivo (`VideoInfo` ya los mide) y un
+     `title` editable (`PATCH /api/jobs/{id}`).
+  4. **Cancelar** (S–M, §3.2): en cola se saca de la cola; en curso, una bandera revisada entre
+     fotogramas.
+- **Correcciones:**
+  - La etapa 4 "Finalización / Compresión y almacenamiento" corresponde a la escritura de ffmpeg,
+    que está dentro de `compose`. Se muestra con su propio tramo midiendo `encoder.close()`.
+  - La "Vista previa (baja resolución)" usa la miniatura del original hasta que exista la vista
+    previa con efectos.
+- **Resultado y error:** es la misma ruta. Al terminar muestra la vista del editor (diseño 1) en
+  solo lectura (comparador, línea de tiempo y descarga) hasta la Fase 2. El error usa el mismo
+  marco con el mensaje claro y "Reintentar" (ya hechos).
+
+#### D. Mis proyectos — `mis-proyectos.png` · Fase 1b · M
+
+- **Encabezado:** "Mis **proyectos**" con su texto, buscador ("Buscar por nombre, estilo o
+  fecha…"), filtro "Todos los estados" y "+ Crear nuevo".
+- **Chips con contador:** Todos (12) · ● Completados · ● En proceso · ● Error.
+- **Cuadrícula de 4 columnas.** Cada tarjeta lleva:
+  - Miniatura con ▶ y la duración, más una insignia de estado (Completado verde / En proceso azul
+    / Error rojo).
+  - Título y etiquetas (estilo y elementos).
+  - Fecha y hora, insignia de resolución (1080p / 720p), descarga ⤓ y menú ⋮ (renombrar, ver
+    versiones, borrar). En error, ↻ reintentar.
+- **Pie:** "Mostrando 12 de 12 proyectos", paginación y "12 / página". Tarjeta promocional en la
+  barra lateral.
+- **Lo que ya existe:** agrupación por proyecto (`groupVersions`), estados, reintentar, borrado,
+  miniaturas.
+- **Lo que falta:** `title` (de C), resolución y duración guardadas, etiquetas desde
+  `style.tags` y las temporadas, y descarga directa desde la tarjeta (`output_url` ya existe). La
+  búsqueda, los filtros y la paginación van en el cliente mientras los datos sean `jobs.json` (S);
+  en el servidor cuando se migre a Firestore.
+- **Las versiones de un proyecto:** viven en `/app/projects/:id/versions` (Fase 2). Hasta
+  entonces, el menú ⋮ las lista como hoy la Biblioteca.
+
+#### E. Editor de efectos — `editor-efectos.png` · Fase 2 · L
+
+- **Centro, "Vista previa":** Original / Con efectos, video grande, reproductor (▶, tiempo,
+  barra, volumen, pantalla completa).
+- **Línea de tiempo** con pestañas "Línea de tiempo / Vista de efectos", reproductor y zoom (lupas
+  y deslizador). Debajo:
+  - Regla de segundos y **tira de fotogramas**.
+  - **Una pista por efecto** con icono, nombre y barra de color con tiradores en los extremos.
+  - Cabezal cian vertical.
+- **Derecha, "Efectos activos (5)":** "+ Agregar efecto" y tarjetas con icono, nombre, rango
+  "00:03.2 – 00:12.8", punto de color, interruptor y ⋮.
+- **"Configuración del proyecto":** Estilo, Análisis, Duración, Resolución y Versión, con
+  "✎ Editar".
+- **Botones:** "⤓ Descargar video" (degradado) y "⇪ Compartir".
+- **Cómo encaja con el motor** (lo más importante de esta vista):
+  - Los "efectos" son los momentos de la coreografía (`/api/jobs/{id}/choreography`: segundo,
+    acción, persona, efecto y nota).
+  - Hoy son **decenas de momentos cortos**, no 5 efectos largos. Las pistas agrupan por tipo de
+    efecto o elemento: cada barra es un momento y la pista se nombra por el efecto.
+  - **El interruptor** apaga un momento, **el color** cambia el color del pin y **arrastrar**
+    cambia `seg` y `dur`. **"+ Agregar efecto"** añade un pin con una opción del catálogo en el
+    cabezal.
+  - Todo se traduce a un guion de prueba (`director/pins.py`, `pin-export`, `solo_estos: true`).
+    Al aplicar se crea **una nueva versión**: no se pisa la anterior, gracias al arreglo del §2.
+- **Corrección de expectativas:** no hay vista previa al instante. Aplicar cambios rehace el render
+  (~11 s por segundo de video). El botón dice "Aplicar cambios (≈ N min)" y la vista lleva a la
+  pantalla de proceso (C). "Con efectos" muestra la última versión renderizada.
+- **Backend:**
+  - `POST /api/jobs/{id}/edit` con la lista de pines: crea una versión.
+  - `GET /api/jobs/{id}/frames?n=12` para la tira de fotogramas (S).
+  - Campo de intensidad en los pines (no existe, M).
+- **"Compartir":** Fase 3, porque necesita enlaces públicos revocables (§3.3).
+
+### 9.6 Vistas sin diseño (plan para cuando se pidan los diseños)
+
+| Vista | Contenido | Fase | Dependencias |
+| --- | --- | --- | --- |
+| Login / registro / recuperar | El diseño actual de `Login.tsx`, separado en rutas. Añadir verificación de correo al registrar (§5: hoy no se exige) | 1b | Firebase `sendEmailVerification` |
+| Legales y soporte | Términos, privacidad (tratamiento de videos con caras, envío a Google y OpenAI, retención, borrado: §5) y soporte con FAQ | 1b | **Texto legal del negocio** |
+| Configuración mínima | Nombre, foto, cerrar sesión. Después: seguridad (sesiones, contraseña) y **borrar cuenta con todos sus datos** | 1b mínima · 3 completa | Borrado completo (ya existe por trabajo) |
+| Explorar efectos | Galería por catálogo y por efecto con videos de demostración, y "Usar este estilo" lleva al Estudio con el estilo elegido | 2 | Material de demostración propio |
+| Mi plan / Consumo | Plan, créditos, minutos, análisis profundos usados (de `metrics` y `llm.call`), límites y mejora | 3 | Créditos y planes (§3.5) |
+| Notificaciones (campana) | Trabajos terminados o fallidos y avisos del plan | 3 | Lista por usuario en el servidor |
+
+### 9.7 Decisiones del usuario (tomadas)
+
+1. **Elementos sin función todavía** (créditos, campana, "Con efectos", "Sorpréndeme",
+   "Compartir", "Precios", "Agregar efecto", "Cancelar procesamiento" mientras no exista…):
+   **se construyen tal cual el diseño, con datos fijos ("quemados")**, y con una anotación en el
+   código de lo que falta implementar.
+   - Todos los datos fijos viven en **un solo módulo**, `web/src/mocks/pendientes.ts`. Cada valor
+     va comentado `// PENDIENTE(fase N): <qué falta>`. Así, `grep -rn "PENDIENTE(" web/src` da la
+     lista completa de lo que falta. Los componentes nunca inventan datos sueltos.
+   - Una acción sin función (p. ej. "Compartir") muestra un aviso breve "Disponible pronto". No
+     navega ni simula éxito.
+   - **Excepción que no cambia con esta decisión:** los **testimonios con nombre** de la landing
+     ("Sofía M.", "Carlos T.", "Daniel R.", 5 estrellas) no pueden ser inventados en una página
+     pública: sería publicar reseñas falsas. En desarrollo pueden usarse como datos fijos marcados
+     `PENDIENTE`. **En el build de producción ese bloque no se muestra** hasta tener testimonios
+     reales con permiso. Lo controla `VITE_SHOW_PENDING`: encendido en desarrollo, apagado en
+     producción. Lo mismo aplica a cifras inventadas de créditos o consumo de otro usuario.
+2. **Texto del botón principal: "Crear mis efectos"** (se mantiene el de la Fase 1). El resto del
+   diseño, igual.
+3. **Estilos por elemento: se crean.** Son catálogos Fuego, Agua, Rayo, Tierra y Viento a partir de
+   Avatar con `element_mix` de un solo elemento.
+   - Paso previo **S–M**: YAML en `configs/catalogs/`, más una prueba por catálogo al estilo de
+     `tests/test_pins.py` (que cada uno dibuje algo) y una revisión visual con
+     `tools/preview.py`.
+   - Viento usa el aire de `engine/airbend.py`.
+   - Las categorías de la landing se mapean a estilos reales: "Elementos" → los cinco elementales,
+     "Naturaleza" → Tierra y Agua. "Fantasía", "Ciencia ficción" y "Arte visual" se muestran solo
+     si se mapean a un estilo existente (p. ej. Baile neón → "Arte visual"); si no, la tarjeta va
+     con datos fijos `PENDIENTE`, según la decisión 1.
+   - Los chips del Estudio (Todos · Avatar · Fuego · Agua · Rayo · Tierra · Viento · Otros)
+     filtran por esos catálogos; "Otros" = Baile, Pelea y Espadas.
+
+### 9.8 Orden de implementación y verificación de las vistas
+
+1. **Paso 0:** copiar las imágenes (§9.2) y actualizar
+   `vfxglow/docs/analisis_mejoras_y_seguridad.md` con esta sección 9, para que el plan del repo
+   quede igual a este.
+2. **Base:** tokens e iconos, `AppShell`, barras laterales, rutas `/app/*` y redirecciones, y el
+   módulo `web/src/mocks/pendientes.ts` con `VITE_SHOW_PENDING` (§9.7).
+3. **Catálogos elementales** (§9.7, decisión 3): YAML, pruebas y revisión visual, antes del
+   Estudio que los filtra.
+4. **Vistas 1b, en este orden:** Mis proyectos (D) → Trabajo en proceso (C) → Estudio (B) → Inicio
+   (A) → acceso y legales → configuración mínima. Cada vista llega con su backend S de §9.5 y en
+   commits separados (backend, componentes, vista, docs). Lo que no tenga función se construye
+   con datos fijos `PENDIENTE`.
+5. **Fase 2:** Editor (E), Explorar, Sorpréndeme y vista previa con efectos: reemplazan sus datos fijos `PENDIENTE`.
+6. **Verificación de fidelidad:** captura de cada vista a 1536 px junto al diseño, revisada
+   bloque por bloque, más capturas a 1024 px y 390 px.
+   - Requiere levantar `vite` y la API en local. En el último intento el clasificador del modo
+     automático lo bloqueó, así que hay que pedir permiso al usuario o que lo levante él.
+   - Pruebas de API para los campos nuevos (`title`, `activity`, tiempos por etapa, `/frames`,
+     `/edit`) y `tsc` en verde.
+
+**Modelo sugerido para implementarlo (§6):**
+- **Opus:** la arquitectura del shell y las rutas, y el editor E.
+- **Sonnet:** las vistas A–D y su backend.
+- **Haiku:** la copia de imágenes, el set de iconos, los textos y las plantillas legales (estas
+  con el texto que dé el negocio).
