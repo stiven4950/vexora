@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from vfxglow import telemetry
 from vfxglow.analysis.analyzer import analyze_video
 from vfxglow.analysis.schema import AnalysisHeader, VideoMeta
 from vfxglow.config import LAYER_GROUPS, PRESET_ALIASES, catalog_file, catalog_name, load_config, preset_file
@@ -202,19 +203,28 @@ class Pipeline:
             require_cuda("Las máscaras SAM 2.1", self.device)
 
     def run(self) -> Path:
-        self.analyze()
-        self.direct()
+        # Cada etapa deja stage.started / stage.finished con su duración (telemetry.py).
+        with telemetry.span("analyze", analysis_level=self.config.analysis.level):
+            self.analyze()
+        with telemetry.span("direct", provider=self.config.director.provider):
+            self.direct()
         if self.config.refiner.enabled or self.config.engine.keep_layers:
-            self.render()
-            self.refine()
-            return self.compose()
-        return self.compose(stream=True)
+            with telemetry.span("render"):
+                self.render()
+            with telemetry.span("refine"):
+                self.refine()
+            with telemetry.span("compose"):
+                return self.compose()
+        # Sin capas en disco, render y composición van juntos fotograma a fotograma.
+        with telemetry.span("compose", streamed=True):
+            return self.compose(stream=True)
 
     def analyze(self) -> None:
         key = stage_key("analyze-1", self.manifest.video_sha256, self.config.analysis.model_dump_json(), _code("analyze"))
         tracks = self.run_dir / "analysis" / "tracks.jsonl"
         if not self.force and self.manifest.stages.get("analyze") == key and tracks.exists():
             log.info("Análisis en caché")
+            telemetry.annotate(cache_hit=True)
             return
         log.info("Analizando %s en %s", self.video.name, self.device)
         analyze_video(self.video, self.run_dir, self.config, self.device)
@@ -241,6 +251,7 @@ class Pipeline:
         dest = self.run_dir / "scripts" / "effect_script.json"
         if not self.force and self.manifest.stages.get("direct") == key and dest.exists():
             log.info("Guion en caché")
+            telemetry.annotate(cache_hit=True)
             return
         from vfxglow.analysis.schema import MotionBrief
 
@@ -291,7 +302,8 @@ class Pipeline:
         from vfxglow.analysis.schema import MotionBrief
 
         brief = read_model(self.run_dir / "analysis" / "motion_brief.json", MotionBrief)
-        guion = deep_pins(self.video, self.manifest.video_sha256, catalog, meta.frame_count / (meta.fps or 30.0), director.deep, out, who, brief)
+        with telemetry.span("deep", model=director.deep.model):
+            guion = deep_pins(self.video, self.manifest.video_sha256, catalog, meta.frame_count / (meta.fps or 30.0), director.deep, out, who, brief)
         added = record_proposals(out / "deep_lectura.json", self.run_dir.parent / "efectos_propuestos.jsonl", self.video.name)
         if added:
             log.info("%d efectos nuevos anotados en %s", added, self.run_dir.parent / "efectos_propuestos.jsonl")
@@ -379,6 +391,11 @@ class Pipeline:
         for tag, value in (("", self.config.director.season), ("fuego-", self.config.director.fire_style), ("rayo-", self.config.director.bolt_style)):
             if value:
                 name += f"__{tag}{value}"
+        # "Otra versión" y el vestuario también: si no, la versión 2 pisa el video de la 1.
+        if self.config.director.take:
+            name += f"__toma{self.config.director.take}"
+        if self.config.director.wardrobe:
+            name += "__vestuario-" + "-".join(f"{who.replace('*', 'todos')}.{what}" for who, what in sorted(self.config.director.wardrobe.items()))
         dest = self.run_dir / "output" / f"{name}.mp4"
         stage = f"compose:{name}"
         index_path = self.run_dir / "layers" / "index.json"
@@ -393,6 +410,7 @@ class Pipeline:
         )
         if not self.force and self.manifest.stages.get(stage) == key and dest.exists():
             log.info("Video final en caché: %s", dest)
+            telemetry.annotate(cache_hit=True)
             return dest
         engine = tracks = None
         if stream:

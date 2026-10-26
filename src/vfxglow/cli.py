@@ -103,7 +103,10 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
     load_env_file(Path(".env"))
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    # Consola en texto como siempre; los eventos JSON de la corrida van a logs/events.jsonl.
+    from vfxglow import telemetry
+
+    telemetry.setup("vexora-cli", console=os.environ.get(telemetry.FORMAT_ENV, "text"), text_format="%(levelname)s %(message)s")
     if args.command == "pin-export":
         from vfxglow.director.choreography import Choreography
         from vfxglow.director.pins import pins_from_choreography, save_pins
