@@ -98,3 +98,39 @@ export function groupVersions<T extends { id: string; parent: string | null; cre
     .map(([id, members]) => ({ id, jobs: members.sort((a, b) => b.created - a.created) }))
     .sort((a, b) => latest(b.jobs) - latest(a.jobs));
 }
+
+/** "02:14" — minutos y segundos enteros (los tiempos de los diseños). */
+export const mmss = (seconds: number): string => {
+  const total = Math.max(0, Math.round(seconds));
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+};
+
+/** "23 oct 2026 · 14:32" */
+export const fullDate = (epoch: number): string => {
+  const date = new Date(epoch * 1000);
+  const day = date.toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" }).replace(/\./g, "");
+  const time = date.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit", hour12: false });
+  return `${day} · ${time}`;
+};
+
+/** "1080p" desde el lado corto, o null si no se guardó el tamaño. */
+export const resolutionLabel = (width: number | null, height: number | null): string | null =>
+  width && height ? `${Math.min(width, height)}p` : null;
+
+/** "poderes_de_agua.mp4" → "Poderes de agua". */
+export const niceName = (filename: string): string => {
+  const base = filename.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
+  return base ? base.charAt(0).toUpperCase() + base.slice(1) : filename;
+};
+
+/** El nombre del proyecto: el que puso la persona o el del archivo. */
+export const projectName = (job: { title: string | null; filename: string }): string => job.title ?? niceName(job.filename);
+
+export type ProjectStatus = "done" | "processing" | "failed";
+
+/** El estado de un proyecto: en proceso si alguna versión se está haciendo; si no, completado si
+ * alguna terminó; si ninguna, error. */
+export function groupStatus(jobs: { status: "queued" | "running" | "done" | "failed" }[]): ProjectStatus {
+  if (jobs.some((job) => job.status === "queued" || job.status === "running")) return "processing";
+  return jobs.some((job) => job.status === "done") ? "done" : "failed";
+}

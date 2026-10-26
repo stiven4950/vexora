@@ -87,6 +87,14 @@ export interface Job {
   metrics: Record<string, unknown>;
   /** Duración del video subido. */
   video_seconds: number | null;
+  /** Ficha del video subido. */
+  video_width: number | null;
+  video_height: number | null;
+  video_bytes: number | null;
+  /** Nombre del proyecto que puso la persona (de todo el video y sus versiones). */
+  title: string | null;
+  /** Etiquetas del estilo y de la temporada. */
+  tags: string[];
   /** Segundos que se espera que tarde el revelado (mientras espera o procesa). */
   estimate_s: number | null;
   /** Cuántos trabajos van antes en la cola (hay un solo trabajador). */

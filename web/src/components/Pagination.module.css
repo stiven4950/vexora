@@ -1,0 +1,39 @@
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bar button {
+  display: grid;
+  place-items: center;
+  min-width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.bar button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.bar .on {
+  color: var(--cyan);
+  border-color: var(--cyan);
+  background: rgba(var(--cyan-rgb), 0.1);
+}
+
+.bar select {
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}

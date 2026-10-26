@@ -41,6 +41,9 @@ export const api = {
   choreography: (id: string) => request<Moment[]>(`/api/jobs/${id}/choreography`),
   people: (id: string) => request<Person[]>(`/api/jobs/${id}/people`),
   remove: (id: string) => request<void>(`/api/jobs/${id}`, { method: "DELETE" }),
+  /** Renombra el proyecto (el video y todas sus versiones); vacío = el nombre del archivo. */
+  rename: (id: string, title: string) =>
+    request<Job>(`/api/jobs/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title }) }),
   /** Vuelve a procesar un trabajo que falló, con lo mismo que pidió. */
   retry: (id: string) => request<Job>(`/api/jobs/${id}/retry`, { method: "POST" }),
 
