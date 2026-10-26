@@ -85,6 +85,21 @@ export interface Job {
   trace_id: string;
   /** Resumen medido: espera en cola, duración por etapa, tokens y costo de IA. */
   metrics: Record<string, unknown>;
+  /** Duración del video subido. */
+  video_seconds: number | null;
+  /** Segundos que se espera que tarde el revelado (mientras espera o procesa). */
+  estimate_s: number | null;
+  /** Cuántos trabajos van antes en la cola (hay un solo trabajador). */
+  queue_ahead: number;
+}
+
+/** Lo que la web avisa antes de subir (GET /api/limits). */
+export interface Limits {
+  max_upload_mb: number;
+  max_video_seconds: number;
+  max_video_side: number;
+  /** El análisis profundo es de pago: solo algunas cuentas lo tienen. */
+  deep_allowed: boolean;
 }
 
 /** Prendas de cuerpo entero que puede llevar una persona. */

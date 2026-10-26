@@ -70,3 +70,31 @@ export const actionHue = (action: string): number => {
   for (const char of action) hash = (hash * 31 + char.charCodeAt(0)) % 360;
   return hash;
 };
+
+/** Una duración en palabras: "menos de 1 min", "unos 3 min", "unos 12 min". */
+export const approx = (seconds: number): string => {
+  const minutes = Math.round(seconds / 60);
+  if (seconds < 45) return "menos de 1 min";
+  return `unos ${Math.max(minutes, 1)} min`;
+};
+
+/** Un trabajo y sus versiones: el video original es el primero (sin `parent`). */
+export interface Group<T> {
+  id: string;
+  jobs: T[];
+}
+
+const latest = (jobs: { created: number }[]): number => Math.max(...jobs.map((job) => job.created));
+
+/** Agrupa los trabajos por el video del que salen (`parent` apunta al primero), el grupo con la
+ * actividad más reciente primero y, dentro de cada grupo, la versión más reciente primero. */
+export function groupVersions<T extends { id: string; parent: string | null; created: number }>(jobs: T[]): Group<T>[] {
+  const groups = new Map<string, T[]>();
+  for (const job of jobs) {
+    const key = job.parent ?? job.id;
+    groups.set(key, [...(groups.get(key) ?? []), job]);
+  }
+  return [...groups.entries()]
+    .map(([id, members]) => ({ id, jobs: members.sort((a, b) => b.created - a.created) }))
+    .sort((a, b) => latest(b.jobs) - latest(a.jobs));
+}

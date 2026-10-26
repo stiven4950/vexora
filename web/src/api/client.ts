@@ -1,5 +1,5 @@
 import { idToken } from "../auth/firebase";
-import type { Season, Job, Looks, Moment, Person, Style, StyleKind, Wardrobe } from "./types";
+import type { Season, Job, Limits, Looks, Moment, Person, Style, StyleKind, Wardrobe } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -35,6 +35,7 @@ export const api = {
   styles: () => request<Style[]>("/api/styles"),
   seasons: () => request<Season[]>("/api/seasons"),
   looks: () => request<Looks>("/api/looks"),
+  limits: () => request<Limits>("/api/limits"),
   jobs: () => request<Job[]>("/api/jobs"),
   job: (id: string) => request<Job>(`/api/jobs/${id}`),
   choreography: (id: string) => request<Moment[]>(`/api/jobs/${id}/choreography`),
