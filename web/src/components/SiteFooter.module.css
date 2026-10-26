@@ -1,0 +1,33 @@
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 32px;
+  padding: 22px clamp(16px, 4vw, 40px);
+  border-top: 1px solid var(--line);
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.links {
+  display: flex;
+  gap: 18px;
+}
+
+.links a:hover {
+  color: var(--text);
+}
+
+.social {
+  display: flex;
+  gap: 16px;
+  color: var(--muted);
+}
