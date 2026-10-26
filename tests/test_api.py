@@ -12,32 +12,51 @@ import pytest
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient  # noqa: E402
 
-from vfxglow.api import server  # noqa: E402
+from vfxglow import telemetry  # noqa: E402
+from vfxglow.api import limits, server  # noqa: E402
 from vfxglow.api.jobs import JobStore  # noqa: E402
 
 
 class FakePipeline:
+    """Pipeline de mentira. Como el de verdad, escribe el video en un archivo aparte y lo
+    renombra, y el mismo video (aunque sea otra versión) comparte carpeta de análisis y salida."""
+
+    fail = False
+
     def __init__(self, config, video: Path, **kwargs) -> None:
         self.kwargs = kwargs
-        self.run_dir = video.parent / "run"
+        self.run_dir = video.parent.parent.parent / "runs" / video.parent.name
 
     def run(self) -> Path:
         log = logging.getLogger("vfxglow.analysis")
-        log.info("Analizando %s en cpu", "x")
-        log.info("Analizados 25/50 fotogramas")
+        with telemetry.span("analyze"):
+            log.info("Analizando %s en cpu", "/Users/alguien/videos/x.mp4")
+            log.info("Analizados 25/50 fotogramas")
+            if FakePipeline.fail:
+                raise RuntimeError("falló a propósito en /Users/alguien/runs/x")
         logging.getLogger("vfxglow").info("Guion pelea con 3 efectos")
         logging.getLogger("vfxglow").info("Compuestos 50/50 fotogramas")
-        if self.kwargs.get("catalog") == "roto":
-            raise RuntimeError("falló a propósito")
         out = self.run_dir / "output" / "pelea.mp4"
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_bytes(b"\x00" * 64)
+        partial = out.with_name("pelea.partial.mp4")
+        partial.write_bytes(f"toma={self.kwargs.get('take', 0)} semilla={self.kwargs.get('seed')}".encode())
+        partial.replace(out)
         return out
+
+
+def fake_probe(path: Path) -> limits.VideoInfo:
+    return limits.VideoInfo(duration_s=10.0, width=720, height=1280, fps=30.0, codec="h264")
+
+
+@pytest.fixture(autouse=True)
+def _reset_fake_pipeline() -> None:
+    FakePipeline.fail = False
 
 
 @pytest.fixture()
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     monkeypatch.setattr("vfxglow.pipeline.Pipeline", FakePipeline)
+    monkeypatch.setattr(limits, "probe_video", fake_probe)
     monkeypatch.setenv("VEXORA_AUTH", "off")
     logging.getLogger().setLevel(logging.INFO)
     monkeypatch.setattr(server, "store", JobStore(tmp_path / "api_data", server.CONFIG))
@@ -66,8 +85,9 @@ def test_job_lifecycle_progress_output_and_variation(client: TestClient) -> None
     assert response.status_code == 201
     job = _wait(client, response.json()["id"])
     assert job["status"] == "done" and job["progress"] == 1.0 and job["output_url"]
-    assert any("Analizados 25/50" in line for line in job["log"])
-    assert client.get(job["output_url"]).content == b"\x00" * 64
+    # La consola es solo para ver el proceso en vivo: un trabajo terminado no la expone.
+    assert job["log"] == [] and job["metrics"]["stages"]["analyze"] >= 0 and "queue_wait_ms" in job["metrics"]
+    assert client.get(job["output_url"]).content == b"toma=0 semilla=7"
     assert "attachment" in client.get(job["output_url"] + "&download=true").headers["content-disposition"]
     variation = client.post(f"/api/jobs/{job['id']}/variations", json={"style": "pelea", "seed": 9}).json()
     assert variation["parent"] == job["id"] and variation["seed"] == 9
@@ -121,7 +141,12 @@ def test_fire_and_bolt_looks_listed_and_passed_to_the_pipeline(client: TestClien
 
 # ----- cuentas (Firebase Auth) -----
 
-USERS = {"token-ana": ("uid-ana", "ana@example.com"), "token-beto": ("uid-beto", "beto@example.com")}
+USERS = {
+    "token-ana": ("uid-ana", "ana@example.com", True),
+    "token-beto": ("uid-beto", "beto@example.com", True),
+    # Alguien que registró con contraseña el correo de Ana sin poder verificarlo.
+    "token-impostor": ("uid-impostor", "ana@example.com", False),
+}
 
 
 @pytest.fixture()
@@ -130,6 +155,7 @@ def secure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     from vfxglow.api import auth
 
     monkeypatch.setattr("vfxglow.pipeline.Pipeline", FakePipeline)
+    monkeypatch.setattr(limits, "probe_video", fake_probe)
     monkeypatch.setenv("VEXORA_AUTH", "on")
 
     def fake_verify(token: str) -> auth.User:
@@ -137,8 +163,8 @@ def secure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
             from fastapi import HTTPException
 
             raise HTTPException(401, "Sesión no válida")
-        uid, email = USERS[token]
-        return auth.User(uid=uid, email=email)
+        uid, email, verified = USERS[token]
+        return auth.User(uid=uid, email=email, email_verified=verified)
 
     monkeypatch.setattr(auth, "verify", fake_verify)
     monkeypatch.setattr(server, "store", JobStore(tmp_path / "api_data", server.CONFIG))
@@ -198,6 +224,8 @@ def test_jobs_from_before_accounts_are_adopted_by_the_legacy_owner(secure: TestC
     assert legacy.owner is None
     assert secure.get("/api/jobs", headers=_as("token-beto")).json() == []
     monkeypatch.setenv("VEXORA_LEGACY_OWNER", "ana@example.com")
+    # Con el correo sin verificar no se adopta nada, aunque coincida.
+    assert secure.get("/api/jobs", headers=_as("token-impostor")).json() == []
     assert [j["id"] for j in secure.get("/api/jobs", headers=_as("token-ana")).json()] == [legacy.id]
     assert secure.get("/api/jobs", headers=_as("token-beto")).json() == []
 
@@ -231,3 +259,133 @@ def test_avatar_presets_are_one_catalog() -> None:
     assert ("catalog", "avatar") in listed
     assert not any(name in PRESET_ALIASES for _kind, name in listed)
     assert PRESET_ALIASES["avatar_fire"] == PRESET_ALIASES["avatar_storm"] == "avatar"
+
+
+# ----- Fase 0: versiones, fallos, borrado, cuotas y trazabilidad -----
+
+
+def test_each_version_keeps_its_own_video(client: TestClient) -> None:
+    """"Otra versión" no pisa el MP4 de la anterior aunque compartan carpeta en runs/."""
+    first = _wait(client, client.post("/api/jobs", files={"video": ("clip.mp4", io.BytesIO(b"x"), "video/mp4")}, data={"style": "pelea"}).json()["id"])
+    second = _wait(client, client.post(f"/api/jobs/{first['id']}/variations", json={"style": "pelea"}).json()["id"])
+    assert client.get(second["output_url"]).content == b"toma=1 semilla=None"
+    assert client.get(first["output_url"]).content == b"toma=0 semilla=None"
+
+
+def test_a_failure_says_what_happened_without_internals_and_can_be_retried(client: TestClient) -> None:
+    FakePipeline.fail = True
+    job = _wait(client, client.post("/api/jobs", files={"video": ("clip.mp4", io.BytesIO(b"x"), "video/mp4")}, data={"style": "pelea"}).json()["id"])
+    assert job["status"] == "failed" and job["error_code"] == "analysis_failed"
+    assert "cuerpo entero" in job["error"]
+    assert "a propósito" not in str(job) and "/Users/" not in str(job)
+    FakePipeline.fail = False
+    retried = client.post(f"/api/jobs/{job['id']}/retry")
+    assert retried.status_code == 200 and retried.json()["id"] == job["id"]
+    done = _wait(client, job["id"])
+    assert done["status"] == "done" and done["error"] is None and done["trace_id"] == job["trace_id"]
+    assert client.post(f"/api/jobs/{job['id']}/retry").status_code == 409  # solo lo que falló
+
+
+def test_the_live_console_hides_server_paths(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    store = server.store
+    job = store.create("clip.mp4", io.BytesIO(b"x"), "catalog", "pelea", None)
+    _wait(client, job.id)
+    store._update(job.id, status="running", log=["Analizando /Users/alguien/videos/x.mp4 en cpu"])
+    assert client.get(f"/api/jobs/{job.id}").json()["log"] == ["Analizando x.mp4 en cpu"]
+
+
+def test_delete_removes_the_video_the_analysis_and_the_output(client: TestClient) -> None:
+    job = _wait(client, client.post("/api/jobs", files={"video": ("clip.mp4", io.BytesIO(b"x"), "video/mp4")}, data={"style": "pelea"}).json()["id"])
+    stored = server.store.get(job["id"])
+    paths = [Path(stored.run_dir), Path(stored.output), Path(stored.video_path)]
+    assert all(path.exists() for path in paths)
+    assert client.delete(f"/api/jobs/{job['id']}").status_code == 204
+    assert not any(path.exists() for path in paths)
+
+
+def test_a_shared_analysis_survives_until_its_last_version_is_deleted(client: TestClient) -> None:
+    first = _wait(client, client.post("/api/jobs", files={"video": ("clip.mp4", io.BytesIO(b"x"), "video/mp4")}, data={"style": "pelea"}).json()["id"])
+    second = _wait(client, client.post(f"/api/jobs/{first['id']}/variations", json={"style": "pelea"}).json()["id"])
+    run_dir = Path(server.store.get(first["id"]).run_dir)
+    assert client.delete(f"/api/jobs/{first['id']}").status_code == 204
+    assert run_dir.exists() and client.get(second["output_url"]).status_code == 200
+    assert client.delete(f"/api/jobs/{second['id']}").status_code == 204
+    assert not run_dir.exists()
+
+
+def test_a_job_in_progress_cannot_be_deleted(client: TestClient) -> None:
+    job = _wait(client, client.post("/api/jobs", files={"video": ("clip.mp4", io.BytesIO(b"x"), "video/mp4")}, data={"style": "pelea"}).json()["id"])
+    server.store._update(job["id"], status="running")
+    assert client.delete(f"/api/jobs/{job['id']}").status_code == 409
+
+
+def test_an_upload_is_cut_at_the_size_limit_without_leftovers(client: TestClient) -> None:
+    from vfxglow.api.jobs import UploadTooLarge
+
+    store = server.store
+    with pytest.raises(UploadTooLarge):
+        store.create("grande.mp4", io.BytesIO(b"\x00" * 100), "catalog", "pelea", None, max_bytes=10)
+    assert list(store.uploads.iterdir()) == []
+
+
+def test_daily_and_active_quotas(secure: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("VEXORA_DAILY_JOBS", "1")
+    _upload(secure, "token-ana")
+    files = {"video": ("clip.mp4", io.BytesIO(b"\x00" * 128), "video/mp4")}
+    again = secure.post("/api/jobs", files=files, data={"style": "pelea"}, headers=_as("token-ana"))
+    assert again.status_code == 429 and "por hoy" in again.json()["detail"]
+    _upload(secure, "token-beto")  # la cuota es de cada uno
+
+
+def test_deep_analysis_only_for_allowed_accounts_and_with_a_daily_limit(secure: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    def deep_upload(token: str):
+        files = {"video": ("clip.mp4", io.BytesIO(b"\x00" * 128), "video/mp4")}
+        return secure.post("/api/jobs", files=files, data={"style": "baile", "deep": "true"}, headers=_as(token))
+
+    assert deep_upload("token-ana").status_code == 429  # nadie, si VEXORA_DEEP_ALLOW está vacío
+    monkeypatch.setenv("VEXORA_DEEP_ALLOW", "ana@example.com")
+    monkeypatch.setenv("VEXORA_DAILY_DEEP", "1")
+    monkeypatch.setenv("VEXORA_MAX_ACTIVE_JOBS", "10")
+    assert deep_upload("token-ana").status_code == 201
+    assert deep_upload("token-ana").status_code == 429
+    assert deep_upload("token-beto").status_code == 429
+
+
+def test_video_files_are_checked_before_they_are_queued(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import imageio_ffmpeg
+    import numpy as np
+    from fastapi import HTTPException
+
+    clip = tmp_path / "clip.mp4"
+    writer = imageio_ffmpeg.write_frames(str(clip), (64, 96), fps=10)
+    writer.send(None)
+    for _ in range(20):
+        writer.send(np.zeros((96, 64, 3), dtype=np.uint8).tobytes())
+    writer.close()
+    info = limits.probe_video(clip)
+    assert (info.width, info.height) == (64, 96) and 1.5 <= info.duration_s <= 2.5
+    monkeypatch.setenv("VEXORA_MAX_VIDEO_SECONDS", "1")
+    with pytest.raises(HTTPException) as too_long:
+        limits.probe_video(clip)
+    assert too_long.value.status_code == 422
+    fake = tmp_path / "falso.mp4"
+    fake.write_bytes(b"\x00" * 128)
+    with pytest.raises(HTTPException):
+        limits.probe_video(fake)
+
+
+def test_every_request_is_traced_without_media_keys_and_has_security_headers(client: TestClient, caplog: pytest.LogCaptureFixture) -> None:
+    job = _wait(client, client.post("/api/jobs", files={"video": ("clip.mp4", io.BytesIO(b"x"), "video/mp4")}, data={"style": "pelea"}).json()["id"])
+    caplog.clear()
+    with caplog.at_level(logging.INFO, logger="vexora.events"):
+        response = client.get(job["thumbnail_url"].replace("thumbnail", "original"))
+    assert response.headers["X-Content-Type-Options"] == "nosniff" and response.headers["Referrer-Policy"] == "no-referrer"
+    traced = [r.vexora for r in caplog.records if getattr(r, "vexora", {}).get("event") == "http.request"]
+    assert traced and traced[-1]["http"]["route"] == "/api/jobs/{job_id}/original"
+    assert "k=" not in str(traced)
+
+
+def test_api_docs_are_not_served_in_production(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    assert client.get("/openapi.json").status_code == 200
+    monkeypatch.setenv("VEXORA_ENV", "prod")
+    assert client.get("/openapi.json").status_code == 404 and client.get("/docs").status_code == 404

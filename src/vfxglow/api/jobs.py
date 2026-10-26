@@ -11,16 +11,20 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import queue
 import re
 import shutil
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field
+
+from vfxglow import telemetry
 
 log = logging.getLogger("vfxglow.api")
 
@@ -65,6 +69,58 @@ class Job(BaseModel):
     wardrobe: dict[str, str] = Field(default_factory=dict)
     # Análisis profundo (director/deep.py): opcional y de pago; por defecto, el económico.
     deep: bool = False
+    # Traza que une la petición, el trabajo, sus etapas y sus llamadas a IA (telemetry.py).
+    trace_id: str = Field(default_factory=telemetry.new_trace_id)
+    # Si falló: el tipo de fallo (ERRORS); `error` lleva el mensaje para la persona.
+    error_code: str | None = None
+    # Resumen medido del trabajo: espera en cola, duración por etapa, tokens y costo de IA.
+    metrics: dict = Field(default_factory=dict)
+
+
+# Fallos, en palabras de quien usa la web. El detalle técnico va solo al registro del servidor.
+ERRORS = {
+    "interrupted": "El servidor se reinició mientras procesaba tu video. Reintenta.",
+    "ai_busy": "El servicio de IA del análisis profundo está saturado. Reintenta en unos minutos o usa el análisis económico.",
+    "ai_failed": "El análisis profundo no dio un resultado utilizable. Reintenta o usa el análisis económico.",
+    "analysis_failed": "No pudimos seguir el movimiento en este video. Prueba con un plano donde se vea el cuerpo entero.",
+    "render_failed": "Algo falló al dibujar los efectos. Reintenta; si vuelve a pasar, prueba otro estilo.",
+    "internal": "Algo falló al revelar tu video. Reintenta; si vuelve a pasar, escríbenos.",
+}
+
+
+def classify(error: BaseException, stage: str | None) -> str:
+    """El tipo de fallo según la etapa donde ocurrió (telemetry.span la anota)."""
+    if stage == "deep":
+        busy = type(error).__name__ == "Saturated" or any(f"respondió {code}" in str(error) for code in (429, 503))
+        return "ai_busy" if busy else "ai_failed"
+    if stage == "analyze":
+        return "analysis_failed"
+    if stage in ("render", "refine", "compose"):
+        return "render_failed"
+    return "internal"
+
+
+class JobBusy(Exception):
+    """El trabajo está procesándose: borrarlo ahora rompería el revelado en curso."""
+
+
+class NotRetryable(Exception):
+    """Solo se reintenta un trabajo que falló."""
+
+
+class UploadTooLarge(Exception):
+    """El video subido pasa del máximo permitido."""
+
+
+def _copy_limited(data, target: Path, max_bytes: int | None, chunk: int = 1024 * 1024) -> None:
+    """Copia el flujo subido a `target`, cortando en cuanto pasa de `max_bytes`."""
+    written = 0
+    with target.open("wb") as out:
+        while block := data.read(chunk):
+            written += len(block)
+            if max_bytes is not None and written > max_bytes:
+                raise UploadTooLarge(target.name)
+            out.write(block)
 
 
 class _Progress(logging.Handler):
@@ -121,6 +177,9 @@ class JobStore:
         self.config = config
         self.uploads = root / "uploads"
         self.uploads.mkdir(parents=True, exist_ok=True)
+        # El MP4 de cada trabajo, aparte: en runs/ varias versiones (y usuarios) comparten carpeta.
+        self.outputs = root / "outputs"
+        self.outputs.mkdir(parents=True, exist_ok=True)
         self._path = root / "jobs.json"
         self._lock = threading.Lock()
         self._jobs: dict[str, Job] = {}
@@ -129,7 +188,8 @@ class JobStore:
                 job = Job.model_validate(raw)
                 if job.status in ("queued", "running"):
                     # El servidor se reinició a mitad: el trabajo no terminó.
-                    job.status, job.error, job.message = "failed", "Interrumpido al reiniciar el servidor", "Interrumpido"
+                    job.status, job.error_code, job.message = "failed", "interrupted", "Interrumpido"
+                    job.error = ERRORS["interrupted"]
                 self._jobs[job.id] = job
         self._queue: queue.Queue[str] = queue.Queue()
         threading.Thread(target=self._worker, daemon=True, name="vfxglow-jobs").start()
@@ -159,15 +219,62 @@ class JobStore:
 
     # ----- altas -----
 
-    def create(self, filename: str, data, style_kind: str, style: str, seed: int | None, season: str | None = None, owner: str | None = None, wardrobe: dict[str, str] | None = None, deep: bool = False, fire_style: str | None = None, bolt_style: str | None = None) -> Job:
+    def create(
+        self,
+        filename: str,
+        data,
+        style_kind: str,
+        style: str,
+        seed: int | None,
+        season: str | None = None,
+        owner: str | None = None,
+        wardrobe: dict[str, str] | None = None,
+        deep: bool = False,
+        fire_style: str | None = None,
+        bolt_style: str | None = None,
+        max_bytes: int | None = None,
+        check: Callable[[Path], object] | None = None,
+    ) -> Job:
+        """Guarda el video y encola el trabajo. `max_bytes` corta la copia aunque el cliente no
+        haya dicho el tamaño (UploadTooLarge); `check` valida el archivo guardado antes de
+        encolarlo. Si algo falla, no queda nada en disco."""
         job_id = uuid.uuid4().hex[:10]
         folder = self.uploads / job_id
         folder.mkdir(parents=True)
         safe = re.sub(r"[^A-Za-z0-9._-]+", "_", Path(filename).name) or "video.mp4"
         target = folder / safe
-        with target.open("wb") as out:
-            shutil.copyfileobj(data, out)
-        return self._enqueue(Job(id=job_id, created=time.time(), filename=filename, video_path=str(target), style_kind=style_kind, style=style, seed=seed, season=season, owner=owner, wardrobe=wardrobe or {}, deep=deep, fire_style=fire_style, bolt_style=bolt_style))
+        try:
+            _copy_limited(data, target, max_bytes)
+            info = check(target) if check is not None else None
+        except BaseException:
+            shutil.rmtree(folder, ignore_errors=True)
+            raise
+        job = Job(id=job_id, created=time.time(), filename=filename, video_path=str(target), style_kind=style_kind, style=style, seed=seed, season=season, owner=owner, wardrobe=wardrobe or {}, deep=deep, fire_style=fire_style, bolt_style=bolt_style)
+        telemetry.event(
+            "upload.received",
+            job_id=job.id,
+            trace_id=job.trace_id,
+            usr={"id": telemetry.user_ref(owner)},
+            bytes=target.stat().st_size,
+            extension=target.suffix.lower(),
+            video=info.model_dump() if isinstance(info, BaseModel) else None,
+        )
+        return self._enqueue(job)
+
+    def retry(self, job_id: str) -> Job:
+        """Vuelve a encolar un trabajo que falló, con lo mismo que pidió (y su misma traza)."""
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None or job.status != "failed":
+                raise NotRetryable(job_id)
+            job.status, job.stage, job.progress, job.message = "queued", "queued", 0.0, "En cola"
+            job.error = job.error_code = None
+            job.log, job.started, job.finished, job.metrics = [], None, None, {}
+            self._save()
+            snapshot = job.model_copy(deep=True)
+        self._queue.put(job_id)
+        telemetry.event("job.retried", job_id=job_id, trace_id=snapshot.trace_id)
+        return snapshot
 
     def variation(self, parent: Job, style_kind: str, style: str, seed: int | None, season: str | None = None, wardrobe: dict[str, str] | None = None, deep: bool | None = None, fire_style: str | None = None, bolt_style: str | None = None) -> Job:
         """Mismo video, otro estilo u otra versión: el análisis queda en caché y es rápido.
@@ -205,15 +312,39 @@ class JobStore:
         )
 
     def delete(self, job_id: str) -> bool:
+        """Borra el trabajo y todo lo suyo: su MP4, sus miniaturas y, si ningún otro trabajo los
+        usa, el video subido y la carpeta del análisis en runs/ (pistas, overlay, guiones, lectura
+        de la IA). JobBusy si se está procesando."""
         with self._lock:
-            job = self._jobs.pop(job_id, None)
+            job = self._jobs.get(job_id)
             if job is None:
                 return False
-            shared = any(other.video_path == job.video_path for other in self._jobs.values())
+            if job.status == "running":
+                raise JobBusy(job_id)
+            del self._jobs[job_id]
+            video_shared = any(other.video_path == job.video_path for other in self._jobs.values())
+            run_shared = any(other.run_dir == job.run_dir for other in self._jobs.values())
             self._save()
-        if not shared:
-            shutil.rmtree(Path(job.video_path).parent, ignore_errors=True)
+        (self.outputs / f"{job_id}.mp4").unlink(missing_ok=True)
+        folder = Path(job.video_path).parent
+        if video_shared:
+            for cache in folder.glob(f"thumb-{job_id}-*.jpg"):
+                cache.unlink(missing_ok=True)
+        else:
+            shutil.rmtree(folder, ignore_errors=True)
+        if job.run_dir and not run_shared and self._removable(Path(job.run_dir)):
+            shutil.rmtree(job.run_dir, ignore_errors=True)
+        telemetry.event("job.deleted", job_id=job_id, trace_id=job.trace_id, run_deleted=bool(job.run_dir and not run_shared))
         return True
+
+    def _removable(self, run_dir: Path) -> bool:
+        """Solo se borra una carpeta de análisis dentro de runs/ o de api_data/, nunca otra ruta."""
+        from vfxglow.config import load_config
+
+        runs = Path(load_config(self.config).paths.runs_dir)
+        runs = runs if runs.is_absolute() else Path.cwd() / runs
+        target = run_dir.resolve()
+        return any(target != root.resolve() and target.is_relative_to(root.resolve()) for root in (runs, self.root))
 
     # ----- actualización -----
 
@@ -238,8 +369,26 @@ class JobStore:
     def _enqueue(self, job: Job) -> Job:
         with self._lock:
             self._jobs[job.id] = job
+            depth = sum(other.status == "queued" for other in self._jobs.values())
             self._save()
         self._queue.put(job.id)
+        telemetry.event(
+            "job.queued",
+            job_id=job.id,
+            parent_job_id=job.parent,
+            trace_id=job.trace_id,
+            usr={"id": telemetry.user_ref(job.owner)},
+            style=job.style,
+            style_kind=job.style_kind,
+            take=job.take,
+            seed=job.seed,
+            season=job.season,
+            fire_style=job.fire_style,
+            bolt_style=job.bolt_style,
+            wardrobe=job.wardrobe or None,
+            deep=job.deep,
+            queue_depth=depth,
+        )
         return job
 
     def _save(self) -> None:
@@ -263,23 +412,53 @@ class JobStore:
         handler = _Progress(self, job.id)
         root = logging.getLogger()
         root.addHandler(handler)
-        self._update(job.id, status="running", stage="analyze", message="Preparando", started=time.time())
+        started = time.time()
+        self._update(job.id, status="running", stage="analyze", message="Preparando", started=started)
+        with telemetry.job_context(job.id, job.trace_id, usr={"id": telemetry.user_ref(job.owner)}, style=job.style) as summary:
+            summary["queue_wait_ms"] = round((started - job.created) * 1000)
+            telemetry.event("job.started", queue_wait_ms=summary["queue_wait_ms"], deep=job.deep, take=job.take)
+            try:
+                kwargs = {"catalog": job.style, "seed": job.seed, "take": job.take} if job.style_kind == "catalog" else {"preset": job.style}
+                kwargs["season"] = job.season
+                if job.style_kind == "catalog" and (job.fire_style or job.bolt_style):
+                    kwargs["fire_style"] = job.fire_style
+                    kwargs["bolt_style"] = job.bolt_style
+                if job.style_kind == "catalog" and job.wardrobe:
+                    kwargs["wardrobe"] = job.wardrobe
+                if job.style_kind == "catalog" and job.deep:
+                    kwargs["deep"] = True
+                pipeline = Pipeline(self.config, Path(job.video_path), **kwargs)
+                self._update(job.id, run_dir=str(pipeline.run_dir))
+                output = self._keep(job.id, pipeline.run())
+                finished = time.time()
+                summary["total_ms"] = round((finished - started) * 1000)
+                self._update(job.id, status="done", stage="done", progress=1.0, message="Listo", output=str(output), finished=finished, metrics=summary)
+                telemetry.event("job.finished", outcome="ok", duration_ms=summary["total_ms"], output_bytes=output.stat().st_size, metrics=summary)
+            except Exception as exc:  # el mensaje claro va a la interfaz; el detalle, al registro
+                code = classify(exc, summary.get("failed_stage"))
+                log.exception("Trabajo %s falló (%s)", job.id, code)
+                finished = time.time()
+                summary["total_ms"] = round((finished - started) * 1000)
+                self._update(job.id, status="failed", message="Falló", error=ERRORS[code], error_code=code, finished=finished, metrics=summary)
+                telemetry.event(
+                    "job.failed",
+                    level=logging.ERROR,
+                    outcome="error",
+                    duration_ms=summary["total_ms"],
+                    error={"code": code, "kind": type(exc).__name__, "message": telemetry.redact(str(exc))[:500]},
+                    metrics=summary,
+                )
+            finally:
+                root.removeHandler(handler)
+
+    def _keep(self, job_id: str, output: Path) -> Path:
+        """El MP4 del trabajo en api_data/outputs/<id>.mp4. Enlace duro si se puede (el pipeline
+        escribe el siguiente video en un archivo nuevo y lo renombra, así que el enlace conserva
+        este); si no, copia."""
+        target = self.outputs / f"{job_id}.mp4"
+        target.unlink(missing_ok=True)
         try:
-            kwargs = {"catalog": job.style, "seed": job.seed, "take": job.take} if job.style_kind == "catalog" else {"preset": job.style}
-            kwargs["season"] = job.season
-            if job.style_kind == "catalog" and (job.fire_style or job.bolt_style):
-                kwargs["fire_style"] = job.fire_style
-                kwargs["bolt_style"] = job.bolt_style
-            if job.style_kind == "catalog" and job.wardrobe:
-                kwargs["wardrobe"] = job.wardrobe
-            if job.style_kind == "catalog" and job.deep:
-                kwargs["deep"] = True
-            pipeline = Pipeline(self.config, Path(job.video_path), **kwargs)
-            self._update(job.id, run_dir=str(pipeline.run_dir))
-            output = pipeline.run()
-            self._update(job.id, status="done", stage="done", progress=1.0, message="Listo", output=str(output), finished=time.time())
-        except Exception as exc:  # el error se muestra en la interfaz; el servidor sigue
-            log.exception("Trabajo %s falló", job.id)
-            self._update(job.id, status="failed", message="Falló", error=f"{type(exc).__name__}: {exc}", finished=time.time())
-        finally:
-            root.removeHandler(handler)
+            os.link(output, target)
+        except OSError:
+            shutil.copy2(output, target)
+        return target

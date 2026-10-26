@@ -13,19 +13,23 @@ import asyncio
 import json
 import logging
 import os
+import time
 from pathlib import Path
 
 import cv2
 import yaml
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from vfxglow import telemetry
+from vfxglow.api import limits
 from vfxglow.api.auth import User, auth_enabled, check_bind, current_user, media_key, media_owner
-from vfxglow.api.jobs import Job, JobStore, owns
+from vfxglow.api.jobs import Job, JobBusy, JobStore, NotRetryable, UploadTooLarge, owns
 from vfxglow.config import PRESET_ALIASES, catalog_name
+from vfxglow.telemetry import redact
 
 ROOT = Path(os.environ.get("VFXGLOW_ROOT", Path.cwd()))
 CONFIG = ROOT / "configs" / "default.yaml"
@@ -40,6 +44,56 @@ app.add_middleware(
     allow_headers=["*"],
 )
 store: JobStore | None = None
+
+# Cabeceras de seguridad en toda respuesta. Sin CSP todavía: hay que medir antes qué necesita el
+# acceso con Google (ventana emergente de Firebase) para no romperlo.
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    # Las URLs de archivos llevan la llave ?k=: que no viaje en el Referer a otros sitios.
+    "Referrer-Policy": "no-referrer",
+    "X-Frame-Options": "DENY",
+}
+DOCS_PATHS = ("/docs", "/redoc", "/openapi.json", "/docs/oauth2-redirect")
+
+
+def _production() -> bool:
+    return os.environ.get("VEXORA_ENV", "dev").strip().lower() == "prod"
+
+
+def _client_ip(request: Request) -> str | None:
+    """La IP sin su último tramo (privacidad): 190.24.8.0, 2800:e2:4a::."""
+    host = request.client.host if request.client else None
+    if not host:
+        return None
+    if ":" in host:
+        return ":".join(host.split(":")[:3]) + "::"
+    parts = host.split(".")
+    return ".".join(parts[:3] + ["0"]) if len(parts) == 4 else host
+
+
+@app.middleware("http")
+async def observe(request: Request, call_next) -> Response:
+    """Una línea http.request por petición (ruta plantilla, estado, duración) y las cabeceras de
+    seguridad. En producción, la documentación interactiva de la API no se sirve."""
+    started = time.perf_counter()
+    request_id = telemetry.new_trace_id()
+    if _production() and request.url.path in DOCS_PATHS:
+        response: Response = Response(status_code=404)
+    else:
+        response = await call_next(request)
+    response.headers.update(SECURITY_HEADERS)
+    response.headers["X-Request-Id"] = request_id
+    route = getattr(request.scope.get("route"), "path", None)
+    telemetry.event(
+        "http.request",
+        request_id=request_id,
+        http={"method": request.method, "route": route or "sin_ruta", "status_code": response.status_code},
+        duration_ms=round((time.perf_counter() - started) * 1000, 1),
+        bytes_out=response.headers.get("content-length"),
+        network={"client_ip": _client_ip(request)},
+        user_agent=request.headers.get("user-agent", "")[:200],
+    )
+    return response
 
 
 def jobs() -> JobStore:
@@ -175,7 +229,9 @@ class JobView(Job):
 def view(job: Job) -> JobView:
     data = job.model_dump()
     data["owner"] = None  # el uid no sale de la API
-    data["log"] = job.log[-20:]
+    # La consola en vivo, solo mientras procesa y sin rutas del servidor; el detalle de un fallo
+    # queda en el registro del servidor (el cliente recibe error_code y un mensaje claro).
+    data["log"] = [redact(line) for line in job.log[-20:]] if job.status in ("queued", "running") else []
     done = job.status == "done" and job.output
     key = f"?k={media_key(job.id, job.owner or 'local')}"
     return JobView(
@@ -196,7 +252,8 @@ LEGACY_ENV = "VEXORA_LEGACY_OWNER"
 
 def _adopt(user: User) -> None:
     legacy = os.environ.get(LEGACY_ENV, "").strip().lower()
-    if auth_enabled() and legacy and (user.email or "").lower() == legacy:
+    # Solo con el correo verificado: cualquiera puede registrar un correo ajeno con contraseña.
+    if auth_enabled() and legacy and user.email_verified and (user.email or "").lower() == legacy:
         adopted = jobs().adopt(user.uid)
         if adopted:
             logging.getLogger("vfxglow.api").info("%s adoptó %d trabajos sin dueño", user.email, adopted)
@@ -261,7 +318,27 @@ def create_job(
     _check_season(season or None)
     _check_looks(fire_style or None, bolt_style or None)
     wear = _check_wardrobe(json.loads(wardrobe) if wardrobe and wardrobe.strip().startswith("{") else ({"*": wardrobe} if wardrobe else {}))
-    return view(jobs().create(video.filename or "video.mp4", video.file, style_kind, style, seed, season or None, owner=user.uid, wardrobe=wear, deep=deep, fire_style=fire_style or None, bolt_style=bolt_style or None))
+    deep = deep and style_kind == "catalog"
+    limits.check_quota(user, jobs().list(user.uid), jobs().list(), deep)
+    try:
+        job = jobs().create(
+            video.filename or "video.mp4",
+            video.file,
+            style_kind,
+            style,
+            seed,
+            season or None,
+            owner=user.uid,
+            wardrobe=wear,
+            deep=deep,
+            fire_style=fire_style or None,
+            bolt_style=bolt_style or None,
+            max_bytes=MAX_UPLOAD_MB * 1024 * 1024,
+            check=limits.probe_video,
+        )
+    except UploadTooLarge as error:
+        raise HTTPException(413, f"El video supera {MAX_UPLOAD_MB} MB") from error
+    return view(job)
 
 
 class VariationRequest(BaseModel):
@@ -293,7 +370,22 @@ def create_variation(job_id: str, body: VariationRequest, user: User = Depends(c
     _check_season(body.season)
     wear = _check_wardrobe(body.wardrobe) if body.wardrobe is not None else None
     _check_looks(body.fire_style or None, body.bolt_style or None)
-    return view(jobs().variation(_job(job_id, user), body.style_kind, style, body.seed, body.season, wear, body.deep, body.fire_style, body.bolt_style))
+    parent = _job(job_id, user)
+    deep = (parent.deep if body.deep is None else body.deep) and body.style_kind == "catalog"
+    limits.check_quota(user, jobs().list(user.uid), jobs().list(), deep)
+    return view(jobs().variation(parent, body.style_kind, style, body.seed, body.season, wear, body.deep, body.fire_style, body.bolt_style))
+
+
+@app.post("/api/jobs/{job_id}/retry", response_model=JobView)
+def retry_job(job_id: str, user: User = Depends(current_user)) -> JobView:
+    """Vuelve a procesar un trabajo que falló, con lo mismo que pidió."""
+    job = _job(job_id, user)
+    # Reintentar no suma un trabajo del día ni otro análisis profundo: solo cuenta lo activo.
+    limits.check_quota(user, jobs().list(user.uid), jobs().list(), deep=False)
+    try:
+        return view(jobs().retry(job.id))
+    except NotRetryable as error:
+        raise HTTPException(409, "Solo se puede reintentar un video que falló.") from error
 
 
 @app.get("/api/jobs/{job_id}", response_model=JobView)
@@ -304,7 +396,11 @@ def get_job(job_id: str, user: User = Depends(current_user)) -> JobView:
 @app.delete("/api/jobs/{job_id}", status_code=204)
 def delete_job(job_id: str, user: User = Depends(current_user)) -> Response:
     _job(job_id, user)
-    if not jobs().delete(job_id):
+    try:
+        deleted = jobs().delete(job_id)
+    except JobBusy as error:
+        raise HTTPException(409, "Este video se está procesando. Espera a que termine para borrarlo.") from error
+    if not deleted:
         raise HTTPException(404, "Trabajo no encontrado")
     return Response(status_code=204)
 
@@ -489,10 +585,11 @@ def main() -> None:
     from vfxglow.cli import load_env_file
 
     load_env_file(ROOT / ".env")
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
+    # Consola en JSON (VEXORA_LOG_FORMAT=text para leerla a ojo) y logs/events.jsonl siempre en JSON.
+    telemetry.setup("vexora-api", ROOT / "logs")
     host = os.environ.get("VFXGLOW_HOST", "127.0.0.1")
     check_bind(host)
-    uvicorn.run(app, host=host, port=int(os.environ.get("VFXGLOW_PORT", "8000")), log_level="info")
+    uvicorn.run(app, host=host, port=int(os.environ.get("VFXGLOW_PORT", "8000")), log_level="info", access_log=False)  # http.request lo reemplaza
 
 
 if __name__ == "__main__":
