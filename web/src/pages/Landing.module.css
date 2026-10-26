@@ -1,0 +1,373 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  height: 68px;
+  padding: 0 clamp(16px, 4vw, 56px);
+  background: rgba(var(--ink-rgb), 0.82);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--line);
+}
+
+.nav {
+  display: flex;
+  gap: clamp(14px, 2vw, 32px);
+  margin-left: 20px;
+  font-size: 13px;
+}
+
+.nav a:hover {
+  color: var(--cyan);
+}
+
+.cta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.solid,
+.ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.solid {
+  background: var(--cyan);
+  color: #04141a;
+  box-shadow: 0 10px 34px -10px rgba(var(--cyan-rgb), 0.7);
+}
+
+.solid:hover {
+  filter: brightness(1.08);
+}
+
+.ghost {
+  border: 1px solid var(--line-strong);
+}
+
+.ghost:hover {
+  border-color: var(--cyan);
+}
+
+/* ----- portada ----- */
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(24px, 4vw, 56px);
+  padding: clamp(32px, 6vw, 80px) clamp(16px, 4vw, 56px);
+}
+
+.heroText h1 {
+  margin: 14px 0 20px;
+  font-size: clamp(30px, 3.5vw, 48px);
+}
+
+.heroText h1 span {
+  display: block;
+  color: var(--cyan);
+}
+
+.heroText p {
+  max-width: 520px;
+  margin: 0 0 28px;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 22px;
+}
+
+.actions .solid {
+  padding: 14px 28px;
+  font-size: 15px;
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--cyan);
+  font-size: 14px;
+}
+
+.link span {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--cyan);
+}
+
+/* ----- beneficios ----- */
+
+.benefits {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 28px;
+  padding: 44px clamp(16px, 4vw, 56px);
+  border-block: 1px solid var(--line);
+  background: rgba(8, 11, 20, 0.5);
+  text-align: center;
+}
+
+.badge {
+  display: inline-grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 14px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  background: rgba(var(--cyan-rgb), 0.06);
+  color: var(--cyan);
+}
+
+.benefits h3 {
+  margin: 0 0 8px;
+  font-family: var(--sans);
+  font-size: 16px;
+  letter-spacing: 0;
+}
+
+.benefits p {
+  max-width: 260px;
+  margin: 0 auto;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ----- estilos ----- */
+
+.featured {
+  padding: 56px clamp(16px, 4vw, 56px);
+}
+
+.featured > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.featured h2 {
+  margin: 8px 0;
+  font-size: clamp(26px, 3vw, 36px);
+}
+
+.featured p {
+  max-width: 560px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.featured > header > a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--cyan);
+  font-size: 13px;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  min-height: 210px;
+  border-radius: 14px;
+  border: 1px solid var(--line-strong);
+  background: #05070d;
+  overflow: hidden;
+  transition: transform 0.25s, border-color 0.25s;
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  border-color: var(--cyan);
+}
+
+.art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(5, 7, 13, 0.9) 12%, transparent 65%);
+}
+
+.cardText {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px;
+}
+
+.cardText strong {
+  font-size: 15px;
+}
+
+.cardText small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* ----- testimonios ----- */
+
+.band {
+  display: grid;
+  grid-template-columns: minmax(160px, 320px) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(24px, 5vw, 80px);
+  padding: 56px clamp(16px, 8vw, 140px);
+  background: linear-gradient(to bottom, rgba(var(--blue-rgb, 59, 130, 246), 0.08), rgba(8, 11, 20, 0.6));
+  border-block: 1px solid var(--line);
+}
+
+.phone {
+  padding: 8px;
+  border-radius: 28px;
+  border: 3px solid #2a3350;
+  background: #05070d;
+}
+
+.phone {
+  max-width: 280px;
+}
+
+.phone > div {
+  aspect-ratio: 9 / 12;
+  border-radius: 20px;
+}
+
+.phone span {
+  font-size: 10px;
+}
+
+.quotes blockquote {
+  margin: 14px 0 0;
+  font-size: clamp(18px, 2vw, 26px);
+  line-height: 1.35;
+}
+
+.quotes cite {
+  display: block;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  font-style: normal;
+}
+
+.quotes cite b {
+  color: #fbbf24;
+  letter-spacing: 2px;
+}
+
+.more {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.more blockquote {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* ----- cierre ----- */
+
+.final {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 64px 16px;
+  text-align: center;
+}
+
+.final h2 {
+  font-size: clamp(24px, 3vw, 34px);
+}
+
+.final p {
+  margin: 0 0 8px;
+  color: var(--muted);
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px 32px;
+  padding: 24px clamp(16px, 4vw, 56px);
+  border-top: 1px solid var(--line);
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.footer > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.footer nav,
+.legal {
+  display: flex;
+  gap: 18px;
+}
+
+.footer a:hover {
+  color: var(--text);
+}
+
+@media (max-width: 900px) {
+  .hero,
+  .band {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .nav {
+    display: none;
+  }
+}

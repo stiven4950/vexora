@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
-import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useParams } from "react-router-dom";
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useParams, useSearchParams } from "react-router-dom";
 
 import { SessionProvider, useSession } from "./auth/AuthContext";
 import { JobPage } from "./pages/JobPage";
+import { Landing } from "./pages/Landing";
 import { Library } from "./pages/Library";
 import { Login } from "./pages/Login";
 import { LegalPlaceholder, Placeholder } from "./pages/Placeholder";
@@ -38,6 +39,12 @@ function GuestOnly({ authed, children }: { authed: boolean; children: ReactNode 
   return authed ? <Navigate to={from ?? ROUTES.studio} replace /> : children;
 }
 
+/** La portada es para quien no ha entrado; con sesión se va directo al estudio (salvo con ?inicio=1). */
+function Home({ authed }: { authed: boolean }) {
+  const [params] = useSearchParams();
+  return authed && !params.has("inicio") ? <Navigate to={ROUTES.studio} replace /> : <Landing />;
+}
+
 function AppRoutes() {
   const { user, required } = useSession();
   // Mientras Firebase recupera la sesión guardada, nada: así no parpadea el acceso.
@@ -45,8 +52,7 @@ function AppRoutes() {
   const authed = !required || !!user;
   return (
     <Routes>
-      {/* PENDIENTE(fase 1b): la página pública de inicio (landing). Mientras tanto, a donde se iba. */}
-      <Route path={ROUTES.home} element={<Navigate to={authed ? ROUTES.studio : ROUTES.login} replace />} />
+      <Route path={ROUTES.home} element={<Home authed={authed} />} />
       <Route path={ROUTES.login} element={<GuestOnly authed={authed}><Login mode="signin" /></GuestOnly>} />
       <Route path={ROUTES.register} element={<GuestOnly authed={authed}><Login mode="register" /></GuestOnly>} />
       <Route path={ROUTES.forgot} element={<GuestOnly authed={authed}><Login mode="reset" /></GuestOnly>} />
