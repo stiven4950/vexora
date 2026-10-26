@@ -28,8 +28,12 @@ export function Library() {
   }, []);
 
   const remove = async (job: Job) => {
-    if (!window.confirm(`¿Borrar "${job.filename}" (${job.style_current})?`)) return;
-    await api.remove(job.id);
+    if (!window.confirm(`¿Borrar "${job.filename}" (${job.style_current})? Se borran también su análisis y sus archivos.`)) return;
+    try {
+      await api.remove(job.id);
+    } catch (cause) {
+      window.alert(cause instanceof Error ? cause.message : String(cause));
+    }
     void load();
   };
 

@@ -40,6 +40,8 @@ export const api = {
   choreography: (id: string) => request<Moment[]>(`/api/jobs/${id}/choreography`),
   people: (id: string) => request<Person[]>(`/api/jobs/${id}/people`),
   remove: (id: string) => request<void>(`/api/jobs/${id}`, { method: "DELETE" }),
+  /** Vuelve a procesar un trabajo que falló, con lo mismo que pidió. */
+  retry: (id: string) => request<Job>(`/api/jobs/${id}/retry`, { method: "POST" }),
 
   /** Sube el video con progreso real (fetch no informa del envío; XHR sí). */
   async create(

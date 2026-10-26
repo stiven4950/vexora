@@ -94,6 +94,21 @@ export function JobPage() {
     }
   };
 
+  // Mismo trabajo, misma petición: el servidor lo vuelve a encolar y la página sigue su progreso.
+  const retry = async () => {
+    if (!job) return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      await api.retry(job.id);
+      window.location.reload();
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (error) {
     return (
       <Shell>
@@ -142,11 +157,12 @@ export function JobPage() {
         <div className={styles.failed}>
           <Icon name="alert" size={28} />
           <h2>El revelado falló</h2>
-          <p className="mono">{job.error}</p>
-          <details>
-            <summary>Ver registro</summary>
-            <pre>{job.log.join("\n")}</pre>
-          </details>
+          <p>{job.error ?? "Algo falló al revelar tu video."}</p>
+          <Button icon="spark" disabled={busy} onClick={retry}>
+            Reintentar
+          </Button>
+          {actionError && <span className={styles.error}>{actionError}</span>}
+          <p className="mono">Referencia: {job.trace_id.slice(0, 12)}</p>
         </div>
       )}
 

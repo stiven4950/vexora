@@ -79,6 +79,12 @@ export interface Job {
   wardrobe: Record<string, Wardrobe>;
   /** Análisis profundo: un modelo vio el video completo y escribió la coreografía. */
   deep: boolean;
+  /** Si falló: el tipo de fallo (api/jobs.py, ERRORS); `error` trae el mensaje para la persona. */
+  error_code: string | null;
+  /** Referencia del trabajo en los registros del servidor (para soporte). */
+  trace_id: string;
+  /** Resumen medido: espera en cola, duración por etapa, tokens y costo de IA. */
+  metrics: Record<string, unknown>;
 }
 
 /** Prendas de cuerpo entero que puede llevar una persona. */
