@@ -438,6 +438,16 @@ def get_job(job_id: str, user: User = Depends(current_user)) -> JobView:
     return view(_job(job_id, user))
 
 
+@app.post("/api/jobs/{job_id}/cancel", status_code=202)
+def cancel_job(job_id: str, user: User = Depends(current_user)) -> dict:
+    """Cancela un trabajo en cola (se borra ya) o en curso (se corta en unos segundos y se borra)."""
+    _job(job_id, user)
+    outcome = jobs().cancel(job_id)
+    if outcome == "none":
+        raise HTTPException(409, "Este video ya no está en proceso: no hay nada que cancelar.")
+    return {"status": outcome}
+
+
 class RenameRequest(BaseModel):
     title: str
 

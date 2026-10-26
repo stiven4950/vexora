@@ -22,6 +22,8 @@ class FakePipeline:
     renombra, y el mismo video (aunque sea otra versión) comparte carpeta de análisis y salida."""
 
     fail = False
+    # Un trabajo que no termina solo: espera (con puntos de control) a que lo cancelen.
+    block = False
 
     def __init__(self, config, video: Path, **kwargs) -> None:
         self.kwargs = kwargs
@@ -32,6 +34,9 @@ class FakePipeline:
         with telemetry.span("analyze"):
             log.info("Analizando %s en cpu", "/Users/alguien/videos/x.mp4")
             log.info("Analizados 25/50 fotogramas")
+            for _ in range(500 if FakePipeline.block else 0):
+                telemetry.checkpoint()
+                time.sleep(0.01)
             if FakePipeline.fail:
                 raise RuntimeError("falló a propósito en /Users/alguien/runs/x")
         logging.getLogger("vfxglow").info("Guion pelea con 3 efectos")
@@ -51,6 +56,7 @@ def fake_probe(path: Path) -> limits.VideoInfo:
 @pytest.fixture(autouse=True)
 def _reset_fake_pipeline() -> None:
     FakePipeline.fail = False
+    FakePipeline.block = False
 
 
 @pytest.fixture()
@@ -456,3 +462,59 @@ def test_only_the_owner_renames_a_project(secure: TestClient) -> None:
     ana = _upload(secure, "token-ana")
     assert secure.patch(f"/api/jobs/{ana['id']}", json={"title": "mío"}, headers=_as("token-beto")).status_code == 404
     assert secure.patch(f"/api/jobs/{ana['id']}", json={"title": "mío"}, headers=_as("token-ana")).status_code == 200
+
+
+# ----- Trabajo en proceso: etapas en vivo, actividad y cancelar -----
+
+
+def test_the_job_keeps_its_stage_times_and_a_recent_activity_list(client: TestClient) -> None:
+    job = _wait(client, client.post("/api/jobs", files={"video": ("clip.mp4", io.BytesIO(b"x" * 2_000_000), "video/mp4")}, data={"style": "pelea"}).json()["id"])
+    texts = [line["text"] for line in job["activity"]]
+    assert texts[:2] == ["Video recibido", "Inicio del procesamiento"]
+    assert texts[2:4] == ["Análisis de movimiento (en proceso)", "Análisis de movimiento (completado)"]
+    assert "2.0 MB" in job["activity"][0]["detail"]
+    assert job["metrics"]["stages"]["analyze"] >= 0 and job["metrics"]["current"] is None
+
+
+def _running(client: TestClient, wait_s: float = 5.0) -> dict:
+    job = client.post("/api/jobs", files={"video": ("clip.mp4", io.BytesIO(b"x"), "video/mp4")}, data={"style": "pelea"}).json()
+    deadline = time.time() + wait_s
+    while time.time() < deadline:
+        view = client.get(f"/api/jobs/{job['id']}").json()
+        if view["status"] == "running" and view["metrics"].get("current") == "analyze":
+            return view
+        time.sleep(0.02)
+    raise AssertionError("el trabajo no llegó a procesarse")
+
+
+def test_cancelling_a_running_job_stops_it_and_removes_everything(client: TestClient) -> None:
+    FakePipeline.block = True
+    job = _running(client)
+    folder = Path(server.store.get(job["id"]).video_path).parent
+    assert job["metrics"]["current"] == "analyze"  # la etapa en curso, en vivo
+    assert client.post(f"/api/jobs/{job['id']}/cancel").json() == {"status": "stopping"}
+    for _ in range(200):
+        if client.get(f"/api/jobs/{job['id']}").status_code == 404:
+            break
+        time.sleep(0.02)
+    assert client.get(f"/api/jobs/{job['id']}").status_code == 404 and not folder.exists()
+    assert client.get("/api/jobs").json() == []
+    # El trabajador sigue vivo para el siguiente.
+    FakePipeline.block = False
+    assert _wait(client, client.post("/api/jobs", files={"video": ("c.mp4", io.BytesIO(b"x"), "video/mp4")}, data={"style": "pelea"}).json()["id"])["status"] == "done"
+
+
+def test_cancelling_a_queued_job_removes_it_at_once_and_only_its_owner_can(secure: TestClient) -> None:
+    FakePipeline.block = True
+    ana = _upload(secure, "token-ana")  # el primero ocupa al trabajador
+    waiting = _upload(secure, "token-beto")
+    assert secure.post(f"/api/jobs/{waiting['id']}/cancel", headers=_as("token-ana")).status_code == 404
+    assert secure.post(f"/api/jobs/{waiting['id']}/cancel", headers=_as("token-beto")).json() == {"status": "removed"}
+    assert secure.get(f"/api/jobs/{waiting['id']}", headers=_as("token-beto")).status_code == 404
+    secure.post(f"/api/jobs/{ana['id']}/cancel", headers=_as("token-ana"))
+    FakePipeline.block = False
+
+
+def test_there_is_nothing_to_cancel_once_a_job_finished(client: TestClient) -> None:
+    job = _wait(client, client.post("/api/jobs", files={"video": ("clip.mp4", io.BytesIO(b"x"), "video/mp4")}, data={"style": "pelea"}).json()["id"])
+    assert client.post(f"/api/jobs/{job['id']}/cancel").status_code == 409

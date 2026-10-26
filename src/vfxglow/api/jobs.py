@@ -86,10 +86,23 @@ class Job(BaseModel):
     video_width: int | None = None
     video_height: int | None = None
     video_bytes: int | None = None
+    # Lo que fue pasando ("Video recibido", "Inicio del procesamiento", cada etapa), para la
+    # actividad reciente de la pantalla de proceso. Hora en segundos epoch.
+    activity: list[dict] = Field(default_factory=list)
     # Nombre del proyecto que pone la persona; sin él, el del archivo. Es de todo el proyecto
     # (el video y sus versiones): JobStore.rename lo pone en todos.
     title: str | None = None
 
+
+# Cómo se llama cada etapa en la actividad reciente.
+STAGE_LABELS = {
+    "analyze": "Análisis de movimiento",
+    "direct": "Selección de estilo y coreografía",
+    "deep": "Análisis profundo con IA",
+    "compose": "Renderizado de efectos",
+    "finalize": "Compresión y almacenamiento",
+}
+ACTIVITY_LINES = 12
 
 # Fallos, en palabras de quien usa la web. El detalle técnico va solo al registro del servidor.
 ERRORS = {
@@ -206,6 +219,8 @@ class JobStore:
                     job.error = ERRORS["interrupted"]
                 self._jobs[job.id] = job
         self._queue: queue.Queue[str] = queue.Queue()
+        # Un evento por trabajo en curso: pedir parar es ponerlo (telemetry.checkpoint lo lee).
+        self._cancel: dict[str, threading.Event] = {}
         threading.Thread(target=self._worker, daemon=True, name="vfxglow-jobs").start()
 
     # ----- consulta -----
@@ -322,6 +337,7 @@ class JobStore:
             video_height=getattr(info, "height", None),
             video_bytes=target.stat().st_size,
         )
+        job.activity = [{"at": job.created, "text": "Video recibido", "detail": f"{filename} ({target.stat().st_size / 1e6:.1f} MB)"}]
         telemetry.event(
             "upload.received",
             job_id=job.id,
@@ -398,7 +414,29 @@ class JobStore:
                 return False
             if job.status == "running":
                 raise JobBusy(job_id)
-            del self._jobs[job_id]
+        return self._remove(job_id)
+
+    def cancel(self, job_id: str) -> str:
+        """Cancelar: en cola, se borra ya; en curso, se pide parar y el proceso se corta en su
+        próximo punto de control (cada pocos fotogramas) y se borra solo. Devuelve "removed",
+        "stopping" o "none" si ya no hay nada que cancelar."""
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None:
+                return "none"
+            if job.status == "running":
+                self._cancel.setdefault(job_id, threading.Event()).set()
+                return "stopping"
+            if job.status != "queued":
+                return "none"
+        self._remove(job_id)
+        return "removed"
+
+    def _remove(self, job_id: str) -> bool:
+        with self._lock:
+            job = self._jobs.pop(job_id, None)
+            if job is None:
+                return False
             video_shared = any(other.video_path == job.video_path for other in self._jobs.values())
             run_shared = any(other.run_dir == job.run_dir for other in self._jobs.values())
             self._save()
@@ -438,7 +476,9 @@ class JobStore:
 
     def _update(self, job_id: str, **fields) -> None:
         with self._lock:
-            job = self._jobs[job_id]
+            job = self._jobs.get(job_id)
+            if job is None:  # se canceló y se borró mientras tanto
+                return
             for key, value in fields.items():
                 setattr(job, key, value)
             self._save()
@@ -491,8 +531,12 @@ class JobStore:
         root.addHandler(handler)
         started = time.time()
         self._update(job.id, status="running", stage="analyze", message="Preparando", started=started)
-        with telemetry.job_context(job.id, job.trace_id, usr={"id": telemetry.user_ref(job.owner)}, style=job.style) as summary:
+        cancel = self._cancel.setdefault(job.id, threading.Event())
+        context = telemetry.job_context(job.id, job.trace_id, on_change=self._stage_changed(job.id), cancel=cancel, usr={"id": telemetry.user_ref(job.owner)}, style=job.style)
+        with context as summary:
             summary["queue_wait_ms"] = round((started - job.created) * 1000)
+            self._note(job.id, "Inicio del procesamiento", "Se ha iniciado el análisis del video.")
+            self._update(job.id, metrics=dict(summary))
             telemetry.event("job.started", queue_wait_ms=summary["queue_wait_ms"], deep=job.deep, take=job.take)
             try:
                 kwargs = {"catalog": job.style, "seed": job.seed, "take": job.take} if job.style_kind == "catalog" else {"preset": job.style}
@@ -511,6 +555,10 @@ class JobStore:
                 summary["total_ms"] = round((finished - started) * 1000)
                 self._update(job.id, status="done", stage="done", progress=1.0, message="Listo", output=str(output), finished=finished, metrics=summary)
                 telemetry.event("job.finished", outcome="ok", duration_ms=summary["total_ms"], output_bytes=output.stat().st_size, metrics=summary)
+            except telemetry.Cancelled:
+                # La persona canceló: no queda nada que mostrar, así que se borra todo.
+                telemetry.event("job.cancelled", duration_ms=round((time.time() - started) * 1000))
+                self._remove(job.id)
             except Exception as exc:  # el mensaje claro va a la interfaz; el detalle, al registro
                 code = classify(exc, summary.get("failed_stage"))
                 log.exception("Trabajo %s falló (%s)", job.id, code)
@@ -527,6 +575,24 @@ class JobStore:
                 )
             finally:
                 root.removeHandler(handler)
+                self._cancel.pop(job.id, None)
+
+    def _note(self, job_id: str, text: str, detail: str = "") -> None:
+        """Una línea de la actividad reciente (las últimas ACTIVITY_LINES)."""
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is not None:
+                job.activity = [*job.activity, {"at": time.time(), "text": text, "detail": detail}][-ACTIVITY_LINES:]
+
+    def _stage_changed(self, job_id: str) -> Callable[[str, str, dict], None]:
+        """Lo que se hace cuando una etapa empieza o termina: la actividad y las métricas en vivo."""
+
+        def changed(kind: str, stage: str, summary: dict) -> None:
+            label = STAGE_LABELS.get(stage, stage)
+            self._note(job_id, f"{label} ({'en proceso' if kind == 'started' else 'completado'})")
+            self._update(job_id, metrics=dict(summary))
+
+        return changed
 
     def _keep(self, job_id: str, output: Path) -> Path:
         """El MP4 del trabajo en api_data/outputs/<id>.mp4. Enlace duro si se puede (el pipeline
