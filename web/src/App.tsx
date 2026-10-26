@@ -7,6 +7,7 @@ import { Landing } from "./pages/Landing";
 import { Library } from "./pages/Library";
 import { Login } from "./pages/Login";
 import { LegalPlaceholder, Placeholder } from "./pages/Placeholder";
+import { Settings } from "./pages/Settings";
 import { Studio } from "./pages/Studio";
 import { ROUTES } from "./routes";
 
@@ -66,7 +67,7 @@ function AppRoutes() {
         <Route path="library" element={<Library />} />
         <Route path="explore" element={<Placeholder title="Explorar efectos" phase="fase 2" text="Una galería de cada estilo y efecto con videos de demostración." />} />
         <Route path="plan" element={<Placeholder title="Mi plan" phase="fase 3" text="Tu plan, tus créditos y tu consumo." />} />
-        <Route path="settings" element={<Placeholder title="Configuración" phase="fase 1b" text="Tu perfil y la seguridad de tu cuenta." />} />
+        <Route path="settings" element={<Settings />} />
         <Route path="projects/:id/*" element={<Placeholder title="Proyecto" phase="fase 2" text="El resumen, el editor de efectos y las versiones de tu video." />} />
       </Route>
       <Route path="/jobs/:id" element={<LegacyJob />} />

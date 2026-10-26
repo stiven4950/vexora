@@ -1,0 +1,111 @@
+.head {
+  margin-bottom: 20px;
+}
+
+.head h1 {
+  font-size: clamp(30px, 3.4vw, 44px);
+  margin-bottom: 6px;
+}
+
+.head h1 span {
+  color: var(--cyan);
+}
+
+.head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.card {
+  max-width: 720px;
+  margin-bottom: 14px;
+  padding: 18px 22px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(var(--cyan-rgb), 0.14);
+  background: rgba(10, 16, 32, 0.72);
+}
+
+.card h2 {
+  margin: 0 0 12px;
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.profile {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.profile img,
+.profile > span {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  object-fit: cover;
+}
+
+.profile > span {
+  display: grid;
+  place-items: center;
+  background: rgba(var(--violet-rgb), 0.3);
+  font-size: 22px;
+}
+
+.profile div,
+.row div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.row:first-of-type {
+  border-top: 0;
+}
+
+.row button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--cyan);
+  background: none;
+  color: var(--cyan);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.row button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.row .danger {
+  border-color: rgba(244, 63, 94, 0.6);
+  color: #fb7185;
+}
+
+.ok {
+  color: #34d399;
+}

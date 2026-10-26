@@ -31,6 +31,8 @@ interface Session {
   signInEmail: (email: string, password: string, remember?: boolean) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  /** Vuelve a enviar el correo de verificación al usuario actual. */
+  resendVerification: () => Promise<void>;
   signOut: () => Promise<void>;
   error: string | null;
   clearError: () => void;
@@ -122,6 +124,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setError(message(cause, "No se pudo enviar el correo. Intenta de nuevo."));
         throw cause;
       });
+    },
+    resendVerification: async () => {
+      if (auth?.currentUser) await sendEmailVerification(auth.currentUser);
     },
     signOut: async () => {
       if (auth) await signOut(auth);
