@@ -1,0 +1,49 @@
+.box {
+  margin: 8px 0 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.head {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 22px;
+  background: none;
+  border: 0;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.head span:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.head small {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.chevron {
+  flex: none;
+  color: var(--muted);
+  transition: transform 0.25s;
+}
+
+.up {
+  transform: rotate(180deg);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 4px 22px 24px;
+}

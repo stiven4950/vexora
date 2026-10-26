@@ -270,3 +270,30 @@
   height: 8px;
   border-radius: 50%;
 }
+
+.opt h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.opt > p {
+  margin: 0 0 14px;
+  max-width: 640px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.opt .seasons + .seasons {
+  margin-top: 10px;
+}
+
+.season:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.hint {
+  margin: 10px 0 0;
+  color: var(--faint);
+  font-size: 13px;
+}

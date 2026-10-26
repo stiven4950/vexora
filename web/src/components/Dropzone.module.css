@@ -136,3 +136,15 @@
     max-height: 300px;
   }
 }
+
+.problem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(244, 63, 94, 0.1);
+  color: var(--danger);
+  font-size: 14px;
+}
