@@ -46,6 +46,17 @@ class VideoReader:
             yield index, frame
             index += 1
 
+    def frames(self, start: int, end: int) -> Iterator[tuple[int, np.ndarray]]:
+        """Los fotogramas start..end; los de antes se saltan sin convertirlos."""
+        for _ in range(start):
+            if not self.cap.grab():
+                return
+        for index in range(start, end + 1):
+            ok, frame = self.cap.read()
+            if not ok:
+                return
+            yield index, frame
+
     def close(self) -> None:
         self.cap.release()
 

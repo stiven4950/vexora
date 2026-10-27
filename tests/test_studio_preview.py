@@ -50,10 +50,15 @@ class FakePipeline:
     def _ensure_derived(self, brief_path: Path) -> None:
         pass
 
-    def direct_in_memory(self):
-        return "guion"
+    def direct_in_memory(self, brief=None):
+        return "guion con extras" if brief is not None else "guion"
 
-    def render_preview(self, script, dest, window, events=None, max_side=None) -> int:
+    def window_extras(self, window):
+        if self.kwargs.get("catalog") not in ("baile", "espadas_neon", "espadas_fuego"):
+            return None
+        return brief_of(), {}, []
+
+    def render_preview(self, script, dest, window, events=None, max_side=None, tracks=None) -> int:
         if FakePipeline.gate is not None:
             FakePipeline.gate.wait(5)
         FakePipeline.renders.append({"kwargs": self.kwargs, "window": window, "max_side": max_side, "script": script})
@@ -126,17 +131,26 @@ def test_creates_polls_and_serves_with_the_signed_key(client: TestClient) -> Non
     assert client.get(shown["url"][:-1] + ("A" if shown["url"][-1] != "A" else "B")).status_code == 404  # llave alterada
 
 
-def test_not_ready_and_styles_with_own_analysis_are_refused(client: TestClient) -> None:
-    uid = upload(client, ready=False)
+def test_not_ready_and_unknown_styles_are_refused(client: TestClient) -> None:
+    uid = upload(client)  # analizada del todo: el hilo ya no puede volver a marcarla lista
     server.uploads()._items[uid].status = "analyzing"
     early = ask(client, uid)
     assert early.status_code == 409 and early.json()["detail"] == "Espera a que termine el análisis."
     server.uploads()._items[uid].status = "ready"
-    needs = ask(client, uid, style="baile")
-    assert needs.status_code == 409 and "analiza el video a su manera" in needs.json()["detail"]
     assert ask(client, uid, style="no-existe").status_code == 422
     assert ask(client, uid, style_kind="preset", style="body_aura").status_code == 422
     assert ask(client, uid, fire_style="no-existe").status_code == 422
+
+
+def test_styles_with_needs_look_for_blades_or_cap_only_in_the_window(client: TestClient) -> None:
+    uid = upload(client)
+    created = ask(client, uid, style="baile")
+    assert created.status_code == 202, created.text
+    assert finished(client, uid, created.json()["preview_id"])["status"] == "ready"
+    assert FakePipeline.renders[-1]["script"] == "guion con extras"
+    plain = ask(client, uid, style="avatar")
+    assert finished(client, uid, plain.json()["preview_id"])["status"] == "ready"
+    assert FakePipeline.renders[-1]["script"] == "guion"
 
 
 def test_other_users_get_404(client: TestClient) -> None:

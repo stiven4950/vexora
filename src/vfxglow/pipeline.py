@@ -45,8 +45,9 @@ _STAGE_CODE: dict[str, tuple[str, ...]] = {
 
 # Los gestos son señales derivadas: con una etiqueta nueva en analyzer.DERIVED se recalculan sobre
 # el análisis guardado (Pipeline._ensure_derived) en segundos. Que su código no invalide el
-# análisis entero (un detector nuevo costaba rehacer ~15 min de pose por video).
-_STAGE_SKIP: dict[str, tuple[str, ...]] = {"analyze": ("analysis/gestures.py",)}
+# análisis entero (un detector nuevo costaba rehacer ~15 min de pose por video). extras.py solo lo
+# usa la vista previa del Estudio, en memoria: no forma parte del análisis guardado.
+_STAGE_SKIP: dict[str, tuple[str, ...]] = {"analyze": ("analysis/gestures.py", "analysis/extras.py")}
 
 
 def _code(stage: str) -> str:
@@ -311,16 +312,46 @@ class Pipeline:
             code=_code("direct")[:12],
         )
 
-    def direct_in_memory(self) -> EffectScript:
+    def direct_in_memory(self, brief=None) -> EffectScript:
         """La coreografía del catálogo con el análisis en caché, sin escribir nada en la carpeta de la
         corrida (ni guion, ni manifiesto): la vista previa del Estudio la usa para no pisar el guion
-        de un trabajo real que comparta el video. Sin análisis profundo."""
+        de un trabajo real que comparta el video. Sin análisis profundo. `brief`: uno ya cargado
+        (p. ej. con los eventos de `window_extras`)."""
         from vfxglow.analysis.schema import MotionBrief
 
-        brief_path = self.run_dir / "analysis" / "motion_brief.json"
-        self._ensure_derived(brief_path)
+        if brief is None:
+            brief_path = self.run_dir / "analysis" / "motion_brief.json"
+            self._ensure_derived(brief_path)
+            brief = read_model(brief_path, MotionBrief)
         director = CreativeDirector(self.config.director, self.config_path.resolve().parent / "presets", video=self.video)
-        return director.create(read_model(brief_path, MotionBrief))
+        return director.create(brief)
+
+    def window_extras(self, window: tuple[int, int]):
+        """Si el catálogo pide hojas u objeto (`needs`), los calcula solo en `window` y su
+        calentamiento (analysis/extras.py), sin tocar el análisis guardado. Devuelve (brief, pistas,
+        eventos) para dirigir y dibujar la vista previa, o None si el catálogo no pide nada."""
+        analysis = self.config.analysis
+        if analysis.blades.mode == "off" and not analysis.props.query:
+            return None
+        from vfxglow.analysis.extras import BLADE_EVENTS, window_extras
+        from vfxglow.analysis.schema import MotionBrief
+        from vfxglow.director.edits import WARMUP_S
+
+        folder = self.run_dir / "analysis"
+        brief_path = folder / "motion_brief.json"
+        self._ensure_derived(brief_path)
+        brief = read_model(brief_path, MotionBrief)
+        meta = self._meta()
+        tracks = {track.frame: track for track in load_tracks(folder / "tracks.jsonl")}
+        start = max(window[0] - int(round(WARMUP_S * (meta.fps or 30.0))), 0)
+        frames = [tracks[i].model_copy(deep=True) for i in range(start, window[1] + 1) if i in tracks]
+        found = window_extras(self.video, frames, meta, self.config)
+        tracks.update({frame.frame: frame for frame in frames})
+        # Los eventos de hojas y objeto del análisis guardado (si los había) se cambian por los del tramo.
+        replaced = set(BLADE_EVENTS) | {"prop_transfer", "prop_worn", "prop_spin"}
+        events = sorted([e for e in load_events(folder / "events.jsonl") if e.name not in replaced] + found, key=lambda e: (e.start_frame, e.name))
+        brief_events = sorted([e for e in brief.events if e.name not in replaced] + found, key=lambda e: (e.start_frame, e.name))
+        return brief.model_copy(update={"events": brief_events}), tracks, events
 
     def _deep_script(self) -> None:
         """Con el análisis profundo activo (y sin un guion fijado a mano), el modelo ve el video
@@ -359,7 +390,7 @@ class Pipeline:
             _code("render"),
         )
 
-    def _engine(self, script: EffectScript, events: list | None = None) -> tuple[EffectEngine, dict]:
+    def _engine(self, script: EffectScript, events: list | None = None, tracks: dict | None = None) -> tuple[EffectEngine, dict]:
         from vfxglow.analysis.beats import cut_frames
         from vfxglow.analysis.schema import MotionBrief
 
@@ -367,7 +398,8 @@ class Pipeline:
         meta = self._meta()
         brief_path = analysis / "motion_brief.json"
         cuts = cut_frames(read_model(brief_path, MotionBrief).beats) if brief_path.exists() else []
-        tracks = {track.frame: track for track in load_tracks(analysis / "tracks.jsonl")}
+        if tracks is None:
+            tracks = {track.frame: track for track in load_tracks(analysis / "tracks.jsonl")}
         events = load_events(analysis / "events.jsonl") if events is None else events
         engine = EffectEngine(script, self.config.engine, events, cuts=cuts, fps=meta.fps)
         return engine, tracks
@@ -521,12 +553,12 @@ class Pipeline:
         log.info("Video final: %s", dest)
         return dest
 
-    def render_preview(self, script: EffectScript, dest: Path, window: tuple[int, int], events: list | None = None, max_side: int | None = None) -> int:
+    def render_preview(self, script: EffectScript, dest: Path, window: tuple[int, int], events: list | None = None, max_side: int | None = None, tracks: dict | None = None) -> int:
         """Vista previa: dibuja `window` (a, b) con el motor real y escribe un MP4 corto solo con esos
         fotogramas (sin audio ni copia del resto). Antes de `a` hay calentamiento que no se escribe.
         `max_side`: lado largo máximo; si el video es mayor se reescala al escribir. Devuelve los
-        fotogramas escritos."""
-        encoder = self._write(script, dest, stream=True, window=window, events=events, only_window=True, max_side=max_side)
+        fotogramas escritos. `tracks`: pistas ya cargadas (las de `window_extras`)."""
+        encoder = self._write(script, dest, stream=True, window=window, events=events, only_window=True, max_side=max_side, tracks=tracks)
         return encoder.frames
 
     def _write(
@@ -539,6 +571,7 @@ class Pipeline:
         events: list | None = None,
         only_window: bool = False,
         max_side: int | None = None,
+        tracks: dict | None = None,
     ):
         """El bucle de composición: cada fotograma del plano con sus capas, al codificador.
 
@@ -551,9 +584,9 @@ class Pipeline:
         from vfxglow.director.edits import WARMUP_S
 
         meta = self._meta()
-        engine = tracks = None
+        engine = None
         if stream:
-            engine, tracks = self._engine(script, events)
+            engine, tracks = self._engine(script, events, tracks)
         by_id = {effect.id: effect for effect in script.effects}
         # Con tramo: se dibuja desde el calentamiento y se escribe desde el inicio del tramo.
         draw_from = max(window[0] - int(round(WARMUP_S * (meta.fps or 30.0))), 0) if window else 0
@@ -577,7 +610,7 @@ class Pipeline:
         log.info("Componiendo sobre el plano original")
         try:
             with VideoReader(self.video) as reader, (VideoReader(base_output) if base_output else nullcontext()) as previous:
-                source = _clip(reader, draw_from, window[1]) if only_window else reader
+                source = reader.frames(draw_from, window[1]) if only_window else reader
                 frames = zip(source, previous) if previous is not None else ((item, None) for item in source)
                 for (index, frame), old in frames:
                     inside = window is None or window[0] <= index <= window[1]
@@ -626,14 +659,3 @@ class Pipeline:
         self.manifest.device = self.device
         save_manifest(self.manifest_path, self.manifest)
 
-
-def _clip(reader: VideoReader, start: int, end: int):
-    """Los fotogramas start..end de `reader`; los de antes se saltan sin convertirlos."""
-    for _ in range(start):
-        if not reader.cap.grab():
-            return
-    for index in range(start, end + 1):
-        ok, frame = reader.cap.read()
-        if not ok:
-            return
-        yield index, frame

@@ -75,8 +75,12 @@ class PropTracker:
         self.learned = 0
         self.label = cfg.query.strip().rstrip(".").removeprefix("a ").removeprefix("an ")
 
-    def track(self, video_path: Path, records: list[FrameRecord]) -> int:
-        """Rellena `record.prop` (sin estado aún). Devuelve en cuántos fotogramas se vio."""
+    def track(self, video_path: Path, records: list[FrameRecord], window: tuple[int, int] | None = None, stride: int = 1) -> int:
+        """Rellena `record.prop` (sin estado aún). Devuelve en cuántos fotogramas se vio.
+
+        `window` (a, b): solo esos fotogramas. `stride` > 1: se sigue uno de cada `stride` y los de
+        en medio repiten el último contorno (la vista previa; a mitad de costo). La sesión de SAM 2
+        cuenta desde 0 solo los fotogramas seguidos."""
         import torch
 
         from vfxglow.io.video import VideoReader
@@ -91,14 +95,27 @@ class PropTracker:
         misses = 0
         with VideoReader(video_path) as reader:
             height, width = reader.meta.height, reader.meta.width
-            for index, frame in reader:
+            source = reader.frames(*window) if window else reader
+            step = -1
+            last = None  # el contorno del último fotograma seguido
+            for position, (index, frame) in enumerate(source):
+                if position % max(stride, 1):
+                    record = by_frame.get(index)
+                    if record is not None and last is not None:
+                        record.prop = last.model_copy()
+                        seen += 1
+                        if misses:
+                            doubtful.append(record)
+                    continue
+                step += 1
+                last = None
                 rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 inputs = self.processor(images=rgb, device=self.device, return_tensors="pt")
                 # Grounding DINO decide antes de que SAM 2 vea el fotograma (una pasada por
                 # fotograma), comparando con la máscara del anterior.
                 lost = last_box is None
                 every = self.cfg.search_every if lost or misses else self.cfg.check_every
-                if index % max(every, 1) == 0:
+                if step % max(every, 1) == 0:
                     found = self.dino.detect(frame)
                     # Sigue ahí: alguna caja (aunque sea de confianza baja) coincide con la máscara.
                     confirmed = not lost and any(_iou(last_box, box) >= RESEED_IOU for box, _ in found)
@@ -109,7 +126,7 @@ class PropTracker:
                         misses = 0
                         doubtful.clear()
                     elif candidates:
-                        self._seed(index, candidates[0], inputs)
+                        self._seed(step, candidates[0], inputs)
                         seeded = True
                         misses = 0
                         doubtful.clear()
@@ -126,9 +143,9 @@ class PropTracker:
                 mask = None
                 if seeded:
                     with torch.no_grad():
-                        out = self.model(inference_session=self.session, frame=inputs.pixel_values[0], frame_idx=index)
+                        out = self.model(inference_session=self.session, frame=inputs.pixel_values[0], frame_idx=step)
                     mask = self._mask(out, inputs)
-                    self._prune(index)
+                    self._prune(step)
                 last_box = _bbox(mask)
                 if last_box is not None and not misses:
                     self._learn(frame, mask)
@@ -136,7 +153,7 @@ class PropTracker:
                 if record is not None and mask is not None and mask.any():
                     prop = _to_prop(mask, self.label, width, height, self.cfg.contour_points)
                     if prop is not None:
-                        record.prop = prop
+                        record.prop = last = prop
                         seen += 1
                         if misses:
                             doubtful.append(record)

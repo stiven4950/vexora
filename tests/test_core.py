@@ -216,7 +216,7 @@ def test_write_only_window_writes_just_those_frames_and_scales(tmp_path: Path) -
     pipeline = Pipeline.__new__(Pipeline)
     pipeline.video, pipeline.run_dir, pipeline.config = video, tmp_path, AppConfig()
     pipeline._meta = lambda: SimpleNamespace(fps=10.0, frame_count=30, width=64, height=48, has_audio=False)
-    pipeline._engine = lambda script, events=None: (Engine(), {})
+    pipeline._engine = lambda script, events=None, tracks=None: (Engine(), {})
     script = EffectScript.model_validate({"title": "t", "theme": "x", "effects": []})
     dest = tmp_path / "vista.mp4"
     written = pipeline.render_preview(script, dest, (12, 20), max_side=32)
@@ -225,3 +225,42 @@ def test_write_only_window_writes_just_those_frames_and_scales(tmp_path: Path) -
     cap = cv2.VideoCapture(str(dest))
     assert int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) == 9 and (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))) == (32, 24)
     cap.release()
+
+
+def test_window_extras_works_on_copies_of_the_window_and_swaps_blade_and_prop_events(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import vfxglow.analysis.extras as extras
+    from vfxglow.analysis.analyzer import DERIVED
+    from vfxglow.analysis.schema import AnalysisHeader, MotionBrief, MotionEvent
+    from vfxglow.io.store import write_jsonl, write_model
+    from vfxglow.pipeline import Pipeline
+
+    meta = VideoMeta(path="v.mp4", fps=10.0, width=64, height=48, frame_count=60, duration_s=6.0)
+    folder = tmp_path / "analysis"
+    frames = [FrameRecord(frame=i, time_s=i / 10) for i in range(60)]
+    old_events = [
+        MotionEvent(name="fast_swing", target="person_0:right_wrist", start_frame=5, end_frame=8, confidence=0.9),
+        MotionEvent(name="blade_swing", target="person_0:blade_right_tip", start_frame=40, end_frame=42, confidence=0.8),
+    ]
+    write_model(folder / "header.json", AnalysisHeader(video=meta, device="cpu", level="fast", models={}, store_face=False))
+    write_jsonl(folder / "tracks.jsonl", frames)
+    write_jsonl(folder / "events.jsonl", old_events)
+    write_model(folder / "motion_brief.json", MotionBrief(video=meta, person_id="person_0", anchors=[], limbs=[], events=old_events, summary="", derived=list(DERIVED)))
+    seen: list[int] = []
+
+    def fake(video, window_frames, meta, config):
+        seen.extend(f.frame for f in window_frames)
+        for f in window_frames:
+            f.person_id = "con_hoja"
+        return [MotionEvent(name="blade_swing", target="person_0:blade_left_tip", start_frame=35, end_frame=37, confidence=0.8)]
+
+    monkeypatch.setattr(extras, "window_extras", fake)
+    pipeline = Pipeline.__new__(Pipeline)
+    pipeline.video, pipeline.run_dir, pipeline.config = tmp_path / "v.mp4", tmp_path, AppConfig()
+    assert pipeline.window_extras((30, 39)) is None  # sin `needs`: nada que calcular
+    pipeline.config.analysis.blades.mode = "always"
+    brief, tracks, events = pipeline.window_extras((30, 39))
+    assert seen == list(range(10, 40))  # 2 s de calentamiento (20 fotogramas) y el tramo
+    assert tracks[12].person_id == "con_hoja" and tracks[45].person_id == "person_0"
+    assert [(e.name, e.start_frame) for e in events] == [("fast_swing", 5), ("blade_swing", 35)]
+    assert [(e.name, e.start_frame) for e in brief.events] == [("fast_swing", 5), ("blade_swing", 35)]
+    assert "con_hoja" not in (folder / "tracks.jsonl").read_text()  # el análisis guardado no cambia

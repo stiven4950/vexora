@@ -106,19 +106,6 @@ def busiest_window(brief, seconds: float = STUDIO_S) -> tuple[int, int]:
     return start, start + length - 1
 
 
-def needs_own_analysis(config_path: Path, catalog: str) -> bool:
-    """El catálogo cambia la config de análisis con sus `needs` (blades, props): entonces no reutiliza
-    el análisis de la subida y la vista previa no es posible."""
-    from vfxglow.config import load_config
-    from vfxglow.pipeline import apply_catalog_needs
-
-    config = load_config(config_path)
-    before = config.analysis.model_dump_json()
-    config.director.catalog = catalog
-    apply_catalog_needs(config_path, config)
-    return config.analysis.model_dump_json() != before
-
-
 class PreviewStore:
     def __init__(self, jobs: JobStore) -> None:
         self.jobs = jobs
@@ -246,10 +233,17 @@ class PreviewStore:
             kwargs["wardrobe"] = studio["wardrobe"]
         pipeline = Pipeline(self.jobs.config, video, **kwargs)
         # Sin escribir guion ni manifiesto en runs/: ese análisis lo comparte el trabajo real.
-        script = pipeline.direct_in_memory()
-        events = load_events(pipeline.run_dir / "analysis" / "events.jsonl")
+        # Baile y Espadas (`needs`): la gorra o las hojas se buscan solo en el tramo que se dibuja.
+        extras = pipeline.window_extras(item.window)
+        if extras is not None:
+            brief, tracks, events = extras
+            script = pipeline.direct_in_memory(brief)
+        else:
+            tracks = None
+            script = pipeline.direct_in_memory()
+            events = load_events(pipeline.run_dir / "analysis" / "events.jsonl")
         item.path.parent.mkdir(parents=True, exist_ok=True)
-        return pipeline.render_preview(script, item.path, item.window, events=events, max_side=item.max_side)
+        return pipeline.render_preview(script, item.path, item.window, events=events, max_side=item.max_side, tracks=tracks)
 
     def _draw(self, item: Preview) -> int:
         if item.kind == "studio":

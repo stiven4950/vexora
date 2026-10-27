@@ -852,9 +852,10 @@ def _owned_upload(upload_id: str, user: User) -> Upload:
 @app.post("/api/uploads/{upload_id}/preview", response_model=PreviewView, status_code=202)
 def create_upload_preview(upload_id: str, body: StudioPreviewRequest, user: User = Depends(current_user)) -> PreviewView:
     """Unos 3 s con efectos reales del estilo elegido, en el tramo más activo del video, antes de
-    crear el trabajo. Solo estilos de catálogo cuyo análisis es el de la subida."""
+    crear el trabajo. Solo estilos de catálogo; los que piden hojas u objeto (`needs`) los buscan
+    solo en ese tramo."""
     from vfxglow.analysis.schema import MotionBrief
-    from vfxglow.api.previews import STUDIO_SIDE, busiest_window, needs_own_analysis
+    from vfxglow.api.previews import STUDIO_SIDE, busiest_window
     from vfxglow.io.store import read_model
 
     upload = _owned_upload(upload_id, user)
@@ -870,8 +871,6 @@ def create_upload_preview(upload_id: str, body: StudioPreviewRequest, user: User
     brief_path = Path(upload.run_dir or "") / "analysis" / "motion_brief.json"
     if upload.status != "ready" or not upload.run_dir or not brief_path.exists():
         raise HTTPException(409, "Espera a que termine el análisis.")
-    if needs_own_analysis(CONFIG, style):
-        raise HTTPException(409, "Este estilo analiza el video a su manera: la vista previa saldrá al crear los efectos.")
     brief = read_model(brief_path, MotionBrief)
     window = busiest_window(brief)
     studio = dict(
