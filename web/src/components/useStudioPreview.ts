@@ -6,8 +6,8 @@ import type { PreviewView, StudioPreviewOpts } from "../api/types";
 /** Las señales que hacen que un estilo analice el video a su manera (pipeline.apply_catalog_needs). */
 export const OWN_ANALYSIS_NEEDS = ["blades", "props"];
 
-/** Lo que tarda en dibujarse la vista previa de ~3 s (medido en un Mac M1: 25-35 s). */
-export const PREVIEW_ESTIMATE_S = 30;
+/** Lo que tarda en dibujarse la vista previa de ~3 s a 480 px (medido en un Mac M1: 3-12 s según el estilo). */
+export const PREVIEW_ESTIMATE_S = 15;
 const POLL_MS = 1500;
 const BLOCKED = "analiza el video a su manera";
 

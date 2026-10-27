@@ -23,10 +23,16 @@ function renderRatio(job: Job): number {
   return compose && job.video_seconds ? compose / 1000 / job.video_seconds : 11;
 }
 
-/** Una vista previa dibuja 5 s (3 s de clip + 2 s de calentamiento) más ~15 s fijos de preparar el
- * motor y el guion (medido: 35–42 s en un video de 9 s con proporción ≈ 4). */
+/** Lado largo con el que el servidor dibuja la vista previa (MAX_SIDE en api/previews.py). */
+const PREVIEW_SIDE = 640;
+
+/** Una vista previa dibuja 5 s (3 s de clip + 2 s de calentamiento) a PREVIEW_SIDE, más ~5 s de
+ * preparar el motor. Dibujar más pequeño cuesta según el área, pero no baja del 40 % (medido en
+ * 1280 px: 31 → 10 s; Avatar 44 → 22 s). */
 function previewSeconds(job: Job): number {
-  return Math.round(5 * renderRatio(job) + 15);
+  const long = Math.max(job.video_width ?? 0, job.video_height ?? 0);
+  const scale = long > PREVIEW_SIDE ? Math.max((PREVIEW_SIDE / long) ** 2, 0.4) : 1;
+  return Math.round(5 * renderRatio(job) * scale + 5);
 }
 
 /** El editor de efectos: la versión terminada, sus pistas y los cambios que crean una versión nueva. */
