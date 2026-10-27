@@ -2,7 +2,9 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "re
 
 import { mmss, mmssd } from "../../api/format";
 import { Icon } from "../Icon";
+import type { LayerLayout, LiveState } from "../../api/liveLayers";
 import { Segmented } from "../Segmented";
+import { LayerCanvas } from "./LayerCanvas";
 import styles from "./PreviewPlayer.module.css";
 
 export interface PlayerHandle {
@@ -20,13 +22,19 @@ interface Props {
   /** Un clip de vista previa que reemplaza al video: se repite en bucle y su tiempo se cuenta desde `start`. */
   clip?: { url: string; start: number; end: number; stale: boolean } | null;
   onCloseClip?: () => void;
+  /** La vista en vivo: el mosaico de capas (con el audio) y los cambios pendientes ya aplicados en el navegador. */
+  live?: { url: string; layout: LayerLayout; state: LiveState } | null;
+  /** Cambia el valor para pasar el reproductor a esta vista (p. ej. la primera vez que la vista en vivo está lista). */
+  showLive?: number;
 }
 
+type View = "original" | "effects" | "live";
+
 /** "Vista previa" del editor: el video con efectos o el original, con los controles del diseño. */
-export const PreviewPlayer = forwardRef<PlayerHandle, Props>(function PreviewPlayer({ original, edited, poster, onTime, onPlaying, clip, onCloseClip }, ref) {
+export const PreviewPlayer = forwardRef<PlayerHandle, Props>(function PreviewPlayer({ original, edited, poster, onTime, onPlaying, clip, onCloseClip, live, showLive }, ref) {
   const video = useRef<HTMLVideoElement>(null);
   const box = useRef<HTMLDivElement>(null);
-  const [view, setView] = useState<"original" | "effects">("effects");
+  const [view, setView] = useState<View>("effects");
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -34,6 +42,8 @@ export const PreviewPlayer = forwardRef<PlayerHandle, Props>(function PreviewPla
 
   // Con un clip, el tiempo del video es relativo a su inicio en la línea de tiempo.
   const offset = clip?.start ?? 0;
+  // El clip del servidor manda; si no, la vista en vivo dibuja el mosaico en un canvas.
+  const showingLive = !clip && view === "live" && !!live;
 
   useImperativeHandle(ref, () => ({
     seek: (seconds) => {
@@ -62,7 +72,7 @@ export const PreviewPlayer = forwardRef<PlayerHandle, Props>(function PreviewPla
   }, [onTime, offset]);
 
   // Cambiar entre original y con efectos conserva el instante y si se estaba reproduciendo.
-  const swap = (next: "original" | "effects") => {
+  const swap = (next: View) => {
     const v = video.current;
     const at = v?.currentTime ?? 0;
     const wasPlaying = v ? !v.paused : false;
@@ -78,6 +88,17 @@ export const PreviewPlayer = forwardRef<PlayerHandle, Props>(function PreviewPla
       nv.addEventListener("loadedmetadata", resume);
     });
   };
+
+  // Sin capas ya no hay vista en vivo; y cuando se activan por primera vez se pasa a ella.
+  const hasLive = !!live;
+  useEffect(() => {
+    if (!hasLive && view === "live") setView("effects");
+  }, [hasLive, view]);
+  const swapRef = useRef(swap);
+  swapRef.current = swap;
+  useEffect(() => {
+    if (showLive) swapRef.current("live");
+  }, [showLive]);
 
   return (
     <section className={styles.card}>
@@ -97,6 +118,7 @@ export const PreviewPlayer = forwardRef<PlayerHandle, Props>(function PreviewPla
             options={[
               { id: "original", label: "Original" },
               { id: "effects", label: "Con efectos" },
+              ...(live ? [{ id: "live" as const, label: "En vivo" }] : []),
             ]}
           />
         )}
@@ -104,13 +126,14 @@ export const PreviewPlayer = forwardRef<PlayerHandle, Props>(function PreviewPla
       <div className={styles.stage} ref={box}>
         <video
           ref={video}
-          key={clip?.url ?? "video"}
-          src={clip ? clip.url : view === "effects" ? edited : original}
-          poster={clip ? undefined : poster}
+          key={clip?.url ?? (showingLive ? "live" : "video")}
+          src={clip ? clip.url : showingLive && live ? live.url : view === "effects" ? edited : original}
+          poster={clip || showingLive ? undefined : poster}
           loop={!!clip}
           autoPlay={!!clip}
           playsInline
           preload="auto"
+          className={showingLive ? styles.hidden : undefined}
           muted={muted}
           onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)}
           onPlay={() => {
@@ -123,6 +146,11 @@ export const PreviewPlayer = forwardRef<PlayerHandle, Props>(function PreviewPla
           }}
           onClick={() => video.current && void (video.current.paused ? video.current.play() : video.current.pause())}
         />
+        {showingLive && live && (
+          <div className={styles.canvasBox} onClick={() => video.current && void (video.current.paused ? video.current.play() : video.current.pause())}>
+            <LayerCanvas video={video} layout={live.layout} live={live.state} className={styles.canvas} />
+          </div>
+        )}
         {clip && (
           <span className={`${styles.badge} ${clip.stale ? styles.stale : ""}`}>
             Vista previa · {mmssd(clip.start)}–{mmssd(clip.end)}

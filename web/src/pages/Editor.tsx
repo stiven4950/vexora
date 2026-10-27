@@ -5,7 +5,8 @@ import { api } from "../api/client";
 import { effectLabel } from "../api/effectLabels";
 import { buildEdits, countChanges, EMPTY, groupOptions, isPermanent, redrawSeconds, shownMoments, withPending, type Pending, type TrackChange } from "../api/editing";
 import { approx, groupVersions, mmss, projectName, sheetDate } from "../api/format";
-import type { EditorView, Job, PreviewView, Style } from "../api/types";
+import { liveState } from "../api/liveLayers";
+import type { EditorView, Job, LayersView, PreviewView, Style } from "../api/types";
 import { Icon } from "../components/Icon";
 import { ProjectSidebar } from "../components/ProjectSidebar";
 import { Shell } from "../components/Shell";
@@ -55,6 +56,11 @@ export function Editor() {
   // Vista previa rápida: lo pedido (con los cambios que tenía) y su estado.
   const [preview, setPreview] = useState<{ id: string; key: string; view: PreviewView | null; error?: string } | null>(null);
   const [showClip, setShowClip] = useState(false);
+  // Vista en vivo: las capas de la versión; se sondean mientras se dibujan.
+  const [layers, setLayers] = useState<LayersView | null>(null);
+  const [layersError, setLayersError] = useState<string | null>(null);
+  const [showLive, setShowLive] = useState(0);
+  const autoLive = useRef(false);
 
   useEffect(() => {
     api
@@ -122,6 +128,64 @@ export function Editor() {
       setPreview({ id: "", key, view: null, error: cause instanceof Error ? cause.message : String(cause) });
     }
   };
+
+  // Al abrir la versión pregunta por las capas; mientras se dibujan, sondea cada 1,5 s (se cancela al desmontar o cambiar de versión).
+  const layersStatus = layers?.status;
+  useEffect(() => {
+    if (!job) return;
+    setLayers(null);
+    setLayersError(null);
+    let live = true;
+    api
+      .layers(job.id)
+      .then((next) => live && setLayers(next))
+      .catch((cause: unknown) => live && setLayersError(cause instanceof Error ? cause.message : String(cause)));
+    return () => {
+      live = false;
+    };
+  }, [job?.id]);
+
+  useEffect(() => {
+    if (!job || layersStatus !== "rendering") return;
+    let live = true;
+    let timer = 0;
+    const poll = async () => {
+      try {
+        const next = await api.layers(job.id);
+        if (!live) return;
+        setLayers(next);
+        if (next.status === "rendering") timer = window.setTimeout(poll, 1500);
+      } catch (cause) {
+        if (live) setLayersError(cause instanceof Error ? cause.message : String(cause));
+      }
+    };
+    timer = window.setTimeout(poll, 1500);
+    return () => {
+      live = false;
+      window.clearTimeout(timer);
+    };
+  }, [job?.id, layersStatus]);
+
+  // La primera vez que quedan listas en esta sesión, el reproductor pasa a "En vivo".
+  useEffect(() => {
+    if (layersStatus === "ready" && !autoLive.current) {
+      autoLive.current = true;
+      setShowLive((n) => n + 1);
+    }
+  }, [layersStatus]);
+
+  const requestLayers = async () => {
+    if (!job) return;
+    setLayersError(null);
+    try {
+      setLayers(await api.createLayers(job.id));
+    } catch (cause) {
+      setLayersError(cause instanceof Error ? cause.message : String(cause));
+    }
+  };
+
+  const liveReady = layers?.status === "ready" && layers.url && layers.layout ? { url: layers.url, layout: layers.layout } : null;
+  const liveView = useMemo(() => (liveReady && view ? liveState(liveReady.layout, view.tracks, pending) : null), [liveReady?.layout, view, pending]);
 
   const onTime = useCallback((seconds: number) => setTime(seconds), []);
   const changes = countChanges(pending);
@@ -240,9 +304,21 @@ export function Editor() {
             onPlaying={setPlaying}
             clip={showClip && preview?.view?.status === "ready" && preview.view.url ? { url: preview.view.url, start: preview.view.start, end: preview.view.end, stale: preview.key !== JSON.stringify(buildEdits(pending, view.tracks)) } : null}
             onCloseClip={() => setShowClip(false)}
+            live={liveReady && liveView ? { ...liveReady, state: liveView } : null}
+            showLive={showLive}
           />
           {preview && !preview.error && preview.view?.status !== "ready" && preview.view?.status !== "failed" && <p className={styles.previewNote} role="status">Generando vista previa…</p>}
           {preview && (preview.error || preview.view?.status === "failed") && <p className={styles.previewNote} role="alert">{preview.error ?? preview.view?.error}</p>}
+          {liveView && liveView.approximate.length > 0 && (
+            <p className={styles.previewNote}>En vivo no se ve: {liveView.approximate.join(", ")} (mover o agregar). Usa Vista previa o aplica los cambios.</p>
+          )}
+          {layers?.status === "rendering" && !layersError && <p className={styles.previewNote} role="status">Preparando la vista en vivo…</p>}
+          {(layersError || layers?.status === "failed") && <p className={styles.previewNote} role="alert">{layersError ?? layers?.error ?? "No se pudo preparar la vista en vivo."}</p>}
+          {layers && (layers.status === "none" || layers.status === "failed") && (
+            <button type="button" className={styles.previewBtn} onClick={requestLayers}>
+              <Icon name="play" size={14} /> Activar vista en vivo (≈ {Math.round(layers.estimate_s)} s)
+            </button>
+          )}
           <Timeline
             duration={view.duration}
             time={time}

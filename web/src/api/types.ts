@@ -1,3 +1,4 @@
+import type { LayerLayout } from "./liveLayers";
 /** Contratos de la API (src/vfxglow/api/server.py). */
 
 export type Rgb = [number, number, number];
@@ -109,6 +110,8 @@ export interface Job {
   tags: string[];
   /** Se puede abrir en el editor de efectos. */
   editable: boolean;
+  /** Ya tiene las capas para la vista en vivo del editor. */
+  layers_ready: boolean;
   /** Versión terminada antes del editor: todavía no se puede editar, pero se puede preparar (POST prepare-edit). */
   preparable: boolean;
   /** Si es una versión editada: la versión de la que parte y sus cambios. */
@@ -274,6 +277,17 @@ export interface PreviewView {
   start: number;
   end: number;
   error: string | null;
+}
+
+/** Vista en vivo del editor (POST/GET /api/jobs/{id}/layers): el mosaico de capas, que el navegador compone al instante. */
+export interface LayersView {
+  status: "none" | "rendering" | "ready" | "failed";
+  /** MP4 firmado del mosaico (con el audio), cuando está lista. */
+  url: string | null;
+  layout: LayerLayout | null;
+  error: string | null;
+  /** Segundos que toma prepararla. */
+  estimate_s: number;
 }
 
 /** Pedido de la vista previa del Estudio (POST /api/uploads/{id}/preview): el estilo elegido sobre la subida ya analizada. */
