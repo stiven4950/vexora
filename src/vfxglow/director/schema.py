@@ -279,6 +279,10 @@ class EffectStyle(_Strict):
     # swoosh: neon (trazo), flame (con lenguas de fuego), dots (bolas de fuego) o plain (trazo liso
     # del color, sin halo ni resplandor: el viento blanco).
     trail_style: Literal["neon", "flame", "dots", "plain"] = "neon"
+    # Editor de efectos (engine/tint.py): el color al que se tiñe la capa del efecto (None = el suyo)
+    # y cuánto se escala alrededor de su ancla. Valen para cualquier tipo de efecto.
+    tint: tuple[float, float, float] | None = None
+    scale: float = 1.0
 
 
 class EffectRender(_Strict):

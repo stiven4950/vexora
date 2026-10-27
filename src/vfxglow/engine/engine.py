@@ -192,6 +192,8 @@ class EffectEngine:
                 self.config.max_particles,
                 event,
             )
+            if (effect.style.tint is not None or effect.style.scale != 1.0) and gain > 0:
+                layer = self._edited(layer, runtime, points, width, height)
             decay = effect.render.persistence
             if decay > 0:
                 if runtime.persist is None or runtime.persist.shape != layer.shape:
@@ -206,6 +208,22 @@ class EffectEngine:
             layers.append((effect.id, effect_group(effect), layer))
         return layers
 
+
+    def _edited(self, layer: np.ndarray, runtime, points: dict, width: int, height: int) -> np.ndarray:
+        """El color y el tamaño que se eligieron en el editor para la pista del efecto."""
+        from vfxglow.engine.tint import recolor, scale_about
+
+        effect = runtime.effect
+        if effect.style.tint is not None:
+            layer = recolor(layer, effect.style.tint)
+        if effect.style.scale != 1.0:
+            # Se escala alrededor de donde está el efecto: su ancla si la tiene; si no, el centro.
+            anchor = runtime.anchor_point
+            if anchor is None and effect.target.id in points:
+                anchor = points[effect.target.id]
+            center = (float(anchor[0]), float(anchor[1])) if anchor is not None else (width / 2.0, height / 2.0)
+            layer = scale_about(layer, effect.style.scale, center)
+        return layer
 
     def _bright(self, frame_index: int) -> frozenset[str]:
         if self.appearance is None:
