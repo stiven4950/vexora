@@ -1,7 +1,8 @@
 import { useRef, useState, type PointerEvent } from "react";
 
-import type { ShownMoment } from "../../api/editing";
-import { mmss } from "../../api/format";
+import { isPermanent, type ShownMoment } from "../../api/editing";
+import { effectLabel } from "../../api/effectLabels";
+import { mmss, mmssd } from "../../api/format";
 import type { EditorTrack } from "../../api/types";
 import { Icon, type IconName } from "../Icon";
 import styles from "./Timeline.module.css";
@@ -30,15 +31,15 @@ interface Props {
 type Drag = { id: string; mode: "move" | "start" | "end"; x: number; start: number; end: number };
 
 const MIN = 0.2; // segundos: la barra más corta
-const LABEL = 120; // ancho de la columna de nombres
+const LABEL = 170; // ancho de la columna de nombres
 
-/** La línea de tiempo del editor: regla, tira de fotogramas, una pista por efecto y el cabezal. */
+/** La línea de tiempo del editor (como la de Canva): regla y fotogramas arriba, una fila por efecto y el cabezal. */
 export function Timeline({ duration, time, tracks, filmstrip, selected, playing, onSeek, onToggle, onSelect, onChange }: Props) {
   const [zoom, setZoom] = useState(1);
+  const [hot, setHot] = useState<string | null>(null);
   const lanes = useRef<HTMLDivElement>(null);
   const drag = useRef<Drag | null>(null);
   const [live, setLive] = useState<{ id: string; start: number; end: number } | null>(null);
-  const width = `${100 * zoom}%`;
   const pct = (seconds: number) => `${(Math.min(Math.max(seconds, 0), duration) / (duration || 1)) * 100}%`;
   const ticks = Array.from({ length: Math.floor(duration / 5) + 1 }, (_, i) => i * 5);
 
@@ -48,11 +49,16 @@ export function Timeline({ duration, time, tracks, filmstrip, selected, playing,
     return Math.min(Math.max(((clientX - box.left) / box.width) * duration, 0), duration);
   };
 
-  const begin = (event: PointerEvent, moment: ShownMoment, mode: Drag["mode"]) => {
+  const seek = (event: PointerEvent) => {
+    onSelect(null);
+    onSeek(secondsAt(event.clientX));
+  };
+
+  const begin = (event: PointerEvent, moment: ShownMoment, mode: Drag["mode"], fixed: boolean) => {
     event.stopPropagation();
     onSelect(moment.id);
     // Uno quitado se puede elegir (para restaurarlo) pero no arrastrar.
-    if (moment.state === "removed") return;
+    if (moment.state === "removed" || fixed) return;
     (event.target as HTMLElement).setPointerCapture(event.pointerId);
     drag.current = { id: moment.id, mode, x: event.clientX, start: moment.start, end: moment.end };
   };
@@ -109,64 +115,67 @@ export function Timeline({ duration, time, tracks, filmstrip, selected, playing,
         </div>
       </header>
 
-      <div className={styles.body}>
-        <div className={styles.names} style={{ width: LABEL }}>
-          <span className={styles.rulerGap} />
-          <span className={styles.stripGap} />
-          {tracks.map(({ track, off }) => (
-            <span key={track.key} className={`${styles.name} ${off ? styles.dim : ""}`}>
-              <span style={{ color: track.color }}>
-                <Icon name={track.icon as IconName} size={16} />
-              </span>
-              {track.label}
-            </span>
-          ))}
-        </div>
-        <div className={styles.scroll}>
-          <div
-            className={styles.canvas}
-            style={{ width }}
-            ref={lanes}
-            onPointerDown={(event) => {
-              onSelect(null);
-              onSeek(secondsAt(event.clientX));
-            }}
-          >
-            <div className={styles.ruler}>
-              {ticks.map((t) => (
-                <span key={t} style={{ left: pct(t) }}>
-                  {t}s
-                </span>
-              ))}
-              <span className={styles.end}>{Math.round(duration)}s</span>
-            </div>
-            <div className={styles.strip} style={filmstrip ? { backgroundImage: `url(${filmstrip})` } : undefined} />
-            {tracks.map(({ track, moments, off, color }) => (
-              <div key={track.key} className={`${styles.lane} ${off ? styles.dim : ""}`}>
-                {moments.map((moment) => {
-                  const now = live && live.id === moment.id ? live : moment;
-                  return (
-                    <span key={moment.id}>
-                      {moment.was && (
-                        <i className={styles.ghost} style={{ left: pct(moment.was.start), width: `calc(${pct(moment.was.end)} - ${pct(moment.was.start)})`, borderColor: color }} />
-                      )}
-                      <button
-                        type="button"
-                        title={`${moment.choice} · ${mmss(now.start)}–${mmss(now.end)}`}
-                        className={`${styles.bar} ${styles[moment.state]} ${selected === moment.id ? styles.selected : ""}`}
-                        style={{ left: pct(now.start), width: `max(calc(${pct(now.end)} - ${pct(now.start)}), 8px)`, ["--bar" as string]: color }}
-                        onPointerDown={(event) => begin(event, moment, "move")}
-                        onPointerMove={move}
-                        onPointerUp={finish}
-                      >
-                        <i className={styles.handle} onPointerDown={(event) => begin(event, moment, "start")} onPointerMove={move} onPointerUp={finish} />
-                        <i className={`${styles.handle} ${styles.right}`} onPointerDown={(event) => begin(event, moment, "end")} onPointerMove={move} onPointerUp={finish} />
-                      </button>
-                    </span>
-                  );
-                })}
+      <div className={styles.scroller}>
+        <div className={styles.inner} style={{ width: `calc(${LABEL}px + (100% - ${LABEL}px) * ${zoom})` }}>
+          <div className={styles.head}>
+            <span className={styles.corner} />
+            <div className={styles.time} ref={lanes} onPointerDown={seek}>
+              <div className={styles.ruler}>
+                {ticks.map((t) => (
+                  <span key={t} style={{ left: pct(t) }}>
+                    {t}s
+                  </span>
+                ))}
+                <span className={styles.end}>{Math.round(duration)}s</span>
               </div>
-            ))}
+              <div className={styles.strip} style={filmstrip ? { backgroundImage: `url(${filmstrip})` } : undefined} />
+            </div>
+          </div>
+          {tracks.map(({ track, moments, off, color }) => {
+            const name = effectLabel(track.label);
+            const fixed = isPermanent(track.key);
+            return (
+              <div key={track.key} className={`${styles.row} ${off ? styles.dim : ""} ${hot === track.key ? styles.hot : ""}`}>
+                <span className={styles.name} title={name} onPointerEnter={() => setHot(track.key)} onPointerLeave={() => setHot(null)}>
+                  <span className={styles.nameIcon} style={{ color }}>
+                    <Icon name={track.icon as IconName} size={15} />
+                  </span>
+                  <span className={styles.nameText}>{name}</span>
+                </span>
+                <div className={styles.lane} onPointerDown={seek}>
+                  {moments.map((moment) => {
+                    const now = live && live.id === moment.id ? live : moment;
+                    const length = now.end - now.start;
+                    return (
+                      <span key={moment.id}>
+                        {moment.was && (
+                          <i className={styles.ghost} style={{ left: pct(moment.was.start), width: `calc(${pct(moment.was.end)} - ${pct(moment.was.start)})`, borderColor: color }} />
+                        )}
+                        <button
+                          type="button"
+                          title={`${name} · ${mmssd(now.start)} – ${mmssd(now.end)} · ${length.toFixed(1).replace(".", ",")} s`}
+                          className={`${styles.bar} ${styles[moment.state]} ${fixed ? styles.fixed : ""} ${selected === moment.id ? styles.selected : ""}`}
+                          style={{ left: pct(now.start), width: `max(calc(${pct(now.end)} - ${pct(now.start)}), 8px)`, ["--bar" as string]: color }}
+                          onPointerDown={(event) => begin(event, moment, "move", fixed)}
+                          onPointerMove={move}
+                          onPointerUp={finish}
+                        >
+                          {!fixed && (
+                            <>
+                              <i className={styles.handle} onPointerDown={(event) => begin(event, moment, "start", fixed)} onPointerMove={move} onPointerUp={finish} />
+                              <i className={`${styles.handle} ${styles.right}`} onPointerDown={(event) => begin(event, moment, "end", fixed)} onPointerMove={move} onPointerUp={finish} />
+                            </>
+                          )}
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+          {/* El cabezal cruza todas las filas: solo cubre la zona de tiempo. */}
+          <div className={styles.overlay} style={{ left: LABEL }}>
             <div className={styles.playhead} style={{ left: pct(time) }}>
               <i />
             </div>

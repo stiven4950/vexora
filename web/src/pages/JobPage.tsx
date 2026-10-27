@@ -10,6 +10,7 @@ import { Button } from "../components/Button";
 import { ChoreographyPanel } from "../components/ChoreographyPanel";
 import { CompareViewer, type CompareViewerHandle } from "../components/CompareViewer";
 import { Icon } from "../components/Icon";
+import { PrepareButton } from "../components/editor/PrepareButton";
 import { ProcessingView, type AppliedConfig } from "../components/ProcessingView";
 import { ProjectSidebar } from "../components/ProjectSidebar";
 import { Shell } from "../components/Shell";
@@ -256,6 +257,9 @@ export function JobPage() {
               <Link to={`${ROUTES.edit(job.parent ?? job.id)}?v=${job.id}`} className={styles.editLink}>
                 <Icon name="wand" size={18} /> Editar efectos
               </Link>
+            )}
+            {!job.editable && job.preparable && (
+              <PrepareButton job={job} className={styles.editLink} onDone={(ready) => navigate(`${ROUTES.edit(ready.parent ?? ready.id)}?v=${ready.id}`)} />
             )}
             <section className={styles.card}>
               <span className="eyebrow">Exportar</span>

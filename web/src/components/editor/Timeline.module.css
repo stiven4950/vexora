@@ -76,45 +76,96 @@
   accent-color: var(--cyan);
 }
 
-.body {
-  display: flex;
+.scroller {
   margin-top: 8px;
+  max-height: 500px; /* regla y fotogramas (~110 px) + ~380 px de filas */
+  overflow: auto;
 }
 
-.names {
+.inner {
+  position: relative;
+  min-width: 100%;
+}
+
+.head {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  background: #0a1020;
+  padding-bottom: 8px;
+}
+
+.corner {
+  position: sticky;
+  left: 0;
+  z-index: 4;
   flex: none;
+  width: 170px;
+  background: #0a1020;
+}
+
+.time {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.row {
   display: flex;
-  flex-direction: column;
-}
-
-.rulerGap {
-  height: 22px;
-}
-
-.stripGap {
-  height: 76px;
-  margin-bottom: 10px;
-}
-
-.name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 34px;
-  font-size: 13px;
+  height: 30px;
   border-top: 1px solid var(--line);
 }
 
-.scroll {
-  flex: 1;
-  min-width: 0;
-  overflow-x: auto;
+.name {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 170px;
+  padding-right: 8px;
+  font-size: 12.5px;
+  background: #0a1020;
+  cursor: default;
 }
 
-.canvas {
+.nameIcon {
+  display: grid;
+  flex: none;
+}
+
+.nameText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lane {
   position: relative;
-  min-width: 100%;
+  flex: 1;
+  min-width: 0;
   cursor: pointer;
+}
+
+.hot .lane {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.hot .bar {
+  filter: brightness(1.35);
+}
+
+.overlay {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 7;
+  pointer-events: none;
 }
 
 .ruler {
@@ -141,17 +192,10 @@
 
 .strip {
   height: 76px;
-  margin-bottom: 10px;
   border-radius: 6px;
   background-color: #05070d;
   background-size: 100% 100%;
   border: 1px solid var(--line);
-}
-
-.lane {
-  position: relative;
-  height: 34px;
-  border-top: 1px solid var(--line);
 }
 
 .dim {
@@ -160,7 +204,7 @@
 
 .bar {
   position: absolute;
-  top: 8px;
+  top: 7px;
   height: 16px;
   padding: 0;
   border-radius: 999px;
@@ -173,6 +217,11 @@
 
 .bar:active {
   cursor: grabbing;
+}
+
+.bar.fixed,
+.bar.fixed:active {
+  cursor: pointer;
 }
 
 .removed {
@@ -230,7 +279,7 @@
 
 .ghost {
   position: absolute;
-  top: 8px;
+  top: 7px;
   height: 16px;
   border-radius: 999px;
   border: 1px dashed;
@@ -240,7 +289,7 @@
 
 .playhead {
   position: absolute;
-  top: 18px;
+  top: 18px; /* la cabeza queda sobre la regla */
   bottom: 0;
   width: 2px;
   margin-left: -1px;

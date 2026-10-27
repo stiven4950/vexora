@@ -46,6 +46,8 @@ export const api = {
   /** Aplica los cambios del editor: crea una versión nueva y devuelve su trabajo. */
   edit: (id: string, edits: EditOp[]) =>
     request<Job>(`/api/jobs/${id}/edit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ edits }) }),
+  /** Prepara una versión terminada antes del editor para editarla (unos segundos) y devuelve el trabajo ya editable. */
+  prepareEdit: (id: string) => request<Job>(`/api/jobs/${id}/prepare-edit`, { method: "POST" }),
   /** Cancela un trabajo: en cola se borra ya; en curso se corta en unos segundos. */
   cancel: (id: string) => request<{ status: "removed" | "stopping" }>(`/api/jobs/${id}/cancel`, { method: "POST" }),
   /** Renombra el proyecto (el video y todas sus versiones); vacío = el nombre del archivo. */

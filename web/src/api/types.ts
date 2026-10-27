@@ -99,6 +99,8 @@ export interface Job {
   tags: string[];
   /** Se puede abrir en el editor de efectos. */
   editable: boolean;
+  /** Versión terminada antes del editor: todavía no se puede editar, pero se puede preparar (POST prepare-edit). */
+  preparable: boolean;
   /** Si es una versión editada: la versión de la que parte y sus cambios. */
   base: string | null;
   edits: EditOp[];
@@ -190,7 +192,10 @@ export interface EditorTrack {
 export interface EditorOption {
   option: string;
   action: string;
+  /** La pista a la que pertenece (el nombre de la opción). */
   track: string;
+  /** El elemento del efecto (fuego, agua, aire, rayo, tierra) o null. */
+  element: string | null;
 }
 
 export interface EditorView {

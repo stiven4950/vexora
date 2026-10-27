@@ -219,6 +219,9 @@ div.failed pre {
 }
 
 .editLink {
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;

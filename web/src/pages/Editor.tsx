@@ -2,13 +2,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { api } from "../api/client";
-import { buildEdits, countChanges, EMPTY, redrawSeconds, shownMoments, type Pending, type TrackChange } from "../api/editing";
+import { effectLabel } from "../api/effectLabels";
+import { buildEdits, countChanges, EMPTY, groupOptions, isPermanent, redrawSeconds, shownMoments, withPending, type Pending, type TrackChange } from "../api/editing";
 import { approx, groupVersions, mmss, projectName, sheetDate } from "../api/format";
 import type { EditorView, Job, Style } from "../api/types";
 import { Icon } from "../components/Icon";
 import { ProjectSidebar } from "../components/ProjectSidebar";
 import { Shell } from "../components/Shell";
 import { PreviewPlayer, type PlayerHandle } from "../components/editor/PreviewPlayer";
+import { PrepareButton } from "../components/editor/PrepareButton";
 import { Timeline } from "../components/editor/Timeline";
 import { TrackCard } from "../components/editor/TrackCard";
 import { soonNotice } from "../mocks/pendientes";
@@ -35,6 +37,7 @@ export function Editor() {
   const [time, setTime] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const player = useRef<PlayerHandle>(null);
 
@@ -64,7 +67,8 @@ export function Editor() {
 
   const onTime = useCallback((seconds: number) => setTime(seconds), []);
   const changes = countChanges(pending);
-  const tracks = view?.tracks ?? [];
+  // Las pistas del servidor más las filas nuevas que crean los efectos agregados.
+  const tracks = useMemo(() => (view ? withPending(view.tracks, pending) : []), [view, pending]);
 
   const setMoment = (id: string, patch: { removed?: boolean; start?: number; end?: number } | null) => {
     if (pending.added.some((a) => a.key === id)) {
@@ -110,6 +114,26 @@ export function Editor() {
     />
   ) : undefined;
 
+  const preparable = !error && versions && !job ? (versions.find((v) => v.id === params.get("v") && v.preparable) ?? versions.find((v) => v.preparable)) : undefined;
+  if (preparable) {
+    return (
+      <Shell sidebar={sidebar} footer={false}>
+        <div className={styles.empty}>
+          <Icon name="wand" size={28} />
+          <h2>Falta preparar esta versión</h2>
+          <p>Se hizo antes del editor. Prepararla toma unos segundos y no cambia el video.</p>
+          <PrepareButton
+            job={preparable}
+            className={styles.prepare}
+            onDone={(ready) => {
+              setVersions((all) => all && all.map((v) => (v.id === ready.id ? ready : v)));
+              navigate(`${ROUTES.edit(projectId)}?v=${ready.id}`, { replace: true });
+            }}
+          />
+        </div>
+      </Shell>
+    );
+  }
   if (error || (versions && !job)) {
     return (
       <Shell sidebar={sidebar} footer={false}>
@@ -142,6 +166,8 @@ export function Editor() {
   const estimate = approx(seconds * renderRatio(job));
   const versionNumber = (versions?.length ?? 0) - (versions?.findIndex((v) => v.id === job.id) ?? 0);
   const selectedMoment = timelineTracks.flatMap((t) => t.moments).find((m) => m.id === selected) ?? null;
+  const selectedFixed = timelineTracks.some((t) => isPermanent(t.track.key) && t.moments.some((m) => m.id === selected));
+  const groups = groupOptions(view.options, query, effectLabel);
 
   return (
     <Shell sidebar={sidebar} footer={false}>
@@ -170,10 +196,10 @@ export function Editor() {
           {selectedMoment && (
             <div className={styles.selection}>
               <span>
-                <strong>{selectedMoment.choice.replace(/_/g, " ")}</strong> · {mmss(selectedMoment.start)}–{mmss(selectedMoment.end)}
+                <strong>{effectLabel(selectedMoment.choice)}</strong> · {mmss(selectedMoment.start)}–{mmss(selectedMoment.end)}
                 {selectedMoment.state !== "same" && <em> · {{ removed: "se quitará", moved: "movido", added: "nuevo", same: "" }[selectedMoment.state]}</em>}
               </span>
-              {selectedMoment.state === "removed" || selectedMoment.state === "moved" ? (
+              {selectedFixed ? null : selectedMoment.state === "removed" || selectedMoment.state === "moved" ? (
                 <button type="button" onClick={() => setMoment(selectedMoment.id, null)}>
                   <Icon name="refresh" size={14} /> Deshacer
                 </button>
@@ -197,30 +223,37 @@ export function Editor() {
                   <Icon name="plus" size={14} /> Agregar efecto
                 </button>
                 {adding && (
-                  <div className={styles.addPop} onMouseLeave={() => setAdding(false)}>
+                  <div className={styles.addPop}>
                     <strong>Agregar en {mmss(time)}</strong>
-                    {tracks.map((track) => {
-                      const options = view.options.filter((o) => o.track === track.key).slice(0, 8);
-                      if (options.length === 0) return null;
-                      return (
-                        <div key={track.key}>
-                          <small>{track.label}</small>
-                          {options.map((o) => (
-                            <button
-                              key={`${o.action}:${o.option}`}
-                              type="button"
-                              onClick={() => {
-                                const start = Math.min(time, view.duration - 0.8);
-                                setPending((p) => ({ ...p, added: [...p.added, { key: `nuevo-${Date.now()}`, option: o.option, action: o.action, track: track.key, start, end: start + 0.8 }] }));
-                                setAdding(false);
-                              }}
-                            >
-                              {o.option.replace(/_/g, " ")}
-                            </button>
-                          ))}
-                        </div>
-                      );
-                    })}
+                    <input
+                      type="search"
+                      className={styles.search}
+                      placeholder="Buscar efecto…"
+                      value={query}
+                      autoFocus
+                      onChange={(event) => setQuery(event.target.value)}
+                      onKeyDown={(event) => event.key === "Escape" && setAdding(false)}
+                    />
+                    {groups.length === 0 && <small>Sin resultados</small>}
+                    {groups.map((group) => (
+                      <div key={group.title}>
+                        <small>{group.title}</small>
+                        {group.options.map((o) => (
+                          <button
+                            key={`${o.action}:${o.option}`}
+                            type="button"
+                            onClick={() => {
+                              const start = Math.max(Math.min(time, view.duration - 0.8), 0);
+                              setPending((p) => ({ ...p, added: [...p.added, { key: `nuevo-${Date.now()}`, option: o.option, action: o.action, track: o.track, element: o.element, start, end: start + 0.8 }] }));
+                              setAdding(false);
+                              setQuery("");
+                            }}
+                          >
+                            {effectLabel(o.option)}
+                          </button>
+                        ))}
+                      </div>
+                    ))}
                   </div>
                 )}
               </span>

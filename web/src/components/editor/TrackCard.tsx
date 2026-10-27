@@ -1,6 +1,7 @@
 import { useState } from "react";
 
-import type { TrackChange } from "../../api/editing";
+import { effectLabel } from "../../api/effectLabels";
+import { isPermanent, type TrackChange } from "../../api/editing";
 import { mmssd } from "../../api/format";
 import type { EditorTrack } from "../../api/types";
 import { Icon, type IconName } from "../Icon";
@@ -20,6 +21,7 @@ export function TrackCard({ track, change, onChange }: Props) {
   const [palette, setPalette] = useState(false);
   const [menu, setMenu] = useState(false);
   const on = !change?.off;
+  const name = effectLabel(track.label);
   const color = change?.color ?? track.color;
   const set = (patch: TrackChange) => onChange({ ...(change ?? {}), ...patch });
   return (
@@ -28,14 +30,14 @@ export function TrackCard({ track, change, onChange }: Props) {
         <Icon name={track.icon as IconName} size={22} />
       </span>
       <div className={styles.text}>
-        <strong>{track.label}</strong>
+        <strong title={name}>{name}</strong>
         <small>
-          {mmssd(track.start)} – {mmssd(track.end)}
+          {isPermanent(track.key) ? "Todo el video" : `${mmssd(track.start)} – ${mmssd(track.end)}`}
         </small>
       </div>
       <div className={styles.tools}>
         <span className={styles.menuWrap}>
-          <button type="button" className={styles.dot} style={{ background: color }} onClick={() => setPalette((v) => !v)} aria-label={`Color de ${track.label}`} />
+          <button type="button" className={styles.dot} style={{ background: color }} onClick={() => setPalette((v) => !v)} aria-label={`Color de ${name}`} />
           {palette && (
             <div className={styles.pop} onMouseLeave={() => setPalette(false)}>
               <strong>Color</strong>
@@ -50,7 +52,7 @@ export function TrackCard({ track, change, onChange }: Props) {
             </div>
           )}
         </span>
-        <button type="button" role="switch" aria-checked={on} className={`${styles.switch} ${on ? styles.switchOn : ""}`} onClick={() => set({ off: on })} aria-label={on ? `Apagar ${track.label}` : `Encender ${track.label}`}>
+        <button type="button" role="switch" aria-checked={on} className={`${styles.switch} ${on ? styles.switchOn : ""}`} onClick={() => set({ off: on })} aria-label={on ? `Apagar ${name}` : `Encender ${name}`}>
           <i />
         </button>
         <span className={styles.menuWrap}>
