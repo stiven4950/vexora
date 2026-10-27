@@ -71,6 +71,21 @@ class _LayerIndex(BaseModel):
     effects: dict[str, str]
 
 
+def apply_catalog_needs(config_path: Path, config) -> None:
+    """Un catálogo puede pedir señales que el análisis no calcula por defecto."""
+    from vfxglow.director.choreography import load_catalog
+
+    path = catalog_file(config_path, config.director.catalog)
+    if not path.exists():
+        return
+    catalog = load_catalog(path)
+    needs = set(catalog.needs)
+    if "blades" in needs and config.analysis.blades.mode == "off":
+        config.analysis.blades.mode = "always"
+    if "props" in needs and not config.analysis.props.query:
+        config.analysis.props.query = catalog.prop
+
+
 class Pipeline:
     def __init__(
         self,
@@ -155,18 +170,7 @@ class Pipeline:
         )
 
     def _apply_catalog_needs(self) -> None:
-        """Un catálogo puede pedir señales que el análisis no calcula por defecto."""
-        from vfxglow.director.choreography import load_catalog
-
-        path = catalog_file(self.config_path, self.config.director.catalog)
-        if not path.exists():
-            return
-        catalog = load_catalog(path)
-        needs = set(catalog.needs)
-        if "blades" in needs and self.config.analysis.blades.mode == "off":
-            self.config.analysis.blades.mode = "always"
-        if "props" in needs and not self.config.analysis.props.query:
-            self.config.analysis.props.query = catalog.prop
+        apply_catalog_needs(self.config_path, self.config)
 
     def _ensure_derived(self, brief_path: Path) -> None:
         """Análisis anteriores a una señal derivada (piel, gestos, atención): se calcula ahora con
@@ -306,6 +310,17 @@ class Pipeline:
             script=sha256_file(dest)[:12],
             code=_code("direct")[:12],
         )
+
+    def direct_in_memory(self) -> EffectScript:
+        """La coreografía del catálogo con el análisis en caché, sin escribir nada en la carpeta de la
+        corrida (ni guion, ni manifiesto): la vista previa del Estudio la usa para no pisar el guion
+        de un trabajo real que comparta el video. Sin análisis profundo."""
+        from vfxglow.analysis.schema import MotionBrief
+
+        brief_path = self.run_dir / "analysis" / "motion_brief.json"
+        self._ensure_derived(brief_path)
+        director = CreativeDirector(self.config.director, self.config_path.resolve().parent / "presets", video=self.video)
+        return director.create(read_model(brief_path, MotionBrief))
 
     def _deep_script(self) -> None:
         """Con el análisis profundo activo (y sin un guion fijado a mano), el modelo ve el video

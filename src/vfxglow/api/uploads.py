@@ -98,6 +98,12 @@ class UploadStore:
                 raise UploadNotFound(upload_id)
             return item.model_copy(deep=True)
 
+    def peek(self, upload_id: str) -> Upload | None:
+        """La subida sin comprobar dueño (los archivos con llave firmada lo comprueban aparte)."""
+        with self._lock:
+            item = self._items.get(upload_id)
+            return item.model_copy(deep=True) if item is not None else None
+
     # ----- altas y bajas -----
 
     def create(self, filename: str, data, owner: str, max_bytes: int | None, check: Callable[[Path], object]) -> Upload:

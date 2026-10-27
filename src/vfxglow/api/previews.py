@@ -4,6 +4,10 @@ Un hilo aparte del de los trabajos (un render largo no la bloquea ni ella a él)
 por usuario: si llega otro mientras el anterior sigue en cola, el anterior se descarta. El
 resultado se guarda por hash de (trabajo, cambios, tramo): pedir lo mismo no vuelve a dibujar.
 Los MP4 viven en api_data/previews/<trabajo>/ y se borran a la hora y al borrar el trabajo.
+
+El Estudio la reutiliza (kind="studio"): ~3 s con el estilo elegido sobre el video de una subida ya
+analizada, antes de crear el trabajo. Mismo hilo, misma cola, mismo "uno pendiente por usuario" y
+misma cuota diaria; `job_id` guarda entonces el id de la subida.
 """
 
 from __future__ import annotations
@@ -28,6 +32,8 @@ TTL_S = 3600
 # Lado largo máximo del MP4 de la vista previa (la imagen se dibuja entera; solo se reescala al escribir).
 MAX_SIDE = 1280
 HALF_S = 1.5
+STUDIO_S = 3.0  # duración de la vista previa del Estudio
+STUDIO_MIN_SIDE = 640  # a media resolución, pero sin bajar de esto
 DAY_S = 24 * 3600
 
 
@@ -42,6 +48,9 @@ class Preview:
     status: str = "rendering"
     error: str | None = None
     started: bool = False
+    kind: str = "editor"  # "editor" | "studio"
+    studio: dict | None = None  # studio: video_path, style y opciones del Pipeline
+    max_side: int = MAX_SIDE
     finished: float = 0.0
     frames: int = 0
     path: Path | None = None
@@ -53,6 +62,59 @@ def window_for(at: float, fps: float, frames: int) -> tuple[int, int]:
     a = max(int(round((at - HALF_S) * fps)), 0)
     b = min(int(round((at + HALF_S) * fps)) - 1, frames - 1)
     return a, max(b, a)
+
+
+def busiest_window(brief, seconds: float = STUDIO_S) -> tuple[int, int]:
+    """Los `seconds` s más activos: donde más pesa la línea de atención (los miembros y el objeto
+    pesan más que la cabeza o el torso quietos); sin atención, donde más eventos hay; sin nada,
+    el centro del video."""
+    fps = brief.video.fps or 30.0
+    frames = brief.video.frame_count
+    length = max(int(round(seconds * fps)), 1)
+    if frames <= length:
+        return 0, max(frames - 1, 0)
+    score = [0.0] * (frames + 1)  # diferencias: peso por fotograma
+
+    def add(start: int, end: int, weight: float) -> None:
+        a, b = max(start, 0), min(end, frames - 1)
+        if b >= a:
+            score[a] += weight
+            score[b + 1] -= weight
+
+    if brief.attention:
+        for span in brief.attention:
+            add(span.start_frame, span.end_frame, (0.2 if span.primary in ("head", "torso") else 1.0) + (0.5 if span.secondary else 0.0))
+        tie = 0.01
+    else:
+        tie = 1.0
+    for event in brief.events:
+        add(event.start_frame, event.end_frame, tie)
+    per_frame, running = [], 0.0
+    for value in score[:frames]:
+        running += value
+        per_frame.append(running)
+    total = sum(per_frame[:length])
+    best, start = total, 0
+    for i in range(1, frames - length + 1):
+        total += per_frame[i + length - 1] - per_frame[i - 1]
+        if total > best + 1e-9:
+            best, start = total, i
+    if best <= 1e-9:
+        start = (frames - length) // 2
+    return start, start + length - 1
+
+
+def needs_own_analysis(config_path: Path, catalog: str) -> bool:
+    """El catálogo cambia la config de análisis con sus `needs` (blades, props): entonces no reutiliza
+    el análisis de la subida y la vista previa no es posible."""
+    from vfxglow.config import load_config
+    from vfxglow.pipeline import apply_catalog_needs
+
+    config = load_config(config_path)
+    before = config.analysis.model_dump_json()
+    config.director.catalog = catalog
+    apply_catalog_needs(config_path, config)
+    return config.analysis.model_dump_json() != before
 
 
 class PreviewStore:
@@ -113,6 +175,30 @@ class PreviewStore:
         self._queue.put(key)
         return item, False
 
+    def submit_studio(self, upload_id: str, uid: str, studio: dict, window: tuple[int, int], fps: float, max_side: int, check_quota=None) -> tuple[Preview, bool]:
+        """Como `submit`, para el Estudio: `studio` = video_path, run_dir, style y opciones. Lo
+        mismo (subida, estilo, opciones y tramo) no se vuelve a dibujar. Devuelve (vista previa, desde_caché)."""
+        self._sweep()
+        key = hashlib.sha256(json.dumps(["studio", upload_id, studio, list(window)], sort_keys=True).encode()).hexdigest()[:16]
+        with self._lock:
+            item = self._items.get(key)
+            if item is not None and (item.status == "rendering" or self.url_path(item) is not None):
+                return item, True
+        if check_quota is not None:
+            check_quota(self.renders_today(uid))
+        with self._lock:
+            for other in self._items.values():
+                if other.uid == uid and other.status == "rendering" and not other.started and other.id != key:
+                    other.status, other.error, other.finished = "failed", "Reemplazada por una vista previa más reciente.", time.time()
+            item = Preview(
+                id=key, job_id=upload_id, uid=uid, edits=[], window=window, fps=fps, kind="studio", studio=studio, max_side=max_side,
+                path=self.root / upload_id / f"{key}.mp4",
+            )
+            self._items[key] = item
+            self._renders.setdefault(uid, deque()).append(time.time())
+        self._queue.put(key)
+        return item, False
+
     # ----- trabajo -----
 
     def _worker(self) -> None:
@@ -129,7 +215,7 @@ class PreviewStore:
         began = time.time()
         frames = 0
         try:
-            with telemetry.span("preview.render", job_id=item.job_id, window=list(item.window)):
+            with telemetry.span("preview.render", job_id=item.job_id, window=list(item.window), kind=item.kind):
                 frames = self._draw(item)
             item.frames, item.status = frames, "ready"
         except ValueError as error:  # un cambio imposible que solo se vio al compilar (p. ej. un efecto nuevo)
@@ -137,12 +223,35 @@ class PreviewStore:
         except Exception as error:  # el detalle va al registro; la persona ve un mensaje claro
             log.exception("Vista previa %s falló", item.id)
             item.status, item.error = "failed", "No pudimos generar la vista previa. Inténtalo de nuevo o aplica los cambios."
-            telemetry.event("preview.failed", level=logging.ERROR, job_id=item.job_id, error={"kind": type(error).__name__, "message": telemetry.redact(str(error))[:500]})
+            telemetry.event("preview.failed", level=logging.ERROR, job_id=item.job_id, preview_kind=item.kind, error={"kind": type(error).__name__, "message": telemetry.redact(str(error))[:500]})
         item.finished = time.time()
         if item.status == "ready":
-            telemetry.event("preview.finished", job_id=item.job_id, duration_ms=round((item.finished - began) * 1000), frames=frames, cache_hit=False)
+            telemetry.event("preview.finished", job_id=item.job_id, duration_ms=round((item.finished - began) * 1000), frames=frames, cache_hit=False, kind=item.kind)
+
+    def _draw_studio(self, item: Preview) -> int:
+        from vfxglow.engine.engine import load_events
+        from vfxglow.pipeline import Pipeline
+
+        assert item.studio is not None and item.path is not None
+        studio = item.studio
+        video = Path(studio["video_path"])
+        if not video.exists():
+            raise ValueError("El video de la subida ya no está.")
+        kwargs = {"catalog": studio["style"], "season": studio.get("season"), "take": 0}
+        if studio.get("fire_style") or studio.get("bolt_style"):
+            kwargs.update(fire_style=studio.get("fire_style"), bolt_style=studio.get("bolt_style"))
+        if studio.get("wardrobe"):
+            kwargs["wardrobe"] = studio["wardrobe"]
+        pipeline = Pipeline(self.jobs.config, video, **kwargs)
+        # Sin escribir guion ni manifiesto en runs/: ese análisis lo comparte el trabajo real.
+        script = pipeline.direct_in_memory()
+        events = load_events(pipeline.run_dir / "analysis" / "events.jsonl")
+        item.path.parent.mkdir(parents=True, exist_ok=True)
+        return pipeline.render_preview(script, item.path, item.window, events=events, max_side=item.max_side)
 
     def _draw(self, item: Preview) -> int:
+        if item.kind == "studio":
+            return self._draw_studio(item)
         from vfxglow.analysis.schema import MotionEvent
         from vfxglow.director.edits import Edit, Moment, apply_edits, assign_tracks
         from vfxglow.director.schema import EffectScript

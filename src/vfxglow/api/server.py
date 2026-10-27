@@ -509,6 +509,7 @@ def delete_upload(upload_id: str, user: User = Depends(current_user)) -> Respons
         uploads().delete(upload_id, user.uid)
     except UploadNotFound as error:
         raise HTTPException(404, UPLOAD_GONE) from error
+    previews().forget_job(upload_id)
     return Response(status_code=204)
 
 
@@ -812,6 +813,111 @@ def get_preview(job_id: str, preview_id: str, user: User = Depends(current_user)
     if item is None:
         raise HTTPException(404, "La vista previa ya no existe")
     return _preview_view(job, item)
+
+
+# ----- vista previa del Estudio (una subida lista + el estilo elegido) -----
+
+
+class StudioPreviewRequest(BaseModel):
+    style_kind: str = "catalog"
+    style: str
+    season: str | None = None
+    fire_style: str | None = None
+    bolt_style: str | None = None
+    # Vestuario por persona, o un solo nombre para todas ("*").
+    wardrobe: dict[str, str] | str | None = None
+
+
+def _studio_view(upload: Upload, item) -> PreviewView:
+    ready = previews().url_path(item) is not None
+    status = item.status if item.status != "ready" or ready else "failed"
+    key = f"?k={media_key(upload.id, upload.owner)}"
+    return PreviewView(
+        preview_id=item.id,
+        status=status,
+        url=f"/api/uploads/{upload.id}/preview/{item.id}.mp4{key}" if ready else None,
+        start=round(item.window[0] / item.fps, 3),
+        end=round((item.window[1] + 1) / item.fps, 3),
+        error=item.error if status == "failed" else None,
+    )
+
+
+def _owned_upload(upload_id: str, user: User) -> Upload:
+    try:
+        return uploads().get(upload_id, user.uid)
+    except UploadNotFound as error:
+        raise HTTPException(404, UPLOAD_GONE) from error
+
+
+@app.post("/api/uploads/{upload_id}/preview", response_model=PreviewView, status_code=202)
+def create_upload_preview(upload_id: str, body: StudioPreviewRequest, user: User = Depends(current_user)) -> PreviewView:
+    """Unos 3 s con efectos reales del estilo elegido, en el tramo más activo del video, antes de
+    crear el trabajo. Solo estilos de catálogo cuyo análisis es el de la subida."""
+    from vfxglow.analysis.schema import MotionBrief
+    from vfxglow.api.previews import STUDIO_MIN_SIDE, busiest_window, needs_own_analysis
+    from vfxglow.io.store import read_model
+
+    upload = _owned_upload(upload_id, user)
+    if body.style_kind != "catalog":
+        raise HTTPException(422, "La vista previa solo está disponible para estilos del catálogo.")
+    style = _check_style("catalog", body.style)
+    _check_season(body.season or None)
+    _check_looks(body.fire_style or None, body.bolt_style or None)
+    wardrobe = body.wardrobe if isinstance(body.wardrobe, dict) else ({"*": body.wardrobe} if body.wardrobe else {})
+    wear = _check_wardrobe(wardrobe)
+    if upload.status == "used":
+        raise HTTPException(409, "Esta subida ya se usó en otro video.")
+    brief_path = Path(upload.run_dir or "") / "analysis" / "motion_brief.json"
+    if upload.status != "ready" or not upload.run_dir or not brief_path.exists():
+        raise HTTPException(409, "Espera a que termine el análisis.")
+    if needs_own_analysis(CONFIG, style):
+        raise HTTPException(409, "Este estilo analiza el video a su manera: la vista previa saldrá al crear los efectos.")
+    brief = read_model(brief_path, MotionBrief)
+    window = busiest_window(brief)
+    studio = dict(
+        video_path=upload.video_path,
+        run_dir=upload.run_dir,
+        style=style,
+        season=body.season or None,
+        fire_style=body.fire_style or None,
+        bolt_style=body.bolt_style or None,
+        wardrobe=wear,
+    )
+    long_side = max(brief.video.width, brief.video.height)
+    item, cached = previews().submit_studio(
+        upload.id,
+        user.uid,
+        studio,
+        window,
+        brief.video.fps or 30.0,
+        max(STUDIO_MIN_SIDE, long_side // 2),
+        check_quota=lambda today: limits.check_preview_quota(user, today),
+    )
+    if cached and item.status == "ready":
+        telemetry.event("preview.finished", job_id=upload.id, duration_ms=0, frames=item.frames, cache_hit=True, kind="studio")
+    return _studio_view(upload, item)
+
+
+@app.get("/api/uploads/{upload_id}/preview/{preview_id}.mp4")
+def upload_preview_file(upload_id: str, preview_id: str, k: str | None = Query(None)) -> FileResponse:
+    upload = uploads().peek(upload_id)
+    if upload is None:
+        raise HTTPException(404, UPLOAD_GONE)
+    media_owner(upload.id, k, upload.owner)
+    item = previews().get(upload.id, preview_id)
+    path = previews().url_path(item) if item is not None else None
+    if path is None:
+        raise HTTPException(404, "La vista previa ya no existe")
+    return FileResponse(path, media_type="video/mp4")
+
+
+@app.get("/api/uploads/{upload_id}/preview/{preview_id}", response_model=PreviewView)
+def get_upload_preview(upload_id: str, preview_id: str, user: User = Depends(current_user)) -> PreviewView:
+    upload = _owned_upload(upload_id, user)
+    item = previews().get(upload.id, preview_id)
+    if item is None:
+        raise HTTPException(404, "La vista previa ya no existe")
+    return _studio_view(upload, item)
 
 
 @app.get("/api/jobs/{job_id}/filmstrip")
