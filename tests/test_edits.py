@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from vfxglow.analysis.schema import MotionEvent
-from vfxglow.director.edits import Edit, apply_edits, assign_tracks, changed_window, moments_from
+from vfxglow.director.edits import MAX_TRACKS, OPTION_COLORS, Edit, apply_edits, assign_tracks, changed_window, moments_from
 from vfxglow.director.schema import Effect, EffectScript
 
 FPS = 30.0
@@ -47,7 +47,7 @@ def _setup():
         {"frame": 600, "second": 600 / FPS, "action": "jump", "target": T, "choice": "viento", "until": 609},
         {"frame": 700, "second": 700 / FPS, "action": "point", "target": T, "choice": "rayo", "until": 709},
     ]
-    moments = moments_from(script, decisions)
+    moments = moments_from(script, decisions, FRAMES)
     elements = {"agua": "agua", "viento": "aire", "rayo": "rayo"}
     tracks = assign_tracks(moments, lambda option, _action: elements.get(option))
     return script, events, moments, tracks
@@ -57,17 +57,69 @@ def _ids(script: EffectScript) -> dict[str, Effect]:
     return {e.id: e for e in script.effects}
 
 
-def test_moments_pair_with_their_effects_and_go_to_element_tracks() -> None:
+def test_moments_pair_with_their_effects_and_go_to_one_track_per_option() -> None:
     _script, _events, moments, tracks = _setup()
-    assert [m.choice for m in moments] == ["agua", "agua", "viento", "rayo"]  # "nada" no enciende nada
+    assert [m.choice for m in moments if m.action != "always"] == ["agua", "agua", "viento", "rayo"]  # "nada" no enciende nada
     assert moments[0].effects == ["fast_swing_agua_0"] and moments[0].until == 109
-    assert [(t.key, t.label, len(t.moments)) for t in tracks] == [("agua", "Agua", 2), ("aire", "Viento", 1), ("rayo", "Rayo", 1)]
+    # Una pista por opción, por su primer fotograma; el permanente (fotograma 0) va primero.
+    assert [(t.key, t.label, t.element, t.icon, len(t.moments)) for t in tracks] == [
+        ("always:drop", "always:drop", None, "sparkles", 1),
+        ("agua", "agua", "agua", "drop", 2),
+        ("viento", "viento", "aire", "wind", 1),
+        ("rayo", "rayo", "rayo", "bolt", 1),
+    ]
+    assert tracks[1].color == "#1e90ff"
 
 
-def test_without_elements_tracks_are_effect_types() -> None:
+def test_without_elements_every_option_still_has_its_own_track_with_cycling_colors() -> None:
     _script, _events, moments, _tracks = _setup()
-    tracks = assign_tracks(moments, lambda _o, _a: None)
-    assert [t.key for t in tracks] == ["agua", "viento", "rayo"] and all(t.element is None for t in tracks)
+    tracks = [t for t in assign_tracks(moments, lambda _o, _a: None) if not t.key.startswith("always:")]
+    assert [t.key for t in tracks] == ["agua", "viento", "rayo"] and all(t.element is None and t.icon == "sparkles" for t in tracks)
+    assert [t.color for t in tracks] == OPTION_COLORS[:3]
+
+
+def test_mirrored_and_pinned_variants_share_the_track_of_their_option() -> None:
+    script = EffectScript(title="t", theme="t", effects=[_effect("a_0", "fast_swing", [10]), _effect("a_1", "fast_swing", [20])])
+    decisions = [
+        {"frame": 10, "second": 0.3, "action": "fast_swing", "target": T, "choice": "swoosh (espejo)", "until": 12},
+        {"frame": 20, "second": 0.6, "action": "fast_swing", "target": T, "choice": "swoosh (fijado)", "until": 22},
+    ]
+    tracks = assign_tracks(moments_from(script, decisions, FRAMES), lambda _o, _a: None)
+    assert [(t.key, len(t.moments)) for t in tracks] == [("swoosh", 2)]
+
+
+def test_tracks_beyond_the_limit_go_to_others_at_the_end() -> None:
+    names = [f"op{i}" for i in range(MAX_TRACKS + 3)]
+    script = EffectScript(title="t", theme="t", effects=[_effect(f"e{i}", "fast_swing", [i * 5]) for i in range(len(names))])
+    decisions = [{"frame": i * 5, "second": 0.0, "action": "fast_swing", "target": T, "choice": name, "until": i * 5 + 1} for i, name in enumerate(names)]
+    tracks = assign_tracks(moments_from(script, decisions, FRAMES), lambda _o, _a: None)
+    assert len(tracks) == MAX_TRACKS + 1 and tracks[-1].key == "otros" and len(tracks[-1].moments) == 3
+    assert [t.key for t in tracks[:MAX_TRACKS]] == names[:MAX_TRACKS]
+
+
+def test_permanent_effects_become_moments_of_a_track_per_shape() -> None:
+    script = EffectScript(
+        title="t",
+        theme="t",
+        effects=[
+            Effect.model_validate({"id": "always_0_tramo0", "type": "particles", "target": {"kind": "joint", "id": "nose"}, "style": {"shapes": ["ember"]}, "time": {"start_frame": 0, "end_frame": 299}}),
+            Effect.model_validate({"id": "always_0_tramo1", "type": "particles", "target": {"kind": "joint", "id": "nose"}, "style": {"shapes": ["ember"]}, "time": {"start_frame": 300}}),
+            Effect.model_validate({"id": "always_1_tramo0", "type": "aura", "target": {"kind": "joint", "id": "nose"}, "style": {"shapes": []}}),
+        ],
+    )
+    moments = moments_from(script, [], FRAMES)
+    assert [(m.id, m.frame, m.until, m.action, m.target, m.choice, m.effects) for m in moments] == [
+        ("always@always_0_tramo0", 0, 299, "always", "", "always:ember", ["always_0_tramo0"]),
+        ("always@always_0_tramo1", 300, FRAMES - 1, "always", "", "always:ember", ["always_0_tramo1"]),
+        ("always@always_1_tramo0", 0, FRAMES - 1, "always", "", "always:aura", ["always_1_tramo0"]),
+    ]
+    consulted: list[str] = []
+    tracks = assign_tracks(moments, lambda o, _a: consulted.append(o))
+    assert not consulted  # el catálogo no sabe de permanentes
+    assert [(t.key, t.label, t.element, t.icon, t.color, len(t.moments)) for t in tracks] == [
+        ("always:ember", "always:ember", None, "sparkles", "#94a3b8", 2),
+        ("always:aura", "always:aura", None, "sparkles", "#94a3b8", 1),
+    ]
 
 
 def test_removing_a_moment_leaves_every_other_effect_exactly_as_it_was() -> None:
@@ -84,7 +136,7 @@ def test_removing_a_moment_leaves_every_other_effect_exactly_as_it_was() -> None
 def test_turning_a_track_off_removes_its_effects() -> None:
     script, events, moments, tracks = _setup()
     new, new_moments, _ = apply_edits(script, moments, tracks, [Edit(op="track_off", track="agua")], events, FPS, FRAMES)
-    assert "fast_swing_agua_0" not in _ids(new) and {m.track for m in new_moments} == {"aire", "rayo"}
+    assert "fast_swing_agua_0" not in _ids(new) and {m.track for m in new_moments} == {"always:drop", "viento", "rayo"}
 
 
 def test_moving_a_moment_copies_its_effect_to_the_new_time_with_a_new_gesture() -> None:
@@ -99,7 +151,7 @@ def test_moving_a_moment_copies_its_effect_to_the_new_time_with_a_new_gesture() 
     assert (moved_event.name, moved_event.start_frame, moved_event.target) == ("jump", 630, T)
     assert moved_event.end_frame == 630 + 30 - 1 - 5  # la barra dura 1 s; el efecto se sostiene 5 fotogramas
     moved = next(m for m in new_moments if m.choice == "viento")
-    assert (moved.frame, moved.until, moved.effects, moved.track) == (630, 659, ["jump_viento_0~m1"], "aire")
+    assert (moved.frame, moved.until, moved.effects, moved.track) == (630, 659, ["jump_viento_0~m1"], "viento")
     assert after["fast_swing_agua_0"] == _ids(script)["fast_swing_agua_0"]
 
 
@@ -179,10 +231,29 @@ def test_tint_keeps_brightness_and_white_cores_and_scale_grows_around_the_anchor
     assert (big[..., 3] > 0.5).sum() > 2 * (dot[..., 3] > 0.5).sum() and big[20, 20, 3] > 0.9
 
 
-def test_the_main_element_track_also_restyles_the_permanent_effects() -> None:
+def test_permanent_effects_are_a_track_you_can_remove_switch_off_and_restyle_but_not_move() -> None:
     script, events, moments, tracks = _setup()
-    edits = [Edit(op="style", track="agua", color="#ff0000")]
-    plain, _m, _s = apply_edits(script, moments, tracks, edits, events, FPS, FRAMES)
-    main, _m, _s = apply_edits(script, moments, tracks, edits, events, FPS, FRAMES, main_track="agua")
-    assert _ids(plain)["always_0_tramo0"].style.tint is None  # otra pista: lo permanente no cambia
-    assert _ids(main)["always_0_tramo0"].style.tint == (1.0, 0.0, 0.0)  # la del elemento del catálogo: también
+    always = next(m for m in moments if m.action == "always")
+    assert always.track == "always:drop"
+    for edit in (Edit(op="remove", moment=always.id), Edit(op="track_off", track="always:drop")):
+        new, new_moments, _ = apply_edits(script, moments, tracks, [edit], events, FPS, FRAMES)
+        assert "always_0_tramo0" not in _ids(new) and always.id not in {m.id for m in new_moments}
+        assert "fast_swing_agua_0" in _ids(new)  # lo demás no se toca
+    with pytest.raises(ValueError, match="dura todo el video"):
+        apply_edits(script, moments, tracks, [Edit(op="move", moment=always.id, start=1.0, end=2.0)], events, FPS, FRAMES)
+    new, _m, _s = apply_edits(script, moments, tracks, [Edit(op="style", track="always:drop", color="#ff0000")], events, FPS, FRAMES)
+    assert _ids(new)["always_0_tramo0"].style.tint == (1.0, 0.0, 0.0)
+    assert _ids(new)["fast_swing_agua_0"] == _ids(script)["fast_swing_agua_0"]  # las demás pistas no cambian
+    # Una pista de efecto no toca al permanente.
+    other, _m, _s = apply_edits(script, moments, tracks, [Edit(op="style", track="agua", color="#ff0000")], events, FPS, FRAMES)
+    assert _ids(other)["always_0_tramo0"].style.tint is None
+
+
+def test_the_window_covers_a_changed_permanent_effect() -> None:
+    script, events, moments, tracks = _setup()
+    script.effects[0] = script.effects[0].model_copy(update={"time": script.effects[0].time.model_copy(update={"start_frame": 100, "end_frame": 199})})
+    moments = moments_from(script, [], FRAMES)
+    tracks = assign_tracks(moments, lambda _o, _a: None)
+    new, _m, _s = apply_edits(script, moments, tracks, [Edit(op="track_off", track="always:drop")], events, FPS, FRAMES)
+    start, end = changed_window(script, new, events, FRAMES, FPS)
+    assert start == 100 and 199 <= end <= 199 + 40

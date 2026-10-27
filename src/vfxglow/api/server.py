@@ -236,6 +236,8 @@ class JobView(Job):
     tags: list[str] = []
     # Se puede abrir en el editor de efectos (coreografía terminada con su guion guardado).
     editable: bool = False
+    # Terminada, de catálogo y sin guion guardado (hecha antes del editor): `prepare-edit` la deja editable.
+    preparable: bool = False
     duration: float | None = None
     # Segundos que se espera que tarde, y cuántos trabajos van antes en la cola (un solo trabajador).
     estimate_s: float | None = None
@@ -278,6 +280,7 @@ def view(job: Job) -> JobView:
         **data,
         tags=_tags(job),
         editable=jobs().editable(job),
+        preparable=jobs().preparable(job),
         estimate_s=jobs().estimate(job) if waiting else None,
         queue_ahead=jobs().queue_ahead(job) if job.status == "queued" else 0,
         duration=(job.finished or 0) - job.started if job.started and job.finished else None,
@@ -493,7 +496,9 @@ class EditorTrack(BaseModel):
 class EditorOption(BaseModel):
     option: str
     action: str
+    # La pista de la opción: su nombre (una pista por tipo de efecto).
     track: str
+    element: str | None = None
 
 
 class EditorView(BaseModel):
@@ -552,16 +557,32 @@ def job_editor(job_id: str, user: User = Depends(current_user)) -> EditorView:
                 ],
             )
         )
-    keys = {t.key for t in tracks}
     options = []
     for reaction in catalog.reactions:
         for option in reaction.options:
             if not option.effects:
                 continue
-            element = element_of(option.name, reaction.action) or ""
-            track = element if element and any(t.element for t in tracks) else (option.name if option.name in keys else "otros")
-            options.append(EditorOption(option=option.name, action=reaction.action, track=track))
+            options.append(EditorOption(option=option.name, action=reaction.action, track=option.name, element=element_of(option.name, reaction.action) or None))
     return EditorView(job_id=job.id, fps=fps, frames=frames, duration=round(frames / fps, 2), tracks=views, options=options)
+
+
+@app.post("/api/jobs/{job_id}/prepare-edit", response_model=JobView)
+def prepare_edit(job_id: str, user: User = Depends(current_user)) -> JobView:
+    """Deja editable una versión hecha antes del editor (vuelve a dirigir con su análisis; no dibuja)."""
+    job = _job(job_id, user)
+    if job.status != "done":
+        raise HTTPException(409, "La versión todavía no termina: espera a que esté lista.")
+    if job.style_kind != "catalog":
+        raise HTTPException(409, "Solo las versiones de catálogo se pueden editar.")
+    if jobs().editable(job):
+        raise HTTPException(409, "Esta versión ya se puede editar.")
+    started = time.time()
+    try:
+        prepared = jobs().prepare(job)
+    except ValueError as error:
+        raise HTTPException(409, str(error)) from error
+    telemetry.event("job.prepared", job_id=job.id, duration_ms=round((time.time() - started) * 1000))
+    return view(prepared)
 
 
 class EditRequest(BaseModel):
@@ -594,7 +615,7 @@ def edit_job(job_id: str, body: EditRequest, user: User = Depends(current_user))
         fps, frames = _video_timing(job)
         try:
             catalog = _editor_catalog(job)
-            apply_edits(script, moments, assign_tracks(moments, element_lookup(catalog)), edits, events, fps, frames, main_track=catalog.element or None)
+            apply_edits(script, moments, assign_tracks(moments, element_lookup(catalog)), edits, events, fps, frames)
         except ValueError as error:
             raise HTTPException(422, str(error)) from error
     limits.check_quota(user, jobs().list(user.uid), jobs().list(), deep=False)

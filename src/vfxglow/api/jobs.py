@@ -545,16 +545,7 @@ class JobStore:
             self._update(job.id, metrics=dict(summary))
             telemetry.event("job.started", queue_wait_ms=summary["queue_wait_ms"], deep=job.deep, take=job.take)
             try:
-                kwargs = {"catalog": job.style, "seed": job.seed, "take": job.take} if job.style_kind == "catalog" else {"preset": job.style}
-                kwargs["season"] = job.season
-                if job.style_kind == "catalog" and (job.fire_style or job.bolt_style):
-                    kwargs["fire_style"] = job.fire_style
-                    kwargs["bolt_style"] = job.bolt_style
-                if job.style_kind == "catalog" and job.wardrobe:
-                    kwargs["wardrobe"] = job.wardrobe
-                if job.style_kind == "catalog" and job.deep:
-                    kwargs["deep"] = True
-                pipeline = Pipeline(self.config, Path(job.video_path), **kwargs)
+                pipeline = Pipeline(self.config, Path(job.video_path), **self._pipeline_kwargs(job))
                 self._update(job.id, run_dir=str(pipeline.run_dir))
                 if job.edits:
                     output = self._edit(job, pipeline)
@@ -587,6 +578,20 @@ class JobStore:
                 root.removeHandler(handler)
                 self._cancel.pop(job.id, None)
 
+    @staticmethod
+    def _pipeline_kwargs(job: Job) -> dict:
+        """Con lo que se crea el Pipeline de un trabajo (al procesarlo y al prepararlo para editar)."""
+        kwargs = {"catalog": job.style, "seed": job.seed, "take": job.take} if job.style_kind == "catalog" else {"preset": job.style}
+        kwargs["season"] = job.season
+        if job.style_kind == "catalog" and (job.fire_style or job.bolt_style):
+            kwargs["fire_style"] = job.fire_style
+            kwargs["bolt_style"] = job.bolt_style
+        if job.style_kind == "catalog" and job.wardrobe:
+            kwargs["wardrobe"] = job.wardrobe
+        if job.style_kind == "catalog" and job.deep:
+            kwargs["deep"] = True
+        return kwargs
+
     def _note(self, job_id: str, text: str, detail: str = "") -> None:
         """Una línea de la actividad reciente (las últimas ACTIVITY_LINES)."""
         with self._lock:
@@ -614,6 +619,28 @@ class JobStore:
     def editable(self, job: Job) -> bool:
         return job.status == "done" and job.style_kind == "catalog" and all(self.artifact(job.id, k).exists() for k in ("script", "moments", "events"))
 
+    def preparable(self, job: Job) -> bool:
+        """Una versión terminada de catálogo hecha antes del editor: sin sus artefactos."""
+        return job.status == "done" and job.style_kind == "catalog" and not self.editable(job)
+
+    def prepare(self, job: Job) -> Job:
+        """Deja editable una versión hecha antes del editor: vuelve a dirigir (sin analizar ni
+        dibujar) con el análisis que quedó en disco y guarda sus artefactos. Se marca como
+        `prepared`: el guion regenerado puede no coincidir al píxel con su video."""
+        from vfxglow.pipeline import Pipeline
+
+        if not self.preparable(job):
+            raise ValueError("Esta versión no necesita prepararse para editar.")
+        pipeline = Pipeline(self.config, Path(job.video_path), **self._pipeline_kwargs(job))
+        if not (Path(pipeline.run_dir) / "analysis" / "motion_brief.json").exists():
+            raise ValueError("Ya no está el análisis de este video: crea otra versión para editarla.")
+        pipeline.direct()
+        self._save_artifacts(job.id, pipeline)
+        if not self.editable(job):
+            raise ValueError("No se pudo regenerar el guion de esta versión: crea otra versión para editarla.")
+        self.artifact(job.id, "prepared").write_text(json.dumps({"prepared": True}), encoding="utf-8")
+        return self.get(job.id) or job
+
     def _save_artifacts(self, job_id: str, pipeline) -> None:
         """Guarda el guion, los momentos y los gestos de una versión recién hecha (solo coreografías)."""
         from vfxglow.director.choreography import Choreography
@@ -625,7 +652,7 @@ class JobStore:
             return
         script = EffectScript.model_validate_json((scripts / "effect_script.json").read_text(encoding="utf-8"))
         choreography = Choreography.model_validate_json((scripts / "choreography.json").read_text(encoding="utf-8"))
-        moments = moments_from(script, choreography.decisions)
+        moments = moments_from(script, choreography.decisions, pipeline._meta().frame_count)
         events = Path(pipeline.run_dir) / "analysis" / "events.jsonl"
         self.artifact(job_id, "script").write_text(script.model_dump_json(), encoding="utf-8")
         self.artifact(job_id, "moments").write_text(json.dumps([m.model_dump() for m in moments], ensure_ascii=False), encoding="utf-8")
@@ -684,7 +711,6 @@ class JobStore:
                 fps,
                 frames,
                 compile_add=lambda option, action, frame, length, person: pipeline.compile_add(option, action, frame, length, person, script.seed),
-                main_track=pipeline.edit_catalog().element or None,
             )
             window = changed_window(script, new, events, frames, fps)
             self.artifact(job.id, "script").write_text(new.model_dump_json(), encoding="utf-8")
@@ -695,7 +721,10 @@ class JobStore:
         if window is None and base_video.exists():
             # Nada que cambie en pantalla: la versión nueva es la misma imagen.
             return self._keep(job.id, base_video)
-        partial = window is not None and window != (0, frames - 1) and base_video.exists()
+        # Una base preparada (api_data: "prepared") tiene un guion regenerado después de dibujar su
+        # video: puede no coincidir al píxel, así que copiar de ese video dejaría costuras. Se redibuja entero.
+        prepared = self.artifact(base, "prepared").exists()
+        partial = window is not None and window != (0, frames - 1) and base_video.exists() and not prepared
         with telemetry.span("compose", streamed=True, partial=partial, window=list(window) if window else None):
             pipeline.render_script(new, dest, base_output=base_video if partial else None, window=window if partial else None, events=events)
         summary_window = {"window_frames": (window[1] - window[0] + 1) if window else 0, "total_frames": frames, "partial": partial}

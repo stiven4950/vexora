@@ -38,10 +38,22 @@ class EditorPipeline:
         self.run_dir = video.parent.parent.parent / "runs" / video.parent.name
 
     def run(self) -> Path:
+        (self.run_dir / "analysis").mkdir(parents=True, exist_ok=True)
+        (self.run_dir / "analysis" / "motion_brief.json").write_text("{}")  # el análisis que deja el pipeline real
+        self.direct()
+        logging.getLogger("vfxglow").info("Compuestos 60/60 fotogramas")
+        out = self.run_dir / "output" / "pelea.mp4"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(b"base")
+        return out
+
+    def direct(self) -> None:
+        """Escribe el guion, la coreografía y los gestos, como la etapa de dirección real."""
         scripts, analysis = self.run_dir / "scripts", self.run_dir / "analysis"
         scripts.mkdir(parents=True, exist_ok=True)
         analysis.mkdir(parents=True, exist_ok=True)
-        script = {"title": "t", "theme": "pelea", "effects": [_effect("fast_swing_swoosh_0", "fast_swing", [10, 40]), _effect("person_contact_llamarada_0", "person_contact", [25])]}
+        always = {"id": "always_0_tramo0", "type": "particles", "target": {"kind": "joint", "id": "nose"}}
+        script = {"title": "t", "theme": "pelea", "effects": [always, _effect("fast_swing_swoosh_0", "fast_swing", [10, 40]), _effect("person_contact_llamarada_0", "person_contact", [25])]}
         (scripts / "effect_script.json").write_text(json.dumps(script))
         decisions = [
             {"frame": 10, "second": 10 / FPS, "action": "fast_swing", "target": T, "choice": "swoosh", "until": 16},
@@ -51,11 +63,6 @@ class EditorPipeline:
         (scripts / "choreography.json").write_text(json.dumps({"catalog": "pelea", "seed": 1, "decisions": decisions}))
         events = [{"name": d["action"], "target": T, "start_frame": d["frame"], "end_frame": d["frame"] + 3, "confidence": 1.0} for d in decisions]
         (analysis / "events.jsonl").write_text("\n".join(json.dumps(e) for e in events))
-        logging.getLogger("vfxglow").info("Compuestos 60/60 fotogramas")
-        out = self.run_dir / "output" / "pelea.mp4"
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_bytes(b"base")
-        return out
 
     def _meta(self):
         return SimpleNamespace(fps=FPS, frame_count=FRAMES)
@@ -110,9 +117,13 @@ def test_a_finished_choreography_opens_in_the_editor_with_its_tracks(client: Tes
     editor = client.get(f"/api/jobs/{job['id']}/editor").json()
     assert editor["duration"] == 2.0 and editor["frames"] == FRAMES
     tracks = {t["key"]: t for t in editor["tracks"]}
-    assert set(tracks) == {"swoosh", "llamarada"}  # pelea no tiene elementos: una pista por efecto
+    assert set(tracks) == {"always:drop", "swoosh", "llamarada"}  # una pista por efecto, y una por permanente
+    assert tracks["swoosh"] == {**tracks["swoosh"], "label": "swoosh", "icon": "sparkles", "element": None, "color": "#22d3ee"}
+    permanent = tracks["always:drop"]
+    assert (permanent["label"], permanent["icon"], permanent["color"], permanent["element"]) == ("always:drop", "sparkles", "#94a3b8", None)
+    assert permanent["moments"] == [{"id": "always@always_0_tramo0", "start": 0.0, "end": 1.97, "choice": "always:drop", "action": "always", "person": None, "note": ""}]
     assert [m["start"] for m in tracks["swoosh"]["moments"]] == [0.33, 1.33] and tracks["swoosh"]["start"] == 0.33
-    assert any(o["option"] == "swoosh" and o["action"] == "fast_swing" for o in editor["options"])
+    assert any(o["option"] == "swoosh" and o["action"] == "fast_swing" and o["track"] == "swoosh" and o["element"] is None for o in editor["options"])
 
 
 def test_applying_changes_creates_a_new_version_that_only_redraws_what_changed(client: TestClient) -> None:
@@ -172,3 +183,80 @@ def test_deleting_a_version_removes_its_editor_files(client: TestClient) -> None
     assert server.store.artifact(job["id"], "script").exists()
     assert client.delete(f"/api/jobs/{job['id']}").status_code == 204
     assert not list(server.store.outputs.glob(f"{job['id']}.*"))
+
+
+def test_editor_options_carry_their_element(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    job = _done(client)
+    catalog = SimpleNamespace(
+        element="",
+        reactions=[SimpleNamespace(action="fast_swing", options=[SimpleNamespace(name="swoosh", element="agua", effects=[1]), SimpleNamespace(name="chispas", element=None, effects=[1]), SimpleNamespace(name="vacia", element="", effects=[])])],
+    )
+    monkeypatch.setattr(server, "_editor_catalog", lambda job: catalog)
+    options = {o["option"]: o for o in client.get(f"/api/jobs/{job['id']}/editor").json()["options"]}
+    assert options["swoosh"] == {"option": "swoosh", "action": "fast_swing", "track": "swoosh", "element": "agua"}
+    assert options["chispas"]["element"] is None and "vacia" not in options
+
+
+def test_removing_the_permanent_track_and_moving_it_through_the_api(client: TestClient) -> None:
+    job = _done(client)
+    moved = client.post(f"/api/jobs/{job['id']}/edit", json={"edits": [{"op": "move", "moment": "always@always_0_tramo0", "start": 0.5, "end": 1.0}]})
+    assert moved.status_code == 422 and "dura todo el video" in moved.json()["detail"]
+    off = client.post(f"/api/jobs/{job['id']}/edit", json={"edits": [{"op": "track_off", "track": "always:drop"}]})
+    edited = _wait(client, off.json()["id"])
+    assert edited["status"] == "done", edited["error"]
+    assert "always:drop" not in {t["key"] for t in client.get(f"/api/jobs/{edited['id']}/editor").json()["tracks"]}
+
+
+def _legacy(client: TestClient) -> dict:
+    """Una versión hecha antes del editor: terminada, pero sin sus artefactos."""
+    job = _done(client)
+    for kind in ("script", "moments", "events"):
+        server.store.artifact(job["id"], kind).unlink()
+    return job
+
+
+def test_a_finished_version_without_artifacts_is_preparable_and_prepare_edit_makes_it_editable(client: TestClient) -> None:
+    done = _done(client)
+    assert done["preparable"] is False and done["editable"] is True
+    job = _legacy(client)
+    shown = client.get(f"/api/jobs/{job['id']}").json()
+    assert shown["preparable"] is True and shown["editable"] is False
+    prepared = client.post(f"/api/jobs/{job['id']}/prepare-edit")
+    assert prepared.status_code == 200
+    body = prepared.json()
+    assert body["editable"] is True and body["preparable"] is False and body["status"] == "done"
+    assert json.loads(server.store.artifact(job["id"], "prepared").read_text()) == {"prepared": True}
+    assert {t["key"] for t in client.get(f"/api/jobs/{job['id']}/editor").json()["tracks"]} == {"always:drop", "swoosh", "llamarada"}
+
+
+def test_prepare_edit_is_refused_without_analysis_or_when_it_does_not_apply(client: TestClient) -> None:
+    job = _legacy(client)
+    brief = Path(EditorPipeline(None, Path(job["video_path"])).run_dir) / "analysis" / "motion_brief.json"
+    brief.unlink()
+    missing = client.post(f"/api/jobs/{job['id']}/prepare-edit")
+    assert missing.status_code == 409 and "Ya no está el análisis" in missing.json()["detail"]
+    assert client.get(f"/api/jobs/{job['id']}").json()["editable"] is False
+    editable = _done(client)
+    again = client.post(f"/api/jobs/{editable['id']}/prepare-edit")
+    assert again.status_code == 409 and "ya se puede editar" in again.json()["detail"]
+    assert client.post("/api/jobs/nada/prepare-edit").status_code == 404
+    preset = client.post("/api/jobs", files={"video": ("clip.mp4", io.BytesIO(b"x"), "video/mp4")}, data={"style_kind": "preset", "style": "body_aura"})
+    assert preset.status_code in (200, 201), preset.text
+    shown = _wait(client, preset.json()["id"])
+    assert shown["status"] == "done" and shown["preparable"] is False
+    refused = client.post(f"/api/jobs/{shown['id']}/prepare-edit")
+    assert refused.status_code == 409 and "catálogo" in refused.json()["detail"]
+
+
+def test_editing_a_prepared_version_redraws_the_whole_video(client: TestClient) -> None:
+    job = _legacy(client)
+    assert client.post(f"/api/jobs/{job['id']}/prepare-edit").status_code == 200
+    last = next(t for t in client.get(f"/api/jobs/{job['id']}/editor").json()["tracks"] if t["key"] == "swoosh")["moments"][-1]
+    edited = _wait(client, client.post(f"/api/jobs/{job['id']}/edit", json={"edits": [{"op": "remove", "moment": last["id"]}]}).json()["id"])
+    assert edited["status"] == "done", edited["error"]
+    render = EditorPipeline.renders[-1]
+    assert render["partial"] is False  # el guion regenerado puede no coincidir con el video: se redibuja entero
+    # La versión que sale de ahí sí es una base normal: su siguiente edición vuelve a ser parcial.
+    assert not server.store.artifact(edited["id"], "prepared").exists()
+    nxt = _wait(client, client.post(f"/api/jobs/{edited['id']}/edit", json={"edits": [{"op": "remove", "moment": next(t for t in client.get(f"/api/jobs/{edited['id']}/editor").json()["tracks"] if t["key"] == "swoosh")["moments"][0]["id"]}]}).json()["id"])
+    assert nxt["status"] == "done" and EditorPipeline.renders[-1]["partial"] is True

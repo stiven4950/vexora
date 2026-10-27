@@ -6,8 +6,8 @@ cambiar un efecto no altera a los demás, que salen idénticos en la versión nu
 volver a dibujar solo el tramo que cambió (`changed_window`) y copiar el resto del video anterior.
 
 - `Moment`: un disparo de la coreografía (una decisión) con los efectos que enciende.
-- `tracks`: los momentos agrupados en pistas (por elemento en Avatar y los catálogos de un
-  elemento; por tipo de efecto en los demás).
+- `tracks`: los momentos agrupados en pistas, una por tipo de efecto (estilo Canva); los efectos
+  permanentes (`always_`) tienen sus propias pistas.
 - `apply_edits`: aplica una lista de cambios (quitar, apagar pista, mover o alargar, agregar,
   estilo) sobre el guion de una versión y devuelve el guion y los momentos de la nueva.
 """
@@ -15,7 +15,6 @@ volver a dibujar solo el tramo que cambió (`changed_window`) y copiar el resto 
 from __future__ import annotations
 
 import re
-from collections import Counter
 from collections.abc import Callable
 from typing import Literal
 
@@ -35,10 +34,14 @@ ELEMENT_TRACKS = {
     "tierra": ("Tierra", "mountain", "#9ca3af"),
 }
 OTHER_TRACK = ("otros", "Otros efectos", "sparkles", "#94a3b8")
-# Sin elementos, una pista por tipo de efecto, hasta este número; el resto va a "Otros efectos".
-MAX_OPTION_TRACKS = 6
-# Colores de las pistas por tipo de efecto, en orden.
+# Una pista por tipo de efecto, hasta este número; el resto va a "Otros efectos".
+MAX_TRACKS = 40
+# Colores de las pistas de tipos de efecto sin elemento, en orden (y vuelta a empezar).
 OPTION_COLORS = ["#22d3ee", "#a78bfa", "#f472b6", "#34d399", "#fbbf24", "#60a5fa"]
+# Los efectos permanentes (`always_*`): duran todo el video y no los dispara ningún gesto.
+ALWAYS_PREFIX = "always_"
+ALWAYS_ACTION = "always"
+ALWAYS_COLOR = "#94a3b8"
 # Antes del tramo que cambia se dibuja este calentamiento (estelas, agua con física, persistencia)
 # sin escribirlo; después, este margen para los fundidos de salida.
 WARMUP_S = 2.0
@@ -130,9 +133,11 @@ def _pairs(effect: Effect, action: str) -> list[tuple[int, str | None]]:
     return out
 
 
-def moments_from(script: EffectScript, decisions: list) -> list[Moment]:
+def moments_from(script: EffectScript, decisions: list, frame_count: int) -> list[Moment]:
     """Los momentos de una coreografía, con los efectos de su disparo. Las decisiones "nada" no
-    encienden nada y se omiten. `decisions`: director/choreography.py Decision (o dicts iguales)."""
+    encienden nada y se omiten. Cada efecto permanente (`always_*`) es además un pseudo-momento que
+    dura su intervalo de tiempo, para que tenga pista propia. `decisions`: director/choreography.py
+    Decision (o dicts iguales)."""
     index: dict[tuple[str, int, str | None], list[str]] = {}
     for effect in script.effects:
         for trigger in effect.triggers:
@@ -159,7 +164,28 @@ def moments_from(script: EffectScript, decisions: list) -> list[Moment]:
                 note=d.get("note", ""),
             )
         )
+    for effect in script.effects:
+        if not effect.id.startswith(ALWAYS_PREFIX):
+            continue
+        end = effect.time.end_frame if effect.time.end_frame >= 0 else frame_count - 1
+        moments.append(
+            Moment(
+                id=f"{ALWAYS_ACTION}@{effect.id}",
+                frame=effect.time.start_frame,
+                until=end,
+                action=ALWAYS_ACTION,
+                target="",
+                choice=_always_key(effect),
+                effects=[effect.id],
+            )
+        )
     return moments
+
+
+def _always_key(effect: Effect) -> str:
+    """La pista de un permanente: por su figura (o su tipo), así los tramos de uno comparten pista."""
+    shapes = effect.style.shapes
+    return f"always:{shapes[0] if shapes else effect.type}"
 
 
 def _option_name(choice: str) -> str:
@@ -167,36 +193,36 @@ def _option_name(choice: str) -> str:
 
 
 def assign_tracks(moments: list[Moment], element_of: Callable[[str, str], str | None]) -> list[Track]:
-    """Pone cada momento en su pista. `element_of(opción, acción)`: el elemento de la opción en el
-    catálogo ("" o None si no tiene). Con elementos, una pista por elemento (Agua, Viento, Rayo,
-    Fuego, Tierra); sin ellos, una por tipo de efecto (los más usados) y "Otros efectos"."""
-    elements = {m.id: element_of(_option_name(m.choice), m.action) for m in moments}
-    by_element = any(elements.values())
+    """Pone cada momento en su pista: una por tipo de efecto (la opción sin sus sufijos de espejo o
+    fijado), como en Canva, con o sin elementos. `element_of(opción, acción)`: el elemento de la
+    opción en el catálogo ("" o None si no tiene); da el icono y el color de la pista. Los permanentes
+    van a la pista `always:<figura>`. Pasado el tope (MAX_TRACKS) los tipos de efecto van a "otros",
+    que queda al final; el resto, por el fotograma en que aparece cada pista."""
     tracks: dict[str, Track] = {}
-    if by_element:
-        for moment in moments:
-            element = elements[moment.id]
-            if element in ELEMENT_TRACKS:
-                label, icon, color = ELEMENT_TRACKS[element]
-                key = element
-            else:
-                key, label, icon, color = OTHER_TRACK
-            track = tracks.setdefault(key, Track(key=key, label=label, icon=icon, color=color, element=element if key == element else None))
-            track.moments.append(moment.id)
-            moment.track = key
-    else:
-        top = [name for name, _ in Counter(_option_name(m.choice) for m in moments).most_common(MAX_OPTION_TRACKS)]
-        for moment in moments:
+    colored = 0  # pistas sin elemento ya coloreadas: el color cicla
+    first: dict[str, int] = {}
+    for moment in sorted(moments, key=lambda m: (m.frame, m.id)):
+        if moment.action == ALWAYS_ACTION:
+            key = moment.choice
+            track = tracks.setdefault(key, Track(key=key, label=key, icon="sparkles", color=ALWAYS_COLOR))
+        else:
             name = _option_name(moment.choice)
-            if name in top:
-                key, label = name, name.replace("_", " ").capitalize()
-                icon, color = "sparkles", OPTION_COLORS[top.index(name) % len(OPTION_COLORS)]
-            else:
-                key, label, icon, color = OTHER_TRACK
-            track = tracks.setdefault(key, Track(key=key, label=label, icon=icon, color=color))
-            track.moments.append(moment.id)
-            moment.track = key
-    first = {key: min(next(m.frame for m in moments if m.id == mid) for mid in track.moments) for key, track in tracks.items()}
+            track = tracks.get(name)
+            if track is None:
+                if sum(1 for t in tracks.values() if not t.key.startswith("always:") and t.key != OTHER_TRACK[0]) >= MAX_TRACKS:
+                    key, label, icon, color = OTHER_TRACK
+                    track = tracks.setdefault(key, Track(key=key, label=label, icon=icon, color=color))
+                else:
+                    element = element_of(name, moment.action) or None
+                    if element in ELEMENT_TRACKS:
+                        _label, icon, color = ELEMENT_TRACKS[element]
+                    else:
+                        icon, color = "sparkles", OPTION_COLORS[colored % len(OPTION_COLORS)]
+                        colored += 1
+                    track = tracks[name] = Track(key=name, label=name, icon=icon, color=color, element=element)
+        track.moments.append(moment.id)
+        first.setdefault(track.key, moment.frame)  # los momentos se recorren por fotograma
+        moment.track = track.key
     return sorted(tracks.values(), key=lambda t: (t.key == OTHER_TRACK[0], first[t.key]))
 
 
@@ -247,13 +273,11 @@ def apply_edits(
     fps: float,
     frame_count: int,
     compile_add: CompileAdd | None = None,
-    main_track: str | None = None,
 ) -> tuple[EffectScript, list[Moment], dict[str, TrackStyle]]:
     """El guion y los momentos de la versión nueva, y el estilo de cada pista que se cambió.
-    `events`: los del análisis (los extra del guion se suman aquí). `main_track`: la pista del
-    elemento del catálogo (el fuego en Avatar); su estilo se aplica también a los efectos permanentes
-    (`always_`: las brasas, la luz del fuego), que son de ese elemento y no son momentos de ninguna
-    pista. Un cambio imposible (un momento que no existe, un tiempo fuera del video) es un error:
+    `events`: los del análisis (los extra del guion se suman aquí). Los permanentes
+    (`always_`) son momentos de su propia pista: quitarlos o apagar su pista borra el efecto entero y
+    no se mueven (duran todo el video). Un cambio imposible (un momento que no existe, un tiempo fuera del video) es un error:
     nunca se salta en silencio."""
     effects = {effect.id: effect for effect in script.effects}
     order = [effect.id for effect in script.effects]
@@ -268,6 +292,9 @@ def apply_edits(
         for effect_id in moment.effects:
             effect = effects.get(effect_id)
             if effect is None:
+                continue
+            if moment.action == ALWAYS_ACTION:
+                del effects[effect_id]  # un permanente no tiene disparos que quitar: se va entero
                 continue
             kept = _without_pair(effect, moment.action, moment.frame, moment.target)
             if kept is None:
@@ -296,6 +323,8 @@ def apply_edits(
             for mid in ids:
                 drop(current[mid])
         elif edit.op == "move":
+            if moment.action == ALWAYS_ACTION:
+                raise ValueError("Un efecto permanente dura todo el video: no se mueve")
             if edit.start is None or edit.end is None or edit.end <= edit.start:
                 raise ValueError("Mover un efecto pide inicio y fin (el fin después del inicio)")
             start = seconds_to_frame(edit.start)
@@ -366,8 +395,6 @@ def apply_edits(
 
     for key, style in styles.items():
         ids = {effect_id for mid, track in track_of.items() if track == key and mid in current for effect_id in current[mid].effects}
-        if key == main_track:
-            ids |= {effect_id for effect_id in effects if effect_id.startswith("always_")}
         for effect_id in ids:
             if effect_id in effects:
                 effects[effect_id] = _styled(effects[effect_id], style)
