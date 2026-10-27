@@ -147,3 +147,10 @@ export const sheetDate = (epoch: number): string => {
 
 /** "42.3 MB" */
 export const megabytes = (bytes: number): string => `${(bytes / 1e6).toFixed(1)} MB`;
+
+/** "00:03.2" — minutos, segundos y décimas (los rangos de los efectos). */
+export const mmssd = (seconds: number): string => {
+  const total = Math.max(0, seconds);
+  const whole = Math.floor(total);
+  return `${String(Math.floor(whole / 60)).padStart(2, "0")}:${String(whole % 60).padStart(2, "0")}.${Math.floor((total - whole) * 10)}`;
+};

@@ -1,0 +1,261 @@
+.card {
+  padding: 12px 14px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(var(--cyan-rgb), 0.14);
+  background: rgba(10, 16, 32, 0.72);
+}
+
+.card header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.tabs button {
+  padding: 7px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tabs button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.tabs .on {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  background: rgba(var(--cyan-rgb), 0.08);
+}
+
+.transport,
+.zoom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.transport button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.transport .mono {
+  font-size: 12px;
+}
+
+.zoom button {
+  border: 0;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.zoom input {
+  width: 120px;
+  accent-color: var(--cyan);
+}
+
+.body {
+  display: flex;
+  margin-top: 8px;
+}
+
+.names {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.rulerGap {
+  height: 22px;
+}
+
+.stripGap {
+  height: 76px;
+  margin-bottom: 10px;
+}
+
+.name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  font-size: 13px;
+  border-top: 1px solid var(--line);
+}
+
+.scroll {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.canvas {
+  position: relative;
+  min-width: 100%;
+  cursor: pointer;
+}
+
+.ruler {
+  position: relative;
+  height: 22px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.ruler span {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+}
+
+.ruler span:first-child {
+  transform: none;
+}
+
+.ruler .end {
+  right: 0;
+  transform: none;
+}
+
+.strip {
+  height: 76px;
+  margin-bottom: 10px;
+  border-radius: 6px;
+  background-color: #05070d;
+  background-size: 100% 100%;
+  border: 1px solid var(--line);
+}
+
+.lane {
+  position: relative;
+  height: 34px;
+  border-top: 1px solid var(--line);
+}
+
+.dim {
+  opacity: 0.35;
+}
+
+.bar {
+  position: absolute;
+  top: 8px;
+  height: 16px;
+  padding: 0;
+  border-radius: 999px;
+  border: 0;
+  background: var(--bar);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--bar) 60%, transparent);
+  cursor: grab;
+  touch-action: none;
+}
+
+.bar:active {
+  cursor: grabbing;
+}
+
+.removed {
+  background: transparent;
+  border: 1px dashed var(--bar);
+  box-shadow: none;
+  opacity: 0.5;
+  cursor: pointer;
+}
+
+.added {
+  outline: 1px dashed #fff;
+  outline-offset: 2px;
+}
+
+.moved {
+  outline: 1px solid #fff;
+  outline-offset: 2px;
+}
+
+.selected {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.handle {
+  position: absolute;
+  top: 50%;
+  left: -1px;
+  width: 9px;
+  height: 9px;
+  transform: translateY(-50%) rotate(45deg);
+  background: #fff;
+  cursor: ew-resize;
+}
+
+.handle {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.bar:hover .handle,
+.selected .handle {
+  opacity: 1;
+}
+
+.handle.right {
+  left: auto;
+  right: -1px;
+}
+
+.removed .handle {
+  display: none;
+}
+
+.ghost {
+  position: absolute;
+  top: 8px;
+  height: 16px;
+  border-radius: 999px;
+  border: 1px dashed;
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.playhead {
+  position: absolute;
+  top: 18px;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--cyan);
+  box-shadow: 0 0 8px var(--cyan);
+  pointer-events: none;
+}
+
+.playhead i {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: var(--cyan);
+}

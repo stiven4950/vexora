@@ -1,5 +1,5 @@
 import { idToken } from "../auth/firebase";
-import type { Season, Job, Limits, Looks, Moment, Person, Style, StyleKind, Wardrobe } from "./types";
+import type { EditOp, EditorView, Season, Job, Limits, Looks, Moment, Person, Style, StyleKind, Wardrobe } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -41,6 +41,11 @@ export const api = {
   choreography: (id: string) => request<Moment[]>(`/api/jobs/${id}/choreography`),
   people: (id: string) => request<Person[]>(`/api/jobs/${id}/people`),
   remove: (id: string) => request<void>(`/api/jobs/${id}`, { method: "DELETE" }),
+  /** Pistas y momentos de una versión para el editor de efectos. */
+  editor: (id: string) => request<EditorView>(`/api/jobs/${id}/editor`),
+  /** Aplica los cambios del editor: crea una versión nueva y devuelve su trabajo. */
+  edit: (id: string, edits: EditOp[]) =>
+    request<Job>(`/api/jobs/${id}/edit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ edits }) }),
   /** Cancela un trabajo: en cola se borra ya; en curso se corta en unos segundos. */
   cancel: (id: string) => request<{ status: "removed" | "stopping" }>(`/api/jobs/${id}/cancel`, { method: "POST" }),
   /** Renombra el proyecto (el video y todas sus versiones); vacío = el nombre del archivo. */

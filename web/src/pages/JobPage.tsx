@@ -252,6 +252,11 @@ export function JobPage() {
             editedPoster={job.thumbnail_url ? `${job.thumbnail_url}&first=true` : undefined}
           />
           <aside className={styles.side}>
+            {job.editable && (
+              <Link to={`${ROUTES.edit(job.parent ?? job.id)}?v=${job.id}`} className={styles.editLink}>
+                <Icon name="wand" size={18} /> Editar efectos
+              </Link>
+            )}
             <section className={styles.card}>
               <span className="eyebrow">Exportar</span>
               <a className={styles.download} href={`${job.output_url}&download=true`}>

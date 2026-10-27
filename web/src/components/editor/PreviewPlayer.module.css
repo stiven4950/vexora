@@ -1,0 +1,84 @@
+.card {
+  padding: 16px 18px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(var(--cyan-rgb), 0.14);
+  background: rgba(10, 16, 32, 0.72);
+}
+
+.card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.card h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.card h2 svg {
+  color: var(--muted);
+}
+
+.stage {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #000;
+  aspect-ratio: 16 / 9;
+}
+
+.stage video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  cursor: pointer;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 4px 0;
+}
+
+.controls button {
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.controls .mono {
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.controls input[type="range"] {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--cyan) var(--fill), rgba(255, 255, 255, 0.15) var(--fill));
+  cursor: pointer;
+}
+
+.controls input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: 0 0 10px var(--cyan);
+}

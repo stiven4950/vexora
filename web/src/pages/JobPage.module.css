@@ -217,3 +217,21 @@ div.failed pre {
     grid-column: 1 / -1;
   }
 }
+
+.editLink {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--cyan);
+  background: rgba(var(--cyan-rgb), 0.08);
+  color: var(--cyan);
+  font-weight: 600;
+  box-shadow: 0 0 22px rgba(var(--cyan-rgb), 0.2);
+}
+
+.editLink:hover {
+  background: rgba(var(--cyan-rgb), 0.14);
+}

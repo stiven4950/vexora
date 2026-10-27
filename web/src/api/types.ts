@@ -97,6 +97,11 @@ export interface Job {
   title: string | null;
   /** Etiquetas del estilo y de la temporada. */
   tags: string[];
+  /** Se puede abrir en el editor de efectos. */
+  editable: boolean;
+  /** Si es una versión editada: la versión de la que parte y sus cambios. */
+  base: string | null;
+  edits: EditOp[];
   /** Lo que fue pasando, en orden: "Video recibido", "Inicio del procesamiento", cada etapa. */
   activity: ActivityLine[];
   /** Segundos que se espera que tarde el revelado (mientras espera o procesa). */
@@ -158,4 +163,55 @@ export interface JobMetrics {
   started_at?: Record<string, number>;
   queue_wait_ms?: number;
   total_ms?: number;
+}
+
+/** Editor de efectos (GET /api/jobs/{id}/editor). Tiempos en segundos. */
+export interface EditorMoment {
+  id: string;
+  start: number;
+  end: number;
+  choice: string;
+  action: string;
+  person: string | null;
+  note: string;
+}
+
+export interface EditorTrack {
+  key: string;
+  label: string;
+  icon: string;
+  color: string;
+  element: string | null;
+  start: number;
+  end: number;
+  moments: EditorMoment[];
+}
+
+export interface EditorOption {
+  option: string;
+  action: string;
+  track: string;
+}
+
+export interface EditorView {
+  job_id: string;
+  fps: number;
+  frames: number;
+  duration: number;
+  tracks: EditorTrack[];
+  options: EditorOption[];
+}
+
+/** Un cambio del editor, como lo recibe POST /api/jobs/{id}/edit (director/edits.py, Edit). */
+export interface EditOp {
+  op: "remove" | "track_off" | "move" | "add" | "style";
+  moment?: string;
+  track?: string;
+  start?: number;
+  end?: number;
+  option?: string;
+  action?: string;
+  color?: string;
+  intensity?: number;
+  size?: number;
 }

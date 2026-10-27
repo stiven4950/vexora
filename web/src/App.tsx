@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useParams, useSearchParams } from "react-router-dom";
 
 import { SessionProvider, useSession } from "./auth/AuthContext";
+import { Editor } from "./pages/Editor";
 import { JobPage } from "./pages/JobPage";
 import { Landing } from "./pages/Landing";
 import { Library } from "./pages/Library";
@@ -68,7 +69,8 @@ function AppRoutes() {
         <Route path="explore" element={<Placeholder title="Explorar efectos" phase="fase 2" text="Una galería de cada estilo y efecto con videos de demostración." />} />
         <Route path="plan" element={<Placeholder title="Mi plan" phase="fase 3" text="Tu plan, tus créditos y tu consumo." />} />
         <Route path="settings" element={<Settings />} />
-        <Route path="projects/:id/*" element={<Placeholder title="Proyecto" phase="fase 2" text="El resumen, el editor de efectos y las versiones de tu video." />} />
+        <Route path="projects/:id/edit" element={<Editor />} />
+        <Route path="projects/:id/*" element={<Placeholder title="Proyecto" phase="fase 2" text="El resumen y las versiones de tu video." />} />
       </Route>
       <Route path="/jobs/:id" element={<LegacyJob />} />
       <Route path="/library" element={<Navigate to={ROUTES.library} replace />} />

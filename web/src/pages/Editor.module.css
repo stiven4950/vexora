@@ -1,0 +1,276 @@
+.page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 16px;
+  align-items: start;
+}
+
+.center,
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.card {
+  padding: 16px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(var(--cyan-rgb), 0.14);
+  background: rgba(10, 16, 32, 0.72);
+}
+
+.card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.card h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.count {
+  display: grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  font-size: 12px;
+}
+
+.addWrap {
+  position: relative;
+}
+
+.add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(var(--cyan-rgb), 0.45);
+  background: none;
+  color: var(--cyan);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.addPop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 260px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  background: var(--panel-solid);
+  box-shadow: 0 24px 60px -16px #000;
+}
+
+.addPop small {
+  display: block;
+  margin: 4px 0;
+  color: var(--faint);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.addPop button {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  text-transform: capitalize;
+  cursor: pointer;
+}
+
+.addPop button:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.tracks {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--cyan);
+  font-size: 13px;
+}
+
+.config {
+  margin: 0;
+}
+
+.config div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.config div:first-child {
+  border-top: 0;
+}
+
+.config dt {
+  color: var(--muted);
+}
+
+.config dd {
+  margin: 0;
+}
+
+.pending {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-color: rgba(var(--cyan-rgb), 0.45);
+}
+
+.pending p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.pending strong {
+  color: var(--text);
+}
+
+.apply {
+  padding: 12px;
+  border-radius: 12px;
+  border: 0;
+  background: var(--cyan);
+  color: #04141a;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.apply:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.discard {
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.download,
+.share {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.download {
+  border: 0;
+  background: linear-gradient(100deg, var(--cyan), var(--blue) 55%, var(--violet));
+  color: #fff;
+  box-shadow: 0 16px 40px -14px rgba(var(--cyan-rgb), 0.8);
+}
+
+.share {
+  border: 1px solid var(--line-strong);
+  background: none;
+  color: var(--text);
+}
+
+.selection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  background: rgba(10, 16, 32, 0.85);
+  font-size: 13px;
+  text-transform: none;
+}
+
+.selection strong {
+  text-transform: capitalize;
+}
+
+.selection em {
+  color: var(--cyan);
+  font-style: normal;
+}
+
+.selection button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  background: none;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 520px;
+  margin: 10vh auto;
+  color: var(--muted);
+  text-align: center;
+}
+
+.empty a {
+  color: var(--cyan);
+}
+
+@media (max-width: 1180px) {
+  .page {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
