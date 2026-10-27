@@ -188,6 +188,12 @@ el trabajo espera a que termine: hay un candado por carpeta de análisis) y no s
   estilos con `needs` buscan las hojas o la gorra solo en ese tramo, en memoria
   (`analysis/extras.py`): Espadas ≈ 20 s, Baile ≈ 60 s (la gorra se sigue en uno de cada dos
   fotogramas). El trabajo real hace su análisis completo como siempre.
+- Objeto protagonista: en los estilos que siguen uno (`needs: [props]`, hoy Baile) el Estudio deja
+  elegirlo (`GET /api/props`, `director/prop_choices.py`): gorra, sombrero, gafas, balón, abanico,
+  micrófono, bastón, pañuelo, botella, teléfono o ninguno. Va como `prop` al crear el trabajo, en
+  las versiones (por defecto el del origen) y en la vista previa. Cada uno es una descripción en
+  inglés para Grounding DINO; solo los que se ponen en la cabeza (`wearable`) tienen el momento
+  "se lo pone" (`prop_worn`). Sin elección, el `prop` del catálogo.
 - API: `POST /api/uploads`, `GET /api/uploads/{id}` (estado, recomendación y avisos) y
   `DELETE /api/uploads/{id}`.
 
