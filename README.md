@@ -184,8 +184,10 @@ el trabajo espera a que termine: hay un candado por carpeta de análisis) y no s
   seguimiento pobre, cuerpo fuera de cuadro, persona pequeña, mucha gente, video corto. Avisan, no
   bloquean.
 - "Con efectos" en el Estudio: `POST /api/uploads/{id}/preview` dibuja ~3 s del tramo más activo con
-  el estilo elegido a 480 px (≈ 5–15 s), sin crear trabajo ni escribir en la carpeta de `runs/`. No está
-  disponible en estilos con `needs` (analizan el video a su manera).
+  el estilo elegido a 480 px (≈ 5–15 s), sin crear trabajo ni escribir en la carpeta de `runs/`. Los
+  estilos con `needs` buscan las hojas o la gorra solo en ese tramo, en memoria
+  (`analysis/extras.py`): Espadas ≈ 20 s, Baile ≈ 60 s (la gorra se sigue en uno de cada dos
+  fotogramas). El trabajo real hace su análisis completo como siempre.
 - API: `POST /api/uploads`, `GET /api/uploads/{id}` (estado, recomendación y avisos) y
   `DELETE /api/uploads/{id}`.
 
