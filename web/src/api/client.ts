@@ -1,5 +1,5 @@
 import { idToken } from "../auth/firebase";
-import type { StudioPreviewOpts, EditOp, EditorView, PreviewView, Season, Job, Limits, Looks, Moment, Person, Style, StyleKind, UploadView, Wardrobe } from "./types";
+import type { StudioPreviewOpts, EditOp, EditorView, PreviewView, Season, Job, Limits, Looks, Moment, PropChoice, Person, Style, StyleKind, UploadView, Wardrobe } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -35,6 +35,7 @@ export const api = {
   styles: () => request<Style[]>("/api/styles"),
   seasons: () => request<Season[]>("/api/seasons"),
   looks: () => request<Looks>("/api/looks"),
+  props: () => request<PropChoice[]>("/api/props"),
   limits: () => request<Limits>("/api/limits"),
   jobs: () => request<Job[]>("/api/jobs"),
   job: (id: string) => request<Job>(`/api/jobs/${id}`),
@@ -74,6 +75,7 @@ export const api = {
     fireStyle: string | null = null,
     boltStyle: string | null = null,
     uploadId: string | null = null,
+    prop: string | null = null,
   ): Promise<Job> {
     const headers = await authHeaders();
     const form = new FormData();
@@ -88,6 +90,7 @@ export const api = {
     if (deep) form.append("deep", "true");
     if (fireStyle) form.append("fire_style", fireStyle);
     if (boltStyle) form.append("bolt_style", boltStyle);
+    if (prop) form.append("prop", prop);
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open("POST", "/api/jobs");

@@ -42,6 +42,14 @@ export interface Looks {
   rayo: Look[];
 }
 
+/** Objeto protagonista de los estilos que siguen uno (`needs: ["props"]`; director/prop_choices.py). */
+export interface PropChoice {
+  id: string;
+  title: string;
+  /** Se pone en la cabeza (gorra, sombrero, gafas): solo así existe el momento "se lo pone". */
+  wearable: boolean;
+}
+
 export type JobStatus = "queued" | "running" | "done" | "failed";
 export type JobStage = "queued" | "analyze" | "direct" | "render" | "done";
 
@@ -58,6 +66,8 @@ export interface Job {
   /** Estilos de fuego y de rayo elegidos (null = los del estilo). */
   fire_style: string | null;
   bolt_style: string | null;
+  /** Objeto protagonista elegido (null = el del estilo). */
+  prop: string | null;
   status: JobStatus;
   stage: JobStage;
   progress: number;
@@ -273,4 +283,5 @@ export interface StudioPreviewOpts {
   fire_style?: string | null;
   bolt_style?: string | null;
   wardrobe?: Record<string, string> | null;
+  prop?: string | null;
 }

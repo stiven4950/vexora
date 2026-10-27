@@ -5,7 +5,7 @@ import { ApiError, api } from "../api/client";
 import { rgb } from "../api/format";
 import { askPermission } from "../api/notify";
 import { fromView, pickSurprise, recommendationOf, uploadStatusText, warningsOf, type UploadState } from "../api/upload";
-import { WARDROBES, type Limits, type Looks, type Season, type Style, type StudioPreviewOpts, type Wardrobe } from "../api/types";
+import { WARDROBES, type Limits, type Looks, type PropChoice, type Season, type Style, type StudioPreviewOpts, type Wardrobe } from "../api/types";
 import { ChoiceCard } from "../components/ChoiceCard";
 import { Dropzone, problems, type VideoMeta } from "../components/Dropzone";
 import { Icon } from "../components/Icon";
@@ -64,6 +64,9 @@ export function Studio() {
   const [deep, setDeep] = useState(false);
   // Estilos de fuego y de rayo (director/looks.py); null = los del estilo elegido.
   const [looks, setLooks] = useState<Looks>({ fuego: [], rayo: [] });
+  // Objeto protagonista de los estilos que siguen uno (director/prop_choices.py); "gorra" es el de Baile.
+  const [propList, setPropList] = useState<PropChoice[]>([]);
+  const [prop, setProp] = useState("gorra");
   const [fireStyle, setFireStyle] = useState<string | null>(null);
   const [boltStyle, setBoltStyle] = useState<string | null>(null);
   const [limits, setLimits] = useState<Limits | null>(null);
@@ -87,6 +90,7 @@ export function Studio() {
     // Las temporadas son opcionales: si la API no las tiene, simplemente no se muestran.
     api.seasons().then(setSeasonList).catch(() => setSeasonList([]));
     api.looks().then(setLooks).catch(() => setLooks({ fuego: [], rayo: [] }));
+    api.props().then(setPropList).catch(() => setPropList([]));
     // Sin límites conocidos, la web no avisa: el servidor sigue rechazando lo que no cabe.
     api.limits().then(setLimits).catch(() => setLimits(null));
   }, []);
@@ -96,6 +100,7 @@ export function Studio() {
   // Fuego y rayo, cada uno en los estilos que lo dibujan.
   const hasFire = isCatalog && !!chosen?.tags.includes("fuego") && looks.fuego.length > 0;
   const hasBolt = isCatalog && !!chosen?.tags.some((t) => t === "rayo" || t === "rayos") && looks.rayo.length > 0;
+  const hasProp = isCatalog && !!chosen?.needs.includes("props") && propList.length > 0;
   // El análisis profundo es de pago: solo las cuentas que el servidor permite, y solo en catálogos.
   const deepAllowed = limits?.deep_allowed ?? false;
   const deepOn = deep && deepAllowed && isCatalog;
@@ -172,7 +177,7 @@ export function Studio() {
     // Sin semilla: el servidor prueba varias coreografías y se queda con la mejor.
     const wear: Record<string, Wardrobe> = isCatalog && wardrobe !== "ninguno" ? { "*": wardrobe } : {};
     const send = (uploadId: string | null) =>
-      api.create(file, chosen.kind, chosen.name, null, uploadId ? undefined : setUpload, season, wear, deepOn, hasFire ? fireStyle : null, hasBolt ? boltStyle : null, uploadId);
+      api.create(file, chosen.kind, chosen.name, null, uploadId ? undefined : setUpload, season, wear, deepOn, hasFire ? fireStyle : null, hasBolt ? boltStyle : null, uploadId, hasProp ? prop : null);
     // Con la subida ya hecha (analizando o lista) no hay que volver a subir el archivo.
     const ready = early && (early.phase === "analyzing" || early.phase === "ready") ? (early.view?.id ?? null) : null;
     setLaunching(true);
@@ -217,7 +222,7 @@ export function Studio() {
   const previewUpload = early?.phase === "ready" ? (early.view?.id ?? null) : null;
   const previewOpts: StudioPreviewOpts | null =
     previewUpload && chosen && isCatalog
-      ? { style: chosen.name, season, fire_style: hasFire ? fireStyle : null, bolt_style: hasBolt ? boltStyle : null, wardrobe: wardrobe !== "ninguno" ? { "*": wardrobe } : null }
+      ? { style: chosen.name, season, fire_style: hasFire ? fireStyle : null, bolt_style: hasBolt ? boltStyle : null, wardrobe: wardrobe !== "ninguno" ? { "*": wardrobe } : null, prop: hasProp ? prop : null }
       : null;
   const seasonTitle = seasonList.find((s) => s.id === season)?.title ?? null;
   const lookSummary = [hasFire && fireStyle && looks.fuego.find((l) => l.id === fireStyle)?.title, hasBolt && boltStyle && looks.rayo.find((l) => l.id === boltStyle)?.title].filter(Boolean).join(" / ");
@@ -389,6 +394,23 @@ export function Studio() {
             </StepCard>
           )}
 
+          {hasProp && (
+            <StepCard n={next()} title="Objeto protagonista" note="El objeto que la persona usa en el video: seguimos su contorno y lo iluminamos. Las gorras, sombreros y gafas además brillan al ponérselos.">
+              <div className={styles.lookRow}>
+                {propList.map((choice) => (
+                  <Tile
+                    key={choice.id}
+                    small
+                    selected={prop === choice.id}
+                    onSelect={() => setProp(choice.id)}
+                    icon={<Icon name={choice.id === "ninguno" ? "close" : "sparkles"} size={22} />}
+                    label={choice.title}
+                  />
+                ))}
+              </div>
+            </StepCard>
+          )}
+
           {isCatalog && (
             <section className={styles.wardrobe}>
               <button type="button" onClick={() => setWardrobeOpen((v) => !v)} aria-expanded={wardrobeOpen}>
@@ -442,6 +464,7 @@ export function Studio() {
           wardrobe={WARDROBES.find((w) => w.id === wardrobe)?.label ?? "Sin prendas"}
           analysis={deepOn ? "Profundo con IA" : "Económico"}
           looks={lookSummary || null}
+          prop={hasProp ? (propList.find((p) => p.id === prop)?.title ?? null) : null}
           upload={upload}
           earlyStatus={early ? { text: uploadStatusText(early), phase: early.phase } : null}
           error={error}

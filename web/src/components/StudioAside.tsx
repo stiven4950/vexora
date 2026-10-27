@@ -20,6 +20,8 @@ interface Props {
   wardrobe: string;
   analysis: string;
   looks: string | null;
+  /** El objeto protagonista elegido, si el estilo sigue uno. */
+  prop: string | null;
   upload: number | null;
   /** La subida ya analizada y lo elegido, para la vista previa real (null = aún no se puede pedir). */
   previewUpload: string | null;
@@ -43,7 +45,7 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 /** La columna fija del Estudio: vista previa, datos del video, resumen del proyecto y el botón de crear. */
-export function StudioAside({ file, meta, style, season, wardrobe, analysis, looks, upload, previewUpload, previewOpts, earlyStatus, error, canLaunch, onLaunch }: Props) {
+export function StudioAside({ file, meta, style, season, wardrobe, analysis, looks, prop, upload, previewUpload, previewOpts, earlyStatus, error, canLaunch, onLaunch }: Props) {
   const [view, setView] = useState<View>("original");
   const [url, setUrl] = useState<string | null>(null);
   const clip = useStudioPreview(previewUpload, previewOpts);
@@ -64,6 +66,7 @@ export function StudioAside({ file, meta, style, season, wardrobe, analysis, loo
     { ok: !!style, text: "Estilo seleccionado" },
     { ok: true, text: `Temporada: ${season ?? "Sin temporada"}` },
     { ok: true, text: `Vestuario: ${wardrobe}` },
+    ...(prop ? [{ ok: true, text: `Objeto: ${prop}` }] : []),
     { ok: true, text: `Análisis: ${analysis}` },
   ];
 
@@ -112,7 +115,7 @@ export function StudioAside({ file, meta, style, season, wardrobe, analysis, loo
                           {clip.outdated && <small>Cambiaste el estilo o las opciones: la vista previa quedó desactualizada.</small>}
                           {clip.error && <small role="alert">{clip.error}</small>}
                           <Button icon="play" onClick={() => void clip.start()}>
-                            Ver con efectos (≈ {previewEstimate(style?.needs ?? [])} s)
+                            Ver con efectos (≈ {previewEstimate((style?.needs ?? []).filter((need) => need !== "props" || previewOpts.prop !== "ninguno"))} s)
                           </Button>
                         </>
                       )}
