@@ -9,7 +9,7 @@ import { Icon } from "./Icon";
 import { NeonPreview } from "./NeonPreview";
 import { Segmented } from "./Segmented";
 import type { VideoMeta } from "./Dropzone";
-import { OWN_ANALYSIS_NEEDS, PREVIEW_ESTIMATE_S, useStudioPreview } from "./useStudioPreview";
+import { previewEstimate, useStudioPreview } from "./useStudioPreview";
 import styles from "./StudioAside.module.css";
 
 interface Props {
@@ -46,7 +46,7 @@ function Row({ label, value }: { label: string; value: string }) {
 export function StudioAside({ file, meta, style, season, wardrobe, analysis, looks, upload, previewUpload, previewOpts, earlyStatus, error, canLaunch, onLaunch }: Props) {
   const [view, setView] = useState<View>("original");
   const [url, setUrl] = useState<string | null>(null);
-  const clip = useStudioPreview(previewUpload, previewOpts, !!style?.needs.some((need) => OWN_ANALYSIS_NEEDS.includes(need)));
+  const clip = useStudioPreview(previewUpload, previewOpts);
   useEffect(() => {
     if (!file) {
       setUrl(null);
@@ -105,8 +105,6 @@ export function StudioAside({ file, meta, style, season, wardrobe, analysis, loo
                     <div className={styles.clipAsk}>
                       {clip.generating ? (
                         <span role="status">Generando vista previa…</span>
-                      ) : clip.blocked ? (
-                        <span>Este estilo se ve al crear los efectos</span>
                       ) : !previewOpts ? (
                         <span>Elige un estilo para ver cómo queda</span>
                       ) : (
@@ -114,7 +112,7 @@ export function StudioAside({ file, meta, style, season, wardrobe, analysis, loo
                           {clip.outdated && <small>Cambiaste el estilo o las opciones: la vista previa quedó desactualizada.</small>}
                           {clip.error && <small role="alert">{clip.error}</small>}
                           <Button icon="play" onClick={() => void clip.start()}>
-                            Ver con efectos (≈ {PREVIEW_ESTIMATE_S} s)
+                            Ver con efectos (≈ {previewEstimate(style?.needs ?? [])} s)
                           </Button>
                         </>
                       )}
