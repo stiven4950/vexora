@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Callable
 from pathlib import Path
 
@@ -50,6 +51,19 @@ _STAGE_SKIP: dict[str, tuple[str, ...]] = {"analyze": ("analysis/gestures.py",)}
 
 def _code(stage: str) -> str:
     return code_fingerprint(*_STAGE_CODE[stage], exclude=_STAGE_SKIP.get(stage, ()))
+
+
+# Un candado por carpeta de análisis: si el análisis de una subida está en curso y llega el trabajo
+# del mismo video, el trabajo espera y luego encuentra la caché en vez de analizar dos veces.
+_ANALYSIS_LOCKS: dict[str, threading.Lock] = {}
+_ANALYSIS_LOCKS_GUARD = threading.Lock()
+
+
+def analysis_lock(run_dir: Path) -> threading.Lock:
+    """El candado (en este proceso) de una carpeta de análisis; siempre el mismo para la misma."""
+    key = str(Path(run_dir).resolve())
+    with _ANALYSIS_LOCKS_GUARD:
+        return _ANALYSIS_LOCKS.setdefault(key, threading.Lock())
 
 
 class _LayerIndex(BaseModel):
@@ -223,6 +237,12 @@ class Pipeline:
             return self.compose(stream=True)
 
     def analyze(self) -> None:
+        with analysis_lock(self.run_dir):
+            # Otro Pipeline pudo terminar el análisis mientras esperábamos: se relee el manifiesto.
+            self.manifest = load_manifest(self.manifest_path) or self.manifest
+            self._analyze_locked()
+
+    def _analyze_locked(self) -> None:
         key = stage_key("analyze-1", self.manifest.video_sha256, self.config.analysis.model_dump_json(), _code("analyze"))
         tracks = self.run_dir / "analysis" / "tracks.jsonl"
         if not self.force and self.manifest.stages.get("analyze") == key and tracks.exists():
