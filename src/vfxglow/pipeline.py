@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
+
+import cv2
 
 from vfxglow import telemetry
 from vfxglow.analysis.analyzer import analyze_video
@@ -321,7 +324,7 @@ class Pipeline:
             _code("render"),
         )
 
-    def _engine(self, script: EffectScript) -> tuple[EffectEngine, dict]:
+    def _engine(self, script: EffectScript, events: list | None = None) -> tuple[EffectEngine, dict]:
         from vfxglow.analysis.beats import cut_frames
         from vfxglow.analysis.schema import MotionBrief
 
@@ -330,7 +333,8 @@ class Pipeline:
         brief_path = analysis / "motion_brief.json"
         cuts = cut_frames(read_model(brief_path, MotionBrief).beats) if brief_path.exists() else []
         tracks = {track.frame: track for track in load_tracks(analysis / "tracks.jsonl")}
-        engine = EffectEngine(script, self.config.engine, load_events(analysis / "events.jsonl"), cuts=cuts, fps=meta.fps)
+        events = load_events(analysis / "events.jsonl") if events is None else events
+        engine = EffectEngine(script, self.config.engine, events, cuts=cuts, fps=meta.fps)
         return engine, tracks
 
     def render(self) -> None:
@@ -375,9 +379,6 @@ class Pipeline:
         self._mark("refine", stage_key("refine-1", self.config.refiner.model_dump_json()))
 
     def compose(self, stream: bool | None = None) -> Path:
-        from vfxglow.composite.composite import composite_frame
-        from vfxglow.composite.encode import FrameEncoder
-
         meta = self._meta()
         script_path = self.run_dir / "scripts" / "effect_script.json"
         script = read_model(script_path, EffectScript)
@@ -412,11 +413,94 @@ class Pipeline:
             log.info("Video final en caché: %s", dest)
             telemetry.annotate(cache_hit=True)
             return dest
+        if stream:
+            log.info("Renderizando y componiendo %d fotogramas sin capas en disco", meta.frame_count)
+        encoder = self._write(script, dest, stream=stream)
+        self._mark(
+            stage,
+            key,
+            output=dest.name,
+            script=sha256_file(script_path)[:12],
+            frames=f"{encoder.frames}/{meta.frame_count}",
+            code_render=_code("render")[:12],
+            code_compose=_code("compose")[:12],
+        )
+        log.info("Video final: %s", dest)
+        return dest
+
+    # ----- editor de efectos (director/edits.py) -----
+
+    def edit_catalog(self):
+        """El catálogo de esta corrida (con vestuario, temporada y looks), para el editor."""
+        director = CreativeDirector(self.config.director, self.config_path.resolve().parent / "presets", video=self.video)
+        return director.catalog()
+
+    def element_of(self) -> Callable[[str, str], str | None]:
+        """El elemento de cada opción del catálogo ("" o None si no tiene): las pistas del editor."""
+        from vfxglow.director.edits import element_lookup
+
+        return element_lookup(self.edit_catalog())
+
+    def compile_add(self, option: str, action: str | None, frame: int, length: int, person: str | None, seed: int):
+        """Los efectos de un momento nuevo ("Agregar efecto"): se coreografía solo ese momento,
+        fijado en `frame`, con el mismo catálogo y semilla. Devuelve (efectos, eventos del gesto,
+        opción y acción)."""
+        from vfxglow.analysis.schema import MotionBrief
+        from vfxglow.director.choreography import choreograph
+        from vfxglow.director.pins import Pin, PinFile
+
+        meta = self._meta()
+        fps = meta.fps or 30.0
+        brief = read_model(self.run_dir / "analysis" / "motion_brief.json", MotionBrief)
+        pin = Pin(seg=round(frame / fps, 3), opcion=option, accion=action, persona=person, exacto=True, dur=round(length / fps, 3))
+        script, choreography = choreograph(self.edit_catalog(), brief, seed, PinFile(solo_estos=True, momentos=[pin]))
+        decision = next((d for d in choreography.decisions if not d.choice.startswith("nada")), None)
+        if decision is None:
+            raise ValueError(f"La opción {option} no dibuja nada en {frame / fps:.2f} s")
+        effects = [effect for effect in script.effects if not effect.id.startswith("always_")]
+        events = [e for e in script.extra_events if e.name == decision.action and e.start_frame == decision.frame]
+        return effects, events, decision.choice, decision.action
+
+    def render_script(
+        self,
+        script: EffectScript,
+        dest: Path,
+        base_output: Path | None = None,
+        window: tuple[int, int] | None = None,
+        events: list | None = None,
+    ) -> Path:
+        """Compone `script` (el de una versión editada) sobre el plano en `dest`.
+
+        Con `base_output` y `window` (a, b), solo se dibujan los fotogramas a..b; el resto se copia del
+        video de la versión anterior, que es idéntico porque lo no editado sale igual
+        (director/edits.py). Antes de `a` se dibuja un calentamiento que no se escribe, para que las
+        estelas y el agua lleguen al tramo con su estado. `events`: los gestos con que se dibujó la
+        versión base (si no, los del análisis actual)."""
+        meta = self._meta()
+        if window is not None and base_output is not None:
+            log.info("Redibujando solo los fotogramas %d-%d de %d; el resto, del video anterior", window[0], window[1], meta.frame_count)
+        else:
+            window = base_output = None
+            log.info("Renderizando y componiendo %d fotogramas sin capas en disco", meta.frame_count)
+        self._write(script, dest, stream=True, base_output=base_output, window=window, events=events)
+        log.info("Video final: %s", dest)
+        return dest
+
+    def _write(self, script: EffectScript, dest: Path, stream: bool, base_output: Path | None = None, window: tuple[int, int] | None = None, events: list | None = None):
+        """El bucle de composición: cada fotograma del plano con sus capas, al codificador."""
+        from contextlib import nullcontext
+
+        from vfxglow.composite.composite import composite_frame
+        from vfxglow.composite.encode import FrameEncoder
+        from vfxglow.director.edits import WARMUP_S
+
+        meta = self._meta()
         engine = tracks = None
         if stream:
-            engine, tracks = self._engine(script)
-            log.info("Renderizando y componiendo %d fotogramas sin capas en disco", meta.frame_count)
+            engine, tracks = self._engine(script, events)
         by_id = {effect.id: effect for effect in script.effects}
+        # Con tramo: se dibuja desde el calentamiento y se escribe desde el inicio del tramo.
+        draw_from = max(window[0] - int(round(WARMUP_S * (meta.fps or 30.0))), 0) if window else 0
         encoder = FrameEncoder(
             dest,
             meta.width,
@@ -429,25 +513,24 @@ class Pipeline:
         )
         log.info("Componiendo sobre el plano original")
         try:
-            with VideoReader(self.video) as reader:
-                for index, frame in reader:
+            with VideoReader(self.video) as reader, (VideoReader(base_output) if base_output else nullcontext()) as previous:
+                frames = zip(reader, previous) if previous is not None else ((item, None) for item in reader)
+                for (index, frame), old in frames:
+                    inside = window is None or window[0] <= index <= window[1]
                     layers = []
-                    if engine is not None:
+                    if engine is not None and (window is None or draw_from <= index <= window[1]):
                         rendered = engine.render_frame(tracks.get(index), index, meta.width, meta.height, meta.frame_count, self.run_dir)
                         layers = [(by_id[effect_id], layer) for effect_id, _group, layer in rendered]
-                    else:
+                    elif engine is None:
                         for effect in script.effects:
                             path = self.run_dir / "layers" / effect.id / f"f{index:06d}.npy"
                             if path.exists():
                                 layers.append((effect, load_layer(path)))
-                    encoder.write(
-                        composite_frame(
-                            frame,
-                            layers,
-                            script.grade,
-                            enabled_groups=self.config.composite.enabled_groups(),
-                        )
-                    )
+                    if inside:
+                        encoder.write(composite_frame(frame, layers, script.grade, enabled_groups=self.config.composite.enabled_groups()))
+                    else:
+                        # El video anterior se lee en BGR (OpenCV); el codificador espera RGB.
+                        encoder.write(cv2.cvtColor(old[1], cv2.COLOR_BGR2RGB))
                     if (index + 1) % 10 == 0:
                         telemetry.checkpoint()  # la persona pudo cancelar el trabajo
                     if (index + 1) % 50 == 0:
@@ -459,17 +542,7 @@ class Pipeline:
         # y almacenamiento del diseño: se mide aparte del dibujo de los fotogramas.
         with telemetry.span("finalize"):
             encoder.close()
-        self._mark(
-            stage,
-            key,
-            output=dest.name,
-            script=sha256_file(script_path)[:12],
-            frames=f"{encoder.frames}/{meta.frame_count}",
-            code_render=_code("render")[:12],
-            code_compose=_code("compose")[:12],
-        )
-        log.info("Video final: %s", dest)
-        return dest
+        return encoder
 
     def _meta(self) -> VideoMeta:
         header = read_model(self.run_dir / "analysis" / "header.json", AnalysisHeader)
