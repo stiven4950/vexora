@@ -53,14 +53,30 @@ def _refract(acc: np.ndarray, layer: np.ndarray) -> np.ndarray:
     return acc * (1.0 - a) + warped * a
 
 
+def _record(parts: list | None, effect_id: str, before: np.ndarray, after: np.ndarray, alpha: np.ndarray | None) -> None:
+    """Lo que aportó un efecto, como (A, C) con `after = before * (1 - A) + C`."""
+    if parts is None:
+        return
+    if alpha is None:
+        parts.append((effect_id, None, after - before))
+        return
+    a = np.clip(alpha, 0.0, 1.0).astype(np.float32)
+    parts.append((effect_id, a, after - before * (1.0 - a)[..., None]))
+
+
 def composite_frame(
     plate_bgr: np.ndarray,
     layers: list[tuple[Effect, np.ndarray]],
     grade: Grade,
     soft_knee: float | None = None,
     enabled_groups: set[str] | None = None,
+    parts: list[tuple[str, np.ndarray | None, np.ndarray]] | None = None,
 ) -> np.ndarray:
-    """Devuelve RGB uint8. Los píxeles sin cobertura de efecto quedan idénticos al plano."""
+    """Devuelve RGB uint8. Los píxeles sin cobertura de efecto quedan idénticos al plano.
+
+    `parts` (una lista vacía): se llena con lo que aporta cada efecto, en el orden en que se mezcla,
+    como (id, A, C) tal que `después = antes * (1 - A) + C` en luz lineal (A = None: mezcla
+    aditiva, A = 0). Es la base de las capas por pista del editor (composite/atlas.py)."""
     plate_rgb = plate_bgr[..., ::-1].astype(np.float32) / 255.0
     plate = srgb_to_linear(plate_rgb)
     acc = plate.copy()
@@ -75,14 +91,17 @@ def composite_frame(
             if effect_group(effect) == group and float(layer[..., 3].max()) > 1e-5:
                 ordered.append((effect, layer))
     for effect, layer in ordered:
+        before = acc
         if effect_group(effect) == "grade":
             acc = _blend(acc, layer[..., :3], layer[..., 3], "multiply")
             coverage = np.maximum(coverage, np.clip(layer[..., 3], 0.0, 1.0))
+            _record(parts, effect.id, before, acc, layer[..., 3])
             continue
         if effect.render.blend == "refract":
             # Lleva desplazamientos, no luz: sin bloom ni shoulder.
             acc = _refract(acc, layer)
             coverage = np.maximum(coverage, np.clip(layer[..., 3], 0.0, 1.0))
+            _record(parts, effect.id, before, acc, layer[..., 3])
             continue
         # Un tinte de pantalla completa (type grade) no tiene núcleo que irradie: sin bloom.
         glowed = layer.astype(np.float32) if effect.type == "grade" else bloom(
@@ -96,6 +115,7 @@ def composite_frame(
         alpha = glowed[..., 3]
         acc = _blend(acc, rgb, alpha, effect.render.blend)
         coverage = np.maximum(coverage, np.clip(alpha, 0.0, 1.0))
+        _record(parts, effect.id, before, acc, None if effect.render.blend == "add" else alpha)
     untouched = coverage <= 1e-4
     acc[untouched] = plate[untouched]
     encoded = linear_to_srgb(acc)

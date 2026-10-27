@@ -30,6 +30,7 @@ from vfxglow.analysis.quality import QualityWarning
 from vfxglow.api import limits
 from vfxglow.api.auth import User, auth_enabled, check_bind, current_user, media_key, media_owner
 from vfxglow.api.jobs import Job, JobBusy, JobStore, NotRetryable, UploadTooLarge, owns
+from vfxglow.api.layers import LayerStore, estimate_seconds
 from vfxglow.api.previews import PreviewStore, window_for
 from vfxglow.api.uploads import TooManyAnalyzing, Upload, UploadNotFound, UploadStore, UploadUsed
 from vfxglow.config import PRESET_ALIASES, catalog_name
@@ -278,6 +279,8 @@ class JobView(Job):
     editable: bool = False
     # Terminada, de catálogo y sin guion guardado (hecha antes del editor): `prepare-edit` la deja editable.
     preparable: bool = False
+    # Ya tiene las capas por pista de la vista en vivo del editor (/layers).
+    layers_ready: bool = False
     duration: float | None = None
     # Segundos que se espera que tarde, y cuántos trabajos van antes en la cola (un solo trabajador).
     estimate_s: float | None = None
@@ -321,6 +324,7 @@ def view(job: Job) -> JobView:
         tags=_tags(job),
         editable=jobs().editable(job),
         preparable=jobs().preparable(job),
+        layers_ready=layers().ready(job.id),
         estimate_s=jobs().estimate(job) if waiting else None,
         queue_ahead=jobs().queue_ahead(job) if job.status == "queued" else 0,
         duration=(job.finished or 0) - job.started if job.started and job.finished else None,
@@ -832,6 +836,68 @@ def preview_file(job_id: str, preview_id: str, k: str | None = Query(None)) -> F
     if path is None:
         raise HTTPException(404, "La vista previa ya no existe")
     return FileResponse(path, media_type="video/mp4")
+
+
+_layers: LayerStore | None = None
+
+
+def layers() -> LayerStore:
+    global _layers
+    if _layers is None or _layers.jobs is not jobs():
+        _layers = LayerStore(jobs())
+    return _layers
+
+
+class LayersView(BaseModel):
+    status: str  # "none" | "rendering" | "ready" | "failed"
+    url: str | None = None
+    layout: dict | None = None
+    error: str | None = None
+    estimate_s: int = 0
+
+
+def _layers_view(job: Job) -> LayersView:
+    status, error = layers().status(job.id)
+    layout = layers().layout(job.id) if status == "ready" else None
+    if status == "ready" and layout is None:
+        status = "none"
+    key = f"?k={media_key(job.id, job.owner or 'local')}"
+    frames = int(layout["frames"]) if layout else _video_timing(job)[1]
+    return LayersView(
+        status=status,
+        url=f"/api/jobs/{job.id}/layers.mp4{key}" if status == "ready" else None,
+        layout=layout,
+        error=error if status == "failed" else None,
+        estimate_s=estimate_seconds(frames),
+    )
+
+
+@app.post("/api/jobs/{job_id}/layers", response_model=LayersView, status_code=202)
+def create_layers(job_id: str, user: User = Depends(current_user)) -> LayersView:
+    """Genera (una vez por versión) las capas por pista de la vista en vivo del editor. Cuenta
+    como una vista previa en la cuota."""
+    job = _job(job_id, user)
+    if not jobs().editable(job):
+        raise HTTPException(409, "Esta versión no se puede editar, así que no tiene vista en vivo.")
+    layers().submit(
+        job,
+        check_quota=lambda: limits.check_preview_quota(user, previews().renders_today(user.uid)),
+        on_queued=lambda: previews().note_render(user.uid),
+    )
+    return _layers_view(job)
+
+
+@app.get("/api/jobs/{job_id}/layers", response_model=LayersView)
+def get_layers(job_id: str, user: User = Depends(current_user)) -> LayersView:
+    return _layers_view(_job(job_id, user))
+
+
+@app.get("/api/jobs/{job_id}/layers.mp4")
+def layers_file(job_id: str, k: str | None = Query(None)) -> FileResponse:
+    job = _media_job(job_id, k)
+    if not layers().ready(job.id):
+        raise HTTPException(404, "Las capas ya no existen")
+    return FileResponse(layers().video_path(job.id), media_type="video/mp4")
 
 
 @app.get("/api/jobs/{job_id}/preview/{preview_id}", response_model=PreviewView)

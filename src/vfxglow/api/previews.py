@@ -129,6 +129,11 @@ class PreviewStore:
                 times.popleft()
             return len(times)
 
+    def note_render(self, uid: str) -> None:
+        """Cuenta un dibujo más en la cuota diaria de `uid` (las capas del editor valen como una vista previa)."""
+        with self._lock:
+            self._renders.setdefault(uid, deque()).append(time.time())
+
     # ----- consulta -----
 
     def get(self, job_id: str, preview_id: str) -> Preview | None:

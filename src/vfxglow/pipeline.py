@@ -8,6 +8,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import cv2
+import numpy as np
 
 from vfxglow import telemetry
 from vfxglow.analysis.analyzer import analyze_video
@@ -569,6 +570,62 @@ class Pipeline:
         fotogramas escritos. `tracks`: pistas ya cargadas (las de `window_extras`)."""
         encoder = self._write(script, dest, stream=True, window=window, events=events, only_window=True, max_side=max_side, tracks=tracks)
         return encoder.frames
+
+    def render_layers(self, script: EffectScript, dest: Path, key_of: dict[str, str], keys: list[str], events: list | None = None):
+        """Las capas por pista de una versión para la vista en vivo del editor (composite/atlas.py):
+        dibuja el video entero al tamaño de las baldosas (TILE_LONG; el plano va al doble) y escribe un MP4 en mosaico
+        en `dest`. `key_of`: pista de cada efecto; `keys`: las pistas por orden de importancia (las
+        primeras MAX_LAYER_TRACKS tienen baldosa; el resto, "rest"). Devuelve la distribución."""
+        from vfxglow.composite import atlas
+        from vfxglow.composite.composite import composite_frame
+        from vfxglow.composite.encode import FrameEncoder
+
+        meta = self._meta()
+        own = set(keys[: atlas.MAX_LAYER_TRACKS])
+        tile_of = {effect.id: (key_of[effect.id] if key_of.get(effect.id) in own else atlas.REST) for effect in script.effects}
+        nonadd: dict[str, bool] = {}
+        for effect in script.effects:
+            name = tile_of[effect.id]
+            nonadd[name] = nonadd.get(name, False) or effect_group(effect) == "grade" or effect.render.blend != "add"
+        selected = [key for key in keys[: atlas.MAX_LAYER_TRACKS] if key in nonadd]
+        layout = atlas.plan_layout(meta.width, meta.height, meta.fps, meta.frame_count, selected, nonadd, atlas.REST in nonadd)
+        tw, th = layout.tile
+        pw, ph = layout.plate[2], layout.plate[3]
+        refs = [*layout.tracks, *([layout.rest] if layout.rest else [])]
+        engine, tracks = self._engine(script, events)
+        by_id = {effect.id: effect for effect in script.effects}
+        encoder = FrameEncoder(dest, layout.width, layout.height, meta.fps, crf=20, audio_from=self.video if meta.has_audio else None, frames=meta.frame_count)
+        log.info("Capas por pista: %d baldosas en %dx%d", len(refs), layout.width, layout.height)
+        try:
+            with VideoReader(self.video) as reader:
+                for index, frame in reader:
+                    # Se dibuja y mezcla ya al tamaño de la baldosa: 4 veces menos que al del plano.
+                    small = cv2.resize(frame, (tw, th), interpolation=cv2.INTER_AREA)
+                    rendered = engine.render_frame(tracks.get(index), index, tw, th, meta.frame_count, self.run_dir)
+                    parts: list = []
+                    composite_frame(small, [(by_id[effect_id], layer) for effect_id, _group, layer in rendered], script.grade, enabled_groups=self.config.composite.enabled_groups(), parts=parts)
+                    folded = atlas.fold(parts, tile_of)
+                    canvas = np.zeros((layout.height, layout.width, 3), np.uint8)
+                    canvas[:ph, :pw] = cv2.cvtColor(cv2.resize(frame, (pw, ph), interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2RGB)
+                    for ref in refs:
+                        a, c = folded.get(ref.key, (None, None))
+                        energy = atlas.shrink(c, (tw, th)) if c is not None else None
+                        x, y = ref.c
+                        if energy is not None:
+                            canvas[y : y + th, x : x + tw] = atlas.encode_energy(energy)
+                        cx, cy = atlas.center_of(energy) if energy is not None else (-1, -1)
+                        ref.centers += [cx, cy]
+                        if ref.a is not None and a is not None:
+                            x, y = ref.a
+                            canvas[y : y + th, x : x + tw] = atlas.encode_alpha(atlas.shrink(a, (tw, th)))
+                    encoder.write(canvas)
+                    if (index + 1) % 50 == 0:
+                        log.info("Capas %d/%d fotogramas", index + 1, meta.frame_count)
+        except BaseException:
+            encoder.abort()
+            raise
+        encoder.close()
+        return layout
 
     def _write(
         self,
