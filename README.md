@@ -141,6 +141,25 @@ Borrar un trabajo borra también su MP4 (`api_data/outputs/<id>.mp4`) y, si ning
 los usa, el video subido y su carpeta de análisis en `runs/`. Un trabajo que se está procesando
 no se puede borrar (409).
 
+## Editor de efectos
+
+Una versión terminada de una coreografía se puede editar en la web (`/app/projects/<id>/edit`):
+apagar una pista, quitar, mover o alargar un efecto, agregar uno del catálogo, y cambiar el color,
+la intensidad y el tamaño de una pista. Aplicar los cambios crea una versión nueva; las anteriores
+se conservan.
+
+- Se edita el guion compilado de la versión (`director/edits.py`), no la coreografía: cada efecto
+  lleva sus disparos exactos y su azar sale de su `id`, así que lo que no se toca sale igual.
+- Al terminar, cada versión guarda en `api_data/outputs/` su guion (`<id>.script.json`), sus
+  momentos (`<id>.moments.json`) y los gestos con que se dibujó (`<id>.events.json`). Las versiones
+  hechas antes del editor no los tienen: hay que crear otra versión para editarla.
+- Solo se vuelve a dibujar el tramo que cambia (`changed_window`): las activaciones que cambiaron
+  más las de cualquier efecto que se cruce con ellas, con 2 s de calentamiento antes que no se
+  escriben. El resto del video se copia de la versión anterior.
+- API: `GET /api/jobs/{id}/editor` (pistas, momentos y opciones para agregar), `POST
+  /api/jobs/{id}/edit` (`{edits: [...]}`; un cambio imposible responde 422) y
+  `GET /api/jobs/{id}/filmstrip?n=12` (tira de fotogramas).
+
 ## Trazabilidad (eventos JSON)
 
 La API y la línea de comandos escriben un evento JSON por línea en `logs/events.jsonl` (rota a
