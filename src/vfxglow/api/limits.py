@@ -32,6 +32,7 @@ MAX_SECONDS_ENV = "VEXORA_MAX_VIDEO_SECONDS"
 MAX_SIDE_ENV = "VEXORA_MAX_VIDEO_SIDE"
 MAX_ACTIVE_ENV = "VEXORA_MAX_ACTIVE_JOBS"
 DAILY_JOBS_ENV = "VEXORA_DAILY_JOBS"
+DAILY_PREVIEWS_ENV = "VEXORA_DAILY_PREVIEWS"
 DEEP_ALLOW_ENV = "VEXORA_DEEP_ALLOW"
 DAILY_DEEP_ENV = "VEXORA_DAILY_DEEP"
 DAILY_DEEP_GLOBAL_ENV = "VEXORA_DAILY_DEEP_GLOBAL"
@@ -116,3 +117,12 @@ def check_quota(user: User, mine: list[Job], everyone: list[Job], deep: bool, no
     global_today = sum(job.deep and now - job.created < DAY_S for job in everyone)
     if global_today >= _number(DAILY_DEEP_GLOBAL_ENV, 20):
         raise _refuse(user, "daily_deep_global", "El análisis profundo está saturado por hoy. Usa el análisis económico o vuelve mañana.")
+
+
+def check_preview_quota(user: User, today: int) -> None:
+    """429 si `user` ya pidió todas sus vistas previas del editor de las últimas 24 h (cada una cuesta CPU)."""
+    if not auth_enabled():
+        return
+    limit = _number(DAILY_PREVIEWS_ENV, 60)
+    if today >= limit:
+        raise _refuse(user, "daily_previews", f"Llegaste al límite de {limit:.0f} vistas previas por hoy. Aplica los cambios para ver el resultado o vuelve mañana.")

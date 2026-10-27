@@ -506,8 +506,29 @@ class Pipeline:
         log.info("Video final: %s", dest)
         return dest
 
-    def _write(self, script: EffectScript, dest: Path, stream: bool, base_output: Path | None = None, window: tuple[int, int] | None = None, events: list | None = None):
-        """El bucle de composición: cada fotograma del plano con sus capas, al codificador."""
+    def render_preview(self, script: EffectScript, dest: Path, window: tuple[int, int], events: list | None = None, max_side: int | None = None) -> int:
+        """Vista previa: dibuja `window` (a, b) con el motor real y escribe un MP4 corto solo con esos
+        fotogramas (sin audio ni copia del resto). Antes de `a` hay calentamiento que no se escribe.
+        `max_side`: lado largo máximo; si el video es mayor se reescala al escribir. Devuelve los
+        fotogramas escritos."""
+        encoder = self._write(script, dest, stream=True, window=window, events=events, only_window=True, max_side=max_side)
+        return encoder.frames
+
+    def _write(
+        self,
+        script: EffectScript,
+        dest: Path,
+        stream: bool,
+        base_output: Path | None = None,
+        window: tuple[int, int] | None = None,
+        events: list | None = None,
+        only_window: bool = False,
+        max_side: int | None = None,
+    ):
+        """El bucle de composición: cada fotograma del plano con sus capas, al codificador.
+
+        `only_window` (con `window`): se escribe solo el tramo, sin audio y sin leer más allá de su
+        final; `max_side` reescala lo que se escribe."""
         from contextlib import nullcontext
 
         from vfxglow.composite.composite import composite_frame
@@ -521,20 +542,28 @@ class Pipeline:
         by_id = {effect.id: effect for effect in script.effects}
         # Con tramo: se dibuja desde el calentamiento y se escribe desde el inicio del tramo.
         draw_from = max(window[0] - int(round(WARMUP_S * (meta.fps or 30.0))), 0) if window else 0
+        only_window = only_window and window is not None
+        if only_window:
+            window = (window[0], min(window[1], meta.frame_count - 1))
+        out_w, out_h = meta.width, meta.height
+        if max_side and max(out_w, out_h) > max_side:
+            ratio = max_side / max(out_w, out_h)
+            out_w, out_h = max(2, int(out_w * ratio) // 2 * 2), max(2, int(out_h * ratio) // 2 * 2)
         encoder = FrameEncoder(
             dest,
-            meta.width,
-            meta.height,
+            out_w,
+            out_h,
             meta.fps,
             codec=self.config.composite.codec,
             crf=self.config.composite.crf,
-            audio_from=self.video if meta.has_audio else None,
-            frames=meta.frame_count,
+            audio_from=self.video if meta.has_audio and not only_window else None,
+            frames=(window[1] - window[0] + 1) if only_window else meta.frame_count,
         )
         log.info("Componiendo sobre el plano original")
         try:
             with VideoReader(self.video) as reader, (VideoReader(base_output) if base_output else nullcontext()) as previous:
-                frames = zip(reader, previous) if previous is not None else ((item, None) for item in reader)
+                source = _clip(reader, draw_from, window[1]) if only_window else reader
+                frames = zip(source, previous) if previous is not None else ((item, None) for item in source)
                 for (index, frame), old in frames:
                     inside = window is None or window[0] <= index <= window[1]
                     layers = []
@@ -547,8 +576,11 @@ class Pipeline:
                             if path.exists():
                                 layers.append((effect, load_layer(path)))
                     if inside:
-                        encoder.write(composite_frame(frame, layers, script.grade, enabled_groups=self.config.composite.enabled_groups()))
-                    else:
+                        done = composite_frame(frame, layers, script.grade, enabled_groups=self.config.composite.enabled_groups())
+                        if done.shape[1] != out_w or done.shape[0] != out_h:
+                            done = cv2.resize(done, (out_w, out_h), interpolation=cv2.INTER_AREA)
+                        encoder.write(done)
+                    elif not only_window:
                         # El video anterior se lee en BGR (OpenCV); el codificador espera RGB.
                         encoder.write(cv2.cvtColor(old[1], cv2.COLOR_BGR2RGB))
                     if (index + 1) % 10 == 0:
@@ -574,3 +606,15 @@ class Pipeline:
             self.manifest.inputs[stage] = {name: str(value) for name, value in inputs.items()}
         self.manifest.device = self.device
         save_manifest(self.manifest_path, self.manifest)
+
+
+def _clip(reader: VideoReader, start: int, end: int):
+    """Los fotogramas start..end de `reader`; los de antes se saltan sin convertirlos."""
+    for _ in range(start):
+        if not reader.cap.grab():
+            return
+    for index in range(start, end + 1):
+        ok, frame = reader.cap.read()
+        if not ok:
+            return
+        yield index, frame

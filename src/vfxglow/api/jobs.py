@@ -462,6 +462,7 @@ class JobStore:
         (self.outputs / f"{job_id}.mp4").unlink(missing_ok=True)
         for leftover in self.outputs.glob(f"{job_id}.*"):
             leftover.unlink(missing_ok=True)  # guion, momentos, gestos y tira de fotogramas del editor
+        shutil.rmtree(self.root / "previews" / job_id, ignore_errors=True)  # vistas previas del editor
         folder = Path(job.video_path).parent
         if video_shared:
             for cache in folder.glob(f"thumb-{job_id}-*.jpg"):

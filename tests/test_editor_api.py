@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from vfxglow.api import limits, server  # noqa: E402
 from vfxglow.api.jobs import JobStore  # noqa: E402
+from vfxglow.api.previews import window_for  # noqa: E402
 from vfxglow.director.schema import Effect  # noqa: E402
 
 T = "person_0:right_wrist"
@@ -260,3 +261,131 @@ def test_editing_a_prepared_version_redraws_the_whole_video(client: TestClient) 
     assert not server.store.artifact(edited["id"], "prepared").exists()
     nxt = _wait(client, client.post(f"/api/jobs/{edited['id']}/edit", json={"edits": [{"op": "remove", "moment": next(t for t in client.get(f"/api/jobs/{edited['id']}/editor").json()["tracks"] if t["key"] == "swoosh")["moments"][0]["id"]}]}).json()["id"])
     assert nxt["status"] == "done" and EditorPipeline.renders[-1]["partial"] is True
+
+
+# ----- vista previa rápida -----
+
+
+@pytest.fixture(autouse=True)
+def fake_preview(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
+    calls: list[dict] = []
+
+    def render_preview(self, script, dest, window, events=None, max_side=None):
+        calls.append({"window": window, "effects": [e.id for e in script.effects]})
+        dest.write_bytes(b"vista")
+        return window[1] - window[0] + 1
+
+    monkeypatch.setattr(EditorPipeline, "render_preview", render_preview, raising=False)
+    return calls
+
+
+def _remove(client: TestClient, job: dict) -> dict:
+    moments = next(t for t in client.get(f"/api/jobs/{job['id']}/editor").json()["tracks"] if t["key"] == "swoosh")["moments"]
+    return {"op": "remove", "moment": moments[-1]["id"]}
+
+
+def _style(i: int) -> dict:
+    """Un cambio distinto por `i` (el video de prueba dura 2 s: la ventana es siempre la misma)."""
+    return {"op": "style", "track": "llamarada", "intensity": 1.0 + i / 10}
+
+
+def _ready(client: TestClient, job_id: str, preview_id: str) -> dict:
+    for _ in range(200):
+        shown = client.get(f"/api/jobs/{job_id}/preview/{preview_id}").json()
+        if shown["status"] != "rendering":
+            return shown
+        time.sleep(0.02)
+    raise AssertionError("la vista previa no terminó")
+
+
+def test_window_is_three_seconds_clipped_to_the_video() -> None:
+    assert window_for(5.0, 30.0, 900) == (105, 194)
+    assert window_for(0.2, 30.0, 900) == (0, 50)
+    assert window_for(29.9, 30.0, 900) == (852, 899)
+
+
+def test_preview_renders_only_the_window_serves_it_and_creates_no_version(client: TestClient, fake_preview: list[dict]) -> None:
+    job = _done(client)
+    before = len(client.get("/api/jobs").json())
+    created = client.post(f"/api/jobs/{job['id']}/preview", json={"edits": [_remove(client, job)], "at": 1.0})
+    assert created.status_code == 202 and created.json()["status"] in ("rendering", "ready")
+    shown = _ready(client, job["id"], created.json()["preview_id"])
+    assert shown["status"] == "ready" and shown["error"] is None
+    assert shown["start"] == 0.0 and shown["end"] == pytest.approx(2.0, abs=0.05)  # el video de prueba dura 2 s
+    assert client.get(shown["url"]).content == b"vista"
+    assert fake_preview[-1]["window"] == (0, FRAMES - 1)
+    assert len(client.get("/api/jobs").json()) == before  # no hay versión nueva
+    assert not EditorPipeline.renders  # y no pasó por render_script
+
+
+def test_same_edits_and_window_hit_the_cache(client: TestClient, fake_preview: list[dict]) -> None:
+    job = _done(client)
+    body = {"edits": [_remove(client, job)], "at": 1.0}
+    first = client.post(f"/api/jobs/{job['id']}/preview", json=body).json()
+    _ready(client, job["id"], first["preview_id"])
+    again = client.post(f"/api/jobs/{job['id']}/preview", json=body).json()
+    assert again["preview_id"] == first["preview_id"] and again["status"] == "ready"
+    assert len(fake_preview) == 1
+    other = client.post(f"/api/jobs/{job['id']}/preview", json={**body, "edits": [{"op": "track_off", "track": "llamarada"}]}).json()
+    assert other["preview_id"] != first["preview_id"]
+    _ready(client, job["id"], other["preview_id"])
+    assert len(fake_preview) == 2
+
+
+def test_impossible_edits_are_422_and_other_users_get_404(client: TestClient) -> None:
+    job = _done(client)
+    bad = client.post(f"/api/jobs/{job['id']}/preview", json={"edits": [{"op": "remove", "moment": "no-existe"}], "at": 1.0})
+    assert bad.status_code == 422 and "No existe el momento" in bad.json()["detail"]
+    assert client.post(f"/api/jobs/{job['id']}/preview", json={"edits": [], "at": 1.0}).status_code == 422
+    assert client.post("/api/jobs/nada/preview", json={"edits": [{"op": "volar"}], "at": 1.0}).status_code == 404
+    ok = client.post(f"/api/jobs/{job['id']}/preview", json={"edits": [_remove(client, job)], "at": 1.0}).json()
+    _ready(client, job["id"], ok["preview_id"])
+    server.store._jobs[job["id"]].owner = "otra-persona"
+    assert client.get(f"/api/jobs/{job['id']}/preview/{ok['preview_id']}").status_code == 404
+    assert client.post(f"/api/jobs/{job['id']}/preview", json={"edits": [_style(1)], "at": 1.0}).status_code == 404
+
+
+def test_daily_cap_answers_429(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    job = _done(client)
+    monkeypatch.setattr(limits, "auth_enabled", lambda: True)
+    monkeypatch.setenv(limits.DAILY_PREVIEWS_ENV, "2")
+    for i in (1, 2):
+        response = client.post(f"/api/jobs/{job['id']}/preview", json={"edits": [_style(i)], "at": 1.0})
+        assert response.status_code == 202
+        _ready(client, job["id"], response.json()["preview_id"])
+    cached = client.post(f"/api/jobs/{job['id']}/preview", json={"edits": [_style(2)], "at": 1.0})
+    assert cached.status_code == 202  # lo ya dibujado no gasta cuota
+    full = client.post(f"/api/jobs/{job['id']}/preview", json={"edits": [_style(3)], "at": 1.0})
+    assert full.status_code == 429 and "vistas previas" in full.json()["detail"]
+
+
+def test_a_newer_request_discards_the_pending_one_of_the_same_user(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    job = _done(client)
+    import threading
+
+    gate = threading.Event()
+
+    def slow(self, script, dest, window, events=None, max_side=None):
+        gate.wait(5)
+        dest.write_bytes(b"vista")
+        return 1
+
+    monkeypatch.setattr(EditorPipeline, "render_preview", slow, raising=False)
+    running = client.post(f"/api/jobs/{job['id']}/preview", json={"edits": [_style(1)], "at": 1.0}).json()
+    time.sleep(0.2)  # el primero ya está dibujando
+    pending = client.post(f"/api/jobs/{job['id']}/preview", json={"edits": [_style(2)], "at": 1.0}).json()
+    newest = client.post(f"/api/jobs/{job['id']}/preview", json={"edits": [_style(3)], "at": 1.0}).json()
+    gate.set()
+    assert _ready(client, job["id"], running["preview_id"])["status"] == "ready"
+    assert _ready(client, job["id"], newest["preview_id"])["status"] == "ready"
+    dropped = client.get(f"/api/jobs/{job['id']}/preview/{pending['preview_id']}").json()
+    assert dropped["status"] == "failed" and "más reciente" in dropped["error"]
+
+
+def test_deleting_the_version_removes_its_previews(client: TestClient) -> None:
+    job = _done(client)
+    shown = client.post(f"/api/jobs/{job['id']}/preview", json={"edits": [_remove(client, job)], "at": 1.0}).json()
+    _ready(client, job["id"], shown["preview_id"])
+    assert (server.previews().root / job["id"]).exists()
+    assert client.delete(f"/api/jobs/{job['id']}").status_code == 204
+    assert not (server.previews().root / job["id"]).exists()

@@ -29,6 +29,7 @@ from vfxglow import telemetry
 from vfxglow.api import limits
 from vfxglow.api.auth import User, auth_enabled, check_bind, current_user, media_key, media_owner
 from vfxglow.api.jobs import Job, JobBusy, JobStore, NotRetryable, UploadTooLarge, owns
+from vfxglow.api.previews import PreviewStore, window_for
 from vfxglow.api.uploads import TooManyAnalyzing, Upload, UploadNotFound, UploadStore, UploadUsed
 from vfxglow.config import PRESET_ALIASES, catalog_name
 from vfxglow.telemetry import redact
@@ -690,37 +691,124 @@ class EditRequest(BaseModel):
     edits: list[dict]
 
 
-@app.post("/api/jobs/{job_id}/edit", response_model=JobView, status_code=201)
-def edit_job(job_id: str, body: EditRequest, user: User = Depends(current_user)) -> JobView:
-    """Crea una versión nueva con los cambios del editor. Se validan antes de encolar: un cambio
-    imposible responde 422 con el motivo."""
+def _validated_edits(job: Job, raw: list[dict]) -> list:
+    """Los cambios del editor ya validados contra el guion de la versión; 422 con el motivo si no."""
+    from vfxglow.analysis.schema import MotionEvent
     from vfxglow.director.edits import Edit, Moment, apply_edits, assign_tracks, element_lookup
     from vfxglow.director.schema import EffectScript
 
-    job = _job(job_id, user)
-    if not jobs().editable(job):
-        raise HTTPException(409, "Esta versión no se puede editar.")
-    if not body.edits:
-        raise HTTPException(422, "No hay cambios que aplicar.")
     try:
-        edits = [Edit.model_validate(e) for e in body.edits]
+        edits = [Edit.model_validate(e) for e in raw]
     except ValueError as error:
         raise HTTPException(422, f"Cambio no válido: {error}") from error
     # Un efecto nuevo se compila en el trabajo (necesita el análisis); sin él, se prueba todo aquí.
     if not any(e.op == "add" for e in edits):
-        from vfxglow.analysis.schema import MotionEvent
-
         script = EffectScript.model_validate_json(jobs().artifact(job.id, "script").read_text(encoding="utf-8"))
         moments = [Moment.model_validate(m) for m in json.loads(jobs().artifact(job.id, "moments").read_text(encoding="utf-8"))]
         events = [MotionEvent.model_validate(e) for e in json.loads(jobs().artifact(job.id, "events").read_text(encoding="utf-8"))]
         fps, frames = _video_timing(job)
         try:
-            catalog = _editor_catalog(job)
-            apply_edits(script, moments, assign_tracks(moments, element_lookup(catalog)), edits, events, fps, frames)
+            apply_edits(script, moments, assign_tracks(moments, element_lookup(_editor_catalog(job))), edits, events, fps, frames)
         except ValueError as error:
             raise HTTPException(422, str(error)) from error
+    return edits
+
+
+@app.post("/api/jobs/{job_id}/edit", response_model=JobView, status_code=201)
+def edit_job(job_id: str, body: EditRequest, user: User = Depends(current_user)) -> JobView:
+    """Crea una versión nueva con los cambios del editor. Se validan antes de encolar: un cambio
+    imposible responde 422 con el motivo."""
+    job = _job(job_id, user)
+    if not jobs().editable(job):
+        raise HTTPException(409, "Esta versión no se puede editar.")
+    if not body.edits:
+        raise HTTPException(422, "No hay cambios que aplicar.")
+    edits = _validated_edits(job, body.edits)
     limits.check_quota(user, jobs().list(user.uid), jobs().list(), deep=False)
     return view(jobs().edit(job, [e.model_dump(exclude_none=True) for e in edits]))
+
+
+class PreviewRequest(BaseModel):
+    edits: list[dict]
+    # Segundo del cabezal: la vista previa cubre 1,5 s a cada lado.
+    at: float
+
+
+class PreviewView(BaseModel):
+    preview_id: str
+    status: str  # rendering | ready | failed
+    url: str | None = None
+    start: float
+    end: float
+    error: str | None = None
+
+
+_previews: PreviewStore | None = None
+
+
+def previews() -> PreviewStore:
+    global _previews
+    if _previews is None or _previews.jobs is not jobs():
+        _previews = PreviewStore(jobs())
+    return _previews
+
+
+def _preview_view(job: Job, item) -> PreviewView:
+    ready = previews().url_path(item) is not None
+    status = item.status if item.status != "ready" or ready else "failed"
+    key = f"?k={media_key(job.id, job.owner or 'local')}"
+    return PreviewView(
+        preview_id=item.id,
+        status=status,
+        url=f"/api/jobs/{job.id}/preview/{item.id}.mp4{key}" if ready else None,
+        start=round(item.window[0] / item.fps, 3),
+        end=round((item.window[1] + 1) / item.fps, 3),
+        error=item.error if status == "failed" else None,
+    )
+
+
+@app.post("/api/jobs/{job_id}/preview", response_model=PreviewView, status_code=202)
+def create_preview(job_id: str, body: PreviewRequest, user: User = Depends(current_user)) -> PreviewView:
+    """Vista previa de ~3 s alrededor de `at` con los cambios pendientes, sin crear versión. Los
+    cambios imposibles responden 422 como en /edit."""
+    job = _job(job_id, user)
+    if not jobs().editable(job):
+        raise HTTPException(409, "Esta versión no se puede editar.")
+    if not body.edits:
+        raise HTTPException(422, "No hay cambios que ver.")
+    edits = _validated_edits(job, body.edits)
+    fps, frames = _video_timing(job)
+    window = window_for(max(body.at, 0.0), fps, frames)
+    item, cached = previews().submit(
+        job.id,
+        user.uid,
+        [e.model_dump(exclude_none=True) for e in edits],
+        window,
+        fps,
+        check_quota=lambda today: limits.check_preview_quota(user, today),
+    )
+    if cached and item.status == "ready":
+        telemetry.event("preview.finished", job_id=job.id, duration_ms=0, frames=item.frames, cache_hit=True)
+    return _preview_view(job, item)
+
+
+@app.get("/api/jobs/{job_id}/preview/{preview_id}.mp4")
+def preview_file(job_id: str, preview_id: str, k: str | None = Query(None)) -> FileResponse:
+    job = _media_job(job_id, k)
+    item = previews().get(job.id, preview_id)
+    path = previews().url_path(item) if item is not None else None
+    if path is None:
+        raise HTTPException(404, "La vista previa ya no existe")
+    return FileResponse(path, media_type="video/mp4")
+
+
+@app.get("/api/jobs/{job_id}/preview/{preview_id}", response_model=PreviewView)
+def get_preview(job_id: str, preview_id: str, user: User = Depends(current_user)) -> PreviewView:
+    job = _job(job_id, user)
+    item = previews().get(job.id, preview_id)
+    if item is None:
+        raise HTTPException(404, "La vista previa ya no existe")
+    return _preview_view(job, item)
 
 
 @app.get("/api/jobs/{job_id}/filmstrip")

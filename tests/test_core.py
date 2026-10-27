@@ -191,3 +191,37 @@ def test_env_file_loads_without_overriding(tmp_path: Path, monkeypatch: pytest.M
     assert os.environ["VFX_TEST_A"] == "uno"
     assert os.environ["VFX_TEST_B"] == "dos"
     assert os.environ["VFX_TEST_C"] == "existente"
+
+
+def test_write_only_window_writes_just_those_frames_and_scales(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+
+    import cv2
+
+    from vfxglow.pipeline import Pipeline
+
+    video = tmp_path / "clip.mp4"
+    out = cv2.VideoWriter(str(video), cv2.VideoWriter_fourcc(*"mp4v"), 10.0, (64, 48))
+    for i in range(30):
+        out.write(np.full((48, 64, 3), i * 8, np.uint8))
+    out.release()
+
+    drawn: list[int] = []
+
+    class Engine:
+        def render_frame(self, track, index, *args):
+            drawn.append(index)
+            return []
+
+    pipeline = Pipeline.__new__(Pipeline)
+    pipeline.video, pipeline.run_dir, pipeline.config = video, tmp_path, AppConfig()
+    pipeline._meta = lambda: SimpleNamespace(fps=10.0, frame_count=30, width=64, height=48, has_audio=False)
+    pipeline._engine = lambda script, events=None: (Engine(), {})
+    script = EffectScript.model_validate({"title": "t", "theme": "x", "effects": []})
+    dest = tmp_path / "vista.mp4"
+    written = pipeline.render_preview(script, dest, (12, 20), max_side=32)
+    assert written == 9
+    assert drawn == list(range(0, 21))  # calentamiento (2 s = 20 fotogramas, aquí desde el 0) y tramo; nada después
+    cap = cv2.VideoCapture(str(dest))
+    assert int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) == 9 and (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))) == (32, 24)
+    cap.release()
