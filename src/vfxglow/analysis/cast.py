@@ -11,7 +11,7 @@ cruzan: el bailarín es a ratos person_0 y a ratos person_1. Los efectos no debe
 - Y además al menos VIDEO_SIZE de la altura típica del protagonista en todo el video: si en un
   cuadro el detector no ve al bailarín (cortado por el borde, muy cerca de la cámara), el más alto
   que queda es alguien del público y no debe tomar su lugar (video_35, seg. 25,7-26,3).
-- Solista o pareja: si en PAIR_SHARE de los cuadros hay dos protagonistas, es una pareja y cada
+- Solista o pareja: si en PAIR_SHARE (20%) de los cuadros hay dos protagonistas, es una pareja y cada
   una conserva su casilla; si no, es un solista: en cada cuadro queda uno solo, siempre
   person_0, elegido por tamaño y continuidad (el que se solapa con el del cuadro anterior).
 """
@@ -26,7 +26,11 @@ log = logging.getLogger(__name__)
 
 PERFORMER_SIZE = 0.6
 VIDEO_SIZE = 0.55
-PAIR_SHARE = 0.5
+# Fracción de los cuadros con protagonista en que debe haber dos para tratarlo como pareja. En una
+# pelea cuerpo a cuerpo la pose pierde a uno de los dos a menudo (ufc_fight: 26%, swordman-fight:
+# 39%), mientras que en un solista con público casi nunca hay un segundo del tamaño del bailarín
+# (video_35: 2,5%). Con 0,5 las peleas quedaban como solista y perdían al segundo peleador.
+PAIR_SHARE = 0.2
 # En el solista, cuánto puede ganar en tamaño otra detección antes de dejar de seguir al anterior.
 SWITCH_SIZE = 1.35
 # Solista: alguien mucho más pequeño que el bailarín de hace poco y lejos de él no toma su lugar

@@ -37,3 +37,25 @@ def test_every_gesture_is_a_known_event() -> None:
     from vfxglow.director.schema import EVENT_NAMES
 
     assert GESTURE_NAMES <= set(EVENT_NAMES)
+
+
+def test_fighters_who_lose_one_pose_often_stay_a_pair() -> None:
+    # Pelea cuerpo a cuerpo: la pose ve a los dos solo en ~30% de los cuadros (ufc_fight: 26%).
+    frames = []
+    for i in range(100):
+        people = [_person("person_0", 0.4, 0.7)]
+        if i % 10 < 3:
+            people.append(_person("person_1", 0.55, 0.65))
+        frames.append(FrameRecord(frame=i, time_s=i / 25, people=people))
+    assert keep_performers(frames) == "pareja"
+    assert sum(1 for f in frames if len(f.people) == 2) == 30
+
+
+def test_audience_that_rarely_matches_the_dancer_size_is_not_a_pair() -> None:
+    # video_35: un segundo del tamaño del bailarín solo en 2,5% de los cuadros.
+    frames = []
+    for i in range(100):
+        people = [_person("person_0", 0.4, 0.7), _person("person_1", 0.85, 0.65 if i < 3 else 0.25)]
+        frames.append(FrameRecord(frame=i, time_s=i / 25, people=people))
+    assert keep_performers(frames) == "solo"
+    assert all(len(f.people) == 1 for f in frames)
