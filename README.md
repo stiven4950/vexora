@@ -165,6 +165,12 @@ se conservan.
 - Vista previa antes de aplicar: `POST /api/jobs/{id}/preview` (`{edits, at}`) dibuja 3 s alrededor
   del cabezal con el motor real a 640 px, sin crear versión (≈ 10–20 s; en caché, al instante). Comparte una
   cuota diaria por usuario (`VEXORA_DAILY_PREVIEWS`, 60) con la del Estudio.
+- Vista en vivo (`POST`/`GET /api/jobs/{id}/layers`, `composite/atlas.py`): la versión se dibuja una vez
+  a baja resolución (~0,05–0,1 s por fotograma) en un MP4 en mosaico con el plano y una baldosa por
+  pista (hasta 16; el resto comparte una), con lo que cada pista aporta como (A, C) en luz lineal.
+  El editor rehace la mezcla con WebGL (`LayerCanvas.tsx`): apagar, quitar un momento, color,
+  intensidad y tamaño se ven al instante; mover y agregar se marcan como aproximados. Cuenta como
+  una vista previa en la cuota y se borra con la versión.
 - Versiones del proyecto (`/app/projects/<id>/versions`): comparador A/B en cortina o lado a lado y
   tabla de diferencias.
 
