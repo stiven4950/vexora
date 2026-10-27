@@ -14,5 +14,6 @@ export const ROUTES = {
   settings: "/app/settings",
   job: (id: string): string => `/app/jobs/${id}`,
   project: (id: string): string => `/app/projects/${id}`,
+  versions: (id: string): string => `/app/projects/${id}/versions`,
   edit: (id: string): string => `/app/projects/${id}/edit`,
 } as const;

@@ -78,6 +78,9 @@ export function ProjectCard({ group, onRename, onRemove, onRetry }: Props) {
                 <button type="button" onClick={() => onRename(cover)}>
                   <Icon name="edit" size={14} /> Renombrar
                 </button>
+                <Link to={ROUTES.versions(group.id)}>
+                  <Icon name="layers" size={14} /> Ver versiones
+                </Link>
                 <strong>{group.jobs.length > 1 ? "Versiones" : "Esta versión"}</strong>
                 {group.jobs.map((job) => (
                   <div key={job.id} className={styles.version}>

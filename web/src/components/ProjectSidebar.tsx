@@ -26,7 +26,7 @@ export function ProjectSidebar({ projectId, title, when, thumbnail, active, stat
   const items: { key: ProjectSection; label: string; icon: IconName; to?: string; onClick?: () => void; hide?: boolean }[] = [
     { key: "summary", label: "Resumen", icon: "summary", to: ROUTES.project(projectId) },
     { key: "edit", label: "Editar efectos", icon: "wand", to: ROUTES.edit(projectId) },
-    { key: "versions", label: "Versiones", icon: "layers", to: `${ROUTES.project(projectId)}/versions` },
+    { key: "versions", label: "Versiones", icon: "layers", to: ROUTES.versions(projectId) },
     { key: "processing", label: "Procesando", icon: "clock", hide: state !== "processing" },
     { key: "result", label: "Resultado", icon: "checkCircle", hide: state !== "result" },
     { key: "download", label: "Descargar", icon: "download", onClick: onDownload },
@@ -53,8 +53,6 @@ export function ProjectSidebar({ projectId, title, when, thumbnail, active, stat
           .filter((item) => !item.hide)
           .map((item) =>
             item.to ? (
-              // PENDIENTE(fase 2): Resumen, Editar y Versiones del proyecto aún no existen: el enlace
-              // es el del diseño y la ruta muestra "en desarrollo".
               <NavLink key={item.key} to={item.to} className={`${styles.item} ${active === item.key ? styles.active : ""}`}>
                 <Icon name={item.icon} size={20} /> {item.label}
               </NavLink>

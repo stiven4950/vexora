@@ -14,6 +14,8 @@ interface Props {
   editedPoster?: string;
   /** Tiempo de reproducción, como mucho cada 0,1 s (para resaltar el momento en curso). */
   onTime?: (seconds: number) => void;
+  /** Rótulos de cada lado (por omisión "Original" y "VEXORA"). */
+  labels?: { original: string; edited: string };
 }
 
 /** Lo que el visor deja hacer desde fuera: saltar a un instante y quedarse ahí. */
@@ -27,7 +29,7 @@ export interface CompareViewerHandle {
  * reacción que sorteó la coreografía; clic en una marca salta a ese momento.
  */
 export const CompareViewer = forwardRef<CompareViewerHandle, Props>(function CompareViewer(
-  { original, edited, moments, originalPoster, editedPoster, onTime },
+  { original, edited, moments, originalPoster, editedPoster, onTime, labels },
   ref,
 ) {
   const main = useRef<HTMLVideoElement>(null);
@@ -144,8 +146,8 @@ export const CompareViewer = forwardRef<CompareViewerHandle, Props>(function Com
             <Icon name="arrow" size={14} />
           </span>
         </div>
-        <span className={`${styles.tag} ${styles.left}`}>Original</span>
-        <span className={`${styles.tag} ${styles.right}`}>VEXORA</span>
+        <span className={`${styles.tag} ${styles.left}`}>{labels?.original ?? "Original"}</span>
+        <span className={`${styles.tag} ${styles.right}`}>{labels?.edited ?? "VEXORA"}</span>
       </div>
 
       <div className={styles.controls}>

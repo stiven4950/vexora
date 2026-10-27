@@ -188,7 +188,8 @@
   box-shadow: 0 24px 60px -16px #000;
 }
 
-.menu > button {
+.menu > button,
+.menu > a {
   display: flex;
   align-items: center;
   gap: 8px;
