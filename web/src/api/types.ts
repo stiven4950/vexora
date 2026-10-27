@@ -220,3 +220,28 @@ export interface EditOp {
   intensity?: number;
   size?: number;
 }
+
+/** Un estilo sugerido tras analizar el video, con su razón. */
+export interface RecommendedStyle {
+  style: string;
+  reason: string;
+}
+
+/** La recomendación de estilo: `style` es el `name` de un estilo de catálogo de /api/styles. */
+export interface Recommendation extends RecommendedStyle {
+  alternatives: RecommendedStyle[];
+}
+
+/** Un video subido por adelantado (POST /api/uploads) que se analiza mientras se elige el estilo. */
+export interface UploadView {
+  id: string;
+  status: "analyzing" | "ready" | "failed" | "used";
+  filename: string;
+  created: number;
+  video_seconds: number | null;
+  video_width: number | null;
+  video_height: number | null;
+  video_bytes: number | null;
+  error: string | null;
+  recommendation: Recommendation | null;
+}

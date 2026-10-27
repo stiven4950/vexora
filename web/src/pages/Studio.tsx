@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { api } from "../api/client";
+import { ApiError, api } from "../api/client";
 import { rgb } from "../api/format";
 import { askPermission } from "../api/notify";
+import { fromView, pickSurprise, recommendationOf, uploadStatusText, type UploadState } from "../api/upload";
 import { WARDROBES, type Limits, type Looks, type Season, type Style, type Wardrobe } from "../api/types";
 import { ChoiceCard } from "../components/ChoiceCard";
 import { Dropzone, problems, type VideoMeta } from "../components/Dropzone";
@@ -69,6 +70,11 @@ export function Studio() {
   const [meta, setMeta] = useState<VideoMeta | null>(null);
   const [upload, setUpload] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // La subida anticipada: arranca al elegir el video y trae la recomendación de estilo.
+  const [early, setEarly] = useState<UploadState | null>(null);
+  const [launching, setLaunching] = useState(false);
+  // El id de la subida que ya usó un trabajo: al salir no se borra.
+  const usedUpload = useRef<string | null>(null);
 
   useEffect(() => {
     api
@@ -94,6 +100,54 @@ export function Studio() {
   const deepAllowed = limits?.deep_allowed ?? false;
   const deepOn = deep && deepAllowed && isCatalog;
   const found = file ? problems(file, meta, limits) : [];
+  const invalid = found.length > 0;
+
+  // Sube y analiza el video en cuanto se elige; al cambiarlo o quitarlo, corta la subida y borra la anterior.
+  useEffect(() => {
+    if (!file || invalid) {
+      setEarly(null);
+      return;
+    }
+    const abort = new AbortController();
+    let id: string | null = null;
+    setEarly({ phase: "uploading", fraction: 0, view: null, error: null });
+    api
+      .upload(file, (fraction) => setEarly((cur) => (cur?.phase === "uploading" ? { ...cur, fraction } : cur)), abort.signal)
+      .then((view) => {
+        id = view.id;
+        if (abort.signal.aborted) return void api.deleteUpload(view.id).catch(() => undefined);
+        setEarly(fromView(view));
+      })
+      .catch((cause: unknown) => {
+        if (abort.signal.aborted) return;
+        // Si el servidor la rechaza, el mensaje se ve y al lanzar se manda el archivo como siempre.
+        setEarly({ phase: "failed", fraction: 0, view: null, error: cause instanceof Error ? cause.message : String(cause) });
+      });
+    return () => {
+      abort.abort();
+      if (id && usedUpload.current !== id) void api.deleteUpload(id).catch(() => undefined);
+    };
+  }, [file, invalid]);
+
+  // Mientras analiza, pregunta cada 2 s; se limpia al desmontar o al cambiar de archivo.
+  const earlyId = early?.view?.id ?? null;
+  const analyzing = early?.phase === "analyzing";
+  useEffect(() => {
+    if (!earlyId || !analyzing) return;
+    const timer = setInterval(() => {
+      api
+        .getUpload(earlyId)
+        .then((view) => setEarly((cur) => (cur?.view?.id === earlyId ? fromView(view) : cur)))
+        .catch((cause: unknown) => {
+          // 404: la subida caducó; el lanzamiento enviará el archivo.
+          if (cause instanceof ApiError && cause.status === 404) setEarly((cur) => (cur?.view?.id === earlyId ? { phase: "failed", fraction: 1, view: null, error: cause.message } : cur));
+        });
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [earlyId, analyzing]);
+
+  const recommendation = recommendationOf(early);
+  const recommended = recommendation ? (styleList.find((s) => s.kind === "catalog" && s.name === recommendation.style) ?? null) : null;
   const shown = useMemo(
     () =>
       styleList.filter((style) => {
@@ -112,31 +166,51 @@ export function Studio() {
   const launch = async () => {
     if (!file || !chosen) return;
     setError(null);
-    setUpload(0);
     // Un clic es el único momento en que el navegador deja pedir permiso de avisos.
     void askPermission();
+    // Sin semilla: el servidor prueba varias coreografías y se queda con la mejor.
+    const wear: Record<string, Wardrobe> = isCatalog && wardrobe !== "ninguno" ? { "*": wardrobe } : {};
+    const send = (uploadId: string | null) =>
+      api.create(file, chosen.kind, chosen.name, null, uploadId ? undefined : setUpload, season, wear, deepOn, hasFire ? fireStyle : null, hasBolt ? boltStyle : null, uploadId);
+    // Con la subida ya hecha (analizando o lista) no hay que volver a subir el archivo.
+    const ready = early && (early.phase === "analyzing" || early.phase === "ready") ? (early.view?.id ?? null) : null;
+    setLaunching(true);
+    if (!ready) setUpload(0);
     try {
-      // Sin semilla: el servidor prueba varias coreografías y se queda con la mejor.
-      const wear: Record<string, Wardrobe> = isCatalog && wardrobe !== "ninguno" ? { "*": wardrobe } : {};
-      const job = await api.create(file, chosen.kind, chosen.name, null, setUpload, season, wear, deepOn, hasFire ? fireStyle : null, hasBolt ? boltStyle : null);
+      let job;
+      try {
+        job = await send(ready);
+        if (ready) usedUpload.current = ready;
+      } catch (cause) {
+        // La subida caducó (404): se manda el archivo como siempre.
+        if (!(ready && cause instanceof ApiError && cause.status === 404)) throw cause;
+        setUpload(0);
+        job = await send(null);
+      }
       navigate(ROUTES.job(job.id));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
       setUpload(null);
+      setLaunching(false);
     }
   };
 
-  // PENDIENTE(fase 2): la recomendación real de estilo (sin LLM, desde el análisis) necesita analizar
-  // al subir. Mientras tanto elige uno de una lista fija (mocks/pendientes.ts).
+  // Con análisis elige la recomendada (y rota por las alternativas); si no hay, el respaldo es una lista fija
+  // (mocks/pendientes.ts).
   const surprise = () => {
-    const names = SURPRISE_STYLES.filter((name) => styleList.some((s) => s.name === name));
-    const pick = names[Math.floor(Math.random() * names.length)];
+    const available = styleList.filter((s) => s.kind === "catalog").map((s) => s.name);
+    let pick = pickSurprise(recommendation, chosen?.kind === "catalog" ? chosen.name : null, available);
+    if (!pick) {
+      const names = SURPRISE_STYLES.filter((name) => styleList.some((s) => s.name === name));
+      pick = names[Math.floor(Math.random() * names.length)] ?? null;
+    }
     const style = styleList.find((s) => s.name === pick);
     if (style) {
       setChosen(style);
       setFilter("all");
     }
   };
+  const waitingAnalysis = early?.phase === "analyzing" || early?.phase === "uploading";
 
   const seasonTitle = seasonList.find((s) => s.id === season)?.title ?? null;
   const lookSummary = [hasFire && fireStyle && looks.fuego.find((l) => l.id === fireStyle)?.title, hasBolt && boltStyle && looks.rayo.find((l) => l.id === boltStyle)?.title].filter(Boolean).join(" / ");
@@ -176,6 +250,12 @@ export function Studio() {
             note={`Sube tu video o arrástralo aquí. Admite: .mp4 .mov .m4v .webm .mkv${limits ? ` (máx. ${limits.max_upload_mb} MB)` : ""}.`}
           >
             <Dropzone file={file} onFile={setFile} onMeta={setMeta} limits={limits} />
+            {early && early.phase !== "ready" && (
+              <p className={`${styles.analysis_note} ${early.phase === "failed" ? styles.failed : ""}`} role="status">
+                <Icon name={early.phase === "failed" ? "alert" : "sparkles"} size={14} />{" "}
+                {early.phase === "failed" ? `${early.error ?? uploadStatusText(early)} Al crear los efectos se enviará el video de nuevo.` : uploadStatusText(early)}
+              </p>
+            )}
           </StepCard>
 
           <StepCard
@@ -183,8 +263,8 @@ export function Studio() {
             title="El estilo"
             note="Elige un estilo o deja que la IA te sorprenda."
             action={
-              <button type="button" className={styles.surprise} onClick={surprise} disabled={styleList.length === 0}>
-                <Icon name="sparkles" size={16} /> Sorpréndeme con IA
+              <button type="button" className={styles.surprise} onClick={surprise} disabled={styleList.length === 0 || waitingAnalysis}>
+                <Icon name="sparkles" size={16} /> {waitingAnalysis ? "Analizando…" : "Sorpréndeme con IA"}
               </button>
             }
           >
@@ -202,10 +282,20 @@ export function Studio() {
             </div>
             <div className={styles.styles}>
               {shown.map((style) => (
-                <StyleTile key={`${style.kind}:${style.name}`} style={style} selected={chosen?.name === style.name && chosen.kind === style.kind} onSelect={() => setChosen(style)} />
+                <StyleTile key={`${style.kind}:${style.name}`} style={style} selected={chosen?.name === style.name && chosen.kind === style.kind} recommended={recommended === style} onSelect={() => setChosen(style)} />
               ))}
               {shown.length === 0 && <p className={styles.none}>Ningún estilo en este filtro.</p>}
             </div>
+            {recommendation && recommended && (
+              <p className={styles.recommend}>
+                <span>
+                  ✦ Te recomendamos <strong>{recommended.title}</strong>: {recommendation.reason}
+                </span>
+                <button type="button" onClick={() => setChosen(recommended)} disabled={chosen === recommended}>
+                  Usar este estilo
+                </button>
+              </p>
+            )}
           </StepCard>
 
           {seasonList.length > 0 && (
@@ -330,8 +420,9 @@ export function Studio() {
           analysis={deepOn ? "Profundo con IA" : "Económico"}
           looks={lookSummary || null}
           upload={upload}
+          earlyStatus={early ? { text: uploadStatusText(early), phase: early.phase } : null}
           error={error}
-          canLaunch={!!file && !!chosen && found.length === 0}
+          canLaunch={!!file && !!chosen && found.length === 0 && !launching}
           onLaunch={launch}
         />
       </div>

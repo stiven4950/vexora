@@ -20,6 +20,8 @@ interface Props {
   analysis: string;
   looks: string | null;
   upload: number | null;
+  /** La subida anticipada y su análisis (null = no hay video). */
+  earlyStatus: { text: string; phase: "uploading" | "analyzing" | "ready" | "failed" } | null;
   error: string | null;
   canLaunch: boolean;
   onLaunch: () => void;
@@ -37,7 +39,7 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 /** La columna fija del Estudio: vista previa, datos del video, resumen del proyecto y el botón de crear. */
-export function StudioAside({ file, meta, style, season, wardrobe, analysis, looks, upload, error, canLaunch, onLaunch }: Props) {
+export function StudioAside({ file, meta, style, season, wardrobe, analysis, looks, upload, earlyStatus, error, canLaunch, onLaunch }: Props) {
   const [view, setView] = useState<View>("original");
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
@@ -53,6 +55,7 @@ export function StudioAside({ file, meta, style, season, wardrobe, analysis, loo
   const estimate = meta && Number.isFinite(meta.duration) ? approx(meta.duration * 20) : null;
   const ready = [
     { ok: !!file, text: "Video cargado" },
+    ...(earlyStatus ? [{ ok: earlyStatus.phase === "ready", text: earlyStatus.text }] : []),
     { ok: !!style, text: "Estilo seleccionado" },
     { ok: true, text: `Temporada: ${season ?? "Sin temporada"}` },
     { ok: true, text: `Vestuario: ${wardrobe}` },

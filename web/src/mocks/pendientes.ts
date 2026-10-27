@@ -25,8 +25,8 @@ export const NOTIFICATIONS = [
 // PENDIENTE(fase 3): créditos y plan reales (docs/analisis_mejoras_y_seguridad.md, §3.5).
 export const PLAN = { name: "Free", creditsLeft: 3, creditsTotal: 5, creditsPerRender: 1 } as const;
 
-// PENDIENTE(fase 2): la recomendación real de estilo sin LLM (§3.1) necesita analizar al subir.
-// Mientras tanto, "Sorpréndeme con IA" elige entre estos estilos.
+// Respaldo de "Sorpréndeme con IA" cuando no hay análisis del video (aún sin subir, o falló): elige entre
+// estos estilos. Con análisis, el Estudio usa la recomendación real del servidor.
 export const SURPRISE_STYLES = ["avatar", "baile", "pelea"] as const;
 
 // PENDIENTE(fase 2): vista previa "Con efectos" por ventana (§3.1). Hoy no hay render de muestra.

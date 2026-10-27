@@ -264,3 +264,49 @@
     display: none;
   }
 }
+
+.analysis_note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 0;
+  color: var(--cyan);
+  font-size: 13px;
+}
+
+.analysis_note.failed {
+  color: var(--muted);
+}
+
+.recommend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 14px 0 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(var(--cyan-rgb), 0.3);
+  background: rgba(var(--cyan-rgb), 0.05);
+  font-size: 13px;
+}
+
+.recommend strong {
+  color: var(--cyan);
+}
+
+.recommend button {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--cyan);
+  background: transparent;
+  color: var(--cyan);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.recommend button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}

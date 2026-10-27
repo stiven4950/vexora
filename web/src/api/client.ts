@@ -1,5 +1,5 @@
 import { idToken } from "../auth/firebase";
-import type { EditOp, EditorView, Season, Job, Limits, Looks, Moment, Person, Style, StyleKind, Wardrobe } from "./types";
+import type { EditOp, EditorView, Season, Job, Limits, Looks, Moment, Person, Style, StyleKind, UploadView, Wardrobe } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -68,10 +68,13 @@ export const api = {
     deep = false,
     fireStyle: string | null = null,
     boltStyle: string | null = null,
+    uploadId: string | null = null,
   ): Promise<Job> {
     const headers = await authHeaders();
     const form = new FormData();
-    form.append("video", video);
+    // Con una subida ya hecha se manda su id y no el archivo (sin barra de subida).
+    if (uploadId) form.append("upload_id", uploadId);
+    else form.append("video", video);
     form.append("style_kind", kind);
     form.append("style", style);
     if (seed !== null) form.append("seed", String(seed));
@@ -94,6 +97,36 @@ export const api = {
       xhr.send(form);
     });
   },
+
+  /** Sube el video por adelantado (el servidor lo analiza); se puede cortar con `signal`. */
+  async upload(video: File, onUpload?: (fraction: number) => void, signal?: AbortSignal): Promise<UploadView> {
+    const headers = await authHeaders();
+    const form = new FormData();
+    form.append("video", video);
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/uploads");
+      for (const [name, value] of Object.entries(headers)) xhr.setRequestHeader(name, value);
+      xhr.upload.onprogress = (event) => event.lengthComputable && onUpload?.(event.loaded / event.total);
+      xhr.onload = () => {
+        let body: { detail?: unknown } = {};
+        try {
+          body = xhr.responseText ? JSON.parse(xhr.responseText) : {};
+        } catch {
+          // cuerpo sin JSON: queda el texto del estado
+        }
+        if (xhr.status >= 200 && xhr.status < 300) resolve(body as unknown as UploadView);
+        else reject(new ApiError(xhr.status, typeof body.detail === "string" ? body.detail : xhr.statusText));
+      };
+      xhr.onerror = () => reject(new ApiError(0, "No se pudo conectar con la API. ¿Está corriendo vfxglow-api?"));
+      xhr.onabort = () => reject(new DOMException("Subida cancelada", "AbortError"));
+      signal?.addEventListener("abort", () => xhr.abort(), { once: true });
+      if (signal?.aborted) return reject(new DOMException("Subida cancelada", "AbortError"));
+      xhr.send(form);
+    });
+  },
+  getUpload: (id: string) => request<UploadView>(`/api/uploads/${id}`),
+  deleteUpload: (id: string) => request<void>(`/api/uploads/${id}`, { method: "DELETE" }),
 
   variation: (
     id: string,
