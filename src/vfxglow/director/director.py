@@ -50,28 +50,37 @@ class CreativeDirector:
             raise ValueError(f"Temporada desconocida: {self.config.season}")
         return season
 
+    def catalog(self):
+        """El catálogo como lo usa esta corrida: con el vestuario, la temporada y los estilos de
+        fuego y de rayo que eligió el cliente. Lo usa también el editor para agregar un efecto."""
+        from vfxglow.config import catalog_name
+        from vfxglow.director.choreography import load_catalog
+
+        path = self.preset_dir.parent / "catalogs" / f"{catalog_name(self.config.catalog)}.yaml"
+        if not path.exists():
+            raise FileNotFoundError(f"No existe el catálogo {path}")
+        catalog = load_catalog(path)
+        if self.config.wardrobe:
+            catalog = catalog.model_copy(update={"wardrobe": dict(self.config.wardrobe)})
+        season = self._season()
+        if season is not None:
+            from vfxglow.director.seasons import apply_to_catalog
+
+            catalog = apply_to_catalog(catalog, season)
+        if self.config.fire_style or self.config.bolt_style:
+            # Los estilos de fuego y de rayo que eligió el cliente (encima de la temporada).
+            from vfxglow.director.looks import apply_looks
+
+            catalog = apply_looks(catalog, self.config.fire_style, self.config.bolt_style)
+        return catalog
+
     def create(self, brief: MotionBrief) -> EffectScript:
         if self.config.provider == "catalog":
-            from vfxglow.director.choreography import best_choreography, choreograph, load_catalog
+            from vfxglow.director.choreography import best_choreography, choreograph
 
             from vfxglow.config import catalog_name
 
-            path = self.preset_dir.parent / "catalogs" / f"{catalog_name(self.config.catalog)}.yaml"
-            if not path.exists():
-                raise FileNotFoundError(f"No existe el catálogo {path}")
-            catalog = load_catalog(path)
-            if self.config.wardrobe:
-                catalog = catalog.model_copy(update={"wardrobe": dict(self.config.wardrobe)})
-            season = self._season()
-            if season is not None:
-                from vfxglow.director.seasons import apply_to_catalog
-
-                catalog = apply_to_catalog(catalog, season)
-            if self.config.fire_style or self.config.bolt_style:
-                # Los estilos de fuego y de rayo que eligió el cliente (encima de la temporada).
-                from vfxglow.director.looks import apply_looks
-
-                catalog = apply_looks(catalog, self.config.fire_style, self.config.bolt_style)
+            catalog = self.catalog()
             pins = None
             if self.config.pins:
                 from vfxglow.director.pins import load_pins
