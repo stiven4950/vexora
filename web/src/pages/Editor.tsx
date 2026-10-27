@@ -5,7 +5,7 @@ import { api } from "../api/client";
 import { effectLabel } from "../api/effectLabels";
 import { buildEdits, countChanges, EMPTY, groupOptions, isPermanent, redrawSeconds, shownMoments, withPending, type Pending, type TrackChange } from "../api/editing";
 import { approx, groupVersions, mmss, projectName, sheetDate } from "../api/format";
-import type { EditorView, Job, Style } from "../api/types";
+import type { EditorView, Job, PreviewView, Style } from "../api/types";
 import { Icon } from "../components/Icon";
 import { ProjectSidebar } from "../components/ProjectSidebar";
 import { Shell } from "../components/Shell";
@@ -21,6 +21,12 @@ import styles from "./Editor.module.css";
 function renderRatio(job: Job): number {
   const compose = (job.metrics as { stages?: Record<string, number> }).stages?.compose;
   return compose && job.video_seconds ? compose / 1000 / job.video_seconds : 11;
+}
+
+/** Una vista previa dibuja 5 s (3 s de clip + 2 s de calentamiento) más ~15 s fijos de preparar el
+ * motor y el guion (medido: 35–42 s en un video de 9 s con proporción ≈ 4). */
+function previewSeconds(job: Job): number {
+  return Math.round(5 * renderRatio(job) + 15);
 }
 
 /** El editor de efectos: la versión terminada, sus pistas y los cambios que crean una versión nueva. */
@@ -40,6 +46,9 @@ export function Editor() {
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const player = useRef<PlayerHandle>(null);
+  // Vista previa rápida: lo pedido (con los cambios que tenía) y su estado.
+  const [preview, setPreview] = useState<{ id: string; key: string; view: PreviewView | null; error?: string } | null>(null);
+  const [showClip, setShowClip] = useState(false);
 
   useEffect(() => {
     api
@@ -64,6 +73,49 @@ export function Editor() {
       .then(setView)
       .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)));
   }, [job?.id]);
+
+  // Sondea la vista previa cada 1 s hasta que esté lista o falle; se cancela al desmontar o al pedir otra.
+  const previewId = preview?.id;
+  useEffect(() => {
+    if (!job || !previewId) return;
+    let live = true;
+    let timer = 0;
+    const poll = async () => {
+      try {
+        const next = await api.getPreview(job.id, previewId);
+        if (!live) return;
+        setPreview((p) => (p && p.id === previewId ? { ...p, view: next } : p));
+        if (next.status === "rendering") timer = window.setTimeout(poll, 1000);
+        else if (next.status === "ready") setShowClip(true);
+      } catch (cause) {
+        if (live) setPreview((p) => (p && p.id === previewId ? { ...p, error: cause instanceof Error ? cause.message : String(cause) } : p));
+      }
+    };
+    void poll();
+    return () => {
+      live = false;
+      window.clearTimeout(timer);
+    };
+  }, [job?.id, previewId]);
+
+  useEffect(() => {
+    setPreview(null);
+    setShowClip(false);
+  }, [job?.id]);
+
+  const requestPreview = async () => {
+    if (!job || !view) return;
+    const edits = buildEdits(pending, view.tracks);
+    const key = JSON.stringify(edits);
+    setShowClip(false);
+    setPreview({ id: "", key, view: null });
+    try {
+      const created = await api.preview(job.id, edits, time);
+      setPreview({ id: created.preview_id, key, view: created });
+    } catch (cause) {
+      setPreview({ id: "", key, view: null, error: cause instanceof Error ? cause.message : String(cause) });
+    }
+  };
 
   const onTime = useCallback((seconds: number) => setTime(seconds), []);
   const changes = countChanges(pending);
@@ -180,7 +232,11 @@ export function Editor() {
             poster={job.thumbnail_url ? `${job.thumbnail_url}&first=true` : undefined}
             onTime={onTime}
             onPlaying={setPlaying}
+            clip={showClip && preview?.view?.status === "ready" && preview.view.url ? { url: preview.view.url, start: preview.view.start, end: preview.view.end, stale: preview.key !== JSON.stringify(buildEdits(pending, view.tracks)) } : null}
+            onCloseClip={() => setShowClip(false)}
           />
+          {preview && !preview.error && preview.view?.status !== "ready" && preview.view?.status !== "failed" && <p className={styles.previewNote} role="status">Generando vista previa…</p>}
+          {preview && (preview.error || preview.view?.status === "failed") && <p className={styles.previewNote} role="alert">{preview.error ?? preview.view?.error}</p>}
           <Timeline
             duration={view.duration}
             time={time}
@@ -288,6 +344,9 @@ export function Editor() {
               </p>
               <button type="button" className={styles.apply} onClick={apply} disabled={busy}>
                 {busy ? "Creando la versión…" : `Aplicar cambios (≈ ${estimate})`}
+              </button>
+              <button type="button" className={styles.previewBtn} onClick={requestPreview} disabled={busy || (!!preview && !preview.error && preview.view?.status !== "ready" && preview.view?.status !== "failed")}>
+                <Icon name="play" size={14} /> Vista previa (≈ {previewSeconds(job)} s)
               </button>
               <button type="button" className={styles.discard} onClick={() => setPending(EMPTY)} disabled={busy}>
                 Descartar

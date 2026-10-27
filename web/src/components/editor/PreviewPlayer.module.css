@@ -82,3 +82,31 @@
   background: var(--cyan);
   box-shadow: 0 0 10px var(--cyan);
 }
+
+.badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(4, 20, 26, 0.82);
+  border: 1px solid rgba(var(--cyan-rgb), 0.5);
+  color: var(--text);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.stale {
+  border-color: #f59e0b;
+  color: #fbbf24;
+}
+
+.closeClip {
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}

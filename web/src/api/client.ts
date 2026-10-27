@@ -1,5 +1,5 @@
 import { idToken } from "../auth/firebase";
-import type { EditOp, EditorView, Season, Job, Limits, Looks, Moment, Person, Style, StyleKind, UploadView, Wardrobe } from "./types";
+import type { EditOp, EditorView, PreviewView, Season, Job, Limits, Looks, Moment, Person, Style, StyleKind, UploadView, Wardrobe } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -46,6 +46,11 @@ export const api = {
   /** Aplica los cambios del editor: crea una versión nueva y devuelve su trabajo. */
   edit: (id: string, edits: EditOp[]) =>
     request<Job>(`/api/jobs/${id}/edit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ edits }) }),
+  /** Pide la vista previa de ~3 s alrededor de `at` (segundos) con los cambios pendientes; no crea versión. */
+  preview: (id: string, edits: EditOp[], at: number) =>
+    request<PreviewView>(`/api/jobs/${id}/preview`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ edits, at }) }),
+  /** Estado de una vista previa pedida. */
+  getPreview: (id: string, previewId: string) => request<PreviewView>(`/api/jobs/${id}/preview/${previewId}`),
   /** Prepara una versión terminada antes del editor para editarla (unos segundos) y devuelve el trabajo ya editable. */
   prepareEdit: (id: string) => request<Job>(`/api/jobs/${id}/prepare-edit`, { method: "POST" }),
   /** Cancela un trabajo: en cola se borra ya; en curso se corta en unos segundos. */

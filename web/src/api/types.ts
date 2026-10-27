@@ -245,3 +245,14 @@ export interface UploadView {
   error: string | null;
   recommendation: Recommendation | null;
 }
+
+/** Vista previa rápida del editor (POST/GET /api/jobs/{id}/preview): ~3 s con el motor real, sin crear versión. */
+export interface PreviewView {
+  preview_id: string;
+  status: "rendering" | "ready" | "failed";
+  /** MP4 firmado, cuando está lista. */
+  url: string | null;
+  start: number;
+  end: number;
+  error: string | null;
+}

@@ -300,3 +300,28 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.previewBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(var(--cyan-rgb), 0.5);
+  background: none;
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.previewBtn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.previewNote {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}

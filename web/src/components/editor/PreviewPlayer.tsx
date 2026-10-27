@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 
-import { mmss } from "../../api/format";
+import { mmss, mmssd } from "../../api/format";
 import { Icon } from "../Icon";
 import { Segmented } from "../Segmented";
 import styles from "./PreviewPlayer.module.css";
@@ -17,10 +17,13 @@ interface Props {
   /** El tiempo actual, para la línea de tiempo (como mucho cada 0,05 s). */
   onTime: (seconds: number) => void;
   onPlaying?: (playing: boolean) => void;
+  /** Un clip de vista previa que reemplaza al video: se repite en bucle y su tiempo se cuenta desde `start`. */
+  clip?: { url: string; start: number; end: number; stale: boolean } | null;
+  onCloseClip?: () => void;
 }
 
 /** "Vista previa" del editor: el video con efectos o el original, con los controles del diseño. */
-export const PreviewPlayer = forwardRef<PlayerHandle, Props>(function PreviewPlayer({ original, edited, poster, onTime, onPlaying }, ref) {
+export const PreviewPlayer = forwardRef<PlayerHandle, Props>(function PreviewPlayer({ original, edited, poster, onTime, onPlaying, clip, onCloseClip }, ref) {
   const video = useRef<HTMLVideoElement>(null);
   const box = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<"original" | "effects">("effects");
@@ -29,9 +32,12 @@ export const PreviewPlayer = forwardRef<PlayerHandle, Props>(function PreviewPla
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
 
+  // Con un clip, el tiempo del video es relativo a su inicio en la línea de tiempo.
+  const offset = clip?.start ?? 0;
+
   useImperativeHandle(ref, () => ({
     seek: (seconds) => {
-      if (video.current) video.current.currentTime = Math.max(0, Math.min(seconds, video.current.duration || seconds));
+      if (video.current) video.current.currentTime = Math.max(0, Math.min(seconds - offset, video.current.duration || seconds));
     },
     toggle: () => {
       const v = video.current;
@@ -47,13 +53,13 @@ export const PreviewPlayer = forwardRef<PlayerHandle, Props>(function PreviewPla
       if (v && Math.abs(v.currentTime - last) >= 0.05) {
         last = v.currentTime;
         setTime(v.currentTime);
-        onTime(v.currentTime);
+        onTime(v.currentTime + offset);
       }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [onTime]);
+  }, [onTime, offset]);
 
   // Cambiar entre original y con efectos conserva el instante y si se estaba reproduciendo.
   const swap = (next: "original" | "effects") => {
@@ -79,21 +85,30 @@ export const PreviewPlayer = forwardRef<PlayerHandle, Props>(function PreviewPla
         <h2>
           Vista previa <Icon name="info" size={14} />
         </h2>
-        <Segmented
-          label="Qué ver"
-          value={view}
-          onChange={swap}
-          options={[
-            { id: "original", label: "Original" },
-            { id: "effects", label: "Con efectos" },
-          ]}
-        />
+        {clip ? (
+          <button type="button" className={styles.closeClip} onClick={onCloseClip}>
+            Cerrar vista previa
+          </button>
+        ) : (
+          <Segmented
+            label="Qué ver"
+            value={view}
+            onChange={swap}
+            options={[
+              { id: "original", label: "Original" },
+              { id: "effects", label: "Con efectos" },
+            ]}
+          />
+        )}
       </header>
       <div className={styles.stage} ref={box}>
         <video
           ref={video}
-          src={view === "effects" ? edited : original}
-          poster={poster}
+          key={clip?.url ?? "video"}
+          src={clip ? clip.url : view === "effects" ? edited : original}
+          poster={clip ? undefined : poster}
+          loop={!!clip}
+          autoPlay={!!clip}
           playsInline
           preload="auto"
           muted={muted}
@@ -108,6 +123,12 @@ export const PreviewPlayer = forwardRef<PlayerHandle, Props>(function PreviewPla
           }}
           onClick={() => video.current && void (video.current.paused ? video.current.play() : video.current.pause())}
         />
+        {clip && (
+          <span className={`${styles.badge} ${clip.stale ? styles.stale : ""}`}>
+            Vista previa · {mmssd(clip.start)}–{mmssd(clip.end)}
+            {clip.stale ? " · desactualizada" : ""}
+          </span>
+        )}
       </div>
       <div className={styles.controls}>
         <button type="button" onClick={() => video.current && void (video.current.paused ? video.current.play() : video.current.pause())} aria-label={playing ? "Pausar" : "Reproducir"}>
