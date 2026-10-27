@@ -229,6 +229,29 @@ def looks() -> LooksView:
     return LooksView(fuego=[LookView(**x.model_dump()) for x in fire_looks()], rayo=[LookView(**x.model_dump()) for x in bolt_looks()])
 
 
+class PropView(BaseModel):
+    id: str
+    title: str
+    wearable: bool
+
+
+@app.get("/api/props", response_model=list[PropView])
+def props() -> list[PropView]:
+    """Objetos protagonistas que el cliente puede elegir en los estilos que siguen uno (`needs: [props]`)."""
+    from vfxglow.director.prop_choices import PROP_CHOICES
+
+    return [PropView(id=c.id, title=c.title, wearable=c.wearable) for c in PROP_CHOICES.values()]
+
+
+def _check_prop(prop: str | None) -> None:
+    from vfxglow.director.prop_choices import check
+
+    try:
+        check(prop)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
 def _check_looks(fire: str | None, bolt: str | None) -> None:
     from vfxglow.director.looks import check
 
@@ -392,6 +415,7 @@ def create_job(
     deep: bool = Form(False),
     fire_style: str | None = Form(None),
     bolt_style: str | None = Form(None),
+    prop: str | None = Form(None),
     user: User = Depends(current_user),
 ) -> JobView:
     # Exactamente uno: el video, o una subida que ya se analizó (o se está analizando).
@@ -407,11 +431,12 @@ def create_job(
     style = _check_style(style_kind, style)
     _check_season(season or None)
     _check_looks(fire_style or None, bolt_style or None)
+    _check_prop(prop or None)
     wear = _check_wardrobe(json.loads(wardrobe) if wardrobe and wardrobe.strip().startswith("{") else ({"*": wardrobe} if wardrobe else {}))
     deep = deep and style_kind == "catalog"
     limits.check_quota(user, jobs().list(user.uid), jobs().list(), deep)
     options = dict(
-        owner=user.uid, wardrobe=wear, deep=deep, fire_style=fire_style or None, bolt_style=bolt_style or None
+        owner=user.uid, wardrobe=wear, deep=deep, fire_style=fire_style or None, bolt_style=bolt_style or None, prop=prop or None
     )
     if video is None:
         return view(_job_from_upload(upload_id or "", user, style_kind, style, seed, season or None, options))
@@ -525,6 +550,8 @@ class VariationRequest(BaseModel):
     # Estilos de fuego y de rayo; sin valor, los del trabajo de origen ("" = los del catálogo).
     fire_style: str | None = None
     bolt_style: str | None = None
+    # Objeto protagonista; sin valor, el del trabajo de origen ("" = el del catálogo).
+    prop: str | None = None
 
 
 def _check_wardrobe(wardrobe: dict[str, str]) -> dict[str, str]:
@@ -542,10 +569,11 @@ def create_variation(job_id: str, body: VariationRequest, user: User = Depends(c
     _check_season(body.season)
     wear = _check_wardrobe(body.wardrobe) if body.wardrobe is not None else None
     _check_looks(body.fire_style or None, body.bolt_style or None)
+    _check_prop(body.prop or None)
     parent = _job(job_id, user)
     deep = (parent.deep if body.deep is None else body.deep) and body.style_kind == "catalog"
     limits.check_quota(user, jobs().list(user.uid), jobs().list(), deep)
-    return view(jobs().variation(parent, body.style_kind, style, body.seed, body.season, wear, body.deep, body.fire_style, body.bolt_style))
+    return view(jobs().variation(parent, body.style_kind, style, body.seed, body.season, wear, body.deep, body.fire_style, body.bolt_style, body.prop))
 
 
 @app.post("/api/jobs/{job_id}/retry", response_model=JobView)
@@ -826,6 +854,8 @@ class StudioPreviewRequest(BaseModel):
     bolt_style: str | None = None
     # Vestuario por persona, o un solo nombre para todas ("*").
     wardrobe: dict[str, str] | str | None = None
+    # Objeto protagonista (director/prop_choices.py); sin él, el del catálogo.
+    prop: str | None = None
 
 
 def _studio_view(upload: Upload, item) -> PreviewView:
@@ -864,6 +894,7 @@ def create_upload_preview(upload_id: str, body: StudioPreviewRequest, user: User
     style = _check_style("catalog", body.style)
     _check_season(body.season or None)
     _check_looks(body.fire_style or None, body.bolt_style or None)
+    _check_prop(body.prop or None)
     wardrobe = body.wardrobe if isinstance(body.wardrobe, dict) else ({"*": body.wardrobe} if body.wardrobe else {})
     wear = _check_wardrobe(wardrobe)
     if upload.status == "used":
@@ -881,6 +912,7 @@ def create_upload_preview(upload_id: str, body: StudioPreviewRequest, user: User
         fire_style=body.fire_style or None,
         bolt_style=body.bolt_style or None,
         wardrobe=wear,
+        prop=body.prop or None,
     )
     item, cached = previews().submit_studio(
         upload.id,

@@ -106,6 +106,9 @@ class PropsConfig(_Strict):
     # Objeto protagonista descrito en inglés, terminado en punto ("a baseball cap."). Vacío =
     # apagado. Un catálogo con `needs: [props]` pone su `prop` si aquí no hay nada.
     query: str = ""
+    # Se puede poner en la cabeza (gorra, sombrero, gafas): solo así hay estados worn/fitting y el
+    # momento prop_worn. Un balón o un micrófono cerca de la cara siguen en la mano.
+    wearable: bool = True
     detector_model: str = "IDEA-Research/grounding-dino-base"
     threshold: float = 0.3
     # Confianza mínima para sembrar SAM 2 (la gorra real da 0,48-0,75; el pelo, hasta 0,48,

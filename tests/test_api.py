@@ -25,8 +25,10 @@ class FakePipeline:
     # Un trabajo que no termina solo: espera (con puntos de control) a que lo cancelen.
     block = False
 
+    last_kwargs: dict = {}
+
     def __init__(self, config, video: Path, **kwargs) -> None:
-        self.kwargs = kwargs
+        self.kwargs = FakePipeline.last_kwargs = kwargs
         self.run_dir = video.parent.parent.parent / "runs" / video.parent.name
 
     def run(self) -> Path:
@@ -142,6 +144,20 @@ def test_fire_and_bolt_looks_listed_and_passed_to_the_pipeline(client: TestClien
     variation = client.post(f"/api/jobs/{job['id']}/variations", json={"style": "avatar", "fire_style": "pixel"}).json()
     assert (variation["fire_style"], variation["bolt_style"]) == ("pixel", "violeta")  # el rayo, el del origen
     bad = client.post("/api/jobs", files={"video": ("c.mp4", io.BytesIO(b"x"), "video/mp4")}, data={"style": "avatar", "fire_style": "lava"})
+    assert bad.status_code == 422
+
+
+def test_prop_choices_listed_and_passed_to_the_pipeline(client: TestClient) -> None:
+    choices = {x["id"]: x for x in client.get("/api/props").json()}
+    assert choices["gorra"]["wearable"] and not choices["balon"]["wearable"] and "ninguno" in choices
+    response = client.post("/api/jobs", files={"video": ("c.mp4", io.BytesIO(b"x"), "video/mp4")}, data={"style": "baile", "prop": "balon"})
+    job = _wait(client, response.json()["id"])
+    assert job["prop"] == "balon" and FakePipeline.last_kwargs["prop"] == "balon"
+    same = _wait(client, client.post(f"/api/jobs/{job['id']}/variations", json={"style": "baile"}).json()["id"])
+    assert same["prop"] == "balon" and same["take"] == 1  # el del origen
+    other = _wait(client, client.post(f"/api/jobs/{job['id']}/variations", json={"style": "baile", "prop": "abanico"}).json()["id"])
+    assert other["prop"] == "abanico" and other["take"] == 0  # otro objeto: empieza por la mejor
+    bad = client.post("/api/jobs", files={"video": ("c.mp4", io.BytesIO(b"x"), "video/mp4")}, data={"style": "baile", "prop": "nave"})
     assert bad.status_code == 422
 
 

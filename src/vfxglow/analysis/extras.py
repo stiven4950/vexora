@@ -45,6 +45,6 @@ def window_extras(video: Path, frames: list[FrameRecord], meta: VideoMeta, confi
         from vfxglow.analysis.props import PropTracker, assign_states, prop_events
 
         PropTracker(analysis.props).track(video, frames, window=(start, end), stride=PROP_STRIDE)
-        assign_states(frames, meta.width, meta.height)
+        assign_states(frames, meta.width, meta.height, analysis.props.wearable)
         events += prop_events(frames, meta.fps, meta.width, meta.height)
     return events

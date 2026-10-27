@@ -140,6 +140,7 @@ def test_not_ready_and_unknown_styles_are_refused(client: TestClient) -> None:
     assert ask(client, uid, style="no-existe").status_code == 422
     assert ask(client, uid, style_kind="preset", style="body_aura").status_code == 422
     assert ask(client, uid, fire_style="no-existe").status_code == 422
+    assert ask(client, uid, style="baile", prop="nave").status_code == 422
 
 
 def test_styles_with_needs_look_for_blades_or_cap_only_in_the_window(client: TestClient) -> None:
@@ -148,6 +149,9 @@ def test_styles_with_needs_look_for_blades_or_cap_only_in_the_window(client: Tes
     assert created.status_code == 202, created.text
     assert finished(client, uid, created.json()["preview_id"])["status"] == "ready"
     assert FakePipeline.renders[-1]["script"] == "guion con extras"
+    ball = ask(client, uid, style="baile", prop="balon")
+    assert finished(client, uid, ball.json()["preview_id"])["status"] == "ready"
+    assert FakePipeline.renders[-1]["kwargs"]["prop"] == "balon"  # otro objeto: otra vista previa
     plain = ask(client, uid, style="avatar")
     assert finished(client, uid, plain.json()["preview_id"])["status"] == "ready"
     assert FakePipeline.renders[-1]["script"] == "guion"

@@ -106,9 +106,11 @@ class Pipeline:
         pins: Path | None = None,
         wardrobe: dict[str, str] | None = None,
         deep: bool | None = None,
+        prop: str | None = None,
     ) -> None:
         self.config_path = config_path
         self.config = load_config(config_path)
+        self.prop = prop  # el objeto protagonista elegido (director/prop_choices.py)
         if deep is not None:
             # Análisis profundo (director/deep.py): opcional, más lento y de pago.
             self.config.director.deep.enabled = bool(deep)
@@ -172,6 +174,13 @@ class Pipeline:
 
     def _apply_catalog_needs(self) -> None:
         apply_catalog_needs(self.config_path, self.config)
+        props = self.config.analysis.props
+        if self.prop and props.query:  # solo si el catálogo sigue un objeto
+            from vfxglow.director.prop_choices import PROP_CHOICES, check
+
+            check(self.prop)
+            choice = PROP_CHOICES[self.prop]
+            props.query, props.wearable = choice.query, choice.wearable
 
     def _ensure_derived(self, brief_path: Path) -> None:
         """Análisis anteriores a una señal derivada (piel, gestos, atención): se calcula ahora con

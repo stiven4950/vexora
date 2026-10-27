@@ -264,3 +264,24 @@ def test_window_extras_works_on_copies_of_the_window_and_swaps_blade_and_prop_ev
     assert [(e.name, e.start_frame) for e in events] == [("fast_swing", 5), ("blade_swing", 35)]
     assert [(e.name, e.start_frame) for e in brief.events] == [("fast_swing", 5), ("blade_swing", 35)]
     assert "con_hoja" not in (folder / "tracks.jsonl").read_text()  # el análisis guardado no cambia
+
+
+def test_chosen_prop_replaces_the_catalog_object_only_in_styles_that_follow_one() -> None:
+    from vfxglow.pipeline import Pipeline
+
+    def configured(catalog: str, prop: str | None) -> AppConfig:
+        pipeline = Pipeline.__new__(Pipeline)
+        pipeline.config_path, pipeline.config, pipeline.prop = Path("configs/default.yaml"), load_config(Path("configs/default.yaml")), prop
+        pipeline.config.director.catalog = catalog
+        pipeline._apply_catalog_needs()
+        return pipeline.config
+
+    props = configured("baile", None).analysis.props
+    assert props.query == "a baseball cap. a hat." and props.wearable  # el del catálogo
+    props = configured("baile", "balon").analysis.props
+    assert props.query == "a ball." and not props.wearable
+    assert configured("baile", "ninguno").analysis.props.query == ""  # sin objeto: no se sigue nada
+    assert configured("avatar", "balon").analysis.props.query == ""  # Avatar no sigue objetos
+    with pytest.raises(ValueError):
+        configured("baile", "nave")
+

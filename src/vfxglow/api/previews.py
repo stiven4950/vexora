@@ -231,6 +231,8 @@ class PreviewStore:
             kwargs.update(fire_style=studio.get("fire_style"), bolt_style=studio.get("bolt_style"))
         if studio.get("wardrobe"):
             kwargs["wardrobe"] = studio["wardrobe"]
+        if studio.get("prop"):
+            kwargs["prop"] = studio["prop"]
         pipeline = Pipeline(self.jobs.config, video, **kwargs)
         # Sin escribir guion ni manifiesto en runs/: ese análisis lo comparte el trabajo real.
         # Baile y Espadas (`needs`): la gorra o las hojas se buscan solo en el tramo que se dibuja.

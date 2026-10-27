@@ -303,8 +303,8 @@ def _head(person: PersonPose, width: int, height: int) -> tuple[np.ndarray, floa
     return (shoulders[0] + shoulders[1]) * 0.5 - np.array([0.0, size * 2.2]), size
 
 
-def frame_state(record: FrameRecord, width: int, height: int) -> tuple[str, str]:
-    """(estado, persona) del objeto en este fotograma."""
+def frame_state(record: FrameRecord, width: int, height: int, wearable: bool = True) -> tuple[str, str]:
+    """(estado, persona) del objeto en este fotograma. Sin `wearable` nunca está en la cabeza."""
     prop = record.prop
     assert prop is not None
     polygon = (np.array(prop.contour) * [width, height]).astype(np.float32).reshape(-1, 1, 2)
@@ -321,7 +321,7 @@ def frame_state(record: FrameRecord, width: int, height: int) -> tuple[str, str]
             inside = cv2.pointPolygonTest(polygon, (float(point[0]), float(point[1])), True)
             if inside > -reach * size:
                 touching.append(side)
-        head = _head(person, width, height)
+        head = _head(person, width, height) if wearable else None
         on_head = head is not None and np.linalg.norm(center - head[0]) < head[1] * 1.1 and center[1] < head[0][1] + head[1] * 0.8
         if on_head:
             return ("fitting" if touching else "worn"), person.person_id
@@ -332,8 +332,8 @@ def frame_state(record: FrameRecord, width: int, height: int) -> tuple[str, str]
     return best or ("air", record.person_id)
 
 
-def assign_states(records: list[FrameRecord], width: int, height: int) -> None:
-    raw = [(index, frame_state(record, width, height)) for index, record in enumerate(records) if record.prop is not None]
+def assign_states(records: list[FrameRecord], width: int, height: int, wearable: bool = True) -> None:
+    raw = [(index, frame_state(record, width, height, wearable)) for index, record in enumerate(records) if record.prop is not None]
     half = STATE_WINDOW // 2
     states = []
     for k, (index, (state, person)) in enumerate(raw):

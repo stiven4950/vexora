@@ -50,6 +50,16 @@ def test_state_follows_hands_and_head() -> None:
     assert frame_state(near_head, W, H)[0] == "fitting"
 
 
+def test_an_object_that_is_not_worn_never_sits_on_the_head() -> None:
+    # Un balón o un micrófono junto a la cara: en el aire o en la mano, nunca "puesto".
+    assert frame_state(_frame(0, (0.5, 0.15)), W, H, wearable=False)[0] == "air"
+    near_head = FrameRecord(frame=0, time_s=0.0, pose=_pose(left_wrist=(0.47, 0.15)), prop=_cap(0.5, 0.15))
+    assert frame_state(near_head, W, H, wearable=False)[0] == "left"
+    frames = [_frame(i, c) for i, c in enumerate([(0.5, 0.75)] * 20 + [(0.5, 0.15)] * 20)]
+    assign_states(frames, W, H, wearable=False)
+    assert not [e for e in prop_events(frames, 30.0) if e.name == "prop_worn"]
+
+
 def test_transfer_and_worn_events() -> None:
     path = [(0.3, 0.5)] * 20 + [(0.5, 0.45)] * 6 + [(0.7, 0.5)] * 20 + [(0.5, 0.15)] * 15 + [(0.5, 0.75)] * 4 + [(0.5, 0.15)] * 15
     frames = [_frame(i, c) for i, c in enumerate(path)]

@@ -74,6 +74,8 @@ class Job(BaseModel):
     wardrobe: dict[str, str] = Field(default_factory=dict)
     # Análisis profundo (director/deep.py): opcional y de pago; por defecto, el económico.
     deep: bool = False
+    # Objeto protagonista de los estilos que siguen uno (director/prop_choices.py); sin él, el del catálogo.
+    prop: str | None = None
     # Traza que une la petición, el trabajo, sus etapas y sus llamadas a IA (telemetry.py).
     trace_id: str = Field(default_factory=telemetry.new_trace_id)
     # Si falló: el tipo de fallo (ERRORS); `error` lleva el mensaje para la persona.
@@ -310,6 +312,7 @@ class JobStore:
         deep: bool = False,
         fire_style: str | None = None,
         bolt_style: str | None = None,
+        prop: str | None = None,
         max_bytes: int | None = None,
         check: Callable[[Path], object] | None = None,
         source: Path | None = None,
@@ -350,6 +353,7 @@ class JobStore:
             deep=deep,
             fire_style=fire_style,
             bolt_style=bolt_style,
+            prop=prop,
             video_seconds=getattr(info, "duration_s", None),
             video_width=getattr(info, "width", None),
             video_height=getattr(info, "height", None),
@@ -383,7 +387,19 @@ class JobStore:
         telemetry.event("job.retried", job_id=job_id, trace_id=snapshot.trace_id)
         return snapshot
 
-    def variation(self, parent: Job, style_kind: str, style: str, seed: int | None, season: str | None = None, wardrobe: dict[str, str] | None = None, deep: bool | None = None, fire_style: str | None = None, bolt_style: str | None = None) -> Job:
+    def variation(
+        self,
+        parent: Job,
+        style_kind: str,
+        style: str,
+        seed: int | None,
+        season: str | None = None,
+        wardrobe: dict[str, str] | None = None,
+        deep: bool | None = None,
+        fire_style: str | None = None,
+        bolt_style: str | None = None,
+        prop: str | None = None,
+    ) -> Job:
         """Mismo video, otro estilo u otra versión: el análisis queda en caché y es rápido.
 
         Sin semilla, "otra versión" del mismo estilo es la siguiente del ranking (la mejor que no
@@ -393,10 +409,11 @@ class JobStore:
         deep = parent.deep if deep is None else deep
         fire_style = parent.fire_style if fire_style is None else (fire_style or None)
         bolt_style = parent.bolt_style if bolt_style is None else (bolt_style or None)
+        prop = parent.prop if prop is None else (prop or None)
         take = 0
         if seed is None:
             with self._lock:
-                done = [j.take for j in self._jobs.values() if (j.parent or j.id) == root and j.style == style and j.style_kind == style_kind and j.seed is None and j.season == season and j.wardrobe == wear and j.fire_style == fire_style and j.bolt_style == bolt_style]
+                done = [j.take for j in self._jobs.values() if (j.parent or j.id) == root and j.style == style and j.style_kind == style_kind and j.seed is None and j.season == season and j.wardrobe == wear and j.fire_style == fire_style and j.bolt_style == bolt_style and j.prop == prop]
             take = max(done) + 1 if done else 0
         return self._enqueue(
             Job(
@@ -413,6 +430,7 @@ class JobStore:
                 deep=deep,
                 fire_style=fire_style,
                 bolt_style=bolt_style,
+                prop=prop,
                 parent=root,
                 owner=parent.owner,
                 video_seconds=parent.video_seconds,
@@ -526,6 +544,7 @@ class JobStore:
             bolt_style=job.bolt_style,
             wardrobe=job.wardrobe or None,
             deep=job.deep,
+            prop=job.prop,
             queue_depth=depth,
         )
         return job
@@ -606,6 +625,8 @@ class JobStore:
             kwargs["wardrobe"] = job.wardrobe
         if job.style_kind == "catalog" and job.deep:
             kwargs["deep"] = True
+        if job.style_kind == "catalog" and job.prop:
+            kwargs["prop"] = job.prop
         return kwargs
 
     def _note(self, job_id: str, text: str, detail: str = "") -> None:
