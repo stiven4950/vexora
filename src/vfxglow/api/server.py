@@ -29,6 +29,7 @@ from vfxglow import telemetry
 from vfxglow.api import limits
 from vfxglow.api.auth import User, auth_enabled, check_bind, current_user, media_key, media_owner
 from vfxglow.api.jobs import Job, JobBusy, JobStore, NotRetryable, UploadTooLarge, owns
+from vfxglow.api.uploads import TooManyAnalyzing, Upload, UploadNotFound, UploadStore, UploadUsed
 from vfxglow.config import PRESET_ALIASES, catalog_name
 from vfxglow.telemetry import redact
 
@@ -37,6 +38,7 @@ CONFIG = ROOT / "configs" / "default.yaml"
 VIDEO_TYPES = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
 MAX_UPLOAD_MB = 500
 JOB_NOT_FOUND = "Trabajo no encontrado"
+UPLOAD_GONE = "La subida ya no existe: vuelve a cargar el video."
 
 app = FastAPI(title="VFX Glow", version="1.0", description="Edición de video con efectos de neón guiados por el movimiento.")
 app.add_middleware(
@@ -47,6 +49,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 store: JobStore | None = None
+upload_store: UploadStore | None = None
 
 # Cabeceras de seguridad en toda respuesta. Sin CSP todavía: hay que medir antes qué necesita el
 # acceso con Google (ventana emergente de Firebase) para no romperlo.
@@ -104,6 +107,18 @@ def jobs() -> JobStore:
     if store is None:
         store = JobStore(ROOT / "api_data", CONFIG)
     return store
+
+
+def _catalog_names() -> list[str]:
+    return [style.name for style in _styles_for(_styles_stamp()) if style.kind == "catalog"]
+
+
+def uploads() -> UploadStore:
+    """Las subidas; se rehacen si cambia el almacén de trabajos (las pruebas lo reemplazan)."""
+    global upload_store
+    if upload_store is None or upload_store.jobs is not jobs():
+        upload_store = UploadStore(jobs(), _catalog_names)
+    return upload_store
 
 
 # ----- estilos -----
@@ -365,7 +380,8 @@ def me(user: User = Depends(current_user)) -> User:
 
 @app.post("/api/jobs", response_model=JobView, status_code=201)
 def create_job(
-    video: UploadFile = File(...),
+    video: UploadFile | None = File(None),
+    upload_id: str | None = Form(None),
     style_kind: str = Form("catalog"),
     style: str = Form(...),
     seed: int | None = Form(None),
@@ -376,16 +392,27 @@ def create_job(
     bolt_style: str | None = Form(None),
     user: User = Depends(current_user),
 ) -> JobView:
-    if Path(video.filename or "").suffix.lower() not in VIDEO_TYPES:
-        raise HTTPException(415, f"Formato no soportado. Usa {', '.join(sorted(VIDEO_TYPES))}")
-    if video.size is not None and video.size > MAX_UPLOAD_MB * 1024 * 1024:
-        raise HTTPException(413, f"El video supera {MAX_UPLOAD_MB} MB")
+    # Exactamente uno: el video, o una subida que ya se analizó (o se está analizando).
+    if video is not None and not video.filename:
+        video = None
+    if (video is None) == (not upload_id):
+        raise HTTPException(422, "Envía el video o una subida.")
+    if video is not None:
+        if Path(video.filename or "").suffix.lower() not in VIDEO_TYPES:
+            raise HTTPException(415, f"Formato no soportado. Usa {', '.join(sorted(VIDEO_TYPES))}")
+        if video.size is not None and video.size > MAX_UPLOAD_MB * 1024 * 1024:
+            raise HTTPException(413, f"El video supera {MAX_UPLOAD_MB} MB")
     style = _check_style(style_kind, style)
     _check_season(season or None)
     _check_looks(fire_style or None, bolt_style or None)
     wear = _check_wardrobe(json.loads(wardrobe) if wardrobe and wardrobe.strip().startswith("{") else ({"*": wardrobe} if wardrobe else {}))
     deep = deep and style_kind == "catalog"
     limits.check_quota(user, jobs().list(user.uid), jobs().list(), deep)
+    options = dict(
+        owner=user.uid, wardrobe=wear, deep=deep, fire_style=fire_style or None, bolt_style=bolt_style or None
+    )
+    if video is None:
+        return view(_job_from_upload(upload_id or "", user, style_kind, style, seed, season or None, options))
     try:
         job = jobs().create(
             video.filename or "video.mp4",
@@ -394,17 +421,91 @@ def create_job(
             style,
             seed,
             season or None,
-            owner=user.uid,
-            wardrobe=wear,
-            deep=deep,
-            fire_style=fire_style or None,
-            bolt_style=bolt_style or None,
             max_bytes=MAX_UPLOAD_MB * 1024 * 1024,
             check=limits.probe_video,
+            **options,
         )
     except UploadTooLarge as error:
         raise HTTPException(413, f"El video supera {MAX_UPLOAD_MB} MB") from error
     return view(job)
+
+
+def _job_from_upload(upload_id: str, user: User, style_kind: str, style: str, seed: int | None, season: str | None, options: dict) -> Job:
+    """El trabajo que usa el video de una subida: el archivo pasa al trabajo y la subida queda `used`."""
+    try:
+        item, previous = uploads().claim(upload_id, user.uid)
+    except UploadNotFound as error:
+        raise HTTPException(404, UPLOAD_GONE) from error
+    except UploadUsed as error:
+        raise HTTPException(409, "Esta subida ya se usó en otro video.") from error
+    try:
+        info = limits.VideoInfo(duration_s=item.video_seconds or 0.0, width=item.video_width or 0, height=item.video_height or 0, fps=0.0, codec="")
+        job = jobs().create(item.filename, None, style_kind, style, seed, season, source=Path(item.video_path), info=info, **options)
+    except BaseException:
+        uploads().release(upload_id, previous)
+        raise
+    uploads().finish_used(item)
+    return job
+
+
+class RecommendationView(BaseModel):
+    style: str
+    reason: str
+    alternatives: list[dict[str, str]]
+
+
+class UploadView(BaseModel):
+    id: str
+    status: str
+    filename: str
+    created: float
+    video_seconds: float | None = None
+    video_width: int | None = None
+    video_height: int | None = None
+    video_bytes: int | None = None
+    error: str | None = None
+    recommendation: RecommendationView | None = None
+
+
+def upload_view(item: Upload) -> UploadView:
+    picks = item.recommendation if item.status == "ready" else []
+    return UploadView(
+        **item.model_dump(include={"id", "status", "filename", "created", "video_seconds", "video_width", "video_height", "video_bytes", "error"}),
+        recommendation=RecommendationView(style=picks[0].style, reason=picks[0].reason, alternatives=[p.model_dump() for p in picks[1:]]) if picks else None,
+    )
+
+
+@app.post("/api/uploads", response_model=UploadView, status_code=201)
+def create_upload(video: UploadFile = File(...), user: User = Depends(current_user)) -> UploadView:
+    """Guarda el video y empieza a analizarlo ya, mientras la persona elige estilo."""
+    if Path(video.filename or "").suffix.lower() not in VIDEO_TYPES:
+        raise HTTPException(415, f"Formato no soportado. Usa {', '.join(sorted(VIDEO_TYPES))}")
+    if video.size is not None and video.size > MAX_UPLOAD_MB * 1024 * 1024:
+        raise HTTPException(413, f"El video supera {MAX_UPLOAD_MB} MB")
+    try:
+        item = uploads().create(video.filename or "video.mp4", video.file, user.uid, MAX_UPLOAD_MB * 1024 * 1024, limits.probe_video)
+    except UploadTooLarge as error:
+        raise HTTPException(413, f"El video supera {MAX_UPLOAD_MB} MB") from error
+    except TooManyAnalyzing as error:
+        raise HTTPException(429, "Ya tienes videos analizándose; espera a que terminen.") from error
+    return upload_view(item)
+
+
+@app.get("/api/uploads/{upload_id}", response_model=UploadView)
+def get_upload(upload_id: str, user: User = Depends(current_user)) -> UploadView:
+    try:
+        return upload_view(uploads().get(upload_id, user.uid))
+    except UploadNotFound as error:
+        raise HTTPException(404, UPLOAD_GONE) from error
+
+
+@app.delete("/api/uploads/{upload_id}", status_code=204)
+def delete_upload(upload_id: str, user: User = Depends(current_user)) -> Response:
+    try:
+        uploads().delete(upload_id, user.uid)
+    except UploadNotFound as error:
+        raise HTTPException(404, UPLOAD_GONE) from error
+    return Response(status_code=204)
 
 
 class VariationRequest(BaseModel):

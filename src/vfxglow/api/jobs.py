@@ -143,6 +143,11 @@ class UploadTooLarge(Exception):
     """El video subido pasa del máximo permitido."""
 
 
+def safe_name(filename: str) -> str:
+    """El nombre del archivo guardado en disco (sin rutas ni caracteres raros)."""
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", Path(filename).name) or "video.mp4"
+
+
 def _copy_limited(data, target: Path, max_bytes: int | None, chunk: int = 1024 * 1024) -> None:
     """Copia el flujo subido a `target`, cortando en cuanto pasa de `max_bytes`."""
     written = 0
@@ -307,18 +312,27 @@ class JobStore:
         bolt_style: str | None = None,
         max_bytes: int | None = None,
         check: Callable[[Path], object] | None = None,
+        source: Path | None = None,
+        info: object | None = None,
     ) -> Job:
         """Guarda el video y encola el trabajo. `max_bytes` corta la copia aunque el cliente no
         haya dicho el tamaño (UploadTooLarge); `check` valida el archivo guardado antes de
-        encolarlo. Si algo falla, no queda nada en disco."""
+        encolarlo. Si algo falla, no queda nada en disco. Con `source` (el video de una subida
+        ya validada, con su `info`) no se copia ningún flujo: se enlaza el archivo."""
         job_id = uuid.uuid4().hex[:10]
         folder = self.uploads / job_id
         folder.mkdir(parents=True)
-        safe = re.sub(r"[^A-Za-z0-9._-]+", "_", Path(filename).name) or "video.mp4"
+        safe = safe_name(filename)
         target = folder / safe
         try:
-            _copy_limited(data, target, max_bytes)
-            info = check(target) if check is not None else None
+            if source is not None:
+                try:
+                    os.link(source, target)  # la subida conserva su archivo hasta que acabe su análisis
+                except OSError:
+                    shutil.copy2(source, target)
+            else:
+                _copy_limited(data, target, max_bytes)
+                info = check(target) if check is not None else None
         except BaseException:
             shutil.rmtree(folder, ignore_errors=True)
             raise
@@ -342,15 +356,16 @@ class JobStore:
             video_bytes=target.stat().st_size,
         )
         job.activity = [{"at": job.created, "text": "Video recibido", "detail": f"{filename} ({target.stat().st_size / 1e6:.1f} MB)"}]
-        telemetry.event(
-            "upload.received",
-            job_id=job.id,
-            trace_id=job.trace_id,
-            usr={"id": telemetry.user_ref(owner)},
-            bytes=target.stat().st_size,
-            extension=target.suffix.lower(),
-            video=info.model_dump() if isinstance(info, BaseModel) else None,
-        )
+        if source is None:  # con una subida, `upload.received` ya se emitió al recibirla
+            telemetry.event(
+                "upload.received",
+                job_id=job.id,
+                trace_id=job.trace_id,
+                usr={"id": telemetry.user_ref(owner)},
+                bytes=target.stat().st_size,
+                extension=target.suffix.lower(),
+                video=info.model_dump() if isinstance(info, BaseModel) else None,
+            )
         return self._enqueue(job)
 
     def retry(self, job_id: str) -> Job:

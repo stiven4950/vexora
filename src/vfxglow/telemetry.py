@@ -141,6 +141,12 @@ def annotate(**fields: Any) -> None:
         stack[-1].update(fields)
 
 
+def current_span() -> dict[str, Any]:
+    """Los campos del tramo en curso (vacío fuera de un tramo)."""
+    stack = _spans.get()
+    return stack[-1] if stack else {}
+
+
 @contextmanager
 def span(stage: str, **fields: Any) -> Iterator[None]:
     span_id = uuid.uuid4().hex[:16]
