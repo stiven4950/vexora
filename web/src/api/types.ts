@@ -232,6 +232,14 @@ export interface Recommendation extends RecommendedStyle {
   alternatives: RecommendedStyle[];
 }
 
+/** Aviso de calidad del video (nunca bloquea): `warn` ámbar, `info` cian. */
+export interface QualityWarning {
+  code: string;
+  level: "info" | "warn";
+  title: string;
+  detail: string;
+}
+
 /** Un video subido por adelantado (POST /api/uploads) que se analiza mientras se elige el estilo. */
 export interface UploadView {
   id: string;
@@ -244,6 +252,7 @@ export interface UploadView {
   video_bytes: number | null;
   error: string | null;
   recommendation: Recommendation | null;
+  warnings: QualityWarning[];
 }
 
 /** Vista previa rápida del editor (POST/GET /api/jobs/{id}/preview): ~3 s con el motor real, sin crear versión. */

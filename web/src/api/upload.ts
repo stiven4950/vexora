@@ -1,4 +1,4 @@
-import type { Recommendation, UploadView } from "./types";
+import type { QualityWarning, Recommendation, UploadView } from "./types";
 
 /** En qué va la subida anticipada del Estudio. */
 export type UploadPhase = "uploading" | "analyzing" | "ready" | "failed";
@@ -27,10 +27,15 @@ export function uploadStatusText(state: UploadState): string {
     case "analyzing":
       return "Analizando tu video…";
     case "ready":
-      return "Análisis listo";
+      return warningsOf(state).length > 0 ? `Análisis listo · ${warningsOf(state).length} ${warningsOf(state).length === 1 ? "aviso" : "avisos"}` : "Análisis listo";
     case "failed":
       return "No se pudo analizar el video";
   }
+}
+
+/** Los avisos de calidad, solo cuando el análisis terminó. */
+export function warningsOf(state: UploadState | null): QualityWarning[] {
+  return state?.phase === "ready" ? (state.view?.warnings ?? []) : [];
 }
 
 /** La recomendación, solo si ya llegó. */

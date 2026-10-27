@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { ApiError, api } from "../api/client";
 import { rgb } from "../api/format";
 import { askPermission } from "../api/notify";
-import { fromView, pickSurprise, recommendationOf, uploadStatusText, type UploadState } from "../api/upload";
+import { fromView, pickSurprise, recommendationOf, uploadStatusText, warningsOf, type UploadState } from "../api/upload";
 import { WARDROBES, type Limits, type Looks, type Season, type Style, type Wardrobe } from "../api/types";
 import { ChoiceCard } from "../components/ChoiceCard";
 import { Dropzone, problems, type VideoMeta } from "../components/Dropzone";
@@ -147,6 +147,7 @@ export function Studio() {
   }, [earlyId, analyzing]);
 
   const recommendation = recommendationOf(early);
+  const warnings = warningsOf(early);
   const recommended = recommendation ? (styleList.find((s) => s.kind === "catalog" && s.name === recommendation.style) ?? null) : null;
   const shown = useMemo(
     () =>
@@ -255,6 +256,20 @@ export function Studio() {
                 <Icon name={early.phase === "failed" ? "alert" : "sparkles"} size={14} />{" "}
                 {early.phase === "failed" ? `${early.error ?? uploadStatusText(early)} Al crear los efectos se enviará el video de nuevo.` : uploadStatusText(early)}
               </p>
+            )}
+            {warnings.length > 0 && (
+              <div className={styles.warnings} role="status" aria-label="Avisos de calidad del video">
+                {warnings.map((w) => (
+                  <div key={w.code} className={`${styles.warning} ${w.level === "warn" ? styles.warn : styles.info}`}>
+                    <Icon name="alert" size={16} />
+                    <p>
+                      <strong>{w.title}</strong>
+                      <span>{w.detail}</span>
+                    </p>
+                  </div>
+                ))}
+                <p className={styles.warnings_foot}>Puedes continuar igual; el resultado puede verse afectado.</p>
+              </div>
             )}
           </StepCard>
 
