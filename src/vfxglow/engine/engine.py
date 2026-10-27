@@ -39,6 +39,12 @@ class EffectEngine:
         self.config = config
         self.events = sorted([*(events or []), *script.extra_events], key=lambda e: e.start_frame)
         self.cuts = set(cuts or [])
+        # Los efectos de elementos guardan estado entre fotogramas en sus módulos: cada video (y
+        # cada tramo que se vuelve a dibujar en el editor) empieza en limpio.
+        from vfxglow.engine import airbend, firebend, waterbend
+
+        for module in (airbend, firebend, waterbend):
+            module.reset()
         self.runtimes = [EffectRuntime(effect, script.seed, config.history) for effect in script.effects]
         for runtime in self.runtimes:
             runtime.fps = fps

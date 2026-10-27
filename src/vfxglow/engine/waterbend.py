@@ -59,6 +59,12 @@ _FIELDS: dict = {}
 _LAST: dict = {}  # el grosor del agua del cuadro, para water_refract
 
 
+def reset() -> None:
+    """Estado del agua entre fotogramas: vacío al empezar un video (engine.EffectEngine)."""
+    _FIELDS.clear()
+    _LAST.clear()
+
+
 def _unit(scale: float, layer) -> float:
     """Como el fuego (firebend._unit): la escala del cuerpo, pero no menos del 7% del alto."""
     return max(float(scale), 0.07 * layer.shape[0])

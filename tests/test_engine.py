@@ -499,3 +499,19 @@ def test_palette_varies_by_activation_and_micro_sparks_spawn() -> None:
     assert len(runtime.micro) == 30 <= MICRO_LIMIT and strokes
     micro_sparks(runtime, np.array([50.0, 50.0]), 100.0, "golpe", 1)
     assert len(runtime.micro) == 30  # la misma activación no vuelve a soltar chispas
+
+
+def test_each_video_starts_with_clean_element_state() -> None:
+    """El mismo proceso hace un trabajo tras otro: lo que el fuego, el agua o el aire dejaron en el
+    video anterior (luces, el fuego que pasa de una mano a otra, campos) no se cuela en el siguiente."""
+    from vfxglow.engine import airbend, firebend, waterbend
+
+    firebend._FIRE_LIMBS["person"] = ("x", {}, 3)
+    firebend._LIGHTS["now"].append(((1, 2), 3, 0.5))
+    firebend._LIGHTS["frame"] = 99
+    firebend._CLOSING["wall"] = (300, 280)
+    waterbend._FIELDS["x"] = 1
+    airbend._LAST["x"] = 1
+    EffectEngine(EffectScript(title="t", theme="t", effects=[]), EngineConfig(), [])
+    assert firebend._FIRE_LIMBS == {} and firebend._LIGHTS == {"frame": -1, "now": [], "prev": []}
+    assert firebend._CLOSING == {"wall": (0, -99)} and waterbend._FIELDS == {} and airbend._LAST == {}

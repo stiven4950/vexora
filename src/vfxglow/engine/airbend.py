@@ -42,6 +42,12 @@ _FIELDS: dict = {}
 _LAST: dict = {}  # la máscara del aire del cuadro, para air_refract
 
 
+def reset() -> None:
+    """Estado del aire entre fotogramas: vacío al empezar un video (engine.EffectEngine)."""
+    _FIELDS.clear()
+    _LAST.clear()
+
+
 def _unit(scale: float, layer) -> float:
     return max(float(scale), 0.07 * layer.shape[0])
 

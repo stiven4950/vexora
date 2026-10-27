@@ -1589,6 +1589,18 @@ def _fire_landing(body, frame, scale, frame_index, runtime, layer, color, alpha,
 
 # Cierres del fuego en el piso: la pared (si se enciende) gana y la alfombra no sale.
 _CLOSING: dict = {"wall": (0, -99)}  # (largo del video, último cuadro con pared): no se cruza entre videos
+
+
+def reset() -> None:
+    """Estado del fuego entre fotogramas y entre efectos (el campo, las luces, el fuego que pasa de
+    una parte del cuerpo a otra, el cierre): vacío al empezar un video. Sin esto, lo del video
+    anterior (el mismo proceso hace un trabajo tras otro) se colaba en el siguiente."""
+    _FIELDS.clear()
+    _LIGHTS.clear()
+    _LIGHTS.update({"frame": -1, "now": [], "prev": []})
+    _FIRE_LIMBS.clear()
+    _CLOSING.clear()
+    _CLOSING.update({"wall": (0, -99)})
 CARPET_FRONT_S = 2.0  # segundos seguidos de frente para que salga la alfombra del cierre
 CARPET_WINDOW_S = 1.8  # solo en los últimos segundos del video (como la pared)...
 CARPET_WINDOW_FRAC = 0.2  # ...y nunca más de esta fracción del video (en uno corto quedaba a la mitad)
