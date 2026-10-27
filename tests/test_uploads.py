@@ -13,7 +13,7 @@ import pytest
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient  # noqa: E402
 
-from vfxglow.analysis.schema import MotionBrief, MotionEvent, VideoMeta  # noqa: E402
+from vfxglow.analysis.schema import FrameRecord, MotionBrief, MotionEvent, VideoMeta  # noqa: E402
 from vfxglow.api import auth, limits, server  # noqa: E402
 from vfxglow.api.jobs import JobStore  # noqa: E402
 from vfxglow.director.recommend import recommend  # noqa: E402
@@ -60,6 +60,8 @@ class FakePipeline:
             FakePipeline.analyses += 1
             brief.parent.mkdir(parents=True, exist_ok=True)
             brief.write_text(make_brief(FakePipeline.events).model_dump_json())
+            # Pistas sin pose en ningún fotograma: el video no tiene a nadie.
+            (brief.parent / "tracks.jsonl").write_text("\n".join(FrameRecord(frame=i, time_s=i / 30).model_dump_json() for i in range(30)) + "\n")
 
     def _ensure_derived(self, brief_path: Path) -> None:
         pass
@@ -135,11 +137,13 @@ def test_an_upload_is_analyzed_and_gets_a_recommendation(client: TestClient) -> 
     assert first["id"].startswith("u_") and first["status"] == "analyzing" and first["recommendation"] is None
     done = wait_upload(client, first["id"])
     assert done["status"] == "ready" and done["error"] is None
-    assert set(done) == {"id", "status", "filename", "created", "video_seconds", "video_width", "video_height", "video_bytes", "error", "recommendation"}
+    assert set(done) == {"id", "status", "filename", "created", "video_seconds", "video_width", "video_height", "video_bytes", "error", "recommendation", "warnings"}
     assert (done["video_seconds"], done["video_width"], done["video_height"], done["video_bytes"]) == (9.4, 720, 1280, 64)
     rec = done["recommendation"]
     assert rec["style"] == "pelea" and "combate" in rec["reason"]
     assert [a["style"] for a in rec["alternatives"]] == ["avatar"] and set(rec["alternatives"][0]) == {"style", "reason"}
+    assert [w["code"] for w in done["warnings"]] == ["no_person"] and set(done["warnings"][0]) == {"code", "level", "title", "detail"}
+    assert first["warnings"] == []
 
 
 def test_a_failed_analysis_says_what_happened_without_internals(client: TestClient) -> None:

@@ -26,6 +26,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from vfxglow import telemetry
+from vfxglow.analysis.quality import QualityWarning
 from vfxglow.api import limits
 from vfxglow.api.auth import User, auth_enabled, check_bind, current_user, media_key, media_owner
 from vfxglow.api.jobs import Job, JobBusy, JobStore, NotRetryable, UploadTooLarge, owns
@@ -466,6 +467,7 @@ class UploadView(BaseModel):
     video_bytes: int | None = None
     error: str | None = None
     recommendation: RecommendationView | None = None
+    warnings: list[QualityWarning] = []
 
 
 def upload_view(item: Upload) -> UploadView:
@@ -473,6 +475,7 @@ def upload_view(item: Upload) -> UploadView:
     return UploadView(
         **item.model_dump(include={"id", "status", "filename", "created", "video_seconds", "video_width", "video_height", "video_bytes", "error"}),
         recommendation=RecommendationView(style=picks[0].style, reason=picks[0].reason, alternatives=[p.model_dump() for p in picks[1:]]) if picks else None,
+        warnings=item.warnings if item.status == "ready" else [],
     )
 
 

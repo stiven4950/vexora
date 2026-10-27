@@ -29,6 +29,7 @@ from pydantic import BaseModel, Field
 
 from vfxglow import telemetry
 from vfxglow.api.jobs import ERRORS, JobStore, _copy_limited, classify, safe_name
+from vfxglow.analysis.quality import QualityWarning
 from vfxglow.director.recommend import Recommendation, recommend
 
 log = logging.getLogger("vfxglow.api")
@@ -65,6 +66,7 @@ class Upload(BaseModel):
     video_bytes: int | None = None
     run_dir: str | None = None
     recommendation: list[Recommendation] = Field(default_factory=list)
+    warnings: list[QualityWarning] = Field(default_factory=list)
 
 
 class UploadStore:
@@ -223,7 +225,9 @@ class UploadStore:
                 self._current = None
 
     def _analyze(self, upload_id: str) -> None:
+        from vfxglow.analysis.quality import quality_warnings
         from vfxglow.analysis.schema import MotionBrief
+        from vfxglow.engine.engine import load_tracks
         from vfxglow.io.store import read_model
         from vfxglow.pipeline import Pipeline
 
@@ -246,8 +250,15 @@ class UploadStore:
                 brief_path = Path(pipeline.run_dir) / "analysis" / "motion_brief.json"
                 pipeline._ensure_derived(brief_path)
                 cache_hit = bool(attributes.get("cache_hit"))
-                recommendations = recommend(read_model(brief_path, MotionBrief), self.available())
-            outcome: dict = {"status": "ready", "recommendation": recommendations}
+                brief = read_model(brief_path, MotionBrief)
+                recommendations = recommend(brief, self.available())
+                tracks_path = brief_path.with_name("tracks.jsonl")
+                try:  # los avisos son un extra: si fallan o faltan las pistas, la subida sigue lista
+                    warnings = quality_warnings(brief, load_tracks(tracks_path)) if tracks_path.exists() else []
+                except Exception:
+                    log.exception("Subida %s: no se pudieron calcular los avisos", upload_id)
+                    warnings = []
+            outcome: dict = {"status": "ready", "recommendation": recommendations, "warnings": warnings}
         except Exception as exc:
             code = classify(exc, "analyze")
             log.exception("Subida %s falló (%s)", upload_id, code)
@@ -265,7 +276,7 @@ class UploadStore:
             used = current is not None and current.status == "used"
         if outcome["status"] == "ready":
             first = outcome["recommendation"][0].style if outcome["recommendation"] else None
-            telemetry.event("upload.analyzed", upload_id=upload_id, usr={"id": telemetry.user_ref(item.owner)}, duration_ms=duration, cache_hit=cache_hit, style=first)
+            telemetry.event("upload.analyzed", upload_id=upload_id, usr={"id": telemetry.user_ref(item.owner)}, duration_ms=duration, cache_hit=cache_hit, style=first, warnings=[w.code for w in outcome["warnings"]])
         if gone:
             self._discard(item.model_copy(update={"run_dir": run_dir}))
         elif used:
