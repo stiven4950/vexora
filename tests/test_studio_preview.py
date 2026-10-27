@@ -120,7 +120,7 @@ def test_creates_polls_and_serves_with_the_signed_key(client: TestClient) -> Non
     assert shown["end"] - shown["start"] == pytest.approx(3.0) and shown["start"] <= 5.0 <= shown["end"]
     call = FakePipeline.renders[-1]
     assert call["kwargs"]["catalog"] == "avatar" and call["kwargs"]["wardrobe"] == {"*": "vestido"} and call["kwargs"]["take"] == 0
-    assert call["max_side"] == 640
+    assert call["max_side"] == 480
     assert client.get(shown["url"]).content == b"vista"
     assert client.get(f"/api/uploads/{uid}/preview/{created.json()['preview_id']}.mp4").status_code == 404  # sin llave
     assert client.get(shown["url"][:-1] + ("A" if shown["url"][-1] != "A" else "B")).status_code == 404  # llave alterada

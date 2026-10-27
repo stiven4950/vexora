@@ -543,7 +543,7 @@ class Pipeline:
         """El bucle de composición: cada fotograma del plano con sus capas, al codificador.
 
         `only_window` (con `window`): se escribe solo el tramo, sin audio y sin leer más allá de su
-        final; `max_side` reescala lo que se escribe."""
+        final; con `max_side` el tramo se dibuja ya reducido (más rápido)."""
         from contextlib import nullcontext
 
         from vfxglow.composite.composite import composite_frame
@@ -582,8 +582,12 @@ class Pipeline:
                 for (index, frame), old in frames:
                     inside = window is None or window[0] <= index <= window[1]
                     layers = []
+                    if only_window and (frame.shape[1], frame.shape[0]) != (out_w, out_h):
+                        # Vista previa: se dibuja y compone ya al tamaño de salida (las coordenadas
+                        # del motor son relativas al cuadro), no a resolución completa.
+                        frame = cv2.resize(frame, (out_w, out_h), interpolation=cv2.INTER_AREA)
                     if engine is not None and (window is None or draw_from <= index <= window[1]):
-                        rendered = engine.render_frame(tracks.get(index), index, meta.width, meta.height, meta.frame_count, self.run_dir)
+                        rendered = engine.render_frame(tracks.get(index), index, frame.shape[1], frame.shape[0], meta.frame_count, self.run_dir)
                         layers = [(by_id[effect_id], layer) for effect_id, _group, layer in rendered]
                     elif engine is None:
                         for effect in script.effects:

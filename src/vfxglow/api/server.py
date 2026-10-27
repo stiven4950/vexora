@@ -854,7 +854,7 @@ def create_upload_preview(upload_id: str, body: StudioPreviewRequest, user: User
     """Unos 3 s con efectos reales del estilo elegido, en el tramo más activo del video, antes de
     crear el trabajo. Solo estilos de catálogo cuyo análisis es el de la subida."""
     from vfxglow.analysis.schema import MotionBrief
-    from vfxglow.api.previews import STUDIO_MIN_SIDE, busiest_window, needs_own_analysis
+    from vfxglow.api.previews import STUDIO_SIDE, busiest_window, needs_own_analysis
     from vfxglow.io.store import read_model
 
     upload = _owned_upload(upload_id, user)
@@ -883,14 +883,13 @@ def create_upload_preview(upload_id: str, body: StudioPreviewRequest, user: User
         bolt_style=body.bolt_style or None,
         wardrobe=wear,
     )
-    long_side = max(brief.video.width, brief.video.height)
     item, cached = previews().submit_studio(
         upload.id,
         user.uid,
         studio,
         window,
         brief.video.fps or 30.0,
-        max(STUDIO_MIN_SIDE, long_side // 2),
+        STUDIO_SIDE,
         check_quota=lambda today: limits.check_preview_quota(user, today),
     )
     if cached and item.status == "ready":

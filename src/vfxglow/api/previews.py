@@ -29,11 +29,13 @@ from vfxglow.api.jobs import JobStore
 log = logging.getLogger("vfxglow.api")
 
 TTL_S = 3600
-# Lado largo máximo del MP4 de la vista previa (la imagen se dibuja entera; solo se reescala al escribir).
-MAX_SIDE = 1280
+# Lado largo máximo de la vista previa: el motor ya dibuja a ese tamaño (las coordenadas son
+# relativas al cuadro y se ve igual). Medido en 5 s dibujados de un video de 720x1280: 31 s a
+# tamaño completo, 10 s a 640 y 7 s a 480.
+MAX_SIDE = 640
 HALF_S = 1.5
 STUDIO_S = 3.0  # duración de la vista previa del Estudio
-STUDIO_MIN_SIDE = 640  # a media resolución, pero sin bajar de esto
+STUDIO_SIDE = 480  # la del Estudio se ve en una tarjeta pequeña
 DAY_S = 24 * 3600
 
 
