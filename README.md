@@ -152,13 +152,31 @@ se conservan.
   lleva sus disparos exactos y su azar sale de su `id`, así que lo que no se toca sale igual.
 - Al terminar, cada versión guarda en `api_data/outputs/` su guion (`<id>.script.json`), sus
   momentos (`<id>.moments.json`) y los gestos con que se dibujó (`<id>.events.json`). Las versiones
-  hechas antes del editor no los tienen: hay que crear otra versión para editarla.
+  hechas antes del editor no los tienen: "Preparar para editar" (`POST /api/jobs/{id}/prepare-edit`)
+  los regenera en segundos con el análisis guardado, y su primera edición se dibuja completa.
+- Hay una pista por tipo de efecto (máximo 40; el resto va en "Otros efectos"). Los efectos
+  permanentes (`always_*`) son pistas que duran todo el video: se apagan o se estilizan, no se mueven.
 - Solo se vuelve a dibujar el tramo que cambia (`changed_window`): las activaciones que cambiaron
   más las de cualquier efecto que se cruce con ellas, con 2 s de calentamiento antes que no se
   escriben. El resto del video se copia de la versión anterior.
 - API: `GET /api/jobs/{id}/editor` (pistas, momentos y opciones para agregar), `POST
   /api/jobs/{id}/edit` (`{edits: [...]}`; un cambio imposible responde 422) y
   `GET /api/jobs/{id}/filmstrip?n=12` (tira de fotogramas).
+
+## Análisis al subir y recomendación de estilo
+
+El Estudio sube el video en cuanto se elige (`POST /api/uploads`) y un hilo aparte lo analiza
+mientras la persona escoge el estilo. Al crear el trabajo con `upload_id`, el análisis ya está (o
+el trabajo espera a que termine: hay un candado por carpeta de análisis) y no se repite.
+
+- Solo reutilizan ese análisis los estilos sin `needs` (Avatar, los cinco elementales y Pelea).
+  Baile neón (accesorios) y Espadas (hojas) cambian la configuración del análisis y lo rehacen.
+- Al terminar, `director/recommend.py` recomienda hasta 3 estilos sin IA: pareja que baila la mayor
+  parte del video → Baile; dos personas con contacto → Pelea; hojas detectadas → Espadas;
+  volteretas o mucha energía → Fuego o Rayo; siempre Avatar al final. Lo usa "Sorpréndeme con IA".
+- Máximo 3 subidas analizándose por usuario; las que no se usan caducan a las 24 h.
+- API: `POST /api/uploads`, `GET /api/uploads/{id}` (estado y recomendación) y
+  `DELETE /api/uploads/{id}`.
 
 ## Trazabilidad (eventos JSON)
 
