@@ -123,9 +123,9 @@ Leyenda de conveniencia: ★★★ hacer ya · ★★ siguiente fase · ★ desp
 | **0 · Bloqueantes** ✅ hecha | Arreglo del §2. Críticas de seguridad 1–4 (§5). Validar con `ffprobe`. Mensajes de error clasificados con Reintentar. Eventos JSON de trabajo, etapa y `llm.call` (§7). | ~1,5–2 semanas | Sonnet. Opus solo para el diseño de cuotas |
 | **1 · Victorias rápidas** ✅ hecha | Tiempo estimado y posición en la cola. Consola oculta. Estudio con opciones avanzadas plegadas y resumen. Validación de duración en el navegador. Biblioteca agrupada. Etiqueta del análisis profundo. Notificación del navegador. | ~1–1,5 semanas | Haiku para textos y UI simple; Sonnet para el resto |
 | **1b · Vistas base** (§9) ✅ hecha (shell, Mis proyectos, Trabajo en proceso, Estudio, Inicio, acceso en rutas, configuración mínima, catálogos por elemento; faltan los textos legales y el material real de demostración) | Rediseño fiel a los diseños: shell de la app y rutas `/app/*`. Mis proyectos, Trabajo en proceso, Estudio (vuelve a los pasos visibles del diseño), Inicio público, acceso en rutas, legales y configuración mínima. Backend S de cada vista: `title`, actividad, tiempos por etapa en vivo, ficha del video y cancelar. | ~3–4 semanas | Opus para el shell y las rutas; Sonnet para las vistas; Haiku para iconos y textos |
-| **2 · Núcleo de valor** | Análisis al subir. Recomendación de estilo sin LLM ("Sorpréndeme"). Alertas de calidad del seguimiento. **Editor de efectos (§9.5 E)** sobre la edición por pines. Vista previa por ventana ("Con efectos"). Comparar versiones. Explorar efectos. | ~5–7 semanas | Sonnet; Opus para el rango de fotogramas del motor y el editor |
+| **2 · Núcleo de valor** | ✅ **Editor de efectos (§9.5 E)**: pistas por efecto, quitar, mover, agregar, color, intensidad, tamaño, render parcial y "Preparar para editar". En curso: análisis al subir y recomendación de estilo sin LLM ("Sorpréndeme"). Pendiente: alertas de calidad del seguimiento, **vista previa durante la edición (§10)**, vista previa por ventana ("Con efectos"), comparar versiones y explorar efectos. | ~5–7 semanas | Sonnet; Opus para el rango de fotogramas del motor y el editor |
 | **3 · Comercial** | Cola multi-worker con prioridades. Firestore + Storage. Créditos, medición y topes. Marca de agua. Enlaces públicos revocables ("Compartir"). Vistas Mi plan / Consumo, configuración completa y campana de notificaciones (§9.6). | > 6 semanas | Opus para la arquitectura; Sonnet para la implementación |
-| Después / investigar | Re-render parcial. Reencuadre a 1:1. Exportación con alfa. Publicación directa en redes. | L | Opus (investigación) |
+| Después / investigar | ~~Re-render parcial~~ (hecho con el editor). Reencuadre a 1:1. Exportación con alfa. Publicación directa en redes. | L | Opus (investigación) |
 
 No recomendado: previews ilimitadas, prometer GPU < 30 s, ocultar estilos según la detección,
 prometer "re-render en segundos".
@@ -626,3 +626,68 @@ Ajustes respecto a la propuesta de ChatGPT:
 - **Sonnet:** las vistas A–D y su backend.
 - **Haiku:** la copia de imágenes, el set de iconos, los textos y las plantillas legales (estas
   con el texto que dé el negocio).
+
+---
+
+## 10. Vista previa mientras se edita la coreografía
+
+### 10.1 Punto de partida
+
+Hoy, cada cambio del editor se ve solo después de "Aplicar": un render parcial del tramo
+cambiado (≈ 36 s para quitar un rayo en un video de 9 s) o completo la primera vez en una versión
+preparada. La meta es que la persona vea el efecto de un cambio **al instante o en segundos**,
+antes de aplicarlo, sin que la vista previa prometa algo distinto del video final.
+
+### 10.2 Opciones evaluadas
+
+| Opción | Veredicto | Por qué |
+| --- | --- | --- |
+| Reescribir el motor en el navegador (React + WebGL/JS) | ✗ | El motor (Skia + NumPy + OpenCV) tiene decenas de efectos procedurales con memoria entre fotogramas (estelas, persistencia, cierres). Serían meses y dos motores que nunca se verían igual: la vista previa contradiría el video final. React solo arma la interfaz; dibujar es trabajo de un `<canvas>`/WebGL. |
+| **A. Capas precalculadas combinadas en el navegador** | ★★★ | El motor ya dibuja cada efecto como una capa RGBA antes de mezclarla. Guardar una capa por pista a baja resolución y mezclarlas en el navegador con WebGL hace instantáneos los cambios más comunes. |
+| **B. Vista previa rápida en el servidor** | ★★★ | Para lo que A no puede mostrar exacto (mover, agregar), rehacer 2–3 s alrededor del cabezal a baja resolución con el mismo motor. Reutiliza el render parcial del editor. |
+
+**Recomendación: A + B.** Instantáneo en el navegador para lo que se puede mostrar exacto, y
+segundos en el servidor para lo demás. "Aplicar" sigue produciendo el video final exacto.
+
+### 10.3 A · Capas por pista en el navegador
+
+- **En el render** (servidor): además del MP4, escribir por cada pista del editor un video con
+  transparencia a ~360 px de alto, por ejemplo WebM VP9 con alfa o, si el navegador no lo
+  reproduce bien (Safari), una tira de PNG/WebP por segundo. Más una capa para "todo lo demás".
+  Solo para versiones editables y con un tope de pistas (p. ej. las 12 más largas; el resto va en
+  "otros").
+- **En el editor** (web): un componente `LayerPreview` con WebGL que dibuja el video original y
+  encima las capas en mezcla aditiva, igual que el compositor (`composite/`).
+  - **Apagar / encender** una pista: la capa se oculta o se muestra. Exacto.
+  - **Color**: un shader con la misma fórmula de `engine/tint.py` (conserva luminancia y núcleos
+    blancos). Exacto o casi.
+  - **Intensidad y tamaño**: multiplicador de la capa y escala alrededor del centro, como
+    `scale_about`. Muy cercano.
+  - **Mover** en el tiempo: la capa se desplaza, pero en el video real el efecto seguiría a otra
+    pose del cuerpo. Se muestra con la etiqueta "Aproximado" y se ofrece B.
+  - **Agregar**: no hay capa todavía. Se usa B.
+- **Límites conocidos:** los efectos que interactúan entre sí (persistencia compartida, cierre en
+  estrellas) pueden diferir un poco al apagarlos; el HDR del motor se aproxima en 8 bits.
+- **Costo:** disco extra por versión editable (capas comprimidas a baja resolución, del orden de
+  unos MB por pista y minuto: hay que medirlo) y algo más de tiempo de render la primera vez.
+  Se borran con la versión.
+- **Complejidad:** M–L (escribir capas en `_write`, endpoint para servirlas con la llave `?k=`,
+  componente WebGL, sincronía con el reproductor).
+
+### 10.4 B · Vista previa rápida en el servidor
+
+- `POST /api/jobs/{id}/preview` con las ediciones pendientes y el segundo del cabezal: renderiza
+  2–3 s alrededor, a media resolución, con el motor real (`render_script` con ventana) y devuelve
+  un MP4 corto. Se dispara cuando la persona suelta una barra o agrega un efecto, con una espera
+  breve para agrupar cambios; muestra "Generando vista previa…".
+- Cola aparte y con tope diario por usuario (cada vista previa cuesta CPU, §3.5).
+- Tiempo esperado: unos 5–15 s según el video. Exacto.
+- **Complejidad:** S–M: casi todo existe (ventanas, warm-up, `apply_edits`).
+
+### 10.5 Orden y modelos
+
+1. **B primero** (S–M, Sonnet): sale casi gratis con lo que ya existe y cubre todos los cambios.
+2. **A después** (M–L): Opus para el formato de capas y la mezcla en WebGL; Sonnet para el
+   endpoint y la integración en el editor.
+3. Verificación: comparar la vista previa contra el video aplicado (diferencia media por píxel en
+   el tramo), medir el disco por pista y el tiempo de B en la máquina de producción.
