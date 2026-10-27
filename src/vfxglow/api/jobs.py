@@ -89,6 +89,10 @@ class Job(BaseModel):
     # Lo que fue pasando ("Video recibido", "Inicio del procesamiento", cada etapa), para la
     # actividad reciente de la pantalla de proceso. Hora en segundos epoch.
     activity: list[dict] = Field(default_factory=list)
+    # Editor de efectos (director/edits.py): una versión editada parte de `base` (otra versión) y
+    # le aplica `edits`. Vacío en las versiones normales.
+    edits: list[dict] = Field(default_factory=list)
+    base: str | None = None
     # Nombre del proyecto que pone la persona; sin él, el del archivo. Es de todo el proyecto
     # (el video y sus versiones): JobStore.rename lo pone en todos.
     title: str | None = None
@@ -441,6 +445,8 @@ class JobStore:
             run_shared = any(other.run_dir == job.run_dir for other in self._jobs.values())
             self._save()
         (self.outputs / f"{job_id}.mp4").unlink(missing_ok=True)
+        for leftover in self.outputs.glob(f"{job_id}.*"):
+            leftover.unlink(missing_ok=True)  # guion, momentos, gestos y tira de fotogramas del editor
         folder = Path(job.video_path).parent
         if video_shared:
             for cache in folder.glob(f"thumb-{job_id}-*.jpg"):
@@ -550,7 +556,11 @@ class JobStore:
                     kwargs["deep"] = True
                 pipeline = Pipeline(self.config, Path(job.video_path), **kwargs)
                 self._update(job.id, run_dir=str(pipeline.run_dir))
-                output = self._keep(job.id, pipeline.run())
+                if job.edits:
+                    output = self._edit(job, pipeline)
+                else:
+                    output = self._keep(job.id, pipeline.run())
+                    self._save_artifacts(job.id, pipeline)
                 finished = time.time()
                 summary["total_ms"] = round((finished - started) * 1000)
                 self._update(job.id, status="done", stage="done", progress=1.0, message="Listo", output=str(output), finished=finished, metrics=summary)
@@ -593,6 +603,104 @@ class JobStore:
             self._update(job_id, metrics=dict(summary))
 
         return changed
+
+    # ----- editor de efectos -----
+
+    def artifact(self, job_id: str, kind: str) -> Path:
+        """Lo que se guarda de cada versión para editarla: su guion (`script`), sus momentos
+        (`moments`) y los gestos con que se dibujó (`events`)."""
+        return self.outputs / f"{job_id}.{kind}.json"
+
+    def editable(self, job: Job) -> bool:
+        return job.status == "done" and job.style_kind == "catalog" and all(self.artifact(job.id, k).exists() for k in ("script", "moments", "events"))
+
+    def _save_artifacts(self, job_id: str, pipeline) -> None:
+        """Guarda el guion, los momentos y los gestos de una versión recién hecha (solo coreografías)."""
+        from vfxglow.director.choreography import Choreography
+        from vfxglow.director.edits import moments_from
+        from vfxglow.director.schema import EffectScript
+
+        scripts = Path(pipeline.run_dir) / "scripts"
+        if not (scripts / "choreography.json").exists() or not (scripts / "effect_script.json").exists():
+            return
+        script = EffectScript.model_validate_json((scripts / "effect_script.json").read_text(encoding="utf-8"))
+        choreography = Choreography.model_validate_json((scripts / "choreography.json").read_text(encoding="utf-8"))
+        moments = moments_from(script, choreography.decisions)
+        events = Path(pipeline.run_dir) / "analysis" / "events.jsonl"
+        self.artifact(job_id, "script").write_text(script.model_dump_json(), encoding="utf-8")
+        self.artifact(job_id, "moments").write_text(json.dumps([m.model_dump() for m in moments], ensure_ascii=False), encoding="utf-8")
+        lines = events.read_text(encoding="utf-8").splitlines() if events.exists() else []
+        self.artifact(job_id, "events").write_text(json.dumps([json.loads(line) for line in lines if line.strip()]), encoding="utf-8")
+
+    def edit(self, base: Job, edits: list[dict]) -> Job:
+        """Una versión nueva que parte de `base` con los cambios del editor."""
+        return self._enqueue(
+            base.model_copy(
+                update={
+                    "id": uuid.uuid4().hex[:10],
+                    "created": time.time(),
+                    "parent": base.parent or base.id,
+                    "base": base.id,
+                    "edits": edits,
+                    "status": "queued",
+                    "stage": "queued",
+                    "progress": 0.0,
+                    "message": "En cola",
+                    "log": [],
+                    "error": None,
+                    "error_code": None,
+                    "started": None,
+                    "finished": None,
+                    "output": None,
+                    "metrics": {},
+                    "trace_id": telemetry.new_trace_id(),
+                    "activity": [{"at": time.time(), "text": "Cambios del editor recibidos", "detail": f"{len(edits)} cambio(s) sobre la versión anterior"}],
+                },
+                deep=True,
+            )
+        )
+
+    def _edit(self, job: Job, pipeline) -> Path:
+        """Aplica los cambios al guion de la versión base y dibuja solo el tramo que cambia; el
+        resto se copia del video de la base (director/edits.py)."""
+        from vfxglow.analysis.schema import MotionEvent
+        from vfxglow.director.edits import Edit, Moment, apply_edits, assign_tracks, changed_window
+        from vfxglow.director.schema import EffectScript
+
+        base = job.base or ""
+        with telemetry.span("direct", provider="editor"):
+            script = EffectScript.model_validate_json(self.artifact(base, "script").read_text(encoding="utf-8"))
+            moments = [Moment.model_validate(m) for m in json.loads(self.artifact(base, "moments").read_text(encoding="utf-8"))]
+            events = [MotionEvent.model_validate(e) for e in json.loads(self.artifact(base, "events").read_text(encoding="utf-8"))]
+            meta = pipeline._meta()
+            fps, frames = meta.fps or 30.0, meta.frame_count
+            tracks = assign_tracks(moments, pipeline.element_of())
+            new, new_moments, _styles = apply_edits(
+                script,
+                moments,
+                tracks,
+                [Edit.model_validate(e) for e in job.edits],
+                events,
+                fps,
+                frames,
+                compile_add=lambda option, action, frame, length, person: pipeline.compile_add(option, action, frame, length, person, script.seed),
+                main_track=pipeline.edit_catalog().element or None,
+            )
+            window = changed_window(script, new, events, frames, fps)
+            self.artifact(job.id, "script").write_text(new.model_dump_json(), encoding="utf-8")
+            self.artifact(job.id, "moments").write_text(json.dumps([m.model_dump() for m in new_moments], ensure_ascii=False), encoding="utf-8")
+            shutil.copy2(self.artifact(base, "events"), self.artifact(job.id, "events"))
+        dest = self.outputs / f"{job.id}.mp4"
+        base_video = self.outputs / f"{base}.mp4"
+        if window is None and base_video.exists():
+            # Nada que cambie en pantalla: la versión nueva es la misma imagen.
+            return self._keep(job.id, base_video)
+        partial = window is not None and window != (0, frames - 1) and base_video.exists()
+        with telemetry.span("compose", streamed=True, partial=partial, window=list(window) if window else None):
+            pipeline.render_script(new, dest, base_output=base_video if partial else None, window=window if partial else None, events=events)
+        summary_window = {"window_frames": (window[1] - window[0] + 1) if window else 0, "total_frames": frames, "partial": partial}
+        self._note(job.id, "Tramo redibujado" if partial else "Video redibujado completo", f"{summary_window['window_frames']} de {frames} fotogramas")
+        return dest
 
     def _keep(self, job_id: str, output: Path) -> Path:
         """El MP4 del trabajo en api_data/outputs/<id>.mp4. Enlace duro si se puede (el pipeline

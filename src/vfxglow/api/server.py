@@ -234,6 +234,8 @@ def _check_season(season: str | None) -> None:
 class JobView(Job):
     # Etiquetas del estilo (y de la temporada) para las tarjetas de Mis proyectos.
     tags: list[str] = []
+    # Se puede abrir en el editor de efectos (coreografía terminada con su guion guardado).
+    editable: bool = False
     duration: float | None = None
     # Segundos que se espera que tarde, y cuántos trabajos van antes en la cola (un solo trabajador).
     estimate_s: float | None = None
@@ -275,6 +277,7 @@ def view(job: Job) -> JobView:
     return JobView(
         **data,
         tags=_tags(job),
+        editable=jobs().editable(job),
         estimate_s=jobs().estimate(job) if waiting else None,
         queue_ahead=jobs().queue_ahead(job) if job.status == "queued" else 0,
         duration=(job.finished or 0) - job.started if job.started and job.finished else None,
@@ -461,6 +464,166 @@ def cancel_job(job_id: str, user: User = Depends(current_user)) -> dict:
     if outcome == "none":
         raise HTTPException(409, "Este video ya no está en proceso: no hay nada que cancelar.")
     return {"status": outcome}
+
+
+# ----- editor de efectos (director/edits.py) -----
+
+
+class EditorMoment(BaseModel):
+    id: str
+    start: float
+    end: float
+    choice: str
+    action: str
+    person: str | None = None
+    note: str = ""
+
+
+class EditorTrack(BaseModel):
+    key: str
+    label: str
+    icon: str
+    color: str
+    element: str | None = None
+    start: float
+    end: float
+    moments: list[EditorMoment]
+
+
+class EditorOption(BaseModel):
+    option: str
+    action: str
+    track: str
+
+
+class EditorView(BaseModel):
+    job_id: str
+    fps: float
+    frames: int
+    duration: float
+    tracks: list[EditorTrack]
+    options: list[EditorOption]
+
+
+def _editor_catalog(job: Job):
+    """El catálogo con que se hizo la versión (vestuario, temporada y looks incluidos)."""
+    from vfxglow.config import load_config
+    from vfxglow.director.director import CreativeDirector
+
+    director = load_config(CONFIG).director.model_copy(
+        update={"provider": "catalog", "catalog": job.style, "season": job.season, "fire_style": job.fire_style, "bolt_style": job.bolt_style, "wardrobe": dict(job.wardrobe)}
+    )
+    return CreativeDirector(director, ROOT / "configs" / "presets").catalog()
+
+
+def _video_timing(job: Job) -> tuple[float, int]:
+    cap = cv2.VideoCapture(job.video_path)
+    fps = float(cap.get(cv2.CAP_PROP_FPS) or 30.0) or 30.0
+    frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+    cap.release()
+    return fps, frames
+
+
+@app.get("/api/jobs/{job_id}/editor", response_model=EditorView)
+def job_editor(job_id: str, user: User = Depends(current_user)) -> EditorView:
+    """Las pistas y los momentos de una versión para el editor, y lo que se le puede agregar."""
+    from vfxglow.director.edits import Moment, assign_tracks, element_lookup
+
+    job = _job(job_id, user)
+    if not jobs().editable(job):
+        raise HTTPException(409, "Esta versión no se puede editar: solo las coreografías terminadas desde que existe el editor. Crea otra versión para editarla.")
+    catalog = _editor_catalog(job)
+    element_of = element_lookup(catalog)
+    moments = [Moment.model_validate(m) for m in json.loads(jobs().artifact(job.id, "moments").read_text(encoding="utf-8"))]
+    tracks = assign_tracks(moments, element_of)
+    fps, frames = _video_timing(job)
+    by_id = {m.id: m for m in moments}
+    views = []
+    for track in tracks:
+        items = [by_id[mid] for mid in track.moments]
+        views.append(
+            EditorTrack(
+                **track.model_dump(exclude={"moments"}),
+                start=round(min(m.frame for m in items) / fps, 2),
+                end=round(max(m.until for m in items) / fps, 2),
+                moments=[
+                    EditorMoment(id=m.id, start=round(m.frame / fps, 2), end=round(max(m.until, m.frame) / fps, 2), choice=m.choice, action=m.action, person=m.target.split(":")[0] if m.target.startswith("person_") else None, note=m.note)
+                    for m in sorted(items, key=lambda m: m.frame)
+                ],
+            )
+        )
+    keys = {t.key for t in tracks}
+    options = []
+    for reaction in catalog.reactions:
+        for option in reaction.options:
+            if not option.effects:
+                continue
+            element = element_of(option.name, reaction.action) or ""
+            track = element if element and any(t.element for t in tracks) else (option.name if option.name in keys else "otros")
+            options.append(EditorOption(option=option.name, action=reaction.action, track=track))
+    return EditorView(job_id=job.id, fps=fps, frames=frames, duration=round(frames / fps, 2), tracks=views, options=options)
+
+
+class EditRequest(BaseModel):
+    edits: list[dict]
+
+
+@app.post("/api/jobs/{job_id}/edit", response_model=JobView, status_code=201)
+def edit_job(job_id: str, body: EditRequest, user: User = Depends(current_user)) -> JobView:
+    """Crea una versión nueva con los cambios del editor. Se validan antes de encolar: un cambio
+    imposible responde 422 con el motivo."""
+    from vfxglow.director.edits import Edit, Moment, apply_edits, assign_tracks, element_lookup
+    from vfxglow.director.schema import EffectScript
+
+    job = _job(job_id, user)
+    if not jobs().editable(job):
+        raise HTTPException(409, "Esta versión no se puede editar.")
+    if not body.edits:
+        raise HTTPException(422, "No hay cambios que aplicar.")
+    try:
+        edits = [Edit.model_validate(e) for e in body.edits]
+    except ValueError as error:
+        raise HTTPException(422, f"Cambio no válido: {error}") from error
+    # Un efecto nuevo se compila en el trabajo (necesita el análisis); sin él, se prueba todo aquí.
+    if not any(e.op == "add" for e in edits):
+        from vfxglow.analysis.schema import MotionEvent
+
+        script = EffectScript.model_validate_json(jobs().artifact(job.id, "script").read_text(encoding="utf-8"))
+        moments = [Moment.model_validate(m) for m in json.loads(jobs().artifact(job.id, "moments").read_text(encoding="utf-8"))]
+        events = [MotionEvent.model_validate(e) for e in json.loads(jobs().artifact(job.id, "events").read_text(encoding="utf-8"))]
+        fps, frames = _video_timing(job)
+        try:
+            catalog = _editor_catalog(job)
+            apply_edits(script, moments, assign_tracks(moments, element_lookup(catalog)), edits, events, fps, frames, main_track=catalog.element or None)
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from error
+    limits.check_quota(user, jobs().list(user.uid), jobs().list(), deep=False)
+    return view(jobs().edit(job, [e.model_dump(exclude_none=True) for e in edits]))
+
+
+@app.get("/api/jobs/{job_id}/filmstrip")
+def job_filmstrip(job_id: str, n: int = Query(12, ge=4, le=24), k: str | None = Query(None)) -> Response:
+    """Tira de N fotogramas del video editado (o del original), para la línea de tiempo del editor."""
+    import numpy as np
+
+    job = _media_job(job_id, k)
+    source = job.output if job.output and Path(job.output).exists() else job.video_path
+    cache = jobs().outputs / f"{job.id}.filmstrip-{n}.jpg"
+    if not cache.exists():
+        cap = cv2.VideoCapture(source)
+        total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+        tiles = []
+        for i in range(n):
+            cap.set(cv2.CAP_PROP_POS_FRAMES, int((i + 0.5) * total / n))
+            ok, frame = cap.read()
+            if ok:
+                height = 96
+                tiles.append(cv2.resize(frame, (max(int(frame.shape[1] * height / frame.shape[0]), 1), height), interpolation=cv2.INTER_AREA))
+        cap.release()
+        if not tiles:
+            raise HTTPException(404, "Sin fotogramas")
+        cv2.imwrite(str(cache), np.hstack(tiles), [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+    return FileResponse(cache, media_type="image/jpeg")
 
 
 class RenameRequest(BaseModel):
