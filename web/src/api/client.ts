@@ -1,5 +1,5 @@
 import { idToken } from "../auth/firebase";
-import type { EditOp, EditorView, PreviewView, Season, Job, Limits, Looks, Moment, Person, Style, StyleKind, UploadView, Wardrobe } from "./types";
+import type { StudioPreviewOpts, EditOp, EditorView, PreviewView, Season, Job, Limits, Looks, Moment, Person, Style, StyleKind, UploadView, Wardrobe } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -132,6 +132,10 @@ export const api = {
   },
   getUpload: (id: string) => request<UploadView>(`/api/uploads/${id}`),
   deleteUpload: (id: string) => request<void>(`/api/uploads/${id}`, { method: "DELETE" }),
+  /** Pide ~3 s con efectos reales del estilo elegido sobre una subida lista; no crea trabajo. */
+  uploadPreview: (uploadId: string, opts: StudioPreviewOpts) =>
+    request<PreviewView>(`/api/uploads/${uploadId}/preview`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(opts) }),
+  getUploadPreview: (uploadId: string, previewId: string) => request<PreviewView>(`/api/uploads/${uploadId}/preview/${previewId}`),
 
   variation: (
     id: string,

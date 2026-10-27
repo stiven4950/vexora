@@ -265,3 +265,12 @@ export interface PreviewView {
   end: number;
   error: string | null;
 }
+
+/** Pedido de la vista previa del Estudio (POST /api/uploads/{id}/preview): el estilo elegido sobre la subida ya analizada. */
+export interface StudioPreviewOpts {
+  style: string;
+  season?: string | null;
+  fire_style?: string | null;
+  bolt_style?: string | null;
+  wardrobe?: Record<string, string> | null;
+}

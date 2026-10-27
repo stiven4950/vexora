@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { approx, mmss } from "../api/format";
-import type { Style } from "../api/types";
+import type { Style, StudioPreviewOpts } from "../api/types";
 import { rgb } from "../api/format";
 import { PLAN, PREVIEW_WITH_EFFECTS_NOTE } from "../mocks/pendientes";
 import { Button } from "./Button";
@@ -9,6 +9,7 @@ import { Icon } from "./Icon";
 import { NeonPreview } from "./NeonPreview";
 import { Segmented } from "./Segmented";
 import type { VideoMeta } from "./Dropzone";
+import { OWN_ANALYSIS_NEEDS, PREVIEW_ESTIMATE_S, useStudioPreview } from "./useStudioPreview";
 import styles from "./StudioAside.module.css";
 
 interface Props {
@@ -20,6 +21,9 @@ interface Props {
   analysis: string;
   looks: string | null;
   upload: number | null;
+  /** La subida ya analizada y lo elegido, para la vista previa real (null = aún no se puede pedir). */
+  previewUpload: string | null;
+  previewOpts: StudioPreviewOpts | null;
   /** La subida anticipada y su análisis (null = no hay video). */
   earlyStatus: { text: string; phase: "uploading" | "analyzing" | "ready" | "failed" } | null;
   error: string | null;
@@ -39,9 +43,10 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 /** La columna fija del Estudio: vista previa, datos del video, resumen del proyecto y el botón de crear. */
-export function StudioAside({ file, meta, style, season, wardrobe, analysis, looks, upload, earlyStatus, error, canLaunch, onLaunch }: Props) {
+export function StudioAside({ file, meta, style, season, wardrobe, analysis, looks, upload, previewUpload, previewOpts, earlyStatus, error, canLaunch, onLaunch }: Props) {
   const [view, setView] = useState<View>("original");
   const [url, setUrl] = useState<string | null>(null);
+  const clip = useStudioPreview(previewUpload, previewOpts, !!style?.needs.some((need) => OWN_ANALYSIS_NEEDS.includes(need)));
   useEffect(() => {
     if (!file) {
       setUrl(null);
@@ -74,7 +79,6 @@ export function StudioAside({ file, meta, style, season, wardrobe, analysis, loo
           onChange={setView}
           options={[
             { id: "original", label: "Original" },
-            // PENDIENTE(fase 2): la vista previa real "Con efectos" (§3.1 del análisis, por ventana).
             { id: "effects", label: "Con efectos", disabled: !file, title: file ? PREVIEW_WITH_EFFECTS_NOTE : "Carga un video primero" },
           ]}
         />
@@ -82,12 +86,46 @@ export function StudioAside({ file, meta, style, season, wardrobe, analysis, loo
           {url ? (
             <>
               <video src={url} controls playsInline muted loop />
-              {view === "effects" && style && (
+              {view === "effects" && !previewUpload && style && (
                 <>
-                  {/* Muestra del estilo sobre tu video: no es el resultado, que se ve al terminar. */}
+                  {/* PENDIENTE(fase 2): respaldo sin subida analizada. Muestra del estilo sobre tu video: no es el resultado. */}
                   <NeonPreview palette={style.palette} seed={style.name.length * 7} active className={styles.overlay} />
                   <span className={styles.sample}>Muestra del estilo · el resultado real llega al terminar</span>
                 </>
+              )}
+              {view === "effects" && previewUpload && (
+                <div className={styles.clip}>
+                  {clip.ready?.url && (
+                    <>
+                      <video key={clip.ready.url} src={clip.ready.url} autoPlay muted loop playsInline controls />
+                      <span className={styles.sample}>Vista previa · 3 s</span>
+                    </>
+                  )}
+                  {!clip.ready && (
+                    <div className={styles.clipAsk}>
+                      {clip.generating ? (
+                        <span role="status">Generando vista previa…</span>
+                      ) : clip.blocked ? (
+                        <span>Este estilo se ve al crear los efectos</span>
+                      ) : !previewOpts ? (
+                        <span>Elige un estilo para ver cómo queda</span>
+                      ) : (
+                        <>
+                          {clip.outdated && <small>Cambiaste el estilo o las opciones: la vista previa quedó desactualizada.</small>}
+                          {clip.error && <small role="alert">{clip.error}</small>}
+                          <Button icon="play" onClick={() => void clip.start()}>
+                            Ver con efectos (≈ {PREVIEW_ESTIMATE_S} s)
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  {clip.ready && (
+                    <button type="button" className={styles.clipAgain} onClick={() => void clip.start()}>
+                      Volver a generar
+                    </button>
+                  )}
+                </div>
               )}
             </>
           ) : (

@@ -5,7 +5,7 @@ import { ApiError, api } from "../api/client";
 import { rgb } from "../api/format";
 import { askPermission } from "../api/notify";
 import { fromView, pickSurprise, recommendationOf, uploadStatusText, warningsOf, type UploadState } from "../api/upload";
-import { WARDROBES, type Limits, type Looks, type Season, type Style, type Wardrobe } from "../api/types";
+import { WARDROBES, type Limits, type Looks, type Season, type Style, type StudioPreviewOpts, type Wardrobe } from "../api/types";
 import { ChoiceCard } from "../components/ChoiceCard";
 import { Dropzone, problems, type VideoMeta } from "../components/Dropzone";
 import { Icon } from "../components/Icon";
@@ -213,6 +213,12 @@ export function Studio() {
   };
   const waitingAnalysis = early?.phase === "analyzing" || early?.phase === "uploading";
 
+  // La vista previa real: con la subida lista y un estilo del catálogo elegido.
+  const previewUpload = early?.phase === "ready" ? (early.view?.id ?? null) : null;
+  const previewOpts: StudioPreviewOpts | null =
+    previewUpload && chosen && isCatalog
+      ? { style: chosen.name, season, fire_style: hasFire ? fireStyle : null, bolt_style: hasBolt ? boltStyle : null, wardrobe: wardrobe !== "ninguno" ? { "*": wardrobe } : null }
+      : null;
   const seasonTitle = seasonList.find((s) => s.id === season)?.title ?? null;
   const lookSummary = [hasFire && fireStyle && looks.fuego.find((l) => l.id === fireStyle)?.title, hasBolt && boltStyle && looks.rayo.find((l) => l.id === boltStyle)?.title].filter(Boolean).join(" / ");
 
@@ -428,6 +434,8 @@ export function Studio() {
 
         <StudioAside
           file={file}
+          previewUpload={previewUpload}
+          previewOpts={previewOpts}
           meta={meta}
           style={chosen}
           season={seasonTitle}

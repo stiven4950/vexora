@@ -29,7 +29,8 @@ export const PLAN = { name: "Free", creditsLeft: 3, creditsTotal: 5, creditsPerR
 // estos estilos. Con análisis, el Estudio usa la recomendación real del servidor.
 export const SURPRISE_STYLES = ["avatar", "baile", "pelea"] as const;
 
-// PENDIENTE(fase 2): vista previa "Con efectos" por ventana (§3.1). Hoy no hay render de muestra.
+// PENDIENTE(fase 2): respaldo de la vista previa "Con efectos" cuando aún no hay subida analizada: un
+// fotograma de demostración del estilo. Con subida lista, el Estudio genera ~3 s reales (§3.1).
 export const PREVIEW_WITH_EFFECTS_NOTE = "Disponible tras el análisis del video.";
 
 // PENDIENTE(fase 3): testimonios reales con permiso. Con nombre e inventados no se publican:
