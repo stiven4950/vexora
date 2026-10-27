@@ -162,6 +162,11 @@ se conservan.
 - API: `GET /api/jobs/{id}/editor` (pistas, momentos y opciones para agregar), `POST
   /api/jobs/{id}/edit` (`{edits: [...]}`; un cambio imposible responde 422) y
   `GET /api/jobs/{id}/filmstrip?n=12` (tira de fotogramas).
+- Vista previa antes de aplicar: `POST /api/jobs/{id}/preview` (`{edits, at}`) dibuja 3 s alrededor
+  del cabezal con el motor real, sin crear versión (≈ 35 s; en caché, al instante). Comparte una
+  cuota diaria por usuario (`VEXORA_DAILY_PREVIEWS`, 60) con la del Estudio.
+- Versiones del proyecto (`/app/projects/<id>/versions`): comparador A/B en cortina o lado a lado y
+  tabla de diferencias.
 
 ## Análisis al subir y recomendación de estilo
 
@@ -175,7 +180,13 @@ el trabajo espera a que termine: hay un candado por carpeta de análisis) y no s
   parte del video → Baile; dos personas con contacto → Pelea; hojas detectadas → Espadas;
   volteretas o mucha energía → Fuego o Rayo; siempre Avatar al final. Lo usa "Sorpréndeme con IA".
 - Máximo 3 subidas analizándose por usuario; las que no se usan caducan a las 24 h.
-- API: `POST /api/uploads`, `GET /api/uploads/{id}` (estado y recomendación) y
+- Con la subida lista se calculan avisos de calidad (`analysis/quality.py`): nadie a la vista,
+  seguimiento pobre, cuerpo fuera de cuadro, persona pequeña, mucha gente, video corto. Avisan, no
+  bloquean.
+- "Con efectos" en el Estudio: `POST /api/uploads/{id}/preview` dibuja ~3 s del tramo más activo con
+  el estilo elegido (≈ 30 s), sin crear trabajo ni escribir en la carpeta de `runs/`. No está
+  disponible en estilos con `needs` (analizan el video a su manera).
+- API: `POST /api/uploads`, `GET /api/uploads/{id}` (estado, recomendación y avisos) y
   `DELETE /api/uploads/{id}`.
 
 ## Trazabilidad (eventos JSON)
