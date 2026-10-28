@@ -10,6 +10,7 @@ import { ChoiceCard } from "../components/ChoiceCard";
 import { Dropzone, problems, type VideoMeta } from "../components/Dropzone";
 import { Icon } from "../components/Icon";
 import { NeonPreview } from "../components/NeonPreview";
+import { SeasonEmblem } from "../components/SeasonEmblem";
 import { Shell } from "../components/Shell";
 import { StepCard } from "../components/StepCard";
 import { StudioAside } from "../components/StudioAside";
@@ -332,7 +333,7 @@ export function Studio() {
               note={suggested ? `Estamos en temporada de ${suggested.title} ${suggested.emoji}: añade un toque especial a tu estilo.` : "Añade un toque especial a tu estilo."}
             >
               <div className={styles.seasons}>
-                <Tile selected={season === null} onSelect={() => setSeason(null)} icon={<span aria-hidden="true">✕</span>} label="Sin temporada" />
+                <Tile selected={season === null} onSelect={() => setSeason(null)} art={(active) => <SeasonEmblem season={null} active={active} />} label="Sin temporada" />
                 {[...seasonList]
                   .sort((a, b) => Number(b.suggested) - Number(a.suggested))
                   .map((s) => (
@@ -340,7 +341,7 @@ export function Studio() {
                       key={s.id}
                       selected={season === s.id}
                       onSelect={() => setSeason(s.id)}
-                      icon={<span aria-hidden="true">{s.emoji}</span>}
+                      art={(active) => <SeasonEmblem season={s.id} active={active} />}
                       label={s.title}
                       title={s.description}
                       ribbon={s.suggested ? "De temporada" : undefined}

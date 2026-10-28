@@ -11,10 +11,10 @@ interface Props {
 }
 
 /** Ids únicos por emblema: varios en la misma página no comparten degradados ni filtros. */
-type Ref = (name: string) => { id: string; url: string };
+export type Ref = (name: string) => { id: string; url: string };
 
 /** Fondo oscuro teñido con el color del estilo, desde `cx`/`cy` (en %). */
-function Backdrop({ r, colors, cx = 50, cy = 45 }: { r: Ref; colors: [string, string]; cx?: number; cy?: number }) {
+export function Backdrop({ r, colors, cx = 50, cy = 45 }: { r: Ref; colors: [string, string]; cx?: number; cy?: number }) {
   const bg = r("bg");
   return (
     <>
@@ -28,7 +28,7 @@ function Backdrop({ r, colors, cx = 50, cy = 45 }: { r: Ref; colors: [string, st
   );
 }
 
-function Glow({ r, blur }: { r: Ref; blur: number }) {
+export function Glow({ r, blur }: { r: Ref; blur: number }) {
   return (
     <filter id={r("glow").id} x="-60%" y="-60%" width="220%" height="220%">
       <feGaussianBlur stdDeviation={blur} />

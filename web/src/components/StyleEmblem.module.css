@@ -10,9 +10,18 @@
 .bob,
 .pulse,
 .burst,
-.glint {
+.glint,
+.beat,
+.rise path,
+.drift path {
   transform-box: fill-box;
   transform-origin: center;
+}
+
+/* La esfera de Navidad cuelga de su gancho. */
+.swing {
+  transform-box: fill-box;
+  transform-origin: center top;
 }
 
 /* Quietas hasta que el estilo se elige o tiene el cursor encima. */
@@ -67,6 +76,94 @@
 
 .active .glint {
   animation: pulse 0.9s ease-in-out infinite alternate;
+}
+
+.active .swing {
+  animation: swing 2.6s ease-in-out infinite alternate;
+}
+
+.active .drift path {
+  animation: drift 3s ease-in-out infinite alternate;
+}
+
+.active .drift path:nth-child(2) {
+  animation-delay: -1.5s;
+}
+
+.active .snow circle {
+  animation: snow 3.2s linear infinite;
+}
+
+.active .snow circle:nth-child(2n) {
+  animation-delay: -1.6s;
+}
+
+.active .snow circle:nth-child(3n) {
+  animation-delay: -0.8s;
+}
+
+.active .beat {
+  animation: beat 1.1s ease-in-out infinite;
+}
+
+.active .rise path {
+  animation: rise 2.8s ease-in infinite;
+}
+
+.active .rise path:nth-child(2) {
+  animation-delay: -0.9s;
+}
+
+.active .rise path:nth-child(3) {
+  animation-delay: -1.8s;
+}
+
+@keyframes swing {
+  from {
+    transform: rotate(-5deg);
+  }
+  to {
+    transform: rotate(5deg);
+  }
+}
+
+@keyframes drift {
+  from {
+    transform: translate(-4px, 2px) scaleY(1);
+  }
+  to {
+    transform: translate(6px, -4px) scaleY(0.7);
+  }
+}
+
+@keyframes snow {
+  from {
+    transform: translateY(-12px);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  to {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+}
+
+@keyframes beat {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  15% {
+    transform: scale(1.08);
+  }
+  30% {
+    transform: scale(0.98);
+  }
+  45% {
+    transform: scale(1.05);
+  }
 }
 
 @keyframes spin {

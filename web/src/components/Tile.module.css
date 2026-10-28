@@ -74,3 +74,31 @@
   font-weight: 700;
   white-space: nowrap;
 }
+
+/* Con ilustración: la franja arriba, de borde a borde, y el nombre y los colores debajo. */
+.withArt {
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 0 12px;
+  overflow: hidden;
+}
+
+.art {
+  display: block;
+  width: 100%;
+  height: 92px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 80%, transparent);
+  mask-image: linear-gradient(to bottom, #000 80%, transparent);
+}
+
+.art svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* La cinta va dentro de la tarjeta: con overflow oculto se cortaría fuera. */
+.withArt .ribbon {
+  top: 6px;
+  z-index: 1;
+}
+
