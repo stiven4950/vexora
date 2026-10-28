@@ -468,6 +468,15 @@ reactions:
     weight: 0.2
 - action: hands_on_head
   options:
+  # video_41, seg. 12,1: la mano sobre la cabeza y la cara de calavera con ojos en X; si después
+  # una mano tapa la cara, la calavera se apaga y se contornea la mano.
+  - name: calavera
+    weight: 0.3
+    cooldown: 600
+    effects:
+    - type: face_toon
+      style: {shapes: [skull], thickness: 0.012}
+      trigger: {hold: 20, fade_in: 2, fade_out: 6}
   - name: diablo
     weight: 0.35
     effects:

@@ -11,6 +11,11 @@ la gorra puesta y la mano en la cara, Face Mesh se pierde justo en esos fotogram
     en la sien), `exclaim` ("!!"), `question` ("?"), `anger` (marca de enojo y nubecita) y
     `heart_eyes` (corazones en los ojos). Se elige una por activación; con la boca abierta
     gana "!!".
+  - Máscaras (video_41: la cara entera contorneada cuando las manos van a la cara): `skull`
+    (calavera: ojos en X, nariz de hueco y boca con dientes, seg. 12,1), `prank` (burla: ojos en
+    X y la lengua afuera, seg. 16,2) y `shock` (asombro: ojos redondos grandes con pupila y boca
+    chiquita, seg. 21,9). Si una mano se pone encima de la cara, la máscara se apaga y se
+    contornea la mano con sus dedos: la mano le gana a la cara (seg. 13,0).
 - Disparada por `face_touch`, cuando la mano se aparta (después de `end_frame`) llega el
   "jalón": los labios viajan hasta los dedos y los ojos y el tinte se estiran hacia la mano.
 """
@@ -33,7 +38,11 @@ def _face_neon(*args, **kwargs) -> list:
     return neon_layers(*args, halo=FACE_HALO, **kwargs)
 
 
-SHAPES = ("tint", "kiss", "caricature", "sweat", "exclaim", "question", "anger", "heart_eyes")
+MASKS = ("skull", "prank", "shock")
+SHAPES = ("tint", "kiss", "caricature", "sweat", "exclaim", "question", "anger", "heart_eyes") + MASKS
+FINGERS = ("thumb", "index", "middle", "ring", "pinky")
+# Ancho de un dedo de la mano contorneada, en tamaños de cara.
+FINGER_WIDTH = 0.09
 # Expresiones: una por activación. Con la boca abierta (malla facial) gana la sorpresa ("!!").
 EMOTES = ("sweat", "exclaim", "question", "anger", "heart_eyes")
 MOUTH_OPEN = 0.12  # separación de los labios internos, en tamaños de cara
@@ -179,6 +188,13 @@ def draw_face_toon(runtime, track, points, frame_index: int, height: int, envelo
         emotes = [name for name in EMOTES if name in shapes]
         if emotes:
             strokes += _emote(_pick_emote(emotes, points, size, event, style, frame_index), face, pts, frame_index, color, line, envelope)
+        masks = [name for name in MASKS if name in shapes]
+        if masks:
+            covered, gloves = _hands_over(person, face, size, width, height)
+            for glove in gloves:
+                strokes += _face_neon(glove, color, line, envelope * covered)
+            if covered < 1.0:
+                strokes += _mask(masks[0], face, pts, color, line, envelope * (1.0 - covered), layer)
         if "caricature" in shapes:
             jaw = catmull_rom(face.place(_JAW), 6)
             strokes += _face_neon(jaw, color, line, envelope)
@@ -249,3 +265,90 @@ def _emote(name: str, face: FaceFrame, pts, frame_index: int, color, line: float
             local = np.linalg.lstsq(np.stack([face.x, face.y], axis=1), (pts[eye] - face.origin), rcond=None)[0] / face.size
             strokes += _face_neon(face.place(_heart_local((float(local[0]), float(local[1])), 0.11 * pulse)), color, line, envelope)
     return strokes
+
+
+def _local(face: FaceFrame, point: np.ndarray) -> np.ndarray:
+    """Un punto de la imagen en coordenadas de la cara."""
+    return np.linalg.lstsq(np.stack([face.x, face.y], axis=1), point - face.origin, rcond=None)[0] / face.size
+
+
+def _circle(center: tuple[float, float], rx: float, ry: float | None = None, n: int = 24) -> np.ndarray:
+    t = np.linspace(0, 2 * np.pi, n)
+    return np.stack([center[0] + rx * np.cos(t), center[1] + (ry if ry is not None else rx) * np.sin(t)], axis=1)
+
+
+def _mask(name: str, face: FaceFrame, pts, color, line: float, envelope: float, layer: np.ndarray) -> list:
+    """La cara entera contorneada con los ojos y la boca de la máscara."""
+    if envelope <= 0:
+        return []
+    strokes = _face_neon(np.vstack([_ellipse(face), _ellipse(face)[:1]]), color, line, envelope)
+    eyes = [tuple(_local(face, pts[eye])) for eye in ("left_eye", "right_eye")]
+    for ex, ey in eyes:
+        if name in ("skull", "prank"):
+            for sign in (1.0, -1.0):
+                cross = np.array([[ex - 0.07, ey + 0.07 * sign], [ex + 0.07, ey - 0.07 * sign]])
+                strokes += _face_neon(face.place(cross), color, line, envelope)
+        else:
+            strokes += _face_neon(face.place(_circle((ex, ey), 0.1, 0.12)), color, line, envelope)
+            pupil = face.place(_circle((ex, ey - 0.02), 0.035, n=12))
+            fill_polygon(layer, pupil, color, envelope, 1.2, feather=1.0)
+    if name == "skull":
+        strokes += _face_neon(face.place(np.array([(0.0, -0.18), (-0.06, -0.3), (0.06, -0.3), (0.0, -0.18)])), color, line, envelope)
+        strokes += _face_neon(face.place(np.array([(-0.2, -0.5), (0.2, -0.5)])), color, line, envelope)
+        for x in np.linspace(-0.15, 0.15, 5):  # los dientes
+            strokes += _face_neon(face.place(np.array([(x, -0.44), (x, -0.56)])), color, line * 0.8, envelope)
+    elif name == "prank":
+        t = np.linspace(0, np.pi, 14)
+        grin = np.stack([0.2 * np.cos(t), -0.42 - 0.12 * np.sin(t)], axis=1)
+        strokes += _face_neon(face.place(np.vstack([grin, grin[:1]])), color, line, envelope)
+        tongue = np.stack([0.08 * np.cos(t + np.pi), -0.5 - 0.06 - 0.16 * np.sin(t)], axis=1)  # cuelga de la boca
+        tongue = np.vstack([[(-0.08, -0.5)], tongue, [(0.08, -0.5)]])
+        strokes += _face_neon(face.place(tongue), color, line, envelope)
+        strokes += _face_neon(face.place(np.array([(0.0, -0.53), (0.0, -0.62)])), color, line * 0.7, envelope)
+    else:
+        strokes += _face_neon(face.place(_circle((0.0, -0.5), 0.06, 0.09, 16)), color, line, envelope)
+    return strokes
+
+
+def _finger_outline(chain: list[np.ndarray], half: float) -> np.ndarray:
+    """Contorno de un dedo: dos bordes a lo largo de la cadena y la yema redonda."""
+    path = np.array(chain, dtype=np.float64)
+    tangent = np.gradient(path, axis=0)
+    normal = np.stack([-tangent[:, 1], tangent[:, 0]], axis=1)
+    normal /= np.maximum(np.linalg.norm(normal, axis=1, keepdims=True), 1e-6)
+    left, right = path + normal * half, path - normal * half
+    tip, ahead = path[-1], tangent[-1] / max(float(np.linalg.norm(tangent[-1])), 1e-6)
+    t = np.linspace(0, np.pi, 8)
+    cap = tip + np.outer(np.cos(t), normal[-1] * half) + np.outer(np.sin(t), ahead * half)
+    return np.vstack([left, cap, right[::-1]])
+
+
+def _hands_over(person, face: FaceFrame, size: float, width: int, height: int) -> tuple[float, list[np.ndarray]]:
+    """(cuánto tapa la mano la cara 0-1, contornos de las manos que la tapan). Una mano tapa la
+    cara cuando la mayoría de sus yemas caen dentro del óvalo de la cara."""
+    import cv2
+
+    oval = _ellipse(face).astype(np.float32).reshape(-1, 1, 2)
+    covered, gloves = 0.0, []
+    for side in ("left", "right"):
+        hand = person.left_hand if side == "left" else person.right_hand
+        if hand is None or not hand.landmarks:
+            continue
+        lm = {l.name.replace(f"{side}_", ""): np.array([l.x * width, l.y * height]) for l in hand.landmarks}
+        tips = [lm[f"{f}_tip"] for f in FINGERS if f"{f}_tip" in lm]
+        if len(tips) < 3:
+            continue
+        inside = sum(cv2.pointPolygonTest(oval, (float(t[0]), float(t[1])), False) >= 0 for t in tips) / len(tips)
+        if inside < 0.5:
+            continue
+        covered = max(covered, float(np.clip((inside - 0.5) * 4.0, 0.0, 1.0)))
+        half = FINGER_WIDTH * size / 2
+        for finger in FINGERS:
+            joints = ("cmc", "mcp", "ip", "tip") if finger == "thumb" else ("mcp", "pip", "dip", "tip")
+            chain = [lm[f"{finger}_{j}"] for j in joints if f"{finger}_{j}" in lm]
+            if len(chain) >= 2:
+                gloves.append(_finger_outline(chain, half))
+        palm = [lm[k] for k in ("index_mcp", "wrist", "pinky_mcp") if k in lm]
+        if len(palm) == 3:
+            gloves.append(np.array(palm))
+    return covered, gloves

@@ -102,3 +102,26 @@ def test_expressions_draw_and_surprise_wins_with_open_mouth() -> None:
     style = EffectStyle(shapes=list(EMOTES))
     open_mouth = {"face_13": np.array([200.0, 170.0]), "face_14": np.array([200.0, 190.0])}
     assert _pick_emote(list(EMOTES), open_mouth, 50.0, None, style, 0) == "exclaim"
+
+
+def test_masks_draw_and_a_hand_on_top_takes_over() -> None:
+    from vfxglow.engine.face_toon import MASKS, FINGERS
+
+    def open_hand(x: float, y: float) -> HandFrame:
+        marks = [_lm("right_wrist", x, y + 0.06)]
+        for k, finger in enumerate(FINGERS):
+            joints = ("cmc", "mcp", "ip", "tip") if finger == "thumb" else ("mcp", "pip", "dip", "tip")
+            for j, joint in enumerate(joints):
+                marks.append(_lm(f"right_{finger}_{joint}", x + (k - 2) * 0.012 * (1 + j * 0.3), y + 0.03 - j * 0.015))
+        return HandFrame(landmarks=marks, score=1.0)
+
+    for shape in MASKS:
+        effect = Effect(id=shape, type="face_toon", target=EffectTarget(kind="joint", id="face"), style=EffectStyle(shapes=[shape]))
+        bare = _render(effect, [FrameRecord(frame=i, time_s=i / 30, pose=_pose()) for i in range(8)], [])[-1]
+        assert bare[int(0.19 * H), int(0.47 * W), 3] > 0.3, shape  # el ojo de la máscara
+        covered = _render(effect, [FrameRecord(frame=i, time_s=i / 30, pose=_pose(), right_hand=open_hand(0.5, 0.2)) for i in range(8)], [])[-1]
+        # La mano tapa la cara: la máscara se apaga (el costado del óvalo de la cara ya no está) y
+        # se dibuja la mano.
+        side = (168, 165)
+        assert covered[side][3] < 0.5 * bare[side][3], shape
+        assert covered[..., 3].max() > 0.3, shape
