@@ -1,7 +1,9 @@
+import { useState } from "react";
+
 import { rgb } from "../api/format";
 import type { Style } from "../api/types";
 import { Icon } from "./Icon";
-import { NeonPreview } from "./NeonPreview";
+import { StyleEmblem } from "./StyleEmblem";
 import styles from "./StyleTile.module.css";
 
 interface Props {
@@ -12,12 +14,21 @@ interface Props {
   recommended?: boolean;
 }
 
-/** Un estilo del Estudio: su muestra viva, el título, la idea en una línea y sus etiquetas. */
+/** Un estilo del Estudio: su emblema (animado al elegirlo o con el cursor), el título, la idea en una línea y sus etiquetas. */
 export function StyleTile({ style, selected, onSelect, recommended = false }: Props) {
   const accent = style.palette[0] ? rgb(style.palette[0]) : "var(--cyan)";
+  const [hover, setHover] = useState(false);
   return (
-    <button type="button" className={`${styles.tile} ${selected ? styles.on : ""}`} style={{ ["--accent" as string]: accent }} onClick={onSelect} aria-pressed={selected}>
-      <NeonPreview palette={style.palette} seed={style.name.length * 7} active={selected} className={styles.art} />
+    <button
+      type="button"
+      className={`${styles.tile} ${selected ? styles.on : ""}`}
+      style={{ ["--accent" as string]: accent }}
+      onClick={onSelect}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      aria-pressed={selected}
+    >
+      <StyleEmblem style={style.name} active={selected || hover} className={styles.art} />
       {selected && (
         <span className={styles.check}>
           <Icon name="check" size={14} />

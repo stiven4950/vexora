@@ -6,7 +6,7 @@ import type { Style } from "../api/types";
 import { HeroCompare } from "../components/HeroCompare";
 import { Icon, type IconName } from "../components/Icon";
 import { Logo } from "../components/Logo";
-import { NeonPreview } from "../components/NeonPreview";
+import { StyleEmblem } from "../components/StyleEmblem";
 import { FEATURED_QUOTE, SHOW_PENDING, TESTIMONIALS } from "../mocks/pendientes";
 import { useSession } from "../auth/AuthContext";
 import { ROUTES } from "../routes";
@@ -111,7 +111,7 @@ export function Landing() {
         <div className={styles.cards}>
           {featured.map((style) => (
             <Link key={style.name} to={start} className={styles.card}>
-              <NeonPreview palette={style.palette} seed={style.name.length * 7} active className={styles.art} />
+              <StyleEmblem style={style.name} active className={styles.art} />
               <span className={styles.cardText}>
                 <strong>{style.title}</strong>
                 <small>{style.subtitle}</small>
