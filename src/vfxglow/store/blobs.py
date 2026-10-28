@@ -11,6 +11,10 @@ es el nombre del objeto en el bucket.
 
 Cada proceso trabaja sobre archivos locales (el pipeline y OpenCV leen rutas): `fetch` trae una
 copia cuando falta y `put` publica la que se acaba de escribir.
+
+Subidas directas: con GCS el navegador sube el video al bucket con una URL firmada de PUT
+(`signed_upload_url`, tipo y tamaño máximo atados a la firma) y la API solo comprueba que llegó
+(`size`). Al crear el trabajo, el video se copia dentro del bucket (`copy`), sin pasar por la API.
 """
 
 from __future__ import annotations
@@ -61,8 +65,21 @@ class BlobStore(ABC):
     def delete_prefix(self, prefix: str) -> None:
         """Borra todo lo que empieza por `prefix` ("outputs/<id>." o "uploads/<id>/")."""
 
+    @abstractmethod
+    def size(self, key: str) -> int | None:
+        """Bytes del archivo, o None si no existe (sin recordar la respuesta: se pregunta al almacén)."""
+
+    @abstractmethod
+    def copy(self, source: str, target: str) -> None:
+        """Copia `source` en `target` dentro del almacén (sin bajarlo a esta máquina)."""
+
     def signed_url(self, key: str, ttl_s: int = 900, filename: str | None = None, media_type: str | None = None) -> str | None:
         """Una URL temporal para descargar el archivo sin pasar por la API; None si no aplica."""
+        return None
+
+    def signed_upload_url(self, key: str, content_type: str, max_bytes: int, ttl_s: int = 900) -> tuple[str, dict[str, str]] | None:
+        """Una URL temporal para que el navegador suba el archivo directo al almacén (PUT), con las
+        cabeceras que debe mandar tal cual. None si no aplica (archivos locales: sube la API)."""
         return None
 
 
@@ -93,6 +110,21 @@ class LocalBlobStore(BlobStore):
 
     def exists(self, key: str) -> bool:
         return self.path(key).exists()
+
+    def size(self, key: str) -> int | None:
+        path = self.path(key)
+        return path.stat().st_size if path.is_file() else None
+
+    def copy(self, source: str, target: str) -> None:
+        origin, dest = self.path(source), self.path(target)
+        if dest.exists() and dest.resolve() == origin.resolve():
+            return
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.unlink(missing_ok=True)
+        try:
+            os.link(origin, dest)  # mismo disco: un enlace, sin copiar bytes
+        except OSError:
+            shutil.copy2(origin, dest)
 
     def delete(self, key: str) -> None:
         self.path(key).unlink(missing_ok=True)
@@ -168,6 +200,17 @@ class GcsBlobStore(BlobStore):
         self._remember(key, present)
         return present
 
+    def size(self, key: str) -> int | None:
+        blob = self.bucket.get_blob(check_key(key))
+        present = blob is not None
+        self._remember(key, present)
+        return int(blob.size or 0) if present else None
+
+    def copy(self, source: str, target: str) -> None:
+        # Copia del lado del servidor (mismo bucket): no pasa por esta máquina ni por la API.
+        self.bucket.copy_blob(self.bucket.blob(check_key(source)), self.bucket, check_key(target))
+        self._remember(target, True)
+
     def delete(self, key: str) -> None:
         try:
             self.bucket.blob(check_key(key)).delete()
@@ -195,6 +238,20 @@ class GcsBlobStore(BlobStore):
             response_type=media_type,
             **self._signing(),
         )
+
+    def signed_upload_url(self, key: str, content_type: str, max_bytes: int, ttl_s: int = 900) -> tuple[str, dict[str, str]] | None:
+        """PUT firmado (V4) con el tipo de contenido y un tope de tamaño atados a la firma: GCS
+        rechaza la subida si el navegador manda otro tipo o más bytes (x-goog-content-length-range)."""
+        headers = {"x-goog-content-length-range": f"0,{int(max_bytes)}"}
+        url = self.bucket.blob(check_key(key)).generate_signed_url(
+            version="v4",
+            expiration=datetime.timedelta(seconds=ttl_s),
+            method="PUT",
+            content_type=content_type,
+            headers=headers,
+            **self._signing(),
+        )
+        return url, {"Content-Type": content_type, **headers}
 
 
 _credentials: Any = None

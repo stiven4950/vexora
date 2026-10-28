@@ -175,6 +175,11 @@ class Pipeline:
             video_sha256=digest,
             device=self.device,
         )
+        # Caché del análisis compartida entre máquinas (store/analysis_cache.py). La pone quien crea
+        # el Pipeline en la API o en un trabajador (JobStore.pipeline); sin ella, solo runs/ local.
+        self.shared = None
+        # La entrada de esa caché que corresponde a este análisis (se conoce al analizar).
+        self.analysis_id: str | None = None
 
     def _apply_catalog_needs(self) -> None:
         apply_catalog_needs(self.config_path, self.config)
@@ -260,16 +265,56 @@ class Pipeline:
             self.manifest = load_manifest(self.manifest_path) or self.manifest
             self._analyze_locked()
 
+    def _analysis_key(self) -> str:
+        return stage_key("analyze-1", self.manifest.video_sha256, self.config.analysis.model_dump_json(), _code("analyze"))
+
     def _analyze_locked(self) -> None:
-        key = stage_key("analyze-1", self.manifest.video_sha256, self.config.analysis.model_dump_json(), _code("analyze"))
+        from vfxglow.store.analysis_cache import cache_id
+
+        key = self._analysis_key()
+        self.analysis_id = cache_id(self.manifest.video_sha256, key)
         tracks = self.run_dir / "analysis" / "tracks.jsonl"
         if not self.force and self.manifest.stages.get("analyze") == key and tracks.exists():
             log.info("Análisis en caché")
             telemetry.annotate(cache_hit=True)
             return
+        shared = getattr(self, "shared", None)
+        if shared is None or not shared.active:
+            self._analyze_now(key)
+            return
+        # Entre máquinas: una sola analiza; las demás esperan y traen lo que publicó.
+        with shared.lock(self.analysis_id):
+            if not self.force and shared.restore(self.run_dir, self.analysis_id):
+                self.manifest = load_manifest(self.manifest_path) or self.manifest
+                log.info("Análisis en caché (almacén compartido)")
+                telemetry.annotate(cache_hit=True, cache_source="shared")
+                return
+            self._analyze_now(key)
+            shared.publish(self.run_dir, self.analysis_id, key, self.manifest.video_sha256)
+
+    def _analyze_now(self, key: str) -> None:
         log.info("Analizando %s en %s", self.video.name, self.device)
         analyze_video(self.video, self.run_dir, self.config, self.device)
         self._mark("analyze", key, level=self.config.analysis.level, code=_code("analyze")[:12])
+
+    def restore_analysis(self) -> bool:
+        """Deja en disco el análisis de este video si otra máquina lo publicó (sin analizar).
+        Para lo que lee el análisis sin pasar por `analyze` (vista previa, capas, preparar para
+        editar). Devuelve si está en disco."""
+        from vfxglow.store.analysis_cache import cache_id, complete
+
+        if complete(self.run_dir):
+            return True
+        shared = getattr(self, "shared", None)
+        if shared is None or not shared.active:
+            return False
+        entry = cache_id(self.manifest.video_sha256, self._analysis_key())
+        with analysis_lock(self.run_dir):
+            restored = complete(self.run_dir) or shared.restore(self.run_dir, entry)
+        if restored:
+            self.manifest = load_manifest(self.manifest_path) or self.manifest
+            self.analysis_id = entry
+        return restored
 
     def direct(self) -> None:
         brief_path = self.run_dir / "analysis" / "motion_brief.json"
