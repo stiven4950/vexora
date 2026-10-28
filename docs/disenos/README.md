@@ -12,6 +12,7 @@ tipografía e iconografía. Están descritos bloque por bloque en
 | `mis-proyectos.png` | Mis proyectos | `/app/library` | 1b |
 | `editor-efectos.png` | Editor de efectos | `/app/projects/:id/edit` | 2 |
 | `mi-plan.png` | Mi plan: planes, créditos, uso e historial | `/app/plan` | 3 (vista; sin pagos) |
+| `configuracion.png` | Configuración de la cuenta: perfil, seguridad, notificaciones, preferencias | `/app/settings` | 3 |
 
 Lo que el diseño muestra y aún no tiene función (créditos, campana, "Con efectos", "Sorpréndeme",
 "Compartir", "Precios"…) se construye con datos fijos en `web/src/mocks/pendientes.ts`, cada uno

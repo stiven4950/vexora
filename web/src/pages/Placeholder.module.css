@@ -28,8 +28,3 @@
   color: var(--cyan);
   font-weight: 600;
 }
-
-.legal {
-  min-height: 100vh;
-  padding: 24px clamp(16px, 4vw, 48px);
-}

@@ -6,9 +6,10 @@ import { Editor } from "./pages/Editor";
 import { JobPage } from "./pages/JobPage";
 import { Landing } from "./pages/Landing";
 import { Library } from "./pages/Library";
+import { Privacy, Support, Terms } from "./pages/Legal";
 import { Login } from "./pages/Login";
 import { Plan } from "./pages/Plan";
-import { LegalPlaceholder, Placeholder } from "./pages/Placeholder";
+import { Placeholder } from "./pages/Placeholder";
 import { ProjectSummary } from "./pages/ProjectSummary";
 import { Settings } from "./pages/Settings";
 import { Studio } from "./pages/Studio";
@@ -61,9 +62,9 @@ function AppRoutes() {
       <Route path={ROUTES.login} element={<GuestOnly authed={authed}><Login mode="signin" /></GuestOnly>} />
       <Route path={ROUTES.register} element={<GuestOnly authed={authed}><Login mode="register" /></GuestOnly>} />
       <Route path={ROUTES.forgot} element={<GuestOnly authed={authed}><Login mode="reset" /></GuestOnly>} />
-      <Route path={ROUTES.terms} element={<LegalPlaceholder title="Términos de uso" />} />
-      <Route path={ROUTES.privacy} element={<LegalPlaceholder title="Política de privacidad" />} />
-      <Route path={ROUTES.support} element={<LegalPlaceholder title="Soporte y ayuda" />} />
+      <Route path={ROUTES.terms} element={<Terms />} />
+      <Route path={ROUTES.privacy} element={<Privacy />} />
+      <Route path={ROUTES.support} element={<Support />} />
       <Route path="/app" element={<RequireAuth authed={authed} />}>
         <Route index element={<Navigate to={ROUTES.studio} replace />} />
         <Route path="studio" element={<Studio />} />

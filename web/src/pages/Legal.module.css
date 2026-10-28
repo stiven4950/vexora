@@ -1,0 +1,265 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px clamp(16px, 4vw, 48px);
+}
+
+.crumbs {
+  display: flex;
+  gap: 18px;
+  font-size: 14px;
+}
+
+.crumbs a {
+  color: var(--muted);
+}
+
+.crumbs a:hover {
+  color: var(--cyan);
+}
+
+.layout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 72ch);
+  justify-content: center;
+  gap: clamp(24px, 4vw, 56px);
+  padding: 12px clamp(16px, 4vw, 48px) 48px;
+}
+
+/* Índice: fijo a la izquierda en escritorio, desplegable en móvil. */
+.toc {
+  position: sticky;
+  top: 20px;
+  align-self: start;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  font-size: 13px;
+}
+
+.toc ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.toc a {
+  display: block;
+  padding: 6px 10px;
+  border-left: 2px solid var(--line);
+  color: var(--muted);
+}
+
+.toc a:hover,
+.toc a:focus-visible {
+  color: var(--cyan);
+  border-left-color: var(--cyan);
+}
+
+.tocToggle {
+  display: none;
+}
+
+.doc h1 {
+  font-size: clamp(28px, 4vw, 40px);
+  margin: 0 0 6px;
+}
+
+.meta {
+  margin: 0 0 16px;
+  color: var(--faint);
+  font-size: 13px;
+}
+
+.notice {
+  margin: 0 0 20px;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(var(--plasma-rgb), 0.4);
+  background: rgba(var(--plasma-rgb), 0.08);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.intro {
+  color: var(--muted);
+  font-size: 16px;
+}
+
+.doc {
+  line-height: 1.7;
+}
+
+.section {
+  scroll-margin-top: 20px;
+  margin-top: 32px;
+}
+
+.section h2 {
+  font-family: var(--display);
+  font-size: 20px;
+  margin: 0 0 10px;
+}
+
+.section p,
+.section li {
+  color: var(--text);
+  opacity: 0.88;
+}
+
+.section p {
+  margin: 0 0 12px;
+}
+
+.section ul {
+  margin: 0 0 12px;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.faq {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.faqItem {
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.faqItem h3 {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 15px;
+}
+
+.faqItem button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: none;
+  border: 0;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.faqItem button[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.faqItem button:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+
+.answer {
+  padding: 0 16px 14px;
+}
+
+.answer p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.contact {
+  padding: 18px 22px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(var(--cyan-rgb), 0.14);
+  background: rgba(10, 16, 32, 0.72);
+}
+
+.contact p {
+  margin: 0 0 6px;
+}
+
+.note {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.help {
+  margin-top: 40px;
+  padding: 24px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-strong);
+  background: var(--panel);
+}
+
+.help h2 {
+  margin: 0 0 6px;
+  font-size: 20px;
+}
+
+.help p {
+  margin: 0 0 8px;
+  color: var(--muted);
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--cyan);
+  font-weight: 600;
+}
+
+@media (max-width: 860px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .toc {
+    position: static;
+    max-height: none;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--line);
+    background: var(--panel);
+  }
+
+  .tocToggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    background: none;
+    border: 0;
+    color: var(--text);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .toc ul {
+    display: none;
+    padding: 0 8px 10px;
+  }
+
+  .toc ul.tocOpen {
+    display: flex;
+  }
+}
