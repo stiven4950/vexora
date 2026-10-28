@@ -252,9 +252,8 @@ def test_unused_uploads_expire_after_a_day_but_shared_analyses_survive(client: T
     fresh = wait_upload(client, post_upload(client, "ana", content=b"b" * 8).json()["id"])["id"]
     job = client.post("/api/jobs", data={"style": "pelea", "upload_id": used}, headers=as_("ana")).json()
     assert wait_job(client, job["id"])["status"] == "done"
-    for item in store._items.values():
-        if item.id in (old, used):
-            item.created -= 25 * 3600
+    for item_id in (old, used):
+        store._set(item_id, created=store.peek(item_id).created - 25 * 3600)
     assert store.expire() == 2
     assert client.get(f"/api/uploads/{old}", headers=as_("ana")).status_code == 404
     assert not (store.root / old).exists()
@@ -266,15 +265,14 @@ def test_unused_uploads_expire_after_a_day_but_shared_analyses_survive(client: T
 def test_expiry_runs_on_create_and_on_start(client: TestClient, tmp_path: Path) -> None:
     store = server.uploads()
     old = wait_upload(client, post_upload(client).json()["id"])["id"]
-    store._items[old].created -= 25 * 3600
+    store._set(old, created=store.peek(old).created - 25 * 3600)
     post_upload(client, content=b"z" * 8)  # al crear otra, la vencida se borra
-    assert old not in store._items and not (store.root / old).exists()
+    assert store.peek(old) is None and not (store.root / old).exists()
     stale = wait_upload(client, post_upload(client, content=b"y" * 8).json()["id"])["id"]
-    store._items[stale].created -= 25 * 3600
-    store._save()
+    store._set(stale, created=store.peek(stale).created - 25 * 3600)
     from vfxglow.api.uploads import UploadStore
 
-    assert stale not in UploadStore(server.jobs(), lambda: AVAILABLE)._items  # al arrancar
+    assert UploadStore(server.jobs(), lambda: AVAILABLE).peek(stale) is None  # al arrancar
 
 
 def test_uploads_still_analyzing_at_restart_are_marked_failed(client: TestClient) -> None:
@@ -284,7 +282,7 @@ def test_uploads_still_analyzing_at_restart_are_marked_failed(client: TestClient
 
     reborn = UploadStore(server.jobs(), lambda: AVAILABLE)
     FakePipeline.gate.set()
-    item = reborn._items[upload_id]
+    item = reborn.peek(upload_id)
     assert item.status == "failed" and item.error_code == "interrupted"
 
 

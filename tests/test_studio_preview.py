@@ -133,10 +133,10 @@ def test_creates_polls_and_serves_with_the_signed_key(client: TestClient) -> Non
 
 def test_not_ready_and_unknown_styles_are_refused(client: TestClient) -> None:
     uid = upload(client)  # analizada del todo: el hilo ya no puede volver a marcarla lista
-    server.uploads()._items[uid].status = "analyzing"
+    server.uploads()._set(uid, status="analyzing")
     early = ask(client, uid)
     assert early.status_code == 409 and early.json()["detail"] == "Espera a que termine el análisis."
-    server.uploads()._items[uid].status = "ready"
+    server.uploads()._set(uid, status="ready")
     assert ask(client, uid, style="no-existe").status_code == 422
     assert ask(client, uid, style_kind="preset", style="body_aura").status_code == 422
     assert ask(client, uid, fire_style="no-existe").status_code == 422

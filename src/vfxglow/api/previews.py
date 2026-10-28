@@ -265,10 +265,10 @@ class PreviewStore:
         job = self.jobs.get(item.job_id)
         if job is None:
             raise ValueError("La versión ya no existe.")
-        pipeline = Pipeline(self.jobs.config, Path(job.video_path), **self.jobs._pipeline_kwargs(job))
-        script = EffectScript.model_validate_json(self.jobs.artifact(job.id, "script").read_text(encoding="utf-8"))
-        moments = [Moment.model_validate(m) for m in json.loads(self.jobs.artifact(job.id, "moments").read_text(encoding="utf-8"))]
-        events = [MotionEvent.model_validate(e) for e in json.loads(self.jobs.artifact(job.id, "events").read_text(encoding="utf-8"))]
+        pipeline = Pipeline(self.jobs.config, self.jobs.local(job.video_path), **self.jobs._pipeline_kwargs(job))
+        script = EffectScript.model_validate_json(self.jobs.read_artifact(job.id, "script"))
+        moments = [Moment.model_validate(m) for m in json.loads(self.jobs.read_artifact(job.id, "moments"))]
+        events = [MotionEvent.model_validate(e) for e in json.loads(self.jobs.read_artifact(job.id, "events"))]
         meta = pipeline._meta()
         fps, total = meta.fps or 30.0, meta.frame_count
         tracks = assign_tracks(moments, pipeline.element_of())

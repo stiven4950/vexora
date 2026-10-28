@@ -31,14 +31,13 @@ import logging.handlers
 import os
 import re
 import sys
-import threading
 import time
 import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 import yaml
 
@@ -57,7 +56,16 @@ _context: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar
 _metrics: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar("vexora_metrics", default=None)
 _spans: contextvars.ContextVar[tuple[dict[str, Any], ...]] = contextvars.ContextVar("vexora_spans", default=())
 _on_change: contextvars.ContextVar[Callable[[str, str, dict[str, Any]], None] | None] = contextvars.ContextVar("vexora_on_change", default=None)
-_cancel: contextvars.ContextVar[threading.Event | None] = contextvars.ContextVar("vexora_cancel", default=None)
+
+
+class StopSignal(Protocol):
+    """Lo que dice si hay que parar: un threading.Event o algo que también mire el almacén
+    (api/workqueue.py, StopFlag: la cancelación puede llegar desde otro proceso)."""
+
+    def is_set(self) -> bool: ...
+
+
+_cancel: contextvars.ContextVar[StopSignal | None] = contextvars.ContextVar("vexora_cancel", default=None)
 
 
 class Cancelled(Exception):
@@ -106,7 +114,7 @@ def job_context(
     job_id: str,
     trace_id: str,
     on_change: Callable[[str, str, dict[str, Any]], None] | None = None,
-    cancel: threading.Event | None = None,
+    cancel: StopSignal | None = None,
     **fields: Any,
 ) -> Iterator[dict[str, Any]]:
     """Lo que ocurra dentro lleva el trabajo y su traza; devuelve el resumen que se va llenando.

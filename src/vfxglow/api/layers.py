@@ -3,7 +3,8 @@
 Un hilo aparte (como el de las vistas previas) y una generación a la vez: dibuja la versión entera
 a baja resolución (~0,1 s por fotograma). El resultado vive junto a los demás archivos de la
 versión (`outputs/<id>.layers.mp4` y `.layers.json`), así que se borra con ella. "Lista" = ambos
-archivos en disco; el JSON se escribe al final, así que sin él el MP4 a medias no cuenta.
+archivos en disco (o en el almacén de archivos, store/blobs.py); el JSON se escribe y publica al
+final, así que sin él el MP4 a medias no cuenta.
 """
 
 from __future__ import annotations
@@ -61,7 +62,7 @@ class LayerStore:
         return self.jobs.outputs / f"{job_id}.layers.json"
 
     def ready(self, job_id: str) -> bool:
-        return self.video_path(job_id).exists() and self.layout_path(job_id).exists()
+        return self.jobs.has(self.video_path(job_id)) and self.jobs.has(self.layout_path(job_id))
 
     def status(self, job_id: str) -> tuple[str, str | None]:
         """("none" | "rendering" | "ready" | "failed", error)."""
@@ -75,7 +76,7 @@ class LayerStore:
 
     def layout(self, job_id: str) -> dict | None:
         try:
-            return json.loads(self.layout_path(job_id).read_text(encoding="utf-8"))
+            return json.loads(self.jobs.local(self.layout_path(job_id)).read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return None
 
@@ -145,10 +146,10 @@ class LayerStore:
         job = self.jobs.get(job_id)
         if job is None:
             raise ValueError("La versión ya no existe.")
-        pipeline = Pipeline(self.jobs.config, Path(job.video_path), **self.jobs._pipeline_kwargs(job))
-        script = EffectScript.model_validate_json(self.jobs.artifact(job.id, "script").read_text(encoding="utf-8"))
-        moments = [Moment.model_validate(m) for m in json.loads(self.jobs.artifact(job.id, "moments").read_text(encoding="utf-8"))]
-        events = [MotionEvent.model_validate(e) for e in json.loads(self.jobs.artifact(job.id, "events").read_text(encoding="utf-8"))]
+        pipeline = Pipeline(self.jobs.config, self.jobs.local(job.video_path), **self.jobs._pipeline_kwargs(job))
+        script = EffectScript.model_validate_json(self.jobs.read_artifact(job.id, "script"))
+        moments = [Moment.model_validate(m) for m in json.loads(self.jobs.read_artifact(job.id, "moments"))]
+        events = [MotionEvent.model_validate(e) for e in json.loads(self.jobs.read_artifact(job.id, "events"))]
         tracks = assign_tracks(moments, pipeline.element_of())
         key_of, keys = track_keys(moments, tracks)
         mp4 = self.video_path(job.id)
@@ -159,4 +160,6 @@ class LayerStore:
         tmp = self.layout_path(job.id).with_name(self.layout_path(job.id).name + ".tmp")
         tmp.write_text(layout.model_dump_json(), encoding="utf-8")
         tmp.replace(self.layout_path(job.id))
+        self.jobs.publish(mp4)
+        self.jobs.publish(self.layout_path(job.id))
         return layout.frames, len(layout.tracks)

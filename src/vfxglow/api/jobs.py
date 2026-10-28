@@ -1,10 +1,13 @@
 """Cola de trabajos de edición para la API.
 
-Un trabajo = un video + un estilo (catálogo o preset) + una semilla. Se procesan de uno en uno
-en un hilo aparte (el análisis ya usa todos los núcleos). El progreso se deduce de los mensajes
-de log del pipeline, que ya informan cada etapa; así el motor no necesita saber de la API.
+Un trabajo = un video + un estilo (catálogo o preset) + una semilla. Los procesan trabajadores
+(api/workqueue.py): por defecto un hilo de la API (el análisis ya usa todos los núcleos); en la
+nube, procesos aparte (`vexora-worker`) que comparten el almacén. El progreso se deduce de los
+mensajes de log del pipeline, que ya informan cada etapa; así el motor no necesita saber de la API.
 
-Estado en api_data/jobs.json; videos subidos en api_data/uploads/<id>/.
+Estado en el almacén de documentos (store/: api_data/jobs.json por defecto, o Firestore); videos
+subidos en api_data/uploads/<id>/ y salidas en api_data/outputs/, publicados en el almacén de
+archivos (store/blobs.py) para que la API los sirva aunque el trabajador esté en otra máquina.
 """
 
 from __future__ import annotations
@@ -12,7 +15,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import queue
 import re
 import shutil
 import statistics
@@ -26,8 +28,17 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from vfxglow import telemetry
+from vfxglow.api import workqueue
+from vfxglow.store.blobs import BlobStore
+from vfxglow.store.docs import DELETE, DocStore
 
 log = logging.getLogger("vfxglow.api")
+
+COLLECTION = workqueue.COLLECTION
+# Trabajadores en hilos de la API: 1 por defecto (como siempre); 0 = la API solo encola y sirve.
+INPROCESS_ENV = "VEXORA_INPROCESS_WORKERS"
+# Cada cuánto, como mucho, se escribe el avance de un trabajo en el almacén.
+PROGRESS_EVERY_S = 1.0
 
 Status = Literal["queued", "running", "done", "failed"]
 Stage = Literal["queued", "analyze", "direct", "render", "done"]
@@ -100,6 +111,14 @@ class Job(BaseModel):
     # Nombre del proyecto que pone la persona; sin él, el del archivo. Es de todo el proyecto
     # (el video y sus versiones): JobStore.rename lo pone en todos.
     title: str | None = None
+    # Cola (api/workqueue.py): más prioridad va antes; `worker` y `lease_until` dicen quién lo
+    # procesa y hasta cuándo vale su turno; `attempts`, cuántas veces se tomó; `cancel_requested`,
+    # que la persona pidió parar (el trabajador lo ve aunque esté en otro proceso).
+    priority: int = 0
+    worker: str | None = None
+    lease_until: float | None = None
+    attempts: int = 0
+    cancel_requested: bool = False
 
 
 # Cómo se llama cada etapa en la actividad reciente.
@@ -211,8 +230,37 @@ def owns(job: Job, uid: str) -> bool:
     return _owner(job) == uid
 
 
+def _interrupted() -> dict:
+    """Los campos de un trabajo que no terminó porque su proceso se detuvo."""
+    return {"status": "failed", "error_code": "interrupted", "message": "Interrumpido", "error": ERRORS["interrupted"], "lease_until": None}
+
+
+def _queue_reset(priority: int) -> dict:
+    """Los campos de cola de un trabajo que entra (o vuelve) a la cola."""
+    return {"priority": priority, "worker": None, "lease_until": None, "attempts": 0, "cancel_requested": False}
+
+
 class JobStore:
-    def __init__(self, root: Path, config: Path) -> None:
+    """Los trabajos: altas, consultas y el proceso de cada uno.
+
+    La fuente de verdad es el almacén de documentos (`docs`, colección "jobs"), así que varios
+    procesos lo comparten: la API encola y lee; los trabajadores (hilos de este proceso o
+    `vexora-worker`) toman, procesan y escriben el avance. Los archivos que produce un trabajo se
+    publican en `blobs` para que la API los sirva aunque esté en otra máquina.
+    """
+
+    def __init__(
+        self,
+        root: Path,
+        config: Path,
+        docs: DocStore | None = None,
+        blobs: BlobStore | None = None,
+        workers: int | None = None,
+        clock: Callable[[], float] = time.time,
+        lease_s: float | None = None,
+    ) -> None:
+        from vfxglow.store import open_blobs, open_docs
+
         self.root = root
         self.config = config
         self.uploads = root / "uploads"
@@ -220,29 +268,64 @@ class JobStore:
         # El MP4 de cada trabajo, aparte: en runs/ varias versiones (y usuarios) comparten carpeta.
         self.outputs = root / "outputs"
         self.outputs.mkdir(parents=True, exist_ok=True)
-        self._path = root / "jobs.json"
-        self._lock = threading.Lock()
-        self._jobs: dict[str, Job] = {}
-        if self._path.exists():
-            for raw in json.loads(self._path.read_text(encoding="utf-8")):
-                job = Job.model_validate(raw)
-                if job.status in ("queued", "running"):
-                    # El servidor se reinició a mitad: el trabajo no terminó.
-                    job.status, job.error_code, job.message = "failed", "interrupted", "Interrumpido"
-                    job.error = ERRORS["interrupted"]
-                self._jobs[job.id] = job
-        self._queue: queue.Queue[str] = queue.Queue()
-        # Un evento por trabajo en curso: pedir parar es ponerlo (telemetry.checkpoint lo lee).
+        self.docs = docs if docs is not None else open_docs(root)
+        self.blobs = blobs if blobs is not None else open_blobs(root)
+        self.clock = clock
+        self.lease_s = lease_s or workqueue.lease_seconds()
+        # Gancho: prioridad de un trabajo nuevo según su dueño (workqueue.priority_for).
+        self.priority_of: Callable[[str | None], int] = workqueue.priority_for
+        self._lock = threading.RLock()
+        self._flush_lock = threading.Lock()
+        # Un evento por trabajo en curso en este proceso: cancelar desde la misma API lo pone y el
+        # punto de control lo ve al instante (desde otro proceso se ve en el almacén).
         self._cancel: dict[str, threading.Event] = {}
-        threading.Thread(target=self._worker, daemon=True, name="vfxglow-jobs").start()
+        # Avance del trabajo en curso aún sin escribir (se escribe como mucho cada PROGRESS_EVERY_S).
+        self._pending: dict[str, dict] = {}
+        self._flushed: dict[str, float] = {}
+        self._reaped = float("-inf")
+        self._ratios: dict[tuple, tuple[float, list[float]]] = {}
+        self._wake = threading.Event()
+        self._recover()
+        count = workers if workers is not None else int(os.environ.get(INPROCESS_ENV, "1") or 0)
+        self.stop = threading.Event()
+        self.workers = workqueue.run_workers(self, count, self.stop)
+
+    @property
+    def poll_s(self) -> float:
+        """Cada cuánto relee el progreso un cliente en vivo (SSE): en Firestore cada lectura cuesta."""
+        return 1.0 if self.docs.remote else 0.5
+
+    def _recover(self) -> None:
+        """Al arrancar: un trabajo "running" sin turno es de antes de la cola compartida (o de un
+        hilo de este mismo servidor, que ya no existe): no terminó. Los que tienen turno los
+        recupera `reap_expired` cuando vence, por si su trabajador sigue vivo en otro proceso."""
+        for doc in self.docs.query(COLLECTION, where={"status": "running"}):
+            if doc.get("lease_until") is None:
+                self.docs.update(COLLECTION, doc["id"], {**_interrupted(), "worker": None}, when={"status": "running", "lease_until": None})
+
+    # ----- documentos -----
+
+    def _load(self, doc: dict | None) -> Job | None:
+        return Job.model_validate(doc) if doc is not None else None
+
+    def _all(self, **where) -> list[Job]:
+        return [Job.model_validate(doc) for doc in self.docs.query(COLLECTION, where=where or None)]
+
+    def _family(self, root: str) -> list[Job]:
+        """El video `root` y todas sus versiones."""
+        family = self._all(parent=root)
+        first = self.get(root)
+        return [first, *family] if first is not None else family
 
     # ----- consulta -----
 
     def list(self, owner: str | None = None) -> list[Job]:
         """Los trabajos de `owner` (todos si es None), del más nuevo al más viejo."""
-        with self._lock:
-            mine = [job for job in self._jobs.values() if owner is None or _owner(job) == owner]
-            return sorted(mine, key=lambda job: job.created, reverse=True)
+        if owner is None or owner == LOCAL_OWNER:
+            mine = [job for job in self._all() if owner is None or _owner(job) == owner]
+        else:
+            mine = self._all(owner=owner)
+        return sorted(mine, key=lambda job: job.created, reverse=True)
 
     def estimate(self, job: Job) -> float | None:
         """Segundos que tardará el trabajo: la mediana de lo que tardaron los terminados del mismo
@@ -250,54 +333,92 @@ class JobStore:
         los valores medidos en api_data cuando aún no hay tres. Un rango, no una promesa."""
         if not job.video_seconds:
             return None
-        with self._lock:
-            ratios = [
-                other.metrics["total_ms"] / 1000 / other.video_seconds
-                for other in self._jobs.values()
-                if other.status == "done"
-                and other.video_seconds
-                and other.metrics.get("total_ms")
-                and (other.style, bool(other.parent), other.deep) == (job.style, bool(job.parent), job.deep)
-            ]
+        ratios = self._ratios_for(job.style, bool(job.parent), job.deep)
         ratio = statistics.median(ratios) if len(ratios) >= MIN_SAMPLES else (DEFAULT_RATIO["version"] if job.parent else DEFAULT_RATIO["first"])
         return round(job.video_seconds * ratio)
 
+    def _ratios_for(self, style: str, version: bool, deep: bool) -> list[float]:
+        """Segundos de proceso por segundo de video de los terminados parecidos. En Firestore se
+        recuerdan un minuto: el progreso en vivo pide la estimación cada segundo."""
+        key = (style, version, deep)
+        cached = self._ratios.get(key)
+        if self.docs.remote and cached is not None and self.clock() - cached[0] < 60:
+            return cached[1]
+        ratios = [
+            other.metrics["total_ms"] / 1000 / other.video_seconds
+            for other in self._all(status="done", style=style)
+            if other.video_seconds and other.metrics.get("total_ms") and (bool(other.parent), other.deep) == (version, deep)
+        ]
+        self._ratios[key] = (self.clock(), ratios)
+        return ratios
+
     def queue_ahead(self, job: Job) -> int:
-        """Cuántos trabajos van antes (hay un solo trabajador): el que se procesa y los que
-        llegaron antes. Solo el número, nunca de quién."""
-        with self._lock:
-            return sum(
-                other.id != job.id and (other.status == "running" or (other.status == "queued" and other.created < job.created))
-                for other in self._jobs.values()
-            )
+        """Cuántos trabajos van antes: los que se procesan y los que llegaron antes con la misma
+        prioridad o más. Solo el número, nunca de quién."""
+        running = [other for other in self._all(status="running") if other.id != job.id]
+        waiting = [other for other in self._all(status="queued") if other.id != job.id and (other.priority, -other.created) > (job.priority, -job.created)]
+        return len(running) + len(waiting)
 
     def rename(self, job_id: str, title: str) -> Job | None:
         """El nombre del proyecto: se pone en el video y en todas sus versiones. Vacío = el del archivo."""
-        with self._lock:
-            job = self._jobs.get(job_id)
-            if job is None:
-                return None
-            root = job.parent or job.id
-            for other in self._jobs.values():
-                if (other.parent or other.id) == root:
-                    other.title = title or None
-            self._save()
-            return job.model_copy(deep=True)
+        job = self.get(job_id)
+        if job is None:
+            return None
+        for other in self._family(job.parent or job.id):
+            self.docs.update(COLLECTION, other.id, {"title": title or None})
+        return self.get(job_id)
 
     def adopt(self, owner: str) -> int:
         """Los trabajos sin dueño (de antes de las cuentas) pasan a `owner`. Devuelve cuántos."""
-        with self._lock:
-            orphans = [job for job in self._jobs.values() if job.owner is None]
-            for job in orphans:
-                job.owner = owner
-            if orphans:
-                self._save()
-            return len(orphans)
+        orphans = self._all(owner=None)
+        for job in orphans:
+            self.docs.update(COLLECTION, job.id, {"owner": owner}, when={"owner": None})
+        return len(orphans)
 
     def get(self, job_id: str) -> Job | None:
-        with self._lock:
-            job = self._jobs.get(job_id)
-            return job.model_copy(deep=True) if job else None
+        return self._load(self.docs.get(COLLECTION, job_id))
+
+    # ----- archivos (store/blobs.py) -----
+
+    def key(self, path: str | Path) -> str | None:
+        """La clave de un archivo de api_data/ en el almacén de archivos; None si está fuera."""
+        try:
+            return Path(path).resolve().relative_to(self.root.resolve()).as_posix()
+        except ValueError:
+            return None
+
+    def publish(self, path: str | Path) -> None:
+        """Publica un archivo recién escrito en api_data/ (con archivos locales, no hace nada)."""
+        key = self.key(path)
+        if key is not None and not self.blobs.local:
+            self.blobs.put(key, Path(path))
+
+    def local(self, path: str | Path) -> Path:
+        """La ruta local del archivo, trayéndolo del almacén si en esta máquina no está."""
+        target = Path(path)
+        if not target.exists() and not self.blobs.local:
+            key = self.key(target)
+            if key is not None:
+                self.blobs.fetch(key, target)
+        return target
+
+    def has(self, path: str | Path) -> bool:
+        """Si el archivo existe aquí o en el almacén."""
+        if Path(path).exists():
+            return True
+        key = self.key(path)
+        return key is not None and not self.blobs.local and self.blobs.exists(key)
+
+    def signed_url(self, path: str | Path, filename: str | None = None, media_type: str | None = None) -> str | None:
+        """Una URL temporal del almacén para un archivo que no está en esta máquina (None en local)."""
+        key = self.key(path)
+        if key is None or self.blobs.local or not self.blobs.exists(key):
+            return None
+        return self.blobs.signed_url(key, filename=filename, media_type=media_type)
+
+    def _forget_files(self, prefix: str) -> None:
+        if not self.blobs.local:
+            self.blobs.delete_prefix(prefix)
 
     # ----- altas -----
 
@@ -339,6 +460,7 @@ class JobStore:
             else:
                 _copy_limited(data, target, max_bytes)
                 info = check(target) if check is not None else None
+            self.publish(target)  # el trabajador puede estar en otra máquina
         except BaseException:
             shutil.rmtree(folder, ignore_errors=True)
             raise
@@ -378,16 +500,21 @@ class JobStore:
 
     def retry(self, job_id: str) -> Job:
         """Vuelve a encolar un trabajo que falló, con lo mismo que pidió (y su misma traza)."""
-        with self._lock:
-            job = self._jobs.get(job_id)
-            if job is None or job.status != "failed":
-                raise NotRetryable(job_id)
-            job.status, job.stage, job.progress, job.message = "queued", "queued", 0.0, "En cola"
-            job.error = job.error_code = None
-            job.log, job.started, job.finished, job.metrics = [], None, None, {}
-            self._save()
-            snapshot = job.model_copy(deep=True)
-        self._queue.put(job_id)
+
+        def again(current: dict | None) -> dict | None:
+            if current is None or current.get("status") != "failed":
+                return None
+            return {
+                **current,
+                **_queue_reset(self.priority_of(current.get("owner"))),
+                "status": "queued", "stage": "queued", "progress": 0.0, "message": "En cola",
+                "error": None, "error_code": None, "log": [], "started": None, "finished": None, "metrics": {},
+            }
+
+        snapshot = self._load(self.docs.transact(COLLECTION, job_id, again))
+        if snapshot is None:
+            raise NotRetryable(job_id)
+        self._wake.set()
         telemetry.event("job.retried", job_id=job_id, trace_id=snapshot.trace_id)
         return snapshot
 
@@ -417,8 +544,7 @@ class JobStore:
         prop = parent.prop if prop is None else (prop or None)
         take = 0
         if seed is None:
-            with self._lock:
-                done = [j.take for j in self._jobs.values() if (j.parent or j.id) == root and j.style == style and j.style_kind == style_kind and j.seed is None and j.season == season and j.wardrobe == wear and j.fire_style == fire_style and j.bolt_style == bolt_style and j.prop == prop]
+            done = [j.take for j in self._family(root) if j.style == style and j.style_kind == style_kind and j.seed is None and j.season == season and j.wardrobe == wear and j.fire_style == fire_style and j.bolt_style == bolt_style and j.prop == prop]
             take = max(done) + 1 if done else 0
         return self._enqueue(
             Job(
@@ -451,41 +577,71 @@ class JobStore:
         """Borra el trabajo y todo lo suyo: su MP4, sus miniaturas y, si ningún otro trabajo los
         usa, el video subido y la carpeta del análisis en runs/ (pistas, overlay, guiones, lectura
         de la IA). JobBusy si se está procesando."""
-        with self._lock:
-            job = self._jobs.get(job_id)
-            if job is None:
-                return False
-            if job.status == "running":
-                raise JobBusy(job_id)
-        return self._remove(job_id)
+        outcome: dict = {}
+
+        def drop(current: dict | None):
+            outcome.clear()
+            if current is None:
+                return None
+            if current.get("status") == "running":
+                outcome["busy"] = True
+                return None
+            outcome["job"] = current
+            return DELETE
+
+        self.docs.transact(COLLECTION, job_id, drop)
+        if outcome.get("busy"):
+            raise JobBusy(job_id)
+        if "job" not in outcome:
+            return False
+        self._cleanup(Job.model_validate(outcome["job"]))
+        return True
 
     def cancel(self, job_id: str) -> str:
         """Cancelar: en cola, se borra ya; en curso, se pide parar y el proceso se corta en su
         próximo punto de control (cada pocos fotogramas) y se borra solo. Devuelve "removed",
-        "stopping" o "none" si ya no hay nada que cancelar."""
-        with self._lock:
-            job = self._jobs.get(job_id)
-            if job is None:
-                return "none"
-            if job.status == "running":
-                self._cancel.setdefault(job_id, threading.Event()).set()
-                return "stopping"
-            if job.status != "queued":
-                return "none"
-        self._remove(job_id)
-        return "removed"
+        "stopping" o "none" si ya no hay nada que cancelar. Es una transacción: si un trabajador
+        lo toma justo ahora, se le pide parar en vez de borrarlo debajo de él."""
+        outcome: dict = {}
+
+        def stop(current: dict | None):
+            outcome.clear()
+            if current is None or current.get("status") not in ("queued", "running"):
+                outcome["result"] = "none"
+                return None
+            if current["status"] == "running":
+                outcome["result"] = "stopping"
+                return {**current, "cancel_requested": True}
+            outcome["result"], outcome["job"] = "removed", current
+            return DELETE
+
+        self.docs.transact(COLLECTION, job_id, stop)
+        if outcome["result"] == "stopping":
+            with self._lock:
+                event = self._cancel.get(job_id)
+            if event is not None:
+                event.set()
+        elif outcome["result"] == "removed":
+            self._cleanup(Job.model_validate(outcome["job"]))
+        return outcome["result"]
 
     def _remove(self, job_id: str) -> bool:
-        with self._lock:
-            job = self._jobs.pop(job_id, None)
-            if job is None:
-                return False
-            video_shared = any(other.video_path == job.video_path for other in self._jobs.values())
-            run_shared = any(other.run_dir == job.run_dir for other in self._jobs.values())
-            self._save()
+        job = self.get(job_id)
+        if job is None:
+            return False
+        self.docs.delete(COLLECTION, job_id)
+        self._cleanup(job)
+        return True
+
+    def _cleanup(self, job: Job) -> None:
+        """Los archivos de un trabajo ya borrado del almacén (el video y el análisis, si nadie más los usa)."""
+        job_id = job.id
+        video_shared = bool(self.docs.query(COLLECTION, where={"video_path": job.video_path}, limit=1))
+        run_shared = bool(self.docs.query(COLLECTION, where={"run_dir": job.run_dir}, limit=1))
         (self.outputs / f"{job_id}.mp4").unlink(missing_ok=True)
         for leftover in self.outputs.glob(f"{job_id}.*"):
             leftover.unlink(missing_ok=True)  # guion, momentos, gestos y tira de fotogramas del editor
+        self._forget_files(f"outputs/{job_id}.")
         shutil.rmtree(self.root / "previews" / job_id, ignore_errors=True)  # vistas previas del editor
         folder = Path(job.video_path).parent
         if video_shared:
@@ -493,10 +649,12 @@ class JobStore:
                 cache.unlink(missing_ok=True)
         else:
             shutil.rmtree(folder, ignore_errors=True)
+            key = self.key(folder)
+            if key:
+                self._forget_files(key + "/")
         if job.run_dir and not run_shared and self._removable(Path(job.run_dir)):
             shutil.rmtree(job.run_dir, ignore_errors=True)
         telemetry.event("job.deleted", job_id=job_id, trace_id=job.trace_id, run_deleted=bool(job.run_dir and not run_shared))
-        return True
 
     def _removable(self, run_dir: Path) -> bool:
         """Solo se borra una carpeta de análisis dentro de runs/ o de api_data/, nunca otra ruta."""
@@ -510,31 +668,55 @@ class JobStore:
     # ----- actualización -----
 
     def append_log(self, job_id: str, line: str, update: dict) -> None:
+        """Una línea del pipeline y lo que dice del avance. Se juntan y se escriben como mucho una
+        vez por PROGRESS_EVERY_S: la API (quizá otro proceso) lee el avance del almacén."""
         with self._lock:
-            job = self._jobs.get(job_id)
-            if job is None:
-                return
-            job.log = (job.log + [line])[-LOG_LINES:]
-            for key, value in update.items():
-                setattr(job, key, value)
-            if "progress" in update:
-                job.progress = max(min(job.progress, 1.0), 0.0)
+            pending = self._pending.setdefault(job_id, {"log": [], "fields": {}})
+            pending["log"].append(line)
+            pending["fields"].update(update)
+            wait = PROGRESS_EVERY_S - (self.clock() - self._flushed.get(job_id, float("-inf")))
+            # Si no toca todavía, se deja programado: la última línea no espera a la siguiente.
+            later = wait > 0 and not pending.get("scheduled")
+            if later:
+                pending["scheduled"] = True
+        if wait <= 0:
+            self._flush(job_id)
+        elif later:
+            timer = threading.Timer(wait, self._flush, args=(job_id,))
+            timer.daemon = True
+            timer.start()
 
-    def _update(self, job_id: str, **fields) -> None:
-        with self._lock:
-            job = self._jobs.get(job_id)
-            if job is None:  # se canceló y se borró mientras tanto
+    def _flush(self, job_id: str) -> None:
+        """Escribe el avance pendiente del trabajo (si hay)."""
+        with self._flush_lock:
+            with self._lock:
+                pending = self._pending.pop(job_id, None)
+                if pending:
+                    self._flushed[job_id] = self.clock()
+            if not pending:
                 return
-            for key, value in fields.items():
-                setattr(job, key, value)
-            self._save()
+
+            def merge(current: dict | None) -> dict | None:
+                if current is None:  # se canceló y se borró mientras tanto
+                    return None
+                merged = {**current, **pending["fields"], "log": ([*(current.get("log") or []), *pending["log"]])[-LOG_LINES:]}
+                if "progress" in pending["fields"]:
+                    merged["progress"] = max(min(float(merged["progress"]), 1.0), 0.0)
+                return merged
+
+            self.docs.transact(COLLECTION, job_id, merge)
+
+    def _update(self, job_id: str, when: dict | None = None, **fields) -> bool:
+        """Escribe campos del trabajo (antes, el avance pendiente). Con `when`, solo si el documento
+        lo cumple (p. ej. que siga siendo de este trabajador). Devuelve si escribió."""
+        self._flush(job_id)
+        return self.docs.update(COLLECTION, job_id, fields, when=when)
 
     def _enqueue(self, job: Job) -> Job:
-        with self._lock:
-            self._jobs[job.id] = job
-            depth = sum(other.status == "queued" for other in self._jobs.values())
-            self._save()
-        self._queue.put(job.id)
+        job = job.model_copy(update=_queue_reset(self.priority_of(job.owner)))
+        self.docs.set(COLLECTION, job.id, job.model_dump())
+        depth = len(self.docs.query(COLLECTION, where={"status": "queued"}))
+        self._wake.set()
         telemetry.event(
             "job.queued",
             job_id=job.id,
@@ -551,42 +733,77 @@ class JobStore:
             wardrobe=job.wardrobe or None,
             deep=job.deep,
             prop=job.prop,
+            priority=job.priority,
             queue_depth=depth,
         )
         return job
 
-    def _save(self) -> None:
-        tmp = self._path.with_suffix(".tmp")
-        tmp.write_text(json.dumps([job.model_dump() for job in self._jobs.values()], ensure_ascii=False), encoding="utf-8")
-        tmp.replace(self._path)
+    # ----- cola (api/workqueue.py) -----
+
+    def wait_for_work(self, timeout: float) -> None:
+        """Un trabajador sin nada que hacer espera `timeout` o a que este proceso encole algo."""
+        if self._wake.wait(timeout):
+            self._wake.clear()
+
+    def close(self) -> None:
+        """Los trabajadores de este almacén dejan de tomar trabajos (el que está en curso termina)."""
+        self.stop.set()
+        self._wake.set()
+
+    def claim(self, worker_id: str) -> dict | None:
+        return workqueue.claim(self.docs, worker_id, self.clock(), self.lease_s)
+
+    def reap_expired(self) -> list[tuple[str, str]]:
+        """Recupera los trabajos de trabajadores que dejaron de renovar su turno (cada medio turno)."""
+        now = self.clock()
+        with self._lock:
+            if now - self._reaped < self.lease_s / 2:
+                return []
+            self._reaped = now
+        outcomes = workqueue.reap(self.docs, now, _interrupted())
+        for job_id, outcome in outcomes:
+            log.warning("Trabajo %s: su trabajador dejó de responder (%s)", job_id, outcome)
+            telemetry.event("job.lease_expired", level=logging.WARNING, job_id=job_id, outcome=outcome)
+        if any(outcome == "requeued" for _, outcome in outcomes):
+            self._wake.set()
+        return outcomes
+
+    def process(self, doc: dict, worker_id: str) -> None:
+        """Procesa un trabajo ya tomado por `worker_id`, renovando su turno mientras dura."""
+        job = Job.model_validate(doc)
+        event = threading.Event()
+        with self._lock:
+            self._cancel[job.id] = event
+        flag = workqueue.StopFlag(self.docs, job.id, worker_id, local=event, clock=self.clock)
+        try:
+            with workqueue.Lease(self.docs, job.id, worker_id, self.lease_s, flag, clock=self.clock):
+                self._run(job, worker_id, flag)
+        finally:
+            with self._lock:
+                self._cancel.pop(job.id, None)
+                self._pending.pop(job.id, None)
+                self._flushed.pop(job.id, None)
 
     # ----- trabajo -----
 
-    def _worker(self) -> None:
-        while True:
-            job_id = self._queue.get()
-            job = self.get(job_id)
-            if job is None:
-                continue
-            self._run(job)
-
-    def _run(self, job: Job) -> None:
+    def _run(self, job: Job, worker_id: str, flag: workqueue.StopFlag) -> None:
         from vfxglow.pipeline import Pipeline
 
+        mine = {"worker": worker_id}
         handler = _Progress(self, job.id)
         root = logging.getLogger()
         root.addHandler(handler)
         started = time.time()
-        self._update(job.id, status="running", stage="analyze", message="Preparando", started=started)
-        cancel = self._cancel.setdefault(job.id, threading.Event())
-        context = telemetry.job_context(job.id, job.trace_id, on_change=self._stage_changed(job.id), cancel=cancel, usr={"id": telemetry.user_ref(job.owner)}, style=job.style)
+        self._update(job.id, when=mine, status="running", stage="analyze", message="Preparando", started=started)
+        context = telemetry.job_context(job.id, job.trace_id, on_change=self._stage_changed(job.id), cancel=flag, usr={"id": telemetry.user_ref(job.owner)}, style=job.style)
         with context as summary:
             summary["queue_wait_ms"] = round((started - job.created) * 1000)
             self._note(job.id, "Inicio del procesamiento", "Se ha iniciado el análisis del video.")
             self._update(job.id, metrics=dict(summary))
-            telemetry.event("job.started", queue_wait_ms=summary["queue_wait_ms"], deep=job.deep, take=job.take)
+            telemetry.event("job.started", queue_wait_ms=summary["queue_wait_ms"], deep=job.deep, take=job.take, attempt=job.attempts)
             try:
-                pipeline = Pipeline(self.config, Path(job.video_path), **self._pipeline_kwargs(job))
+                video = self.local(job.video_path)  # en otra máquina, se trae del almacén
+                pipeline = Pipeline(self.config, video, **self._pipeline_kwargs(job))
                 self._update(job.id, run_dir=str(pipeline.run_dir))
                 if job.edits:
                     output = self._edit(job, pipeline)
@@ -595,9 +812,13 @@ class JobStore:
                     self._save_artifacts(job.id, pipeline)
                 finished = time.time()
                 summary["total_ms"] = round((finished - started) * 1000)
-                self._update(job.id, status="done", stage="done", progress=1.0, message="Listo", output=str(output), finished=finished, metrics=summary)
-                telemetry.event("job.finished", outcome="ok", duration_ms=summary["total_ms"], output_bytes=output.stat().st_size, metrics=summary)
+                done = dict(status="done", stage="done", progress=1.0, message="Listo", output=str(output), finished=finished, metrics=summary, lease_until=None)
+                if self._update(job.id, when=mine, **done):
+                    telemetry.event("job.finished", outcome="ok", duration_ms=summary["total_ms"], output_bytes=output.stat().st_size, metrics=summary)
             except telemetry.Cancelled:
+                if flag.lost:  # el turno pasó a otro trabajador: el trabajo sigue, solo que no aquí
+                    telemetry.event("job.abandoned", level=logging.WARNING, duration_ms=round((time.time() - started) * 1000))
+                    return
                 # La persona canceló: no queda nada que mostrar, así que se borra todo.
                 telemetry.event("job.cancelled", duration_ms=round((time.time() - started) * 1000))
                 self._remove(job.id)
@@ -606,7 +827,7 @@ class JobStore:
                 log.exception("Trabajo %s falló (%s)", job.id, code)
                 finished = time.time()
                 summary["total_ms"] = round((finished - started) * 1000)
-                self._update(job.id, status="failed", message="Falló", error=ERRORS[code], error_code=code, finished=finished, metrics=summary)
+                self._update(job.id, when=mine, status="failed", message="Falló", error=ERRORS[code], error_code=code, finished=finished, metrics=summary, lease_until=None)
                 telemetry.event(
                     "job.failed",
                     level=logging.ERROR,
@@ -617,7 +838,6 @@ class JobStore:
                 )
             finally:
                 root.removeHandler(handler)
-                self._cancel.pop(job.id, None)
 
     @staticmethod
     def _pipeline_kwargs(job: Job) -> dict:
@@ -639,10 +859,14 @@ class JobStore:
 
     def _note(self, job_id: str, text: str, detail: str = "") -> None:
         """Una línea de la actividad reciente (las últimas ACTIVITY_LINES)."""
-        with self._lock:
-            job = self._jobs.get(job_id)
-            if job is not None:
-                job.activity = [*job.activity, {"at": time.time(), "text": text, "detail": detail}][-ACTIVITY_LINES:]
+        line = {"at": time.time(), "text": text, "detail": detail}
+
+        def add(current: dict | None) -> dict | None:
+            if current is None:
+                return None
+            return {**current, "activity": [*(current.get("activity") or []), line][-ACTIVITY_LINES:]}
+
+        self.docs.transact(COLLECTION, job_id, add)
 
     def _stage_changed(self, job_id: str) -> Callable[[str, str, dict], None]:
         """Lo que se hace cuando una etapa empieza o termina: la actividad y las métricas en vivo."""
@@ -661,8 +885,17 @@ class JobStore:
         (`moments`) y los gestos con que se dibujó (`events`)."""
         return self.outputs / f"{job_id}.{kind}.json"
 
+    def read_artifact(self, job_id: str, kind: str) -> str:
+        """El contenido de un artefacto (traído del almacén si esta máquina no lo tiene)."""
+        return self.local(self.artifact(job_id, kind)).read_text(encoding="utf-8")
+
+    def _write_artifact(self, job_id: str, kind: str, text: str) -> None:
+        path = self.artifact(job_id, kind)
+        path.write_text(text, encoding="utf-8")
+        self.publish(path)
+
     def editable(self, job: Job) -> bool:
-        return job.status == "done" and job.style_kind == "catalog" and all(self.artifact(job.id, k).exists() for k in ("script", "moments", "events"))
+        return job.status == "done" and job.style_kind == "catalog" and all(self.has(self.artifact(job.id, k)) for k in ("script", "moments", "events"))
 
     def preparable(self, job: Job) -> bool:
         """Una versión terminada de catálogo hecha antes del editor: sin sus artefactos."""
@@ -676,14 +909,14 @@ class JobStore:
 
         if not self.preparable(job):
             raise ValueError("Esta versión no necesita prepararse para editar.")
-        pipeline = Pipeline(self.config, Path(job.video_path), **self._pipeline_kwargs(job))
+        pipeline = Pipeline(self.config, self.local(job.video_path), **self._pipeline_kwargs(job))
         if not (Path(pipeline.run_dir) / "analysis" / "motion_brief.json").exists():
             raise ValueError("Ya no está el análisis de este video: crea otra versión para editarla.")
         pipeline.direct()
         self._save_artifacts(job.id, pipeline)
         if not self.editable(job):
             raise ValueError("No se pudo regenerar el guion de esta versión: crea otra versión para editarla.")
-        self.artifact(job.id, "prepared").write_text(json.dumps({"prepared": True}), encoding="utf-8")
+        self._write_artifact(job.id, "prepared", json.dumps({"prepared": True}))
         return self.get(job.id) or job
 
     def _save_artifacts(self, job_id: str, pipeline) -> None:
@@ -699,10 +932,10 @@ class JobStore:
         choreography = Choreography.model_validate_json((scripts / "choreography.json").read_text(encoding="utf-8"))
         moments = moments_from(script, choreography.decisions, pipeline._meta().frame_count)
         events = Path(pipeline.run_dir) / "analysis" / "events.jsonl"
-        self.artifact(job_id, "script").write_text(script.model_dump_json(), encoding="utf-8")
-        self.artifact(job_id, "moments").write_text(json.dumps([m.model_dump() for m in moments], ensure_ascii=False), encoding="utf-8")
+        self._write_artifact(job_id, "script", script.model_dump_json())
+        self._write_artifact(job_id, "moments", json.dumps([m.model_dump() for m in moments], ensure_ascii=False))
         lines = events.read_text(encoding="utf-8").splitlines() if events.exists() else []
-        self.artifact(job_id, "events").write_text(json.dumps([json.loads(line) for line in lines if line.strip()]), encoding="utf-8")
+        self._write_artifact(job_id, "events", json.dumps([json.loads(line) for line in lines if line.strip()]))
 
     def edit(self, base: Job, edits: list[dict]) -> Job:
         """Una versión nueva que parte de `base` con los cambios del editor."""
@@ -741,9 +974,10 @@ class JobStore:
 
         base = job.base or ""
         with telemetry.span("direct", provider="editor"):
-            script = EffectScript.model_validate_json(self.artifact(base, "script").read_text(encoding="utf-8"))
-            moments = [Moment.model_validate(m) for m in json.loads(self.artifact(base, "moments").read_text(encoding="utf-8"))]
-            events = [MotionEvent.model_validate(e) for e in json.loads(self.artifact(base, "events").read_text(encoding="utf-8"))]
+            script = EffectScript.model_validate_json(self.read_artifact(base, "script"))
+            moments = [Moment.model_validate(m) for m in json.loads(self.read_artifact(base, "moments"))]
+            events_text = self.read_artifact(base, "events")
+            events = [MotionEvent.model_validate(e) for e in json.loads(events_text)]
             meta = pipeline._meta()
             fps, frames = meta.fps or 30.0, meta.frame_count
             tracks = assign_tracks(moments, pipeline.element_of())
@@ -758,32 +992,34 @@ class JobStore:
                 compile_add=lambda option, action, frame, length, person: pipeline.compile_add(option, action, frame, length, person, script.seed),
             )
             window = changed_window(script, new, events, frames, fps)
-            self.artifact(job.id, "script").write_text(new.model_dump_json(), encoding="utf-8")
-            self.artifact(job.id, "moments").write_text(json.dumps([m.model_dump() for m in new_moments], ensure_ascii=False), encoding="utf-8")
-            shutil.copy2(self.artifact(base, "events"), self.artifact(job.id, "events"))
+            self._write_artifact(job.id, "script", new.model_dump_json())
+            self._write_artifact(job.id, "moments", json.dumps([m.model_dump() for m in new_moments], ensure_ascii=False))
+            self._write_artifact(job.id, "events", events_text)
         dest = self.outputs / f"{job.id}.mp4"
-        base_video = self.outputs / f"{base}.mp4"
+        base_video = self.local(self.outputs / f"{base}.mp4")
         if window is None and base_video.exists():
             # Nada que cambie en pantalla: la versión nueva es la misma imagen.
             return self._keep(job.id, base_video)
         # Una base preparada (api_data: "prepared") tiene un guion regenerado después de dibujar su
         # video: puede no coincidir al píxel, así que copiar de ese video dejaría costuras. Se redibuja entero.
-        prepared = self.artifact(base, "prepared").exists()
+        prepared = self.has(self.artifact(base, "prepared"))
         partial = window is not None and window != (0, frames - 1) and base_video.exists() and not prepared
         with telemetry.span("compose", streamed=True, partial=partial, window=list(window) if window else None):
             pipeline.render_script(new, dest, base_output=base_video if partial else None, window=window if partial else None, events=events)
         summary_window = {"window_frames": (window[1] - window[0] + 1) if window else 0, "total_frames": frames, "partial": partial}
         self._note(job.id, "Tramo redibujado" if partial else "Video redibujado completo", f"{summary_window['window_frames']} de {frames} fotogramas")
+        self.publish(dest)
         return dest
 
     def _keep(self, job_id: str, output: Path) -> Path:
         """El MP4 del trabajo en api_data/outputs/<id>.mp4. Enlace duro si se puede (el pipeline
         escribe el siguiente video en un archivo nuevo y lo renombra, así que el enlace conserva
-        este); si no, copia."""
+        este); si no, copia. Se publica en el almacén para que la API lo sirva."""
         target = self.outputs / f"{job_id}.mp4"
         target.unlink(missing_ok=True)
         try:
             os.link(output, target)
         except OSError:
             shutil.copy2(output, target)
+        self.publish(target)
         return target

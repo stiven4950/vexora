@@ -21,7 +21,7 @@ import cv2
 import yaml
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -313,7 +313,7 @@ class JobView(Job):
     # Ya tiene las capas por pista de la vista en vivo del editor (/layers).
     layers_ready: bool = False
     duration: float | None = None
-    # Segundos que se espera que tarde, y cuántos trabajos van antes en la cola (un solo trabajador).
+    # Segundos que se espera que tarde, y cuántos trabajos van antes en la cola.
     estimate_s: float | None = None
     queue_ahead: int = 0
     # URLs de los archivos, con la llave corta (?k=) que las abre sin cabeceras (auth.py).
@@ -344,6 +344,7 @@ def _tags(job: Job) -> list[str]:
 def view(job: Job) -> JobView:
     data = job.model_dump()
     data["owner"] = None  # el uid no sale de la API
+    data["worker"] = None  # ni qué máquina lo procesa
     # La consola en vivo, solo mientras procesa y sin rutas del servidor; el detalle de un fallo
     # queda en el registro del servidor (el cliente recibe error_code y un mensaje claro).
     data["log"] = [redact(line) for line in job.log[-20:]] if job.status in ("queued", "running") else []
@@ -396,6 +397,23 @@ def _media_job(job_id: str, key: str | None) -> Job:
         raise HTTPException(404, JOB_NOT_FOUND)
     media_owner(job_id, key, job.owner or "local")
     return job
+
+
+def _send(path: str | Path, media_type: str, filename: str | None = None) -> Response:
+    """Un archivo de api_data/: desde el disco si está en esta máquina; si no (otro proceso lo
+    produjo y lo publicó en el almacén de archivos), una redirección a su URL firmada corta."""
+    url = None if Path(path).exists() else jobs().signed_url(path, filename=filename, media_type=media_type)
+    if url is not None:
+        return RedirectResponse(url, status_code=307)
+    return FileResponse(path, media_type=media_type, filename=filename)
+
+
+def _cache_dir(job: Job) -> Path:
+    """Donde se guardan las miniaturas del trabajo (junto a su video; la carpeta puede no existir
+    en esta máquina si el video está en el almacén)."""
+    folder = Path(job.video_path).parent
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
 
 
 def _check_style(kind: str, name: str) -> str:
@@ -691,7 +709,7 @@ def _editor_catalog(job: Job):
 
 
 def _video_timing(job: Job) -> tuple[float, int]:
-    cap = cv2.VideoCapture(job.video_path)
+    cap = cv2.VideoCapture(str(jobs().local(job.video_path)))
     fps = float(cap.get(cv2.CAP_PROP_FPS) or 30.0) or 30.0
     frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
     cap.release()
@@ -708,7 +726,7 @@ def job_editor(job_id: str, user: User = Depends(current_user)) -> EditorView:
         raise HTTPException(409, "Esta versión no se puede editar: solo las coreografías terminadas desde que existe el editor. Crea otra versión para editarla.")
     catalog = _editor_catalog(job)
     element_of = element_lookup(catalog)
-    moments = [Moment.model_validate(m) for m in json.loads(jobs().artifact(job.id, "moments").read_text(encoding="utf-8"))]
+    moments = [Moment.model_validate(m) for m in json.loads(jobs().read_artifact(job.id, "moments"))]
     tracks = assign_tracks(moments, element_of)
     fps, frames = _video_timing(job)
     by_id = {m.id: m for m in moments}
@@ -770,9 +788,9 @@ def _validated_edits(job: Job, raw: list[dict]) -> list:
         raise HTTPException(422, f"Cambio no válido: {error}") from error
     # Un efecto nuevo se compila en el trabajo (necesita el análisis); sin él, se prueba todo aquí.
     if not any(e.op == "add" for e in edits):
-        script = EffectScript.model_validate_json(jobs().artifact(job.id, "script").read_text(encoding="utf-8"))
-        moments = [Moment.model_validate(m) for m in json.loads(jobs().artifact(job.id, "moments").read_text(encoding="utf-8"))]
-        events = [MotionEvent.model_validate(e) for e in json.loads(jobs().artifact(job.id, "events").read_text(encoding="utf-8"))]
+        script = EffectScript.model_validate_json(jobs().read_artifact(job.id, "script"))
+        moments = [Moment.model_validate(m) for m in json.loads(jobs().read_artifact(job.id, "moments"))]
+        events = [MotionEvent.model_validate(e) for e in json.loads(jobs().read_artifact(job.id, "events"))]
         fps, frames = _video_timing(job)
         try:
             apply_edits(script, moments, assign_tracks(moments, element_lookup(_editor_catalog(job))), edits, events, fps, frames)
@@ -924,11 +942,11 @@ def get_layers(job_id: str, user: User = Depends(current_user)) -> LayersView:
 
 
 @app.get("/api/jobs/{job_id}/layers.mp4")
-def layers_file(job_id: str, k: str | None = Query(None)) -> FileResponse:
+def layers_file(job_id: str, k: str | None = Query(None)) -> Response:
     job = _media_job(job_id, k)
     if not layers().ready(job.id):
         raise HTTPException(404, "Las capas ya no existen")
-    return FileResponse(layers().video_path(job.id), media_type="video/mp4")
+    return _send(layers().video_path(job.id), "video/mp4")
 
 
 @app.get("/api/jobs/{job_id}/preview/{preview_id}", response_model=PreviewView)
@@ -1054,10 +1072,10 @@ def job_filmstrip(job_id: str, n: int = Query(12, ge=4, le=24), k: str | None = 
     import numpy as np
 
     job = _media_job(job_id, k)
-    source = job.output if job.output and Path(job.output).exists() else job.video_path
+    source = job.output if job.output and jobs().has(job.output) else job.video_path
     cache = jobs().outputs / f"{job.id}.filmstrip-{n}.jpg"
     if not cache.exists():
-        cap = cv2.VideoCapture(source)
+        cap = cv2.VideoCapture(str(jobs().local(source)))
         total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
         tiles = []
         for i in range(n):
@@ -1116,23 +1134,24 @@ async def job_events(job_id: str, k: str | None = Query(None)) -> StreamingRespo
                 yield f"data: {payload}\n\n"
             if job.status in ("done", "failed"):
                 return
-            await asyncio.sleep(0.5)
+            # El trabajador puede ser otro proceso: el avance se lee del almacén.
+            await asyncio.sleep(jobs().poll_s)
 
     return StreamingResponse(stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/api/jobs/{job_id}/output")
-def job_output(job_id: str, download: bool = False, k: str | None = Query(None)) -> FileResponse:
+def job_output(job_id: str, download: bool = False, k: str | None = Query(None)) -> Response:
     job = _media_job(job_id, k)
-    if not job.output or not Path(job.output).exists():
+    if not job.output or not jobs().has(job.output):
         raise HTTPException(404, "El video editado aún no existe")
     name = f"{Path(job.filename).stem}-{job.style}{'-' + str(job.seed) if job.seed is not None else ''}.mp4"
-    return FileResponse(job.output, media_type="video/mp4", filename=name if download else None)
+    return _send(job.output, "video/mp4", filename=name if download else None)
 
 
 @app.get("/api/jobs/{job_id}/original")
-def job_original(job_id: str, k: str | None = Query(None)) -> FileResponse:
-    return FileResponse(_media_job(job_id, k).video_path, media_type="video/mp4")
+def job_original(job_id: str, k: str | None = Query(None)) -> Response:
+    return _send(_media_job(job_id, k).video_path, "video/mp4")
 
 
 @app.get("/api/jobs/{job_id}/thumbnail")
@@ -1140,11 +1159,11 @@ def job_thumbnail(job_id: str, original: bool = False, first: bool = False, k: s
     """Fotograma del editado (o del original con ?original=true): a un tercio del video, o el
     primero con ?first=true (póster del comparador: coincide con el inicio de la reproducción)."""
     job = _media_job(job_id, k)
-    source = job.output if not original and job.output and Path(job.output).exists() else job.video_path
+    source = job.output if not original and job.output and jobs().has(job.output) else job.video_path
     kind = f"{'out' if source == job.output else 'in'}{'-first' if first else ''}"
-    cache = Path(job.video_path).parent / f"thumb-{job.id}-{kind}.jpg"
+    cache = _cache_dir(job) / f"thumb-{job.id}-{kind}.jpg"
     if not cache.exists():
-        cap = cv2.VideoCapture(source)
+        cap = cv2.VideoCapture(str(jobs().local(source)))
         total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
         cap.set(cv2.CAP_PROP_POS_FRAMES, 0 if first else max(total // 3, 0))
         ok, frame = cap.read()
@@ -1174,12 +1193,12 @@ class PersonView(BaseModel):
 def _people_frames(job: Job) -> dict[str, tuple[int, tuple[float, float, float, float]]]:
     """Por persona, el fotograma donde se ve entera y más grande (y su caja). Se guarda junto al
     video."""
-    cache = Path(job.video_path).parent / f"people-{Path(job.run_dir or '').name}.json"
+    cache = _cache_dir(job) / f"people-{Path(job.run_dir or '').name}.json"
     if cache.exists():
         return {k: (v[0], tuple(v[1])) for k, v in json.loads(cache.read_text()).items()}
     tracks = Path(job.run_dir or "") / "analysis" / "tracks.jsonl"
     best: dict[str, tuple[float, int, tuple]] = {}
-    cap = cv2.VideoCapture(job.video_path)
+    cap = cv2.VideoCapture(str(jobs().local(job.video_path)))
     aspect = (cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 1.0) / (cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 1.0)
     cap.release()
     records = [json.loads(line) for line in tracks.open(encoding="utf-8")] if tracks.exists() else []
@@ -1222,10 +1241,10 @@ def job_person_image(job_id: str, person_id: str, k: str | None = Query(None)) -
     found = _people_frames(job)
     if person_id not in found:
         raise HTTPException(404, "Persona no encontrada")
-    cache = Path(job.video_path).parent / f"person-{Path(job.run_dir or '').name}-{person_id}.jpg"
+    cache = _cache_dir(job) / f"person-{Path(job.run_dir or '').name}-{person_id}.jpg"
     if not cache.exists():
         frame_index, (x0, y0, x1, y1) = found[person_id]
-        cap = cv2.VideoCapture(job.video_path)
+        cap = cv2.VideoCapture(str(jobs().local(job.video_path)))
         cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
         ok, frame = cap.read()
         cap.release()

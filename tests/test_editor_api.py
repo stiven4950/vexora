@@ -340,7 +340,7 @@ def test_impossible_edits_are_422_and_other_users_get_404(client: TestClient) ->
     assert client.post("/api/jobs/nada/preview", json={"edits": [{"op": "volar"}], "at": 1.0}).status_code == 404
     ok = client.post(f"/api/jobs/{job['id']}/preview", json={"edits": [_remove(client, job)], "at": 1.0}).json()
     _ready(client, job["id"], ok["preview_id"])
-    server.store._jobs[job["id"]].owner = "otra-persona"
+    server.store._update(job["id"], owner="otra-persona")
     assert client.get(f"/api/jobs/{job['id']}/preview/{ok['preview_id']}").status_code == 404
     assert client.post(f"/api/jobs/{job['id']}/preview", json={"edits": [_style(1)], "at": 1.0}).status_code == 404
 
