@@ -54,6 +54,9 @@ export const api = {
     request<NotificationsView>("/api/notifications/read", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(ids === "all" ? { all: true } : { ids }) }),
   /** El enlace público activo de un video terminado (404 si no hay). */
   getShare: (id: string) => request<ShareLink>(`/api/jobs/${id}/share`),
+  /** Guardar en la nube (no vence) o quitarlo (vuelve a vencer y su enlace deja de funcionar). */
+  saveJob: (id: string) => request<Job>(`/api/jobs/${id}/save`, { method: "POST" }),
+  unsaveJob: (id: string) => request<Job>(`/api/jobs/${id}/save`, { method: "DELETE" }),
   /** Crea el enlace público o devuelve el que ya está activo. */
   createShare: (id: string) => request<ShareLink>(`/api/jobs/${id}/share`, { method: "POST" }),
   /** Revoca el enlace: deja de funcionar al instante. */

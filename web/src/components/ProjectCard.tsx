@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { fullDate, groupStatus, mmss, projectName, resolutionLabel, type Group } from "../api/format";
 import type { Job } from "../api/types";
 import { ROUTES } from "../routes";
+import { expiresText } from "./CloudActions";
 import { Icon } from "./Icon";
 import { StatusBadge } from "./StatusBadge";
 import styles from "./ProjectCard.module.css";
@@ -52,6 +53,13 @@ export function ProjectCard({ group, onRename, onRemove, onRetry }: Props) {
           <span key={tag}>{capital(tag)}</span>
         ))}
         {group.jobs.length > 1 && <span className={styles.versions}>{group.jobs.length} versiones</span>}
+        {cover.saved ? (
+          <span className={styles.cloud}>
+            <Icon name="cloud" size={12} /> En tu nube
+          </span>
+        ) : (
+          cover.keep_until && <span className={styles.expiring}>{expiresText(cover.keep_until)}</span>
+        )}
       </div>
       <div className={styles.foot}>
         <span className={styles.date}>

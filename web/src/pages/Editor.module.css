@@ -219,8 +219,7 @@
   cursor: pointer;
 }
 
-.download,
-.share {
+.download {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -237,12 +236,6 @@
   background: linear-gradient(100deg, var(--cyan), var(--blue) 55%, var(--violet));
   color: #fff;
   box-shadow: 0 16px 40px -14px rgba(var(--cyan-rgb), 0.8);
-}
-
-.share {
-  border: 1px solid var(--line-strong);
-  background: none;
-  color: var(--text);
 }
 
 .selection {

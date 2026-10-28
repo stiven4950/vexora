@@ -69,6 +69,10 @@ export interface Job {
   bolt_style: string | null;
   /** Objeto protagonista elegido (null = el del estilo). */
   prop: string | null;
+  /** Guardado en la nube por su dueño (solo planes con cloud_save): no vence. */
+  saved: boolean;
+  /** Sin guardar, el video se borra a esta hora (época en segundos); null = no vence. */
+  keep_until: number | null;
   status: JobStatus;
   stage: JobStage;
   progress: number;
@@ -351,7 +355,8 @@ export interface Profile {
   bio: string;
   /** Foto con llave corta (?k=), o null sin foto. */
   avatar_url: string | null;
-  plan: { id: string; title: string; badge: string | null };
+  /** Lo que el plan permite con los videos terminados (configs/plans.yaml). */
+  plan: { id: string; title: string; badge: string | null; cloud_save: boolean; share: boolean; unsaved_days: number };
   notifications: NotificationPrefs;
   preferences: Preferences;
   accepted_terms_at: number | null;

@@ -228,3 +228,18 @@
 .version a:hover {
   color: var(--cyan);
 }
+
+/* Sin guardar en la nube, el video vence (configs/plans.yaml, unsaved_days); guardado, no. */
+.tags .expiring {
+  border-color: rgba(251, 191, 36, 0.45);
+  color: #fbbf24;
+}
+
+.tags .cloud {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-color: rgba(52, 211, 153, 0.45);
+  color: #6ee7b7;
+}
+

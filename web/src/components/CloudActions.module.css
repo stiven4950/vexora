@@ -1,0 +1,80 @@
+.box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.action,
+.locked {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--cyan-rgb), 0.55);
+  background: rgba(var(--cyan-rgb), 0.06);
+  color: var(--cyan);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.action:hover:not(:disabled) {
+  background: rgba(var(--cyan-rgb), 0.14);
+}
+
+.action:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.locked {
+  border-color: var(--line-strong);
+  background: transparent;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.locked:hover {
+  color: var(--text);
+}
+
+.saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(52, 211, 153, 0.12);
+  color: #6ee7b7;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.quiet {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.expiry {
+  flex-basis: 100%;
+  color: #fbbf24;
+  font-size: 12px;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.error {
+  flex-basis: 100%;
+  color: #f87171;
+  font-size: 12px;
+}

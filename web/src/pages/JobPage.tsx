@@ -5,7 +5,7 @@ import { api } from "../api/client";
 import { projectName, rgb, sheetDate, timecode } from "../api/format";
 import { notifyDone } from "../api/notify";
 import { ROUTES } from "../routes";
-import { WARDROBES, type Looks, type Moment, type Person, type Season, type Style, type Wardrobe } from "../api/types";
+import { WARDROBES, type Job, type Looks, type Moment, type Person, type Season, type Style, type Wardrobe } from "../api/types";
 import { Button } from "../components/Button";
 import { ChoreographyPanel } from "../components/ChoreographyPanel";
 import { CompareViewer, type CompareViewerHandle } from "../components/CompareViewer";
@@ -13,7 +13,7 @@ import { Icon } from "../components/Icon";
 import { PrepareButton } from "../components/editor/PrepareButton";
 import { ProcessingView, type AppliedConfig } from "../components/ProcessingView";
 import { ProjectSidebar } from "../components/ProjectSidebar";
-import { ShareDialog } from "../components/ShareDialog";
+import { CloudActions } from "../components/CloudActions";
 import { Shell } from "../components/Shell";
 import { useJob } from "../hooks/useJob";
 import styles from "./JobPage.module.css";
@@ -31,7 +31,10 @@ export function JobPage() {
   const { job: loaded, error } = useJob(id);
   // El nombre que la persona acaba de poner: se ve ya, sin esperar al siguiente aviso del servidor.
   const [renamed, setRenamed] = useState<string | null>(null);
-  const job = loaded && renamed !== null ? { ...loaded, title: renamed || null } : loaded;
+  // Guardar en la nube o quitarlo cambia el trabajo sin que llegue otro evento del servidor.
+  const [cloud, setCloud] = useState<Pick<Job, "saved" | "keep_until"> | null>(null);
+  const titled = loaded && renamed !== null ? { ...loaded, title: renamed || null } : loaded;
+  const job = titled && cloud ? { ...titled, ...cloud } : titled;
   const [cancelling, setCancelling] = useState(false);
   const [moments, setMoments] = useState<Moment[]>([]);
   const [styleList, setStyleList] = useState<Style[]>([]);
@@ -48,7 +51,6 @@ export function JobPage() {
   const [nextFire, setNextFire] = useState<string | undefined>(undefined);
   const [nextBolt, setNextBolt] = useState<string | undefined>(undefined);
   const [busy, setBusy] = useState(false);
-  const [sharing, setSharing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [playhead, setPlayhead] = useState(0);
   const viewer = useRef<CompareViewerHandle>(null);
@@ -268,10 +270,7 @@ export function JobPage() {
               <a className={styles.download} href={`${job.output_url}&download=true`}>
                 <Icon name="download" /> Descargar MP4
               </a>
-              <Button variant="ghost" icon="share" onClick={() => setSharing(true)}>
-                Compartir con un enlace
-              </Button>
-              {sharing && <ShareDialog jobId={job.id} title={projectName(job)} onClose={() => setSharing(false)} />}
+              <CloudActions job={job} title={projectName(job)} onChange={(next) => setCloud({ saved: next.saved, keep_until: next.keep_until })} />
               {job.duration && <span className={styles.meta}>Revelado en {timecode(job.duration)}</span>}
             </section>
 
