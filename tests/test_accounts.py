@@ -15,7 +15,7 @@ import cv2  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from test_api import FakePipeline, fake_probe  # noqa: E402
-from vfxglow.api import auth, limits, profiles, server  # noqa: E402
+from vfxglow.api import auth, limits, profiles, ratelimit, server  # noqa: E402
 from vfxglow.api.jobs import JobStore  # noqa: E402
 
 USERS = {"ana": ("uid-ana", "ana@example.com", True), "beto": ("uid-beto", "beto@example.com", True), "caro": ("uid-caro", "caro@example.com", True)}
@@ -29,6 +29,11 @@ def as_(token: str) -> dict:
 def _reset() -> None:
     FakePipeline.fail = False
     FakePipeline.block = False
+
+
+@pytest.fixture(autouse=True)
+def _fresh_limits() -> None:
+    ratelimit.public.reset()
 
 
 @pytest.fixture()
@@ -441,4 +446,55 @@ def test_expired_unsaved_videos_are_deleted_but_saved_and_older_ones_stay(client
     assert store.expire(now=time.time() + 8 * 24 * 3600) == 1
     left = {job.id for job in store.list("uid-ana")}
     assert unsaved["id"] not in left and {saved["id"], legacy["id"]} <= left
+
+
+# ----- límites de las páginas públicas -----
+
+
+def test_public_page_and_video_have_per_ip_limits_with_retry_after(client: TestClient) -> None:
+    job = make_job(client, "ana")
+    token = client.post(f"/api/jobs/{job['id']}/share", headers=as_("ana")).json()["token"]
+    page, video = ratelimit.PAGE_LIMIT[0], ratelimit.VIDEO_LIMIT[0]
+    assert all(client.get(f"/api/public/{token}").status_code == 200 for _ in range(page))
+    over = client.get(f"/api/public/{token}")
+    assert over.status_code == 429 and over.headers["retry-after"] == "60"
+    # El video tiene su propio cupo: la página llena no impide verlo.
+    assert all(client.get(f"/api/public/{token}/video.mp4").status_code == 200 for _ in range(video))
+    assert client.get(f"/api/public/{token}/video.mp4").status_code == 429
+
+
+def test_many_unknown_links_block_that_ip_for_a_while(client: TestClient) -> None:
+    job = make_job(client, "ana")
+    token = client.post(f"/api/jobs/{job['id']}/share", headers=as_("ana")).json()["token"]
+    misses = ratelimit.MISS_LIMIT[0]
+    for i in range(misses + 1):
+        assert client.get(f"/api/public/inventado{i}").status_code == 404
+    blocked = client.get(f"/api/public/{token}")  # ni siquiera un enlace válido, mientras dure
+    assert blocked.status_code == 429 and int(blocked.headers["retry-after"]) > 800
+
+
+def test_client_ip_trusts_only_the_configured_proxies(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert ratelimit.client_ip("1.1.1.1, 2.2.2.2", "9.9.9.9") == "9.9.9.9"  # sin proxies: la conexión
+    monkeypatch.setenv(ratelimit.PROXY_HOPS_ENV, "1")
+    assert ratelimit.client_ip("1.1.1.1, 2.2.2.2", "9.9.9.9") == "2.2.2.2"  # la que agregó Cloud Run
+    assert ratelimit.client_ip(None, "9.9.9.9") == "9.9.9.9"
+
+
+def test_daily_view_cap_per_link_notifies_the_owner_once(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(server, "_daily_cap", lambda item: 2)
+    job = make_job(client, "ana")
+    token = client.post(f"/api/jobs/{job['id']}/share", headers=as_("ana")).json()["token"]
+    assert [client.get(f"/api/public/{token}").status_code for _ in range(3)] == [200, 200, 429]
+    capped = client.get(f"/api/public/{token}")
+    assert capped.json()["detail"] == server.DAILY_CAP
+    assert client.get(f"/api/public/{token}/video.mp4").status_code == 429
+    notes = [n for n in client.get("/api/notifications", headers=as_("ana")).json()["items"] if n["kind"] == "share_limit"]
+    assert len(notes) == 1
+
+
+def test_links_stop_working_when_the_owner_no_longer_has_a_sharing_plan(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    job = make_job(client, "ana")
+    token = client.post(f"/api/jobs/{job['id']}/share", headers=as_("ana")).json()["token"]
+    monkeypatch.setenv("VEXORA_PLAN_GRANTS", "uid-beto:pro")  # Ana vuelve a Free
+    assert client.get(f"/api/public/{token}").status_code == 404
 

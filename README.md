@@ -219,6 +219,11 @@ el trabajo espera a que termine: hay un candado por carpeta de análisis) y no s
   y compartir exige el video guardado. Los videos hechos antes de esta regla no vencen.
 - Mientras no hay pagos, `VEXORA_PLAN_GRANTS="uid1:pro,uid2:ultra"` asigna planes a cuentas
   concretas (solo en el servidor).
+- Enlaces públicos con límites (`api/ratelimit.py`): 30 peticiones/min por IP a la página, 120 al
+  video, bloqueo de 15 min tras 10 enlaces inexistentes en 10 min, y un tope de vistas al día por
+  enlace según el plan (Pro 2.000, Ultra 10.000; al llegar se avisa al dueño una vez al día). Si el
+  dueño baja a un plan sin compartir, sus enlaces dejan de funcionar. En Cloud Run:
+  `VEXORA_PROXY_HOPS=1`.
 
 ## Trazabilidad (eventos JSON)
 

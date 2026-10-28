@@ -36,6 +36,8 @@ class Plan(BaseModel):
     # Puede guardar sus videos en la nube (si no, solo descargarlos antes de que venzan) y compartirlos.
     cloud_save: bool = False
     share: bool = False
+    # Vistas al día por enlace compartido; None = sin tope.
+    share_daily_views: int | None = None
 
 
 class CreditPack(BaseModel):

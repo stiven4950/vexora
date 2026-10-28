@@ -119,11 +119,14 @@ trabajadores (cuenta de servicio) leen y escriben, y las cuentas de servicio no 
 gcloud run deploy vexora-api --image $IMAGE --region $REGION --service-account $SA \
   --allow-unauthenticated --port 8080 --cpu 2 --memory 4Gi --timeout 3600 \
   --min-instances 0 --max-instances 1 --session-affinity \
-  --set-env-vars VEXORA_ENV=prod,VEXORA_STORE=firestore,VEXORA_BLOBS=gcs,VEXORA_BUCKET=vexora-dev.firebasestorage.app,VEXORA_FIREBASE_PROJECT=$PROJECT,VEXORA_INPROCESS_WORKERS=0,VEXORA_CORS_ORIGINS=https://<tu-dominio-de-vercel> \
+  --set-env-vars VEXORA_ENV=prod,VEXORA_STORE=firestore,VEXORA_BLOBS=gcs,VEXORA_BUCKET=vexora-dev.firebasestorage.app,VEXORA_FIREBASE_PROJECT=$PROJECT,VEXORA_INPROCESS_WORKERS=0,VEXORA_PROXY_HOPS=1,VEXORA_CORS_ORIGINS=https://<tu-dominio-de-vercel> \
   --set-secrets VEXORA_SECRET=vexora-secret:latest,GEMINI_API_KEY=gemini-api-key:latest
 ```
 
 - `VEXORA_INPROCESS_WORKERS=0`: la API no procesa trabajos (lo hacen los trabajadores).
+- `VEXORA_PROXY_HOPS=1`: Cloud Run agrega la IP real al final de `X-Forwarded-For`; los límites de
+  las páginas públicas (api/ratelimit.py) usan esa, no las que puede inventar el cliente. Con un
+  balanceador de carga delante son 2.
 - `--max-instances 1` por ahora: las vistas previas del editor y del Estudio, las capas y el
   análisis de las subidas siguen en hilos de la API con estado en memoria y en su disco (ver
   "Limitaciones").
@@ -223,6 +226,13 @@ VEXORA_BLOBS=gcs`, `vfxglow-api` con `VEXORA_INPROCESS_WORKERS=0` y `vexora-work
 se bloquea entre procesos.)
 
 ## Limitaciones conocidas y siguientes pasos
+
+- **Límites de las páginas públicas** (enlaces compartidos, api/ratelimit.py): 30 peticiones por
+  minuto por IP a la página, 120 al video, y 10 enlaces inexistentes en 10 minutos bloquean esa IP
+  15 minutos; además, cada enlace tiene un tope de vistas al día según el plan del dueño
+  (`share_daily_views` en configs/plans.yaml). Se cuentan en memoria: son exactos con una sola
+  instancia de la API. Con más tráfico, agregar una regla de límite por IP en Cloud Armor (requiere
+  un balanceador de carga, ~18 USD/mes) para frenar el abuso antes de que llegue a la API.
 
 - **Subidas (análisis temprano), vistas previas y capas del editor siguen en la API**, en hilos y
   con estado en memoria o en su disco. Por eso la API va con una instancia. Siguiente paso:

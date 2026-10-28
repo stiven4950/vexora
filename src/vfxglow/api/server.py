@@ -28,7 +28,7 @@ from pydantic import BaseModel
 
 from vfxglow import telemetry
 from vfxglow.analysis.quality import QualityWarning
-from vfxglow.api import accounts, limits, notifications, profiles, shares
+from vfxglow.api import accounts, limits, notifications, profiles, ratelimit, shares
 from vfxglow.api.auth import User, auth_enabled, check_bind, current_user, media_key, media_owner
 from vfxglow.api.jobs import Job, JobBusy, JobStore, NotRetryable, UploadTooLarge, owns
 from vfxglow.api.layers import LayerStore, estimate_seconds
@@ -1549,19 +1549,61 @@ class PublicView(BaseModel):
 PUBLIC_GONE = "Este enlace no existe o ya no está disponible."
 
 
-def _public_job(token: str) -> Job:
+TOO_MANY = "Demasiadas solicitudes. Espera un momento y vuelve a intentarlo."
+DAILY_CAP = "Este video alcanzó su límite de vistas de hoy. Vuelve mañana."
+
+
+def _guard(request: Request, scope: str, limit: tuple[int, float]) -> str:
+    """Límites por IP de las páginas públicas (api/ratelimit.py). Devuelve la IP para contar los
+    enlaces que no existen. 429 con Retry-After si se pasa o si está bloqueada."""
+    ip = ratelimit.client_ip(request.headers.get("x-forwarded-for"), request.client.host if request.client else None)
+    wait = ratelimit.public.blocked_for(ip)
+    if wait > 0 or not ratelimit.public.allow(scope, ip, limit):
+        telemetry.event("security.rate_limited", level=logging.WARNING, scope=scope, blocked=wait > 0)
+        raise HTTPException(429, TOO_MANY, headers={"Retry-After": str(int(wait) or int(limit[1]))})
+    return ip
+
+
+def _owner_plan(item: dict):
+    from vfxglow.api.plans import plan_of
+
+    return plan_of(ROOT / "configs" / "plans.yaml", item.get("uid", ""))
+
+
+def _public_job(token: str, ip: str) -> tuple[Job, dict]:
     item = shares.lookup(jobs().docs, token)
     job = jobs().get(item["job_id"]) if item is not None else None
-    if item is None or job is None or job.status != "done" or not job.output or not jobs().has(job.output):
+    # Si el dueño ya no tiene un plan que comparta (bajó a Free), su enlace deja de existir.
+    gone = item is None or job is None or not _owner_plan(item).share
+    if gone or job.status != "done" or not job.output or not jobs().has(job.output):
+        ratelimit.public.miss(ip)
         raise HTTPException(404, PUBLIC_GONE)
-    return job
+    return job, item
+
+
+def _daily_cap(item: dict) -> int | None:
+    """Vistas al día del enlace según el plan de su dueño (configs/plans.yaml, share_daily_views)."""
+    return _owner_plan(item).share_daily_views
 
 
 @app.get("/api/public/{token}", response_model=PublicView)
-def public_share(token: str) -> PublicView:
-    """Lo que ve quien abre un enlace compartido (sin sesión). Cuenta una visita."""
-    job = _public_job(token)
-    shares.count_view(jobs().docs, token)
+def public_share(token: str, request: Request) -> PublicView:
+    """Lo que ve quien abre un enlace compartido (sin sesión). Cuenta una visita, hasta el tope
+    diario del plan del dueño; la que llega al tope le avisa (una vez al día)."""
+    job, item = _public_job(token, _guard(request, "page", ratelimit.PAGE_LIMIT))
+    counted = shares.count_view(jobs().docs, token, _daily_cap(item))
+    if counted == "over":
+        raise HTTPException(429, DAILY_CAP)
+    if counted == "reached":
+        notifications.notify(
+            jobs().docs,
+            item["uid"],
+            "share_limit",
+            "Tu enlace llegó a su límite de hoy",
+            f"{job.title or Path(job.filename).stem} alcanzó las vistas diarias de tu plan; mañana vuelve a estar disponible.",
+            job_id=job.id,
+        )
+        telemetry.event("share.daily_cap", job_id=job.id, usr={"id": telemetry.user_ref(item.get("uid"))})
     current = catalog_name(job.style) if job.style_kind == "catalog" else PRESET_ALIASES.get(job.style, job.style)
     titles = {style.name: style.title for style in _styles_for(_styles_stamp())}
     return PublicView(
@@ -1574,9 +1616,12 @@ def public_share(token: str) -> PublicView:
 
 
 @app.get("/api/public/{token}/video.mp4")
-def public_video(token: str) -> Response:
-    """El video del enlace: desde el disco, o una redirección a una URL firmada corta del almacén."""
-    job = _public_job(token)
+def public_video(token: str, request: Request) -> Response:
+    """El video del enlace: desde el disco, o una redirección a una URL firmada corta del almacén.
+    No cuenta como visita, pero respeta el tope diario (si no, el video se bajaría sin la página)."""
+    job, item = _public_job(token, _guard(request, "video", ratelimit.VIDEO_LIMIT))
+    if shares.over_daily(item, _daily_cap(item)):
+        raise HTTPException(429, DAILY_CAP)
     return _send(job.output or "", "video/mp4")
 
 

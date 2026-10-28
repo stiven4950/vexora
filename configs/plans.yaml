@@ -41,6 +41,8 @@ plans:
     # Puede guardar sus videos en la nube y compartirlos con un enlace público.
     cloud_save: true
     share: true
+    # Vistas al día por enlace compartido (tope de costo: cada vista descarga el video del almacén).
+    share_daily_views: 2000
     features:
       - 100 créditos mensuales
       - Videos hasta 1080p
@@ -59,6 +61,7 @@ plans:
     monthly_credits: 300
     cloud_save: true
     share: true
+    share_daily_views: 10000
     features:
       - 300 créditos mensuales
       - Videos hasta 4K
@@ -79,6 +82,8 @@ plans:
     contact: true
     cloud_save: true
     share: true
+    # A medida: sin tope en la app (se acuerda con el cliente).
+    share_daily_views: null
     features:
       - Créditos personalizados
       - Calidad hasta 4K

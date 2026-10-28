@@ -46,8 +46,38 @@ def lookup(docs: DocStore, token: str) -> dict[str, Any] | None:
     return item if item is not None and item.get("revoked_at") is None else None
 
 
-def count_view(docs: DocStore, token: str) -> None:
-    docs.transact(COLLECTION, token, lambda c: {**c, "views": int(c.get("views", 0)) + 1} if c is not None and c.get("revoked_at") is None else None)
+def today() -> str:
+    """El día (UTC) con que se cuentan las vistas diarias de un enlace."""
+    return time.strftime("%Y-%m-%d", time.gmtime())
+
+
+def over_daily(item: dict[str, Any], cap: int | None) -> bool:
+    """Si el enlace ya llegó hoy a su tope de vistas (`cap` del plan del dueño; None = sin tope)."""
+    return cap is not None and item.get("day") == today() and int(item.get("views_today", 0)) >= cap
+
+
+def count_view(docs: DocStore, token: str, cap: int | None = None) -> str:
+    """Cuenta una visita. Devuelve "ok", "over" si ya llegó al tope de hoy (no se cuenta) o "reached"
+    si esta fue la que llegó al tope y aún no se había avisado al dueño hoy (se avisa una vez al día)."""
+    outcome = {"result": "over"}
+    day = today()
+
+    def bump(current: dict | None):
+        if current is None or current.get("revoked_at") is not None:
+            return None
+        views_today = int(current.get("views_today", 0)) if current.get("day") == day else 0
+        if cap is not None and views_today >= cap:
+            return None
+        views_today += 1
+        reached = cap is not None and views_today >= cap and current.get("limit_notified") != day
+        outcome["result"] = "reached" if reached else "ok"
+        changes = {"views": int(current.get("views", 0)) + 1, "day": day, "views_today": views_today}
+        if reached:
+            changes["limit_notified"] = day
+        return {**current, **changes}
+
+    docs.transact(COLLECTION, token, bump)
+    return outcome["result"]
 
 
 def erase_job(docs: DocStore, job_id: str) -> int:
