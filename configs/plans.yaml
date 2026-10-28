@@ -8,6 +8,9 @@ draft: true
 currency: USD
 # Plan de quien no tiene suscripción (hoy, todos).
 default_plan: free
+# Días que un video terminado sigue disponible (para descargarlo o editarlo) si no se guarda en la
+# nube; después se borra con su análisis. Guardar en la nube (planes con cloud_save) lo deja fijo.
+unsaved_days: 7
 
 plans:
   - id: free
@@ -35,6 +38,9 @@ plans:
     icon: bolt
     price_month: 14.99
     monthly_credits: 100
+    # Puede guardar sus videos en la nube y compartirlos con un enlace público.
+    cloud_save: true
+    share: true
     features:
       - 100 créditos mensuales
       - Videos hasta 1080p
@@ -51,6 +57,8 @@ plans:
     icon: cube
     price_month: 39.99
     monthly_credits: 300
+    cloud_save: true
+    share: true
     features:
       - 300 créditos mensuales
       - Videos hasta 4K
@@ -69,6 +77,8 @@ plans:
     price_month: 99
     price_from: true
     contact: true
+    cloud_save: true
+    share: true
     features:
       - Créditos personalizados
       - Calidad hasta 4K

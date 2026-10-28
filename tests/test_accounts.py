@@ -18,7 +18,7 @@ from test_api import FakePipeline, fake_probe  # noqa: E402
 from vfxglow.api import auth, limits, profiles, server  # noqa: E402
 from vfxglow.api.jobs import JobStore  # noqa: E402
 
-USERS = {"ana": ("uid-ana", "ana@example.com", True), "beto": ("uid-beto", "beto@example.com", True)}
+USERS = {"ana": ("uid-ana", "ana@example.com", True), "beto": ("uid-beto", "beto@example.com", True), "caro": ("uid-caro", "caro@example.com", True)}
 
 
 def as_(token: str) -> dict:
@@ -36,6 +36,8 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     monkeypatch.setattr("vfxglow.pipeline.Pipeline", FakePipeline)
     monkeypatch.setattr(limits, "probe_video", fake_probe)
     monkeypatch.setenv("VEXORA_AUTH", "on")
+    # Ana y Beto tienen Pro (guardar en la nube y compartir); Caro, sin asignación, queda en Free.
+    monkeypatch.setenv("VEXORA_PLAN_GRANTS", "uid-ana:pro,uid-beto:pro")
     logging.getLogger().setLevel(logging.INFO)
 
     def fake_verify(token: str) -> auth.User:
@@ -49,7 +51,17 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     return TestClient(server.app)
 
 
-def make_job(client: TestClient, who: str = "ana", wait: bool = True) -> dict:
+def make_job(client: TestClient, who: str = "ana", wait: bool = True, save: bool = True) -> dict:
+    """Un video de `who`; terminado y, si su plan lo permite y `save`, guardado en la nube."""
+    job = _make_job(client, who, wait)
+    if save and job.get("status") == "done":
+        saved = client.post(f"/api/jobs/{job['id']}/save", headers=as_(who))
+        if saved.status_code == 200:
+            return saved.json()
+    return job
+
+
+def _make_job(client: TestClient, who: str = "ana", wait: bool = True) -> dict:
     files = {"video": ("clip.mp4", io.BytesIO(b"\x00" * 64), "video/mp4")}
     job = client.post("/api/jobs", files=files, data={"style": "pelea"}, headers=as_(who)).json()
     if not wait:
@@ -391,3 +403,42 @@ def test_deleting_the_job_deletes_its_share(client: TestClient) -> None:
     assert client.delete(f"/api/jobs/{job['id']}", headers=as_("ana")).status_code == 204
     assert client.get(f"/api/public/{token}").status_code == 404
     assert server.jobs().docs.query("shares", where={"job_id": job["id"]}) == []
+
+
+# ----- guardar en la nube y vencimiento -----
+
+
+def test_free_plan_can_only_download_and_paid_plans_save_and_share(client: TestClient) -> None:
+    job = make_job(client, "caro")  # Free: el guardado se intenta y no ocurre
+    assert job["status"] == "done" and not job["saved"]
+    assert job["keep_until"] == pytest.approx(job["finished"] + 7 * 24 * 3600, abs=5)
+    assert client.post(f"/api/jobs/{job['id']}/save", headers=as_("caro")).status_code == 403
+    assert client.post(f"/api/jobs/{job['id']}/share", headers=as_("caro")).status_code == 403
+    assert client.get(f"/api/jobs/{job['id']}", headers=as_("caro")).json()["output_url"]  # descargar sí
+    me = client.get("/api/me", headers=as_("caro")).json()["plan"]
+    assert me["id"] == "free" and not me["cloud_save"] and not me["share"] and me["unsaved_days"] == 7
+    assert client.get("/api/me", headers=as_("ana")).json()["plan"]["cloud_save"]
+
+
+def test_sharing_needs_the_video_saved_and_unsaving_revokes_the_link(client: TestClient) -> None:
+    job = make_job(client, "ana", save=False)
+    assert client.post(f"/api/jobs/{job['id']}/share", headers=as_("ana")).status_code == 409  # sin guardar
+    saved = client.post(f"/api/jobs/{job['id']}/save", headers=as_("ana")).json()
+    assert saved["saved"] and saved["keep_until"] is None
+    token = client.post(f"/api/jobs/{job['id']}/share", headers=as_("ana")).json()["token"]
+    unsaved = client.delete(f"/api/jobs/{job['id']}/save", headers=as_("ana")).json()
+    assert not unsaved["saved"] and unsaved["keep_until"] > time.time() + 6 * 24 * 3600
+    assert client.get(f"/api/public/{token}").status_code == 404
+
+
+def test_expired_unsaved_videos_are_deleted_but_saved_and_older_ones_stay(client: TestClient) -> None:
+    store = server.jobs()
+    unsaved = make_job(client, "ana", save=False)
+    saved = make_job(client, "ana")
+    legacy = make_job(client, "ana", save=False)
+    store.docs.update("jobs", legacy["id"], {"keep_until": None})  # hecho antes de la regla: no vence
+    store._last_expire = 0.0
+    assert store.expire(now=time.time() + 8 * 24 * 3600) == 1
+    left = {job.id for job in store.list("uid-ana")}
+    assert unsaved["id"] not in left and {saved["id"], legacy["id"]} <= left
+

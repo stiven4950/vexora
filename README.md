@@ -212,6 +212,13 @@ el trabajo espera a que termine: hay un candado por carpeta de análisis) y no s
   videos y vistas previas, abajo a la derecha. Se decide al crear el trabajo (`Job.watermark`) y se
   pinta en cada fotograma que se compone; al editar, lo que se copia del video anterior ya la trae.
   Para quitarla en desarrollo: `watermark: false` en el plan Free.
+- Guardar en la nube y compartir: solo con planes que lo permiten (`cloud_save`, `share`; hoy Pro,
+  Ultra y Enterprise). Sin guardar, el video terminado vence a los `unsaved_days` (7) y se borra
+  con su análisis (`Job.keep_until`, `JobStore.expire`); con plan Free solo se descarga. Guardar es
+  una elección por video (`POST`/`DELETE /api/jobs/{id}/save`); quitarlo revoca su enlace público,
+  y compartir exige el video guardado. Los videos hechos antes de esta regla no vencen.
+- Mientras no hay pagos, `VEXORA_PLAN_GRANTS="uid1:pro,uid2:ultra"` asigna planes a cuentas
+  concretas (solo en el servidor).
 
 ## Trazabilidad (eventos JSON)
 

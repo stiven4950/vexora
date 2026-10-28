@@ -7,6 +7,7 @@ es una propuesta (`draft`): no hay cobros, suscripciones ni saldo todavía (docs
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -32,6 +33,9 @@ class Plan(BaseModel):
     footnote_icon: str | None = None
     # Sus videos llevan la marca de agua de Vexora (composite/watermark.py).
     watermark: bool = False
+    # Puede guardar sus videos en la nube (si no, solo descargarlos antes de que venzan) y compartirlos.
+    cloud_save: bool = False
+    share: bool = False
 
 
 class CreditPack(BaseModel):
@@ -45,6 +49,8 @@ class Catalog(BaseModel):
     draft: bool = True
     currency: str = "USD"
     default_plan: str
+    # Días que dura un video terminado que no se guardó en la nube.
+    unsaved_days: int = 7
     plans: list[Plan]
     packs: list[CreditPack] = Field(default_factory=list)
 
@@ -63,7 +69,18 @@ def catalog(path: Path) -> Catalog:
     return load_catalog(path, path.stat().st_mtime)
 
 
+GRANTS_ENV = "VEXORA_PLAN_GRANTS"
+
+
+def grants() -> dict[str, str]:
+    """Planes asignados a mano mientras no hay pagos (`VEXORA_PLAN_GRANTS="uid1:pro,uid2:ultra"`):
+    para quienes prueban la app. Vive en el servidor; la web no puede cambiarlo."""
+    pairs = (item.split(":", 1) for item in os.environ.get(GRANTS_ENV, "").split(",") if ":" in item)
+    return {uid.strip(): plan.strip() for uid, plan in pairs}
+
+
 def plan_of(path: Path, uid: str) -> Plan:
-    """El plan de una persona. Sin suscripciones todavía, el de todos es `default_plan`."""
+    """El plan de una persona. Sin suscripciones todavía: el asignado en VEXORA_PLAN_GRANTS o `default_plan`."""
     data = catalog(path)
-    return next(plan for plan in data.plans if plan.id == data.default_plan)
+    wanted = grants().get(uid, data.default_plan)
+    return next((plan for plan in data.plans if plan.id == wanted), next(plan for plan in data.plans if plan.id == data.default_plan))

@@ -461,6 +461,11 @@ class PlanBrief(BaseModel):
     id: str
     title: str
     badge: str | None = None
+    # Lo que el plan permite con los videos terminados (configs/plans.yaml).
+    cloud_save: bool = False
+    share: bool = False
+    # Días que dura un video sin guardar en la nube.
+    unsaved_days: int = 7
 
 
 class CountryView(BaseModel):
@@ -510,7 +515,7 @@ def _profile_view(user: User) -> ProfileView:
         countries=[CountryView(code=code, name=name) for code, name in profiles.COUNTRIES.items()],
         bio=doc.get("bio") or "",
         avatar_url=_avatar_url(user.uid, doc),
-        plan=PlanBrief(id=plan.id, title=plan.title, badge=plan.badge),
+        plan=PlanBrief(id=plan.id, title=plan.title, badge=plan.badge, cloud_save=plan.cloud_save, share=plan.share, unsaved_days=_plans_catalog().unsaved_days),
         notifications=profiles.notifications_of(doc),
         preferences=profiles.preferences_of(doc),
         accepted_terms_at=doc.get("accepted_terms_at"),
@@ -1445,6 +1450,44 @@ def job_choreography(job_id: str, user: User = Depends(current_user)) -> list[Mo
     return [Moment(note=d.get("note", ""), **{k: d[k] for k in ("second", "action", "target", "choice")}) for d in decisions if not d["choice"].startswith("nada")]
 
 
+# ----- guardar en la nube (solo con plan; si no, el video vence en unsaved_days) -----
+
+
+def _plans_catalog():
+    from vfxglow.api.plans import catalog
+
+    return catalog(ROOT / "configs" / "plans.yaml")
+
+
+def _user_plan(user: User):
+    from vfxglow.api.plans import plan_of
+
+    return plan_of(ROOT / "configs" / "plans.yaml", user.uid)
+
+
+@app.post("/api/jobs/{job_id}/save", response_model=JobView)
+def save_job(job_id: str, user: User = Depends(current_user)) -> JobView:
+    """Guarda el video terminado en la nube de su dueño: deja de vencer. Solo con un plan que lo permite."""
+    job = _job(job_id, user)
+    if not _user_plan(user).cloud_save:
+        raise HTTPException(403, "Guardar en la nube está disponible en los planes Pro, Ultra y Enterprise. Con tu plan puedes descargar el video.")
+    saved = jobs().set_saved(job.id, True)
+    if saved is None:
+        raise HTTPException(409, "Solo se puede guardar un video ya terminado.")
+    telemetry.event("job.saved", job_id=job.id, usr={"id": telemetry.user_ref(user.uid)})
+    return view(saved)
+
+
+@app.delete("/api/jobs/{job_id}/save", response_model=JobView)
+def unsave_job(job_id: str, user: User = Depends(current_user)) -> JobView:
+    """Lo quita de la nube: vuelve a vencer en unsaved_days desde ahora y su enlace público deja de funcionar."""
+    job = _job(job_id, user)
+    unsaved = jobs().set_saved(job.id, False)
+    if unsaved is None:
+        raise HTTPException(409, "Solo se puede quitar de la nube un video terminado.")
+    return view(unsaved)
+
+
 # ----- enlaces públicos revocables (api/shares.py) -----
 
 
@@ -1466,6 +1509,10 @@ def create_share(job_id: str, user: User = Depends(current_user)) -> ShareView:
     job = _job(job_id, user)
     if job.status != "done" or not job.output or not jobs().has(job.output):
         raise HTTPException(409, "Solo puedes compartir un video ya terminado.")
+    if not _user_plan(user).share:
+        raise HTTPException(403, "Compartir con un enlace está disponible en los planes Pro, Ultra y Enterprise.")
+    if not job.saved:
+        raise HTTPException(409, "Guarda el video en tu nube para poder compartirlo.")
     item = shares.create(jobs().docs, job.id, user.uid)
     telemetry.event("share.created", job_id=job.id, usr={"id": telemetry.user_ref(user.uid)})
     return _share_view(item)

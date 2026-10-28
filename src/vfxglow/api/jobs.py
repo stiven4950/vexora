@@ -52,6 +52,10 @@ DEFAULT_RATIO = {"first": 20.0, "version": 11.0}
 MIN_SAMPLES = 3
 
 
+DAY_S = 24 * 3600
+# Cada cuánto, como mucho, se buscan videos vencidos (al listar o al buscar trabajo).
+EXPIRE_EVERY_S = 600
+
 class Job(BaseModel):
     id: str
     created: float
@@ -89,6 +93,11 @@ class Job(BaseModel):
     prop: str | None = None
     # Lleva la marca de agua de Vexora (la pide el plan del dueño al crearlo; configs/plans.yaml).
     watermark: bool = False
+    # Guardado en la nube por su dueño (solo con planes que lo permiten): no vence.
+    saved: bool = False
+    # Sin guardar, el video terminado se borra a esta hora (configs/plans.yaml, unsaved_days). None:
+    # no vence (guardado, o hecho antes de esta regla).
+    keep_until: float | None = None
     # Traza que une la petición, el trabajo, sus etapas y sus llamadas a IA (telemetry.py).
     trace_id: str = Field(default_factory=telemetry.new_trace_id)
     # Si falló: el tipo de fallo (ERRORS); `error` lleva el mensaje para la persona.
@@ -263,6 +272,7 @@ class JobStore:
 
         self.root = root
         self.config = config
+        self._last_expire = 0.0  # último barrido de videos vencidos (expire)
         self.uploads = root / "uploads"
         self.uploads.mkdir(parents=True, exist_ok=True)
         # El MP4 de cada trabajo, aparte: en runs/ varias versiones (y usuarios) comparten carpeta.
@@ -319,8 +329,51 @@ class JobStore:
 
     # ----- consulta -----
 
+    # ----- vencimiento de lo que no se guarda en la nube -----
+
+    def unsaved_seconds(self) -> float:
+        """Cuánto dura un video terminado sin guardar en la nube (configs/plans.yaml, unsaved_days)."""
+        from vfxglow.api.plans import catalog
+
+        return catalog(Path(self.config).resolve().parent / "plans.yaml").unsaved_days * DAY_S
+
+    def set_saved(self, job_id: str, saved: bool) -> Job | None:
+        """Guarda el video en la nube (no vence) o lo quita (vuelve a vencer en unsaved_days desde
+        ahora y su enlace público deja de funcionar). None si no existe o no está terminado."""
+        keep = None if saved else time.time() + self.unsaved_seconds()
+
+        def change(current: dict | None):
+            if current is None or current.get("status") != "done":
+                return None
+            return {**current, "saved": saved, "keep_until": keep}
+
+        updated = self.docs.transact(COLLECTION, job_id, change)
+        if not saved:
+            shares.revoke(self.docs, job_id)
+        return self._load(updated) if updated else None
+
+    def expire(self, now: float | None = None) -> int:
+        """Borra los videos terminados que vencieron sin guardarse en la nube. Se llama al listar y
+        al buscar trabajo, como mucho cada EXPIRE_EVERY_S por proceso. Devuelve cuántos borró."""
+        now = now or time.time()
+        if now - self._last_expire < EXPIRE_EVERY_S:
+            return 0
+        self._last_expire = now
+        gone = 0
+        for job in self._all(status="done"):
+            if job.saved or job.keep_until is None or job.keep_until > now:
+                continue
+            try:
+                if self.delete(job.id):
+                    gone += 1
+                    telemetry.event("job.expired", job_id=job.id, usr={"id": telemetry.user_ref(job.owner)})
+            except JobBusy:
+                continue
+        return gone
+
     def list(self, owner: str | None = None) -> list[Job]:
         """Los trabajos de `owner` (todos si es None), del más nuevo al más viejo."""
+        self.expire()
         if owner is None or owner == LOCAL_OWNER:
             mine = [job for job in self._all() if owner is None or _owner(job) == owner]
         else:
@@ -756,6 +809,7 @@ class JobStore:
 
     def reap_expired(self) -> list[tuple[str, str]]:
         """Recupera los trabajos de trabajadores que dejaron de renovar su turno (cada medio turno)."""
+        self.expire()  # los trabajadores también barren lo vencido (la API puede no listar en horas)
         now = self.clock()
         with self._lock:
             if now - self._reaped < self.lease_s / 2:
@@ -814,6 +868,8 @@ class JobStore:
                 finished = time.time()
                 summary["total_ms"] = round((finished - started) * 1000)
                 done = dict(status="done", stage="done", progress=1.0, message="Listo", output=str(output), finished=finished, metrics=summary, lease_until=None)
+                if not job.saved:
+                    done["keep_until"] = finished + self.unsaved_seconds()
                 if self._update(job.id, when=mine, **done):
                     telemetry.event("job.finished", outcome="ok", duration_ms=summary["total_ms"], output_bytes=output.stat().st_size, metrics=summary)
                     self._notify(job, "job_done", "Tu video está listo", "{name} terminó de procesarse.")
@@ -959,6 +1015,9 @@ class JobStore:
                     "parent": base.parent or base.id,
                     "base": base.id,
                     "edits": edits,
+                    # La versión nueva no hereda la nube de la base: se guarda (o vence) por su cuenta.
+                    "saved": False,
+                    "keep_until": None,
                     "status": "queued",
                     "stage": "queued",
                     "progress": 0.0,
