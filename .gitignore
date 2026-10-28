@@ -34,3 +34,6 @@ graphify-out/
 
 # Eventos JSON de la API y la línea de comandos (telemetry.py)
 logs/
+
+# Última imagen construida por scripts/deploy_cloud.sh
+.last-image

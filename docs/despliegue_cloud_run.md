@@ -6,6 +6,25 @@ Google Cloud que Firebase (`VEXORA_FIREBASE_PROJECT`, hoy `vexora-dev`). Región
 **us-east1**, la misma del bucket (`vexora-dev.firebasestorage.app`), para no pagar tráfico entre
 regiones ni sumar latencia al subir y bajar videos.
 
+
+## Atajo: `scripts/deploy_cloud.sh`
+
+Hace todo lo de esta guía con la configuración recomendada (API que escala a cero, trabajadores
+como Cloud Run Job que se apaga sin trabajo, web en Firebase Hosting):
+
+```bash
+brew install --cask google-cloud-sdk        # una vez: el CLI de Google Cloud (gcloud)
+gcloud auth login && gcloud config set project vexora-dev
+firebase login
+OPENAI_API_KEY=... GEMINI_API_KEY=... scripts/deploy_cloud.sh setup   # una vez (claves opcionales)
+scripts/deploy_cloud.sh all                                           # construir y desplegar
+```
+
+`setup` activa las APIs y crea el repositorio de imágenes, la cuenta de servicio con sus permisos,
+los secretos y el CORS y el ciclo de vida del bucket. `build` construye la imagen en Cloud Build (no
+en tu máquina). `deploy` publica índices y reglas, el Job de trabajadores, la API y la web. Las
+secciones de abajo explican cada paso por si hay que hacerlo a mano.
+
 ## Qué cambió en el código
 
 | Pieza | Local (por defecto) | Nube |
