@@ -9,6 +9,8 @@ regiones ni sumar latencia al subir y bajar videos.
 
 ## Atajo: `scripts/deploy_cloud.sh`
 
+Lo que falta hacer antes de desplegar y de abrir al público: [pendientes_despliegue.md](pendientes_despliegue.md).
+
 Hace todo lo de esta guía con la configuración recomendada (API que escala a cero, trabajadores
 como Cloud Run Job que se apaga sin trabajo, web en Firebase Hosting):
 

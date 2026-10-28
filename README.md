@@ -1,5 +1,7 @@
 # VFX Glow
 
+> **Despliegue pendiente:** lo que falta antes de subir a Google Cloud y de abrir al público está en [docs/pendientes_despliegue.md](docs/pendientes_despliegue.md).
+
 Pipeline de efectos visuales por capas. El video original es un plano intocable: el análisis extrae el movimiento, un director describe los efectos en un guion y un motor procedural dibuja capas HDR con transparencia. Esas capas se mezclan encima del plano. Ningún modelo redibuja el fotograma completo.
 
 ## Qué hace cada módulo
