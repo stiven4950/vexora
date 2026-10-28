@@ -95,11 +95,15 @@ excluir del índice los campos grandes: `log`, `activity`, `metrics`, `edits`). 
 trabajadores fallan al buscar trabajo con "The query requires an index". Las demás consultas son
 de igualdad y Firestore las resuelve con los índices de un solo campo.
 
+`firebase.json` (en la raíz del repositorio) apunta al índice y a las reglas cerradas de Firestore
+(`firestore.rules`) y de Storage (`storage.rules`); `.firebaserc` fija el proyecto `vexora-dev`:
+
 ```bash
-# Con firebase-tools (firebase.json debe apuntar a firestore.indexes.json):
-#   { "firestore": { "indexes": "firestore.indexes.json" } }
-firebase deploy --only firestore:indexes --project vexora-dev
+firebase login                                   # una vez, con tu cuenta de Google
+firebase deploy --only firestore:indexes,firestore:rules,storage
 ```
+
+El índice tarda unos minutos en construirse (consola de Firebase → Firestore → Índices).
 
 Con `VEXORA_FIRESTORE_PREFIX` (p. ej. `staging_`) las colecciones se llaman `staging_jobs`: el
 índice compuesto se declara por nombre de colección, así que hay que duplicarlo con ese nombre.
