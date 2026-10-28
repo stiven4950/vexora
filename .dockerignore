@@ -1,0 +1,27 @@
+# Nada de secretos, datos locales ni cachés en la imagen.
+.env
+.env.*
+!.env.example
+*.json.pre-store.bak
+.venv/
+.git/
+.mpl/
+.cache/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+api_data/
+runs/
+logs/
+training/
+weights/
+graphify-out/
+web/
+tests/
+tools/
+docs/
+*.mp4
+models/yolov8s-worldv2.pt
+models/*.onnx
+models/sam2*
