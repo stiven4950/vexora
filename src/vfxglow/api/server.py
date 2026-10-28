@@ -16,10 +16,11 @@ import os
 import time
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import quote
 
 import cv2
 import yaml
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import Body, Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -27,11 +28,11 @@ from pydantic import BaseModel
 
 from vfxglow import telemetry
 from vfxglow.analysis.quality import QualityWarning
-from vfxglow.api import limits
+from vfxglow.api import accounts, limits, notifications, profiles, shares
 from vfxglow.api.auth import User, auth_enabled, check_bind, current_user, media_key, media_owner
 from vfxglow.api.jobs import Job, JobBusy, JobStore, NotRetryable, UploadTooLarge, owns
 from vfxglow.api.layers import LayerStore, estimate_seconds
-from vfxglow.api.previews import PreviewStore, window_for
+from vfxglow.api.previews import PreviewStore, sides_for, window_for
 from vfxglow.api.uploads import TooManyAnalyzing, Upload, UploadNotFound, UploadStore, UploadUsed
 from vfxglow.config import PRESET_ALIASES, catalog_name
 from vfxglow.telemetry import redact
@@ -91,6 +92,8 @@ async def observe(request: Request, call_next) -> Response:
     else:
         response = await call_next(request)
     response.headers.update(SECURITY_HEADERS)
+    if request.url.path.startswith("/api/public/"):
+        response.headers["X-Robots-Tag"] = "noindex, nofollow"  # un enlace compartido no debe aparecer en buscadores
     response.headers["X-Request-Id"] = request_id
     route = getattr(request.scope.get("route"), "path", None)
     telemetry.event(
@@ -451,9 +454,178 @@ def get_limits(user: User = Depends(current_user)) -> LimitsView:
     )
 
 
-@app.get("/api/me", response_model=User)
-def me(user: User = Depends(current_user)) -> User:
-    return user
+# ----- perfil y ajustes (api/profiles.py) -----
+
+
+class PlanBrief(BaseModel):
+    id: str
+    title: str
+    badge: str | None = None
+
+
+class CountryView(BaseModel):
+    code: str
+    name: str
+
+
+class ProfileView(BaseModel):
+    display_name: str
+    # Del token de la sesión: no se edita aquí.
+    email: str | None = None
+    email_verified: bool = False
+    username: str | None = None
+    country: str | None = None
+    countries: list[CountryView]
+    bio: str = ""
+    avatar_url: str | None = None
+    plan: PlanBrief
+    notifications: dict[str, bool]
+    preferences: dict[str, str]
+    accepted_terms_at: float | None = None
+    terms_version: str
+    # La versión que aceptó es la vigente.
+    terms_current: bool = False
+
+
+def _avatar_url(uid: str, doc: dict) -> str | None:
+    updated = doc.get("avatar_updated")
+    if not updated:
+        return None
+    # El archivo se pide desde <img>, que no manda cabeceras: va con la llave corta (?k=) ligada
+    # a la persona, y `v` cambia al subir otra foto para saltarse la caché del navegador.
+    return f"/api/me/avatar.jpg?u={quote(uid, safe='')}&k={media_key(f'avatar:{uid}', uid)}&v={int(float(updated))}"
+
+
+def _profile_view(user: User) -> ProfileView:
+    from vfxglow.api.plans import plan_of
+
+    doc = profiles.stored(jobs().docs, user.uid)
+    plan = plan_of(ROOT / "configs" / "plans.yaml", user.uid)
+    return ProfileView(
+        display_name=doc.get("display_name") or user.name or (user.email or "").split("@")[0],
+        email=user.email,
+        email_verified=user.email_verified,
+        username=doc.get("username"),
+        country=doc.get("country"),
+        countries=[CountryView(code=code, name=name) for code, name in profiles.COUNTRIES.items()],
+        bio=doc.get("bio") or "",
+        avatar_url=_avatar_url(user.uid, doc),
+        plan=PlanBrief(id=plan.id, title=plan.title, badge=plan.badge),
+        notifications=profiles.notifications_of(doc),
+        preferences=profiles.preferences_of(doc),
+        accepted_terms_at=doc.get("accepted_terms_at"),
+        terms_version=profiles.TERMS_VERSION,
+        terms_current=doc.get("terms_version") == profiles.TERMS_VERSION,
+    )
+
+
+@app.get("/api/me", response_model=ProfileView)
+def me(user: User = Depends(current_user)) -> ProfileView:
+    return _profile_view(user)
+
+
+@app.patch("/api/me", response_model=ProfileView)
+def update_me(body: dict = Body(...), user: User = Depends(current_user)) -> ProfileView:
+    """Guarda los campos editables que vengan (nombre, usuario, país, biografía, avisos y preferencias)."""
+    try:
+        profiles.save(jobs().docs, user.uid, profiles.validate(body))
+    except profiles.ProfileError as error:
+        raise HTTPException(409 if isinstance(error, profiles.UsernameTaken) else 422, str(error)) from error
+    return _profile_view(user)
+
+
+@app.post("/api/me/avatar", response_model=ProfileView)
+def upload_avatar(avatar: UploadFile = File(...), user: User = Depends(current_user)) -> ProfileView:
+    """La foto: JPG, PNG o WEBP de hasta 2 MB. Se recorta al cuadrado central, se lleva a 512 px y
+    se vuelve a codificar como JPEG (así se pierde el EXIF)."""
+    import tempfile
+
+    try:
+        profiles.check_avatar_type(avatar.filename, avatar.content_type)
+        data = avatar.file.read(profiles.AVATAR_MAX_BYTES + 1)
+        if len(data) > profiles.AVATAR_MAX_BYTES:
+            raise HTTPException(413, "La imagen pesa más de 2 MB.")
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "avatar.jpg"
+            profiles.square_jpeg(data, target)
+            jobs().blobs.put(profiles.avatar_key(user.uid), target)
+    except profiles.ProfileError as error:
+        raise HTTPException(422, str(error)) from error
+    profiles.set_avatar(jobs().docs, user.uid, True)
+    return _profile_view(user)
+
+
+@app.delete("/api/me/avatar", response_model=ProfileView)
+def delete_avatar(user: User = Depends(current_user)) -> ProfileView:
+    jobs().blobs.delete(profiles.avatar_key(user.uid))
+    profiles.set_avatar(jobs().docs, user.uid, False)
+    return _profile_view(user)
+
+
+@app.get("/api/me/avatar.jpg")
+def avatar_file(u: str = Query("local"), k: str | None = Query(None)) -> Response:
+    media_owner(f"avatar:{u}", k, u)
+    if not profiles.stored(jobs().docs, u).get("avatar_updated"):
+        raise HTTPException(404, "Sin foto")
+    return _send(jobs().root / profiles.avatar_key(u), "image/jpeg")
+
+
+@app.post("/api/me/terms", response_model=ProfileView)
+def accept_terms(user: User = Depends(current_user)) -> ProfileView:
+    """Registra que la persona aceptó los términos y la privacidad vigentes."""
+    profiles.accept_terms(jobs().docs, user.uid)
+    return _profile_view(user)
+
+
+class DeleteAccountRequest(BaseModel):
+    confirm: str = ""
+
+
+@app.delete("/api/me")
+def delete_me(body: DeleteAccountRequest | None = None, user: User = Depends(current_user)) -> dict:
+    """Borra la cuenta entera: trabajos, subidas, enlaces, avisos, foto y perfil. Pide
+    {"confirm": "ELIMINAR"}. La cuenta de Firebase la borra la web después, con su propia sesión."""
+    if body is None or body.confirm != accounts.CONFIRM_WORD:
+        raise HTTPException(422, f"Escribe {accounts.CONFIRM_WORD} para confirmar que quieres borrar tu cuenta.")
+    return accounts.delete_account(jobs(), uploads(), user.uid, forget_previews=previews().forget_job)
+
+
+# ----- avisos (la campana; api/notifications.py) -----
+
+
+class NotificationView(BaseModel):
+    id: str
+    kind: str
+    title: str
+    text: str
+    job_id: str | None = None
+    created: float
+    read: bool
+
+
+class NotificationsView(BaseModel):
+    items: list[NotificationView]
+    unread: int
+
+
+class ReadRequest(BaseModel):
+    ids: list[str] | None = None
+    all: bool = False
+
+
+@app.get("/api/notifications", response_model=NotificationsView)
+def list_notifications(user: User = Depends(current_user)) -> NotificationsView:
+    items, unread = notifications.listing(jobs().docs, user.uid)
+    return NotificationsView(items=[NotificationView(**item) for item in items], unread=unread)
+
+
+@app.post("/api/notifications/read", response_model=NotificationsView)
+def read_notifications(body: ReadRequest, user: User = Depends(current_user)) -> NotificationsView:
+    """Marca como leídos los avisos `ids`, o todos con `all`."""
+    if not body.all and not body.ids:
+        raise HTTPException(422, "Indica qué avisos marcar (ids) o usa all.")
+    notifications.mark_read(jobs().docs, user.uid, None if body.all else body.ids)
+    return list_notifications(user)
 
 
 @app.post("/api/jobs", response_model=JobView, status_code=201)
@@ -871,6 +1043,7 @@ def create_preview(job_id: str, body: PreviewRequest, user: User = Depends(curre
         window,
         fps,
         check_quota=lambda today: limits.check_preview_quota(user, today),
+        max_side=sides_for(profiles.preview_quality(jobs().docs, user.uid))[0],
     )
     if cached and item.status == "ready":
         telemetry.event("preview.finished", job_id=job.id, duration_ms=0, frames=item.frames, cache_hit=True)
@@ -1000,7 +1173,7 @@ def create_upload_preview(upload_id: str, body: StudioPreviewRequest, user: User
     crear el trabajo. Solo estilos de catálogo; los que piden hojas u objeto (`needs`) los buscan
     solo en ese tramo."""
     from vfxglow.analysis.schema import MotionBrief
-    from vfxglow.api.previews import STUDIO_SIDE, busiest_window
+    from vfxglow.api.previews import busiest_window
     from vfxglow.io.store import read_model
 
     upload = _owned_upload(upload_id, user)
@@ -1036,7 +1209,7 @@ def create_upload_preview(upload_id: str, body: StudioPreviewRequest, user: User
         studio,
         window,
         brief.video.fps or 30.0,
-        STUDIO_SIDE,
+        sides_for(profiles.preview_quality(jobs().docs, user.uid))[1],
         check_quota=lambda today: limits.check_preview_quota(user, today),
     )
     if cached and item.status == "ready":
@@ -1270,6 +1443,94 @@ def job_choreography(job_id: str, user: User = Depends(current_user)) -> list[Mo
         return []
     decisions = json.loads(path.read_text(encoding="utf-8")).get("decisions", [])
     return [Moment(note=d.get("note", ""), **{k: d[k] for k in ("second", "action", "target", "choice")}) for d in decisions if not d["choice"].startswith("nada")]
+
+
+# ----- enlaces públicos revocables (api/shares.py) -----
+
+
+class ShareView(BaseModel):
+    token: str
+    # Ruta de la página pública en la web; la web la completa con su propio origen.
+    path: str
+    created: float
+    views: int
+
+
+def _share_view(item: dict) -> ShareView:
+    return ShareView(token=item["token"], path=f"/v/{item['token']}", created=item["created"], views=int(item.get("views", 0)))
+
+
+@app.post("/api/jobs/{job_id}/share", response_model=ShareView)
+def create_share(job_id: str, user: User = Depends(current_user)) -> ShareView:
+    """El enlace público del video terminado: crea uno o devuelve el que ya está activo."""
+    job = _job(job_id, user)
+    if job.status != "done" or not job.output or not jobs().has(job.output):
+        raise HTTPException(409, "Solo puedes compartir un video ya terminado.")
+    item = shares.create(jobs().docs, job.id, user.uid)
+    telemetry.event("share.created", job_id=job.id, usr={"id": telemetry.user_ref(user.uid)})
+    return _share_view(item)
+
+
+@app.get("/api/jobs/{job_id}/share", response_model=ShareView)
+def get_share(job_id: str, user: User = Depends(current_user)) -> ShareView:
+    job = _job(job_id, user)
+    item = shares.active(jobs().docs, job.id)
+    if item is None:
+        raise HTTPException(404, "Este video no tiene un enlace compartido.")
+    return _share_view(item)
+
+
+@app.delete("/api/jobs/{job_id}/share", status_code=204)
+def revoke_share(job_id: str, user: User = Depends(current_user)) -> Response:
+    """Revoca el enlace: deja de funcionar al instante. Si no había, no pasa nada."""
+    job = _job(job_id, user)
+    if shares.revoke(jobs().docs, job.id):
+        telemetry.event("share.revoked", job_id=job.id, usr={"id": telemetry.user_ref(user.uid)})
+    return Response(status_code=204)
+
+
+class PublicView(BaseModel):
+    title: str
+    style_title: str
+    duration: float | None = None
+    created: float
+    video_url: str
+
+
+# Mismo mensaje y mismo código para un token desconocido, revocado o de un video que ya no está:
+# no se revela cuál de los tres es.
+PUBLIC_GONE = "Este enlace no existe o ya no está disponible."
+
+
+def _public_job(token: str) -> Job:
+    item = shares.lookup(jobs().docs, token)
+    job = jobs().get(item["job_id"]) if item is not None else None
+    if item is None or job is None or job.status != "done" or not job.output or not jobs().has(job.output):
+        raise HTTPException(404, PUBLIC_GONE)
+    return job
+
+
+@app.get("/api/public/{token}", response_model=PublicView)
+def public_share(token: str) -> PublicView:
+    """Lo que ve quien abre un enlace compartido (sin sesión). Cuenta una visita."""
+    job = _public_job(token)
+    shares.count_view(jobs().docs, token)
+    current = catalog_name(job.style) if job.style_kind == "catalog" else PRESET_ALIASES.get(job.style, job.style)
+    titles = {style.name: style.title for style in _styles_for(_styles_stamp())}
+    return PublicView(
+        title=job.title or Path(job.filename).stem,
+        style_title=titles.get(current, current),
+        duration=job.video_seconds,
+        created=job.finished or job.created,
+        video_url=f"/api/public/{token}/video.mp4",
+    )
+
+
+@app.get("/api/public/{token}/video.mp4")
+def public_video(token: str) -> Response:
+    """El video del enlace: desde el disco, o una redirección a una URL firmada corta del almacén."""
+    job = _public_job(token)
+    return _send(job.output or "", "video/mp4")
 
 
 @app.get("/api/health")

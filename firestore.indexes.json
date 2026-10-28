@@ -4,19 +4,87 @@
       "collectionGroup": "jobs",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "worker", "order": "ASCENDING" },
-        { "fieldPath": "priority", "order": "DESCENDING" },
-        { "fieldPath": "created", "order": "ASCENDING" }
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "worker",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "priority",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "created",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "notifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "uid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "created",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "shares",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "job_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "revoked_at",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "created",
+          "order": "DESCENDING"
+        }
       ]
     }
   ],
   "fieldOverrides": [
-    { "collectionGroup": "jobs", "fieldPath": "log", "indexes": [] },
-    { "collectionGroup": "jobs", "fieldPath": "activity", "indexes": [] },
-    { "collectionGroup": "jobs", "fieldPath": "metrics", "indexes": [] },
-    { "collectionGroup": "jobs", "fieldPath": "edits", "indexes": [] },
-    { "collectionGroup": "uploads", "fieldPath": "recommendation", "indexes": [] },
-    { "collectionGroup": "uploads", "fieldPath": "warnings", "indexes": [] }
+    {
+      "collectionGroup": "jobs",
+      "fieldPath": "log",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "jobs",
+      "fieldPath": "activity",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "jobs",
+      "fieldPath": "metrics",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "jobs",
+      "fieldPath": "edits",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "uploads",
+      "fieldPath": "recommendation",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "uploads",
+      "fieldPath": "warnings",
+      "indexes": []
+    }
   ]
 }

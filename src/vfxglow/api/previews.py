@@ -36,6 +36,9 @@ MAX_SIDE = 640
 HALF_S = 1.5
 STUDIO_S = 3.0  # duración de la vista previa del Estudio
 STUDIO_SIDE = 480  # la del Estudio se ve en una tarjeta pequeña
+# Con la preferencia "rápida" (Configuración › Preferencias): menos píxeles, menos espera.
+QUICK_MAX_SIDE = 480
+QUICK_STUDIO_SIDE = 360
 DAY_S = 24 * 3600
 
 
@@ -57,6 +60,11 @@ class Preview:
     frames: int = 0
     path: Path | None = None
     created: float = field(default_factory=time.time)
+
+
+def sides_for(quality: str) -> tuple[int, int]:
+    """(lado largo de la vista previa del editor, el de la del Estudio) según `preview_quality`."""
+    return (QUICK_MAX_SIDE, QUICK_STUDIO_SIDE) if quality == "rapida" else (MAX_SIDE, STUDIO_SIDE)
 
 
 def window_for(at: float, fps: float, frames: int) -> tuple[int, int]:
@@ -147,11 +155,11 @@ class PreviewStore:
 
     # ----- pedido -----
 
-    def submit(self, job_id: str, uid: str, edits: list[dict], window: tuple[int, int], fps: float, check_quota=None) -> tuple[Preview, bool]:
+    def submit(self, job_id: str, uid: str, edits: list[dict], window: tuple[int, int], fps: float, check_quota=None, max_side: int = MAX_SIDE) -> tuple[Preview, bool]:
         """Encola la vista previa (o devuelve la ya hecha o en curso). `check_quota(hoy)` se llama
         solo si hay que dibujar. Devuelve (vista previa, desde_caché)."""
         self._sweep()
-        key = hashlib.sha256(json.dumps([job_id, edits, list(window)], sort_keys=True).encode()).hexdigest()[:16]
+        key = hashlib.sha256(json.dumps([job_id, edits, list(window), max_side], sort_keys=True).encode()).hexdigest()[:16]
         with self._lock:
             item = self._items.get(key)
             if item is not None and (item.status == "rendering" or self.url_path(item) is not None):
@@ -163,7 +171,7 @@ class PreviewStore:
             for other in self._items.values():
                 if other.uid == uid and other.status == "rendering" and not other.started and other.id != key:
                     other.status, other.error, other.finished = "failed", "Reemplazada por una vista previa más reciente.", time.time()
-            item = Preview(id=key, job_id=job_id, uid=uid, edits=edits, window=window, fps=fps, path=self.root / job_id / f"{key}.mp4")
+            item = Preview(id=key, job_id=job_id, uid=uid, edits=edits, window=window, fps=fps, max_side=max_side, path=self.root / job_id / f"{key}.mp4")
             self._items[key] = item
             self._renders.setdefault(uid, deque()).append(time.time())
         self._queue.put(key)
@@ -173,7 +181,7 @@ class PreviewStore:
         """Como `submit`, para el Estudio: `studio` = video_path, run_dir, style y opciones. Lo
         mismo (subida, estilo, opciones y tramo) no se vuelve a dibujar. Devuelve (vista previa, desde_caché)."""
         self._sweep()
-        key = hashlib.sha256(json.dumps(["studio", upload_id, studio, list(window)], sort_keys=True).encode()).hexdigest()[:16]
+        key = hashlib.sha256(json.dumps(["studio", upload_id, studio, list(window), max_side], sort_keys=True).encode()).hexdigest()[:16]
         with self._lock:
             item = self._items.get(key)
             if item is not None and (item.status == "rendering" or self.url_path(item) is not None):
@@ -284,7 +292,7 @@ class PreviewStore:
         )
         assert item.path is not None
         item.path.parent.mkdir(parents=True, exist_ok=True)
-        return pipeline.render_preview(new, item.path, item.window, events=events, max_side=MAX_SIDE)
+        return pipeline.render_preview(new, item.path, item.window, events=events, max_side=item.max_side)
 
     # ----- limpieza -----
 

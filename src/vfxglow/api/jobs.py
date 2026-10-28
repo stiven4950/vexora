@@ -28,7 +28,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from vfxglow import telemetry
-from vfxglow.api import workqueue
+from vfxglow.api import notifications, shares, workqueue
 from vfxglow.store.blobs import BlobStore
 from vfxglow.store.docs import DELETE, DocStore
 
@@ -642,6 +642,7 @@ class JobStore:
         for leftover in self.outputs.glob(f"{job_id}.*"):
             leftover.unlink(missing_ok=True)  # guion, momentos, gestos y tira de fotogramas del editor
         self._forget_files(f"outputs/{job_id}.")
+        shares.erase_job(self.docs, job_id)  # sus enlaces públicos dejan de existir con él
         shutil.rmtree(self.root / "previews" / job_id, ignore_errors=True)  # vistas previas del editor
         folder = Path(job.video_path).parent
         if video_shared:
@@ -815,6 +816,7 @@ class JobStore:
                 done = dict(status="done", stage="done", progress=1.0, message="Listo", output=str(output), finished=finished, metrics=summary, lease_until=None)
                 if self._update(job.id, when=mine, **done):
                     telemetry.event("job.finished", outcome="ok", duration_ms=summary["total_ms"], output_bytes=output.stat().st_size, metrics=summary)
+                    self._notify(job, "job_done", "Tu video está listo", "{name} terminó de procesarse.")
             except telemetry.Cancelled:
                 if flag.lost:  # el turno pasó a otro trabajador: el trabajo sigue, solo que no aquí
                     telemetry.event("job.abandoned", level=logging.WARNING, duration_ms=round((time.time() - started) * 1000))
@@ -827,7 +829,8 @@ class JobStore:
                 log.exception("Trabajo %s falló (%s)", job.id, code)
                 finished = time.time()
                 summary["total_ms"] = round((finished - started) * 1000)
-                self._update(job.id, when=mine, status="failed", message="Falló", error=ERRORS[code], error_code=code, finished=finished, metrics=summary, lease_until=None)
+                if self._update(job.id, when=mine, status="failed", message="Falló", error=ERRORS[code], error_code=code, finished=finished, metrics=summary, lease_until=None):
+                    self._notify(job, "job_failed", "No pudimos terminar tu video", "{name} falló al procesarse. Puedes reintentarlo.")
                 telemetry.event(
                     "job.failed",
                     level=logging.ERROR,
@@ -838,6 +841,15 @@ class JobStore:
                 )
             finally:
                 root.removeHandler(handler)
+
+    def _notify(self, job: Job, kind: str, title: str, text: str) -> None:
+        """El aviso de la campana (si su dueño lo quiere). Va aquí, en el trabajador, para que
+        exista aunque la API sea otro proceso; un fallo del aviso nunca afecta al trabajo."""
+        try:
+            name = job.title or Path(job.filename).stem or "Tu video"
+            notifications.notify(self.docs, _owner(job), kind, title, text.format(name=name), job_id=job.id)
+        except Exception:
+            log.exception("Trabajo %s: no se pudo crear el aviso", job.id)
 
     @staticmethod
     def _pipeline_kwargs(job: Job) -> dict:
