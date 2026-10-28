@@ -338,3 +338,90 @@ export interface PlansView {
   plans: Plan[];
   packs: CreditPack[];
 }
+
+/** Perfil y ajustes de la cuenta (GET/PATCH /api/me). */
+export interface Profile {
+  display_name: string;
+  /** Del token de la sesión: solo lectura. */
+  email: string | null;
+  email_verified: boolean;
+  username: string | null;
+  country: string | null;
+  countries: { code: string; name: string }[];
+  bio: string;
+  /** Foto con llave corta (?k=), o null sin foto. */
+  avatar_url: string | null;
+  plan: { id: string; title: string; badge: string | null };
+  notifications: NotificationPrefs;
+  preferences: Preferences;
+  accepted_terms_at: number | null;
+  terms_version: string;
+  terms_current: boolean;
+}
+
+export interface NotificationPrefs {
+  processing: boolean;
+  platform: boolean;
+  promotions: boolean;
+}
+
+export interface Preferences {
+  language: "es";
+  preview_quality: "alta" | "rapida";
+  theme: "oscuro";
+}
+
+/** Lo que se puede cambiar con PATCH /api/me. */
+export interface ProfileChanges {
+  display_name?: string;
+  username?: string | null;
+  country?: string | null;
+  bio?: string;
+  notifications?: Partial<NotificationPrefs>;
+  preferences?: Partial<Preferences>;
+}
+
+/** Un aviso de la campana (GET /api/notifications). */
+export interface AppNotification {
+  id: string;
+  kind: "job_done" | "job_failed" | string;
+  title: string;
+  text: string;
+  job_id: string | null;
+  created: number;
+  read: boolean;
+}
+
+export interface NotificationsView {
+  items: AppNotification[];
+  unread: number;
+}
+
+/** El enlace público de un video (POST/GET /api/jobs/{id}/share). */
+export interface ShareLink {
+  token: string;
+  /** Ruta de la página pública (/v/<token>); se completa con el origen de la web. */
+  path: string;
+  created: number;
+  views: number;
+}
+
+/** Lo que ve quien abre un enlace compartido (GET /api/public/{token}). */
+export interface PublicVideo {
+  title: string;
+  style_title: string;
+  duration: number | null;
+  created: number;
+  video_url: string;
+}
+
+/** Resumen de lo borrado por DELETE /api/me. */
+export interface DeletionSummary {
+  jobs: number;
+  pending: number;
+  uploads: number;
+  shares: number;
+  notifications: number;
+  avatar: number;
+  profile: number;
+}

@@ -103,6 +103,14 @@
   box-shadow: 0 0 8px var(--danger);
 }
 
+.unread {
+  background: rgba(var(--cyan-rgb), 0.08);
+}
+
+.empty {
+  padding: 4px 10px 8px;
+}
+
 .user {
   display: flex;
   align-items: center;
@@ -136,6 +144,8 @@
 }
 
 .popover {
+  max-height: min(70vh, 480px);
+  overflow-y: auto;
   position: absolute;
   top: calc(100% + 8px);
   left: 0;

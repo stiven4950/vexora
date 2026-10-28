@@ -13,6 +13,7 @@ import { Icon } from "../components/Icon";
 import { PrepareButton } from "../components/editor/PrepareButton";
 import { ProcessingView, type AppliedConfig } from "../components/ProcessingView";
 import { ProjectSidebar } from "../components/ProjectSidebar";
+import { ShareDialog } from "../components/ShareDialog";
 import { Shell } from "../components/Shell";
 import { useJob } from "../hooks/useJob";
 import styles from "./JobPage.module.css";
@@ -47,6 +48,7 @@ export function JobPage() {
   const [nextFire, setNextFire] = useState<string | undefined>(undefined);
   const [nextBolt, setNextBolt] = useState<string | undefined>(undefined);
   const [busy, setBusy] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [playhead, setPlayhead] = useState(0);
   const viewer = useRef<CompareViewerHandle>(null);
@@ -266,6 +268,10 @@ export function JobPage() {
               <a className={styles.download} href={`${job.output_url}&download=true`}>
                 <Icon name="download" /> Descargar MP4
               </a>
+              <Button variant="ghost" icon="share" onClick={() => setSharing(true)}>
+                Compartir con un enlace
+              </Button>
+              {sharing && <ShareDialog jobId={job.id} title={projectName(job)} onClose={() => setSharing(false)} />}
               {job.duration && <span className={styles.meta}>Revelado en {timecode(job.duration)}</span>}
             </section>
 

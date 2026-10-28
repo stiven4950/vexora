@@ -2,7 +2,9 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { Link, NavLink, useNavigate } from "react-router-dom";
 
 import { useSession } from "../auth/AuthContext";
-import { NOTIFICATIONS, soonNotice } from "../mocks/pendientes";
+import { ago } from "../api/format";
+import { useProfile } from "../auth/ProfileContext";
+import { useNotifications } from "../hooks/useNotifications";
 import { ROUTES } from "../routes";
 import { AppSidebar } from "./AppSidebar";
 import { Icon } from "./Icon";
@@ -42,22 +44,41 @@ function useOutside(close: () => void) {
 
 function Bell() {
   const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
+  const { items, unread, markAllRead } = useNotifications();
+  // Lo que estaba sin leer al abrir sigue resaltado mientras el menú está abierto.
+  const [fresh, setFresh] = useState<Set<string>>(new Set());
   const ref = useOutside(() => setOpen(false));
+  const toggle = () => {
+    if (!open) {
+      setFresh(new Set(items.filter((item) => !item.read).map((item) => item.id)));
+      if (unread > 0) markAllRead();
+    }
+    setOpen((v) => !v);
+  };
   return (
     <div className={styles.menuWrap} ref={ref}>
-      <button type="button" className={styles.iconButton} onClick={() => setOpen((v) => !v)} aria-label="Notificaciones" aria-expanded={open}>
+      <button type="button" className={styles.iconButton} onClick={toggle} aria-label={unread ? `Notificaciones (${unread} sin leer)` : "Notificaciones"} aria-expanded={open}>
         <Icon name="bell" size={22} />
-        <i className={styles.dot} />
+        {unread > 0 && <i className={styles.dot} />}
       </button>
       {open && (
         <div className={styles.popover} role="menu">
           <strong>Notificaciones</strong>
-          {/* PENDIENTE(fase 3): notificaciones reales por usuario. Estos son datos fijos del diseño. */}
-          {NOTIFICATIONS.map((note) => (
-            <button key={note.id} type="button" onClick={() => soonNotice("Las notificaciones")}>
+          {items.length === 0 && <small className={styles.empty}>Aún no tienes avisos. Te avisamos cuando tus videos estén listos.</small>}
+          {items.map((note) => (
+            <button
+              key={note.id}
+              type="button"
+              className={fresh.has(note.id) ? styles.unread : ""}
+              onClick={() => {
+                setOpen(false);
+                if (note.job_id) navigate(ROUTES.job(note.job_id));
+              }}
+            >
               <span>{note.title}</span>
               <small>{note.text}</small>
-              <small>{note.when}</small>
+              <small>{ago(note.created)}</small>
             </button>
           ))}
         </div>
@@ -71,11 +92,13 @@ function UserMenu() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const ref = useOutside(() => setOpen(false));
-  const name = user?.displayName ?? user?.email ?? "Invitado";
+  const { profile } = useProfile();
+  const name = profile?.display_name || user?.displayName || user?.email || "Invitado";
+  const photo = profile?.avatar_url ?? user?.photoURL;
   return (
     <div className={styles.menuWrap} ref={ref}>
       <button type="button" className={styles.user} onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-        {user?.photoURL ? <img src={user.photoURL} alt="" referrerPolicy="no-referrer" /> : <span className={styles.initial}>{name.charAt(0).toUpperCase()}</span>}
+        {photo ? <img src={photo} alt="" referrerPolicy="no-referrer" /> : <span className={styles.initial}>{name.charAt(0).toUpperCase()}</span>}
         <span className={styles.name}>{name}</span>
         <Icon name="chevron" size={16} />
       </button>

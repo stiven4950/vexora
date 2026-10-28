@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useParams, useSearchParams } from "react-router-dom";
 
 import { SessionProvider, useSession } from "./auth/AuthContext";
+import { ProfileProvider } from "./auth/ProfileContext";
 import { Editor } from "./pages/Editor";
 import { JobPage } from "./pages/JobPage";
 import { Landing } from "./pages/Landing";
@@ -10,6 +11,7 @@ import { Privacy, Support, Terms } from "./pages/Legal";
 import { Login } from "./pages/Login";
 import { Plan } from "./pages/Plan";
 import { Placeholder } from "./pages/Placeholder";
+import { PublicVideo } from "./pages/PublicVideo";
 import { ProjectSummary } from "./pages/ProjectSummary";
 import { Settings } from "./pages/Settings";
 import { Studio } from "./pages/Studio";
@@ -19,9 +21,11 @@ import { ROUTES } from "./routes";
 export function App() {
   return (
     <SessionProvider>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
+      <ProfileProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </ProfileProvider>
     </SessionProvider>
   );
 }
@@ -65,6 +69,7 @@ function AppRoutes() {
       <Route path={ROUTES.terms} element={<Terms />} />
       <Route path={ROUTES.privacy} element={<Privacy />} />
       <Route path={ROUTES.support} element={<Support />} />
+      <Route path="/v/:token" element={<PublicVideo />} />
       <Route path="/app" element={<RequireAuth authed={authed} />}>
         <Route index element={<Navigate to={ROUTES.studio} replace />} />
         <Route path="studio" element={<Studio />} />

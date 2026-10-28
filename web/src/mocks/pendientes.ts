@@ -15,13 +15,6 @@ export function soonNotice(what: string): void {
   window.alert(`${what} estará disponible pronto.`);
 }
 
-// PENDIENTE(fase 3): notificaciones reales por usuario (trabajos terminados o fallidos, avisos del
-// plan). Hoy son datos fijos.
-export const NOTIFICATIONS = [
-  { id: "n1", title: "Tu video está listo", text: "Poderes de Avatar terminó de procesarse.", when: "hace 5 min" },
-  { id: "n2", title: "Bienvenido a VEXORA", text: "Sube tu primer video y crea tus efectos.", when: "ayer" },
-] as const;
-
 // PENDIENTE(fase 3): libro de créditos real (docs/analisis_mejoras_y_seguridad.md, §3.5): saldo con
 // reservas por trabajo y cobros idempotentes, y las reglas de consumo por efecto y render (hoy sin
 // definir). Mientras tanto el saldo, la renovación y el costo por render son datos fijos del diseño.

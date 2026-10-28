@@ -12,6 +12,8 @@ export const ROUTES = {
   explore: "/app/explore",
   plan: "/app/plan",
   settings: "/app/settings",
+  /** Página pública de un video compartido (sin sesión). */
+  share: (token: string): string => `/v/${token}`,
   job: (id: string): string => `/app/jobs/${id}`,
   project: (id: string): string => `/app/projects/${id}`,
   versions: (id: string): string => `/app/projects/${id}/versions`,

@@ -1,5 +1,5 @@
 import { idToken } from "../auth/firebase";
-import type { PlansView, StudioPreviewOpts, EditOp, EditorView, PreviewView, LayersView, Season, Job, Limits, Looks, Moment, PropChoice, Person, Style, StyleKind, UploadView, Wardrobe } from "./types";
+import type { DeletionSummary, NotificationsView, Profile, ProfileChanges, PublicVideo, ShareLink, PlansView, StudioPreviewOpts, EditOp, EditorView, PreviewView, LayersView, Season, Job, Limits, Looks, Moment, PropChoice, Person, Style, StyleKind, UploadView, Wardrobe } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -31,7 +31,39 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (response.status === 204 ? undefined : await response.json()) as T;
 }
 
+const JSON_HEADERS = { "Content-Type": "application/json" };
+
 export const api = {
+  /** Perfil y ajustes de la cuenta. */
+  me: () => request<Profile>("/api/me"),
+  updateMe: (changes: ProfileChanges) => request<Profile>("/api/me", { method: "PATCH", headers: JSON_HEADERS, body: JSON.stringify(changes) }),
+  /** Foto de perfil (JPG, PNG o WEBP de hasta 2 MB); el servidor la recorta al cuadrado a 512 px. */
+  uploadAvatar: (file: File) => {
+    const form = new FormData();
+    form.append("avatar", file);
+    return request<Profile>("/api/me/avatar", { method: "POST", body: form });
+  },
+  deleteAvatar: () => request<Profile>("/api/me/avatar", { method: "DELETE" }),
+  /** Registra que la persona aceptó los términos y la privacidad vigentes. */
+  acceptTerms: () => request<Profile>("/api/me/terms", { method: "POST" }),
+  /** Borra la cuenta entera en el servidor (la de Firebase la borra la web después). */
+  deleteAccount: (confirm: string) => request<DeletionSummary>("/api/me", { method: "DELETE", headers: JSON_HEADERS, body: JSON.stringify({ confirm }) }),
+  notifications: () => request<NotificationsView>("/api/notifications"),
+  /** Marca avisos como leídos: los `ids`, o todos. */
+  markRead: (ids: string[] | "all") =>
+    request<NotificationsView>("/api/notifications/read", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(ids === "all" ? { all: true } : { ids }) }),
+  /** El enlace público activo de un video terminado (404 si no hay). */
+  getShare: (id: string) => request<ShareLink>(`/api/jobs/${id}/share`),
+  /** Crea el enlace público o devuelve el que ya está activo. */
+  createShare: (id: string) => request<ShareLink>(`/api/jobs/${id}/share`, { method: "POST" }),
+  /** Revoca el enlace: deja de funcionar al instante. */
+  revokeShare: (id: string) => request<void>(`/api/jobs/${id}/share`, { method: "DELETE" }),
+  /** Lo que ve quien abre un enlace compartido: sin sesión. */
+  publicVideo: async (token: string): Promise<PublicVideo> => {
+    const response = await fetch(`/api/public/${encodeURIComponent(token)}`);
+    if (!response.ok) throw new ApiError(response.status, response.status === 404 ? "Este enlace no existe o ya no está disponible." : response.statusText);
+    return (await response.json()) as PublicVideo;
+  },
   styles: () => request<Style[]>("/api/styles"),
   seasons: () => request<Season[]>("/api/seasons"),
   looks: () => request<Looks>("/api/looks"),

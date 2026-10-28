@@ -9,12 +9,12 @@ import { liveState } from "../api/liveLayers";
 import type { EditorView, Job, LayersView, PreviewView, Style } from "../api/types";
 import { Icon } from "../components/Icon";
 import { ProjectSidebar } from "../components/ProjectSidebar";
+import { ShareDialog } from "../components/ShareDialog";
 import { Shell } from "../components/Shell";
 import { PreviewPlayer, type PlayerHandle } from "../components/editor/PreviewPlayer";
 import { PrepareButton } from "../components/editor/PrepareButton";
 import { Timeline } from "../components/editor/Timeline";
 import { TrackCard } from "../components/editor/TrackCard";
-import { soonNotice } from "../mocks/pendientes";
 import { ROUTES } from "../routes";
 import styles from "./Editor.module.css";
 
@@ -50,6 +50,7 @@ export function Editor() {
   const [time, setTime] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const player = useRef<PlayerHandle>(null);
@@ -439,10 +440,10 @@ export function Editor() {
           <a className={styles.download} href={`${job.output_url}&download=true`}>
             <Icon name="download" size={18} /> Descargar video
           </a>
-          {/* PENDIENTE(fase 3): compartir con un enlace público revocable. */}
-          <button type="button" className={styles.share} onClick={() => soonNotice("Compartir")}>
+          <button type="button" className={styles.share} onClick={() => setSharing(true)}>
             <Icon name="share" size={18} /> Compartir
           </button>
+          {sharing && <ShareDialog jobId={job.id} title={projectName(job)} onClose={() => setSharing(false)} />}
         </aside>
       </div>
     </Shell>
