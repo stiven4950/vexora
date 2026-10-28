@@ -706,3 +706,41 @@ reactions:
     - type: adornment
       style: {shapes: [snack], thickness: 0.007, focus: false}
       trigger: {hold: 30, fade_in: 2, fade_out: 6}
+# Mano en la boca (unpair_dance, seg. 13,4-14,4: fuman; video_41, seg. 0-1,7: bebe de una botella).
+- action: hand_mouth
+  options:
+  - name: botella
+    weight: 0.3
+    cooldown: 600
+    effects:
+    - type: adornment
+      style: {shapes: [water_bottle], thickness: 0.006, focus: false}
+      trigger: {hold: 30, fade_in: 1, fade_out: 4}
+  - name: cerveza
+    weight: 0.15
+    cooldown: 600
+    effects:
+    - type: adornment
+      style: {shapes: [beer], thickness: 0.006, focus: false}
+      trigger: {hold: 30, fade_in: 1, fade_out: 4}
+  - name: lata
+    weight: 0.15
+    cooldown: 600
+    effects:
+    - type: adornment
+      style: {shapes: [can], thickness: 0.006, focus: false}
+      trigger: {hold: 30, fade_in: 1, fade_out: 4}
+  - name: cigarro
+    weight: 0.25
+    cooldown: 600
+    effects:
+    - type: adornment
+      style: {shapes: [cigarette], thickness: 0.005, focus: false}
+      trigger: {hold: 30, fade_in: 1, fade_out: 6}
+  - name: vapeador
+    weight: 0.15
+    cooldown: 600
+    effects:
+    - type: adornment
+      style: {shapes: [vape], thickness: 0.005, focus: false}
+      trigger: {hold: 30, fade_in: 1, fade_out: 6}
