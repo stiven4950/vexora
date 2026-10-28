@@ -11,6 +11,7 @@ tipografía e iconografía. Están descritos bloque por bloque en
 | `procesando.png` | Trabajo en proceso (el resultado y el error usan el mismo marco) | `/app/jobs/:id` | 1b |
 | `mis-proyectos.png` | Mis proyectos | `/app/library` | 1b |
 | `editor-efectos.png` | Editor de efectos | `/app/projects/:id/edit` | 2 |
+| `mi-plan.png` | Mi plan: planes, créditos, uso e historial | `/app/plan` | 3 (vista; sin pagos) |
 
 Lo que el diseño muestra y aún no tiene función (créditos, campana, "Con efectos", "Sorpréndeme",
 "Compartir", "Precios"…) se construye con datos fijos en `web/src/mocks/pendientes.ts`, cada uno
