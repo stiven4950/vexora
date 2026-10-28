@@ -424,14 +424,15 @@
   line-height: 1.1;
 }
 
-.balance span,
-.balance small {
+/* Solo el texto: el círculo del icono (.hex) también es un span y debe seguir centrado. */
+.balance div span,
+.balance div small {
   display: block;
   color: var(--muted);
   font-size: 13px;
 }
 
-.balance small {
+.balance div small {
   margin-top: 2px;
   font-size: 11px;
 }
