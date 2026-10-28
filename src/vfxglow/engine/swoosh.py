@@ -222,6 +222,9 @@ def set_resolution(frame_width: int) -> None:
 # Halo de los neones que van sobre la cara (máscaras, toon, gafas, el león): con el halo entero,
 # muchos trazos juntos sobre la cara la lavan de luz y la arruinan.
 FACE_HALO = 0.3
+# Figura pequeña: mide menos de tantas veces el ancho de su halo; y lo mínimo que le queda de halo.
+SMALL_FIGURE = 4.0
+SMALL_FLOOR = 0.3
 
 
 def neon_layers(curve: np.ndarray, color: np.ndarray, width: float, alpha: float, core_scale: float = 1.0, halo: float = 1.0) -> list:
@@ -233,12 +236,20 @@ def neon_layers(curve: np.ndarray, color: np.ndarray, width: float, alpha: float
       núcleo como mínimo. `width` solo controla hasta dónde se extiende el halo.
     Trazos de menos de 1,5 px (chispas diminutas) conservan su grosor propio.
     `halo` (0-1) atenúa y acorta los dos halos (FACE_HALO para lo que va sobre la cara).
+    Una figura pequeña o delgada (un número, una rayita, un dedo) no se ilumina tanto: si mide
+    menos de SMALL_FIGURE veces su halo, el halo se apaga y se acorta en proporción (hasta
+    SMALL_FLOOR), para que la luz no la tape.
     """
     color = np.asarray(color, dtype=np.float32)
     white = np.array([1.0, 1.0, 1.0], dtype=np.float32)
     core = (_core_px if width >= 1.5 else width) * core_scale
     spread = max(width, core)
     reach = 0.5 + 0.5 * halo
+    if len(curve) >= 2:
+        extent = float(np.linalg.norm(np.ptp(np.asarray(curve, dtype=np.float64), axis=0)))
+        small = float(np.clip(extent / (SMALL_FIGURE * max(spread * 3.0, core * 8.0) * reach), SMALL_FLOOR, 1.0))
+        halo *= small
+        reach *= 0.5 + 0.5 * small
     return [
         (curve, color, max(spread * 3.0, core * 8.0) * reach, alpha * 0.35 * halo, max(spread * 1.8, core * 5.0) * reach),
         (curve, color, max(spread * 1.4, core * 3.5) * reach, alpha * 0.5 * (0.4 + 0.6 * halo), core * 1.5),

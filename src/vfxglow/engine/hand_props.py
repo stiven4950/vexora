@@ -378,7 +378,7 @@ def _drink(shape, body, frame, scale, frame_index, runtime, layer, color, alpha,
                 rise = (frame_index * 0.05 + rng.uniform()) % 1.0
                 at = np.array([rng.uniform(liquid[:, 0].min(), liquid[:, 0].max()), hi - (hi - lo) * rise])
                 if cv2.pointPolygonTest(contour, (float(at[0]), float(at[1])), False) >= 0:
-                    splat(layer, float(at[0]), float(at[1]), 0.018 * scale + 1, tint * 0.4, alpha * 0.8, runtime.kernels)
+                    splat(layer, float(at[0]), float(at[1]), 0.018 * scale + 1, tint * 0.4, alpha * 0.5, runtime.kernels)
     fill_polygon(layer, outline, tint, alpha * 0.18 * keep, 0.9, feather=1.5)
     grow = _ease(_seg(u, 0.0, 0.1))  # aparece trazándose
     closed = np.vstack([outline, outline[:1]])
@@ -464,7 +464,7 @@ def _smoking(shape, body, frame, scale, frame_index, runtime, layer, color, alph
         vape = shape == "vape"
         particles += _smoke(puff, mouth, frame_index, scale, ahead * 0.7 + up * 0.5, drift, 10 if vape else 4, 0.035 if vape else 0.02, seed + 1, 2.2 if vape else 1.4)
     for at, radius, life in particles:
-        splat(layer, float(at[0]), float(at[1]), radius + 0.6, WHITE * 0.5 + tint * 0.5, alpha * life * 0.7, runtime.kernels)
+        splat(layer, float(at[0]), float(at[1]), radius + 0.6, WHITE * 0.35 + tint * 0.35, alpha * life * 0.45, runtime.kernels)  # partículas finas: poca luz
     return lines
 
 
