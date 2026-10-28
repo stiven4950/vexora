@@ -5,6 +5,11 @@
 Endpoints bajo /api: estilos disponibles, crear trabajos subiendo un video, seguir su progreso
 (JSON o eventos SSE), variaciones con otro estilo o semilla, y los videos original y editado.
 Si existe web/dist (el front compilado), se sirve en la raíz.
+
+La API no guarda estado entre peticiones: todo vive en el almacén (store/) y lo pesado (análisis,
+vistas previas, capas, trabajos) lo hacen trabajadores de la cola (api/workqueue.py, api/tasks.py).
+Así puede correr con varias instancias detrás de Firebase Hosting (60 s por petición) y Cloud Run
+(32 MiB por cuerpo): el video sube directo al bucket (`POST /api/uploads` con JSON).
 """
 
 from __future__ import annotations
@@ -29,11 +34,11 @@ from pydantic import BaseModel
 from vfxglow import telemetry
 from vfxglow.analysis.quality import QualityWarning
 from vfxglow.api import accounts, limits, notifications, profiles, ratelimit, shares
-from vfxglow.api.auth import User, auth_enabled, check_bind, current_user, media_key, media_owner
+from vfxglow.api.auth import User, auth_enabled, check_bind, check_upload_key, current_user, media_key, media_owner
 from vfxglow.api.jobs import Job, JobBusy, JobStore, NotRetryable, UploadTooLarge, owns
 from vfxglow.api.layers import LayerStore, estimate_seconds
 from vfxglow.api.previews import PreviewStore, sides_for, window_for
-from vfxglow.api.uploads import TooManyAnalyzing, Upload, UploadNotFound, UploadStore, UploadUsed
+from vfxglow.api.uploads import TooManyAnalyzing, Upload, UploadMissing, UploadNotFound, UploadNotReady, UploadStore, UploadUsed
 from vfxglow.config import PRESET_ALIASES, catalog_name
 from vfxglow.telemetry import redact
 
@@ -695,13 +700,17 @@ def _job_from_upload(upload_id: str, user: User, style_kind: str, style: str, se
         raise HTTPException(404, UPLOAD_GONE) from error
     except UploadUsed as error:
         raise HTTPException(409, "Esta subida ya se usó en otro video.") from error
+    except UploadNotReady as error:
+        raise HTTPException(409, str(error)) from error
     try:
-        info = limits.VideoInfo(duration_s=item.video_seconds or 0.0, width=item.video_width or 0, height=item.video_height or 0, fps=0.0, codec="")
-        job = jobs().create(item.filename, None, style_kind, style, seed, season, source=Path(item.video_path), info=info, **options)
+        # Una subida directa aún sin sondear: el trabajador la sondea antes de procesarla.
+        probed = item.video_seconds is not None
+        info = limits.VideoInfo(duration_s=item.video_seconds or 0.0, width=item.video_width or 0, height=item.video_height or 0, fps=0.0, codec="") if probed else None
+        job = jobs().create(item.filename, None, style_kind, style, seed, season, source=Path(item.video_path), info=info, source_bytes=item.video_bytes, **options)
     except BaseException:
         uploads().release(upload_id, previous)
         raise
-    uploads().finish_used(item)
+    uploads().finish_used(item, previous)
     return job
 
 
@@ -734,19 +743,121 @@ def upload_view(item: Upload) -> UploadView:
     )
 
 
-@app.post("/api/uploads", response_model=UploadView, status_code=201)
-def create_upload(video: UploadFile = File(...), user: User = Depends(current_user)) -> UploadView:
-    """Guarda el video y empieza a analizarlo ya, mientras la persona elige estilo."""
-    if Path(video.filename or "").suffix.lower() not in VIDEO_TYPES:
-        raise HTTPException(415, f"Formato no soportado. Usa {', '.join(sorted(VIDEO_TYPES))}")
-    if video.size is not None and video.size > MAX_UPLOAD_MB * 1024 * 1024:
-        raise HTTPException(413, f"El video supera {MAX_UPLOAD_MB} MB")
+class UploadTarget(BaseModel):
+    """A dónde mandar el archivo en una subida directa: un PUT con estas cabeceras, tal cual."""
+
+    method: str = "PUT"
+    url: str
+    headers: dict[str, str]
+    expires: float
+
+
+class DirectUploadView(UploadView):
+    # Solo al crear una subida directa (JSON); con multipart, None.
+    upload: UploadTarget | None = None
+
+
+class DirectUploadRequest(BaseModel):
+    filename: str
+    size: int
+    content_type: str | None = None
+
+
+MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
+TOO_MANY_UPLOADS = "Ya tienes videos analizándose; espera a que terminen."
+
+
+def _too_large() -> HTTPException:
+    return HTTPException(413, f"El video supera {MAX_UPLOAD_MB} MB")
+
+
+@app.post("/api/uploads", response_model=DirectUploadView, status_code=201)
+async def create_upload(request: Request, user: User = Depends(current_user)) -> DirectUploadView:
+    """Empieza una subida para analizarla ya, mientras la persona elige estilo.
+
+    - JSON {filename, size, content_type} (la web): subida directa. Se valida el tipo y el tamaño
+      declarados ANTES de dar la URL; la respuesta trae `upload` (PUT firmado al bucket, o la URL
+      local de la API). Luego `POST /api/uploads/{id}/complete`.
+    - multipart con `video` (la de siempre): la API recibe el archivo, lo sondea y lo encola."""
+    from starlette.concurrency import run_in_threadpool
+
+    if request.headers.get("content-type", "").lower().startswith("multipart/"):
+        form = await request.form()
+        video = form.get("video")
+        if video is None or isinstance(video, str):
+            raise HTTPException(422, "Envía el video.")
+        _check_upload_name(video.filename)
+        if video.size is not None and video.size > MAX_UPLOAD_BYTES:
+            raise _too_large()
+        try:
+            item = await run_in_threadpool(uploads().create, video.filename or "video.mp4", video.file, user.uid, MAX_UPLOAD_BYTES, limits.probe_video)
+        except UploadTooLarge as error:
+            raise _too_large() from error
+        except TooManyAnalyzing as error:
+            raise HTTPException(429, TOO_MANY_UPLOADS) from error
+        return DirectUploadView(**upload_view(item).model_dump())
     try:
-        item = uploads().create(video.filename or "video.mp4", video.file, user.uid, MAX_UPLOAD_MB * 1024 * 1024, limits.probe_video)
-    except UploadTooLarge as error:
-        raise HTTPException(413, f"El video supera {MAX_UPLOAD_MB} MB") from error
+        body = DirectUploadRequest.model_validate(await request.json())
+    except ValueError as error:
+        raise HTTPException(422, "Envía el nombre, el tamaño y el tipo del video.") from error
+    _check_upload_name(body.filename)
+    if body.size <= 0:
+        raise HTTPException(422, "El video está vacío.")
+    if body.size > MAX_UPLOAD_BYTES:
+        raise _too_large()
+    try:
+        item, target = await run_in_threadpool(uploads().start_direct, body.filename, body.size, body.content_type, user.uid, MAX_UPLOAD_BYTES)
     except TooManyAnalyzing as error:
-        raise HTTPException(429, "Ya tienes videos analizándose; espera a que terminen.") from error
+        raise HTTPException(429, TOO_MANY_UPLOADS) from error
+    return DirectUploadView(**upload_view(item).model_dump(), upload=UploadTarget(**target))
+
+
+def _check_upload_name(filename: str | None) -> None:
+    if Path(filename or "").suffix.lower() not in VIDEO_TYPES:
+        raise HTTPException(415, f"Formato no soportado. Usa {', '.join(sorted(VIDEO_TYPES))}")
+
+
+@app.put("/api/uploads/{upload_id}/file", status_code=204)
+async def put_upload_file(upload_id: str, request: Request, k: str | None = Query(None)) -> Response:
+    """Subida directa con archivos locales (VEXORA_BLOBS=local): el navegador manda aquí el PUT que
+    con GCS iría al bucket. Abre con la llave `k` de la URL (sin cabeceras de sesión), solo
+    mientras la subida está `uploading`, y corta en cuanto pasa del tamaño declarado."""
+    item = uploads().peek(upload_id)
+    if item is None or item.status != "uploading" or not check_upload_key(upload_id, k, item.owner):
+        raise HTTPException(404, UPLOAD_GONE)
+    if not jobs().blobs.local:
+        raise HTTPException(409, "Esta subida va directo al almacén.")
+    limit = min(item.expected_bytes or MAX_UPLOAD_BYTES, item.max_bytes or MAX_UPLOAD_BYTES)
+    target = Path(item.video_path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    partial = target.with_name(target.name + ".part")
+    written = 0
+    try:
+        with partial.open("wb") as out:
+            async for chunk in request.stream():
+                written += len(chunk)
+                if written > limit:
+                    raise _too_large()
+                out.write(chunk)
+        partial.replace(target)
+    finally:
+        partial.unlink(missing_ok=True)
+    return Response(status_code=204)
+
+
+@app.post("/api/uploads/{upload_id}/complete", response_model=UploadView)
+def complete_upload(upload_id: str, user: User = Depends(current_user)) -> UploadView:
+    """La subida directa terminó: se comprueba que el archivo llegó (y su tamaño real) y empieza el
+    análisis. Responde `analyzing` sin esperar al análisis. Si el archivo falta, pesa más de lo
+    permitido o no es un video legible, la subida queda `failed` y el archivo se borra."""
+    try:
+        item = uploads().complete(upload_id, user.uid, limits.probe_video)
+    except UploadNotFound as error:
+        raise HTTPException(404, UPLOAD_GONE) from error
+    except UploadMissing as error:
+        raise HTTPException(409, "No recibimos el video completo. Vuelve a subirlo.") from error
+    except UploadTooLarge as error:
+        raise _too_large() from error
     return upload_view(item)
 
 
@@ -1056,13 +1167,13 @@ def create_preview(job_id: str, body: PreviewRequest, user: User = Depends(curre
 
 
 @app.get("/api/jobs/{job_id}/preview/{preview_id}.mp4")
-def preview_file(job_id: str, preview_id: str, k: str | None = Query(None)) -> FileResponse:
+def preview_file(job_id: str, preview_id: str, k: str | None = Query(None)) -> Response:
     job = _media_job(job_id, k)
     item = previews().get(job.id, preview_id)
     path = previews().url_path(item) if item is not None else None
     if path is None:
         raise HTTPException(404, "La vista previa ya no existe")
-    return FileResponse(path, media_type="video/mp4")
+    return _send(path, "video/mp4")
 
 
 _layers: LayerStore | None = None
@@ -1193,6 +1304,8 @@ def create_upload_preview(upload_id: str, body: StudioPreviewRequest, user: User
     if upload.status == "used":
         raise HTTPException(409, "Esta subida ya se usó en otro video.")
     brief_path = Path(upload.run_dir or "") / "analysis" / "motion_brief.json"
+    if upload.status == "ready" and upload.run_dir and not brief_path.exists():
+        jobs().analysis.ensure(upload.run_dir, upload.analysis_key)  # analizada en otra máquina
     if upload.status != "ready" or not upload.run_dir or not brief_path.exists():
         raise HTTPException(409, "Espera a que termine el análisis.")
     brief = read_model(brief_path, MotionBrief)
@@ -1207,6 +1320,7 @@ def create_upload_preview(upload_id: str, body: StudioPreviewRequest, user: User
         wardrobe=wear,
         prop=body.prop or None,
         watermark=_watermark(user),
+        analysis_key=upload.analysis_key,
     )
     item, cached = previews().submit_studio(
         upload.id,
@@ -1223,7 +1337,7 @@ def create_upload_preview(upload_id: str, body: StudioPreviewRequest, user: User
 
 
 @app.get("/api/uploads/{upload_id}/preview/{preview_id}.mp4")
-def upload_preview_file(upload_id: str, preview_id: str, k: str | None = Query(None)) -> FileResponse:
+def upload_preview_file(upload_id: str, preview_id: str, k: str | None = Query(None)) -> Response:
     upload = uploads().peek(upload_id)
     if upload is None:
         raise HTTPException(404, UPLOAD_GONE)
@@ -1232,7 +1346,7 @@ def upload_preview_file(upload_id: str, preview_id: str, k: str | None = Query(N
     path = previews().url_path(item) if item is not None else None
     if path is None:
         raise HTTPException(404, "La vista previa ya no existe")
-    return FileResponse(path, media_type="video/mp4")
+    return _send(path, "video/mp4")
 
 
 @app.get("/api/uploads/{upload_id}/preview/{preview_id}", response_model=PreviewView)
@@ -1375,6 +1489,8 @@ def _people_frames(job: Job) -> dict[str, tuple[int, tuple[float, float, float, 
     if cache.exists():
         return {k: (v[0], tuple(v[1])) for k, v in json.loads(cache.read_text()).items()}
     tracks = Path(job.run_dir or "") / "analysis" / "tracks.jsonl"
+    if job.run_dir and not tracks.exists():
+        jobs().analysis.ensure(job.run_dir, job.analysis_key)  # analizado en otra máquina
     best: dict[str, tuple[float, int, tuple]] = {}
     cap = cv2.VideoCapture(str(jobs().local(job.video_path)))
     aspect = (cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 1.0) / (cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 1.0)
@@ -1441,12 +1557,14 @@ def job_person_image(job_id: str, person_id: str, k: str | None = Query(None)) -
 def job_choreography(job_id: str, user: User = Depends(current_user)) -> list[Moment]:
     """Qué reacción salió en cada acción (solo estilos de catálogo); 'nada' se omite."""
     job = _job(job_id, user)
-    if not job.run_dir:
-        return []
-    path = Path(job.run_dir) / "scripts" / f"{job.style}.choreography.json"
-    if not path.exists():
-        return []
-    decisions = json.loads(path.read_text(encoding="utf-8")).get("decisions", [])
+    if jobs().has(jobs().artifact(job.id, "choreography")):  # guardada con la versión (en el almacén)
+        text = jobs().read_artifact(job.id, "choreography")
+    else:  # versiones de antes: la de runs/, si esta máquina la tiene
+        path = Path(job.run_dir or "") / "scripts" / f"{job.style}.choreography.json"
+        if not job.run_dir or not path.exists():
+            return []
+        text = path.read_text(encoding="utf-8")
+    decisions = json.loads(text).get("decisions", [])
     return [Moment(note=d.get("note", ""), **{k: d[k] for k in ("second", "action", "target", "choice")}) for d in decisions if not d["choice"].startswith("nada")]
 
 

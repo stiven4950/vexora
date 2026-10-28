@@ -85,3 +85,30 @@ def test_storage_put_exists_signed_url_and_delete(tag: str, tmp_path: Path) -> N
     finally:
         blobs.delete_prefix(f"{tag}/")
     assert not GcsBlobStore().exists(key)
+
+
+def test_storage_signed_put_with_type_and_size_range(tag: str) -> None:
+    """La subida directa del navegador: PUT firmado con tipo y tope de tamaño; lo que no cumple, el bucket lo rechaza."""
+    from vfxglow.store.blobs import GcsBlobStore
+
+    blobs = GcsBlobStore()
+    key = f"{tag}/uploads/u_smoke/clip.mp4"
+    context = ssl.create_default_context(cafile=certifi.where())
+
+    def put(data: bytes, headers: dict[str, str]) -> int:
+        url, _ = blobs.signed_upload_url(key, "video/mp4", 16, ttl_s=120)
+        request = urllib.request.Request(url, data=data, method="PUT", headers=headers)
+        try:
+            with urllib.request.urlopen(request, timeout=30, context=context) as response:  # noqa: S310 (URL firmada de GCS)
+                return response.status
+        except urllib.error.HTTPError as error:
+            return error.code
+
+    try:
+        _, headers = blobs.signed_upload_url(key, "video/mp4", 16, ttl_s=120)
+        assert put(b"x" * 32, headers) >= 400  # más de lo firmado
+        assert blobs.size(key) is None
+        assert put(b"x" * 16, headers) == 200
+        assert blobs.size(key) == 16
+    finally:
+        blobs.delete_prefix(f"{tag}/")

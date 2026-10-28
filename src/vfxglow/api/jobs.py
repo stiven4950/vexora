@@ -28,7 +28,8 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from vfxglow import telemetry
-from vfxglow.api import notifications, shares, workqueue
+from vfxglow.api import notifications, shares, tasks, workqueue
+from vfxglow.store.analysis_cache import AnalysisCache, video_prefix
 from vfxglow.store.blobs import BlobStore
 from vfxglow.store.docs import DELETE, DocStore
 
@@ -128,6 +129,12 @@ class Job(BaseModel):
     lease_until: float | None = None
     attempts: int = 0
     cancel_requested: bool = False
+    # Entrada de la caché del análisis compartida (store/analysis_cache.py) con que se hizo: la API
+    # la trae del almacén para /people aunque el análisis se hiciera en otra máquina.
+    analysis_key: str | None = None
+    # El video vino de una subida directa que aún no se había sondeado (duración, tamaño): el
+    # trabajador lo sondea antes de procesarlo y falla con un mensaje claro si no cabe.
+    probe: bool = False
 
 
 # Cómo se llama cada etapa en la actividad reciente.
@@ -148,6 +155,10 @@ ERRORS = {
     "analysis_failed": "No pudimos seguir el movimiento en este video. Prueba con un plano donde se vea el cuerpo entero.",
     "render_failed": "Algo falló al dibujar los efectos. Reintenta; si vuelve a pasar, prueba otro estilo.",
     "internal": "Algo falló al revelar tu video. Reintenta; si vuelve a pasar, escríbenos.",
+    # Subidas directas al almacén (api/uploads.py): lo que se comprueba al terminar de subir.
+    "invalid_video": "No pudimos leer el video. Expórtalo de nuevo en MP4 (H.264) y vuelve a subirlo.",
+    "too_large": "El video supera el tamaño máximo permitido.",
+    "upload_missing": "No recibimos el video completo. Vuelve a subirlo.",
 }
 
 
@@ -173,6 +184,14 @@ class NotRetryable(Exception):
 
 class UploadTooLarge(Exception):
     """El video subido pasa del máximo permitido."""
+
+
+class _Refused(Exception):
+    """El trabajo no se procesa: su video no pasa el sondeo (código de ERRORS y mensaje claro)."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code, self.message = code, message
 
 
 def safe_name(filename: str) -> str:
@@ -249,6 +268,41 @@ def _queue_reset(priority: int) -> dict:
     return {"priority": priority, "worker": None, "lease_until": None, "attempts": 0, "cancel_requested": False}
 
 
+def _task_interrupted(_doc: dict) -> dict:
+    """Una tarea cuyo trabajador murió MAX_ATTEMPTS veces."""
+    return {"status": "failed", "error_code": "interrupted", "error": ERRORS["interrupted"], "lease_until": None}
+
+
+class _Wake:
+    """Avisa a todos los trabajadores de este proceso que hay algo nuevo en la cola (cada uno
+    espera en su propio evento: con uno compartido, el primero que despierta se lo comería)."""
+
+    def __init__(self) -> None:
+        self._events: list[threading.Event] = []
+        self._lock = threading.Lock()
+
+    def add(self) -> threading.Event:
+        event = threading.Event()
+        with self._lock:
+            self._events.append(event)
+        return event
+
+    def set(self) -> None:
+        with self._lock:
+            events = list(self._events)
+        for event in events:
+            event.set()
+
+
+class TaskHandler:
+    """Cómo se procesa un tipo de tarea en este proceso. `run(doc, flag)` devuelve los campos
+    finales ({"status": "done"|"failed", ...}); `failed(doc)` se llama si la tarea falla sin
+    trabajador (turnos vencidos); `error` es el mensaje si `run` lanza algo inesperado."""
+
+    def __init__(self, run: Callable[[dict, workqueue.StopFlag], dict], failed: Callable[[dict], None] | None = None, error: str = ERRORS["internal"]) -> None:
+        self.run, self.failed, self.error = run, failed, error
+
+
 class JobStore:
     """Los trabajos: altas, consultas y el proceso de cada uno.
 
@@ -267,7 +321,15 @@ class JobStore:
         workers: int | None = None,
         clock: Callable[[], float] = time.time,
         lease_s: float | None = None,
+        worker_kinds: tuple[str, ...] | None = ("job",),
+        lanes: bool = True,
+        idle_exit_s: float | None = None,
     ) -> None:
+        """`workers`: trabajadores en hilos de este proceso, que toman `worker_kinds` (en la API,
+        solo trabajos; `vexora-worker` pasa None = todo). Con `lanes`, cada tipo de tarea que se
+        registre (`register`) tiene además su propio hilo, como antes las subidas, las vistas
+        previas y las capas: una vista previa no espera detrás de un render largo."""
+        from vfxglow.api.wakeup import Waker
         from vfxglow.store import open_blobs, open_docs
 
         self.root = root
@@ -294,11 +356,23 @@ class JobStore:
         self._flushed: dict[str, float] = {}
         self._reaped = float("-inf")
         self._ratios: dict[tuple, tuple[float, list[float]]] = {}
-        self._wake = threading.Event()
+        self._wake = _Wake()
+        self._default_wait = self._wake.add()
+        # Tareas que este proceso sabe hacer (las registran UploadStore, PreviewStore y LayerStore).
+        self.handlers: dict[str, TaskHandler] = {}
+        # Barridos periódicos de otros almacenes (subidas vencidas, vistas previas viejas).
+        self.sweepers: dict[str, Callable[[float], object]] = {}
+        # Caché del análisis compartida entre máquinas (no hace nada con archivos locales).
+        self.analysis = AnalysisCache(self.docs, self.blobs)
+        # Despierta al Cloud Run Job de trabajadores al encolar (VEXORA_WORKER_JOB; si no, nada).
+        self.waker = Waker(self.docs)
         self._recover()
         count = workers if workers is not None else int(os.environ.get(INPROCESS_ENV, "1") or 0)
+        self.inprocess = count
+        self.use_lanes = lanes and count > 0
+        self.lanes: list[workqueue.Worker] = []
         self.stop = threading.Event()
-        self.workers = workqueue.run_workers(self, count, self.stop)
+        self.workers = workqueue.run_workers(self, count, self.stop, kinds=worker_kinds, idle_exit_s=idle_exit_s)
 
     @property
     def poll_s(self) -> float:
@@ -359,6 +433,11 @@ class JobStore:
         if now - self._last_expire < EXPIRE_EVERY_S:
             return 0
         self._last_expire = now
+        for sweep in list(self.sweepers.values()):
+            try:
+                sweep(now)
+            except Exception:  # un barrido que falla no detiene la cola
+                log.exception("Falló un barrido periódico")
         gone = 0
         for job in self._all(status="done"):
             if job.saved or job.keep_until is None or job.keep_until > now:
@@ -473,6 +552,22 @@ class JobStore:
         if not self.blobs.local:
             self.blobs.delete_prefix(prefix)
 
+    # ----- análisis compartido (store/analysis_cache.py) -----
+
+    def pipeline(self, video: Path, restore: bool = False, analysis_key: str | None = None, **kwargs):
+        """Un Pipeline con la caché del análisis compartida. Con `restore`, deja en disco el
+        análisis que otra máquina publicó (la entrada `analysis_key` si se conoce, o la que
+        corresponde a la config del Pipeline), para lo que lo lee sin analizar."""
+        from vfxglow.pipeline import Pipeline
+
+        pipeline = Pipeline(self.config, video, **kwargs)
+        if self.analysis.active:
+            pipeline.shared = self.analysis
+            if restore:
+                if not self.analysis.ensure(pipeline.run_dir, analysis_key) and hasattr(pipeline, "restore_analysis"):
+                    pipeline.restore_analysis()
+        return pipeline
+
     # ----- altas -----
 
     def create(
@@ -494,18 +589,26 @@ class JobStore:
         check: Callable[[Path], object] | None = None,
         source: Path | None = None,
         info: object | None = None,
+        source_bytes: int | None = None,
     ) -> Job:
         """Guarda el video y encola el trabajo. `max_bytes` corta la copia aunque el cliente no
         haya dicho el tamaño (UploadTooLarge); `check` valida el archivo guardado antes de
-        encolarlo. Si algo falla, no queda nada en disco. Con `source` (el video de una subida
-        ya validada, con su `info`) no se copia ningún flujo: se enlaza el archivo."""
+        encolarlo. Si algo falla, no queda nada en disco. Con `source` (el video de una subida,
+        con su `info` si ya se sondeó) no se copia ningún flujo: se enlaza el archivo, o, si
+        solo está en el almacén (subida directa al bucket), se copia dentro del almacén."""
         job_id = uuid.uuid4().hex[:10]
         folder = self.uploads / job_id
         folder.mkdir(parents=True)
         safe = safe_name(filename)
         target = folder / safe
+        remote_copy = source is not None and not Path(source).exists() and not self.blobs.local
         try:
-            if source is not None:
+            if remote_copy:
+                source_key, target_key = self.key(source), self.key(target)
+                if source_key is None or target_key is None:
+                    raise FileNotFoundError(source)
+                self.blobs.copy(source_key, target_key)
+            elif source is not None:
                 try:
                     os.link(source, target)  # la subida conserva su archivo hasta que acabe su análisis
                 except OSError:
@@ -513,10 +616,14 @@ class JobStore:
             else:
                 _copy_limited(data, target, max_bytes)
                 info = check(target) if check is not None else None
-            self.publish(target)  # el trabajador puede estar en otra máquina
+            if not remote_copy:
+                self.publish(target)  # el trabajador puede estar en otra máquina
         except BaseException:
             shutil.rmtree(folder, ignore_errors=True)
+            if remote_copy and (key := self.key(folder)):
+                self._forget_files(key + "/")
             raise
+        size = target.stat().st_size if target.exists() else int(source_bytes or 0)
         job = Job(
             id=job_id,
             created=time.time(),
@@ -536,16 +643,17 @@ class JobStore:
             video_seconds=getattr(info, "duration_s", None),
             video_width=getattr(info, "width", None),
             video_height=getattr(info, "height", None),
-            video_bytes=target.stat().st_size,
+            video_bytes=size,
+            probe=source is not None and info is None,
         )
-        job.activity = [{"at": job.created, "text": "Video recibido", "detail": f"{filename} ({target.stat().st_size / 1e6:.1f} MB)"}]
+        job.activity = [{"at": job.created, "text": "Video recibido", "detail": f"{filename} ({size / 1e6:.1f} MB)"}]
         if source is None:  # con una subida, `upload.received` ya se emitió al recibirla
             telemetry.event(
                 "upload.received",
                 job_id=job.id,
                 trace_id=job.trace_id,
                 usr={"id": telemetry.user_ref(owner)},
-                bytes=target.stat().st_size,
+                bytes=size,
                 extension=target.suffix.lower(),
                 video=info.model_dump() if isinstance(info, BaseModel) else None,
             )
@@ -696,7 +804,7 @@ class JobStore:
             leftover.unlink(missing_ok=True)  # guion, momentos, gestos y tira de fotogramas del editor
         self._forget_files(f"outputs/{job_id}.")
         shares.erase_job(self.docs, job_id)  # sus enlaces públicos dejan de existir con él
-        shutil.rmtree(self.root / "previews" / job_id, ignore_errors=True)  # vistas previas del editor
+        self.forget_tasks(job_id)  # sus vistas previas y sus capas
         folder = Path(job.video_path).parent
         if video_shared:
             for cache in folder.glob(f"thumb-{job_id}-*.jpg"):
@@ -708,6 +816,8 @@ class JobStore:
                 self._forget_files(key + "/")
         if job.run_dir and not run_shared and self._removable(Path(job.run_dir)):
             shutil.rmtree(job.run_dir, ignore_errors=True)
+        if job.analysis_key and not run_shared and not self.docs.query(COLLECTION, where={"analysis_key": job.analysis_key}, limit=1):
+            self._forget_files(video_prefix(job.analysis_key))  # el análisis publicado de ese video
         telemetry.event("job.deleted", job_id=job_id, trace_id=job.trace_id, run_deleted=bool(job.run_dir and not run_shared))
 
     def _removable(self, run_dir: Path) -> bool:
@@ -771,6 +881,7 @@ class JobStore:
         self.docs.set(COLLECTION, job.id, job.model_dump())
         depth = len(self.docs.query(COLLECTION, where={"status": "queued"}))
         self._wake.set()
+        self.waker.poke_later()
         telemetry.event(
             "job.queued",
             job_id=job.id,
@@ -794,18 +905,94 @@ class JobStore:
 
     # ----- cola (api/workqueue.py) -----
 
-    def wait_for_work(self, timeout: float) -> None:
+    def wake_all(self) -> None:
+        """Despierta a los trabajadores de este proceso (p. ej. tras registrar tipos de tarea)."""
+        self._wake.set()
+
+    def waiter(self) -> threading.Event:
+        """El evento con que este proceso despierta a un trabajador suyo."""
+        return self._wake.add()
+
+    def wait_for_work(self, timeout: float, event: threading.Event | None = None) -> None:
         """Un trabajador sin nada que hacer espera `timeout` o a que este proceso encole algo."""
-        if self._wake.wait(timeout):
-            self._wake.clear()
+        event = event or self._default_wait
+        if event.wait(timeout):
+            event.clear()
 
     def close(self) -> None:
         """Los trabajadores de este almacén dejan de tomar trabajos (el que está en curso termina)."""
         self.stop.set()
         self._wake.set()
 
-    def claim(self, worker_id: str) -> dict | None:
-        return workqueue.claim(self.docs, worker_id, self.clock(), self.lease_s)
+    def register(self, kind: str, handler: TaskHandler) -> None:
+        """Este proceso sabe hacer las tareas `kind`. En la API (con trabajadores en hilos), arranca
+        también un hilo propio para ese tipo, una sola vez aunque se registre de nuevo."""
+        first = kind not in self.handlers
+        self.handlers[kind] = handler
+        if first and self.use_lanes:
+            lane = workqueue.Worker(self, workqueue.new_worker_id(len(self.lanes) + 100), stop=self.stop, kinds=(kind,))
+            lane.name = f"vfxglow-{kind}-{lane.worker_id}"
+            self.lanes.append(lane)
+            lane.start()
+        self._wake.set()
+
+    def claim(self, worker_id: str, kinds: tuple[str, ...] | None = None) -> dict | None:
+        """Lo siguiente para un trabajador que toma `kinds` (None = todo lo que este proceso sabe
+        hacer): primero las tareas (todas tienen más prioridad que los trabajos), luego trabajos."""
+        now = self.clock()
+        wanted = [kind for kind in (kinds if kinds is not None else ("job", *self.handlers)) if kind == "job" or kind in self.handlers]
+        task_kinds = [kind for kind in wanted if kind != "job"]
+        if task_kinds:
+            where = {"kind": task_kinds[0]} if len(task_kinds) == 1 else None
+            doc = workqueue.claim(self.docs, worker_id, now, self.lease_s, collection=tasks.TASKS, where=where, accept=lambda d: self._accept_task(d, task_kinds))
+            if doc is not None:
+                return doc
+        if "job" in wanted:
+            return workqueue.claim(self.docs, worker_id, now, self.lease_s)
+        return None
+
+    def _accept_task(self, doc: dict, kinds: list[str]) -> bool:
+        """Una tarea que este trabajador sabe hacer. De las vistas previas, una a la vez por
+        persona aunque haya varios trabajadores (la siguiente espera a que termine la suya)."""
+        if doc.get("kind") not in kinds:
+            return False
+        if doc.get("kind") == tasks.PREVIEW and doc.get("owner"):
+            return not self.docs.query(tasks.TASKS, where={"kind": tasks.PREVIEW, "owner": doc["owner"], "status": "running"}, limit=1)
+        return True
+
+    def enqueue_task(self, doc: dict) -> dict:
+        """Pone una tarea en la cola (reemplaza la que tuviera ese id) y avisa a los trabajadores."""
+        self.docs.set(tasks.TASKS, doc["id"], doc)
+        self._wake.set()
+        self.waker.poke_later()
+        return doc
+
+    def forget_tasks(self, ref: str) -> None:
+        """Las tareas de un trabajo o una subida que se borra, con sus vistas previas."""
+        for doc in self.docs.query(tasks.TASKS, where={"ref": ref}):
+            if doc.get("kind") != tasks.UPLOAD:
+                self.docs.delete(tasks.TASKS, doc["id"])
+        shutil.rmtree(self.root / "previews" / ref, ignore_errors=True)
+        self._forget_files(f"previews/{ref}/")
+
+    def _process_task(self, doc: dict, worker_id: str) -> None:
+        """Procesa una tarea ya tomada por `worker_id`, renovando su turno mientras dura."""
+        task_id, kind = doc["id"], doc["kind"]
+        handler = self.handlers[kind]
+        mine = {"worker": worker_id, "status": "running"}
+        flag = workqueue.StopFlag(self.docs, task_id, worker_id, clock=self.clock, collection=tasks.TASKS)
+        self.docs.update(tasks.TASKS, task_id, {"started": time.time()}, when=mine)
+        try:
+            with workqueue.Lease(self.docs, task_id, worker_id, self.lease_s, flag, clock=self.clock, collection=tasks.TASKS):
+                outcome = handler.run(doc, flag) or {}
+        except Exception as error:  # el detalle va al registro; quien espera ve un mensaje claro
+            log.exception("Tarea %s (%s) falló", task_id, kind)
+            telemetry.event("task.failed", level=logging.ERROR, task_id=task_id, kind=kind, error={"kind": type(error).__name__, "message": telemetry.redact(str(error))[:500]})
+            outcome = {"status": "failed", "error": handler.error, "error_code": "internal"}
+        if flag.lost:
+            return  # su turno pasó a otro trabajador: la termina él
+        final = {"status": "done", **outcome, "finished": time.time(), "lease_until": None}
+        self.docs.update(tasks.TASKS, task_id, final, when=mine)
 
     def reap_expired(self) -> list[tuple[str, str]]:
         """Recupera los trabajos de trabajadores que dejaron de renovar su turno (cada medio turno)."""
@@ -819,12 +1006,24 @@ class JobStore:
         for job_id, outcome in outcomes:
             log.warning("Trabajo %s: su trabajador dejó de responder (%s)", job_id, outcome)
             telemetry.event("job.lease_expired", level=logging.WARNING, job_id=job_id, outcome=outcome)
+        task_outcomes = workqueue.reap(self.docs, now, _task_interrupted, collection=tasks.TASKS, requeued=None)
+        for task_id, outcome in task_outcomes:
+            log.warning("Tarea %s: su trabajador dejó de responder (%s)", task_id, outcome)
+            telemetry.event("task.lease_expired", level=logging.WARNING, task_id=task_id, outcome=outcome)
+            doc = self.docs.get(tasks.TASKS, task_id) if outcome == "failed" else None
+            handler = self.handlers.get(doc.get("kind")) if doc else None
+            if handler is not None and handler.failed is not None:
+                handler.failed(doc)
+        outcomes = [*outcomes, *task_outcomes]
         if any(outcome == "requeued" for _, outcome in outcomes):
             self._wake.set()
         return outcomes
 
     def process(self, doc: dict, worker_id: str) -> None:
-        """Procesa un trabajo ya tomado por `worker_id`, renovando su turno mientras dura."""
+        """Procesa un trabajo (o una tarea) ya tomado por `worker_id`, renovando su turno mientras dura."""
+        if doc.get("kind") in self.handlers and "style_kind" not in doc:
+            self._process_task(doc, worker_id)
+            return
         job = Job.model_validate(doc)
         event = threading.Event()
         with self._lock:
@@ -842,8 +1041,6 @@ class JobStore:
     # ----- trabajo -----
 
     def _run(self, job: Job, worker_id: str, flag: workqueue.StopFlag) -> None:
-        from vfxglow.pipeline import Pipeline
-
         mine = {"worker": worker_id}
         handler = _Progress(self, job.id)
         root = logging.getLogger()
@@ -858,21 +1055,31 @@ class JobStore:
             telemetry.event("job.started", queue_wait_ms=summary["queue_wait_ms"], deep=job.deep, take=job.take, attempt=job.attempts)
             try:
                 video = self.local(job.video_path)  # en otra máquina, se trae del almacén
-                pipeline = Pipeline(self.config, video, **self._pipeline_kwargs(job))
+                if job.probe:
+                    self._probe(job, video)
+                pipeline = self.pipeline(video, restore=bool(job.edits), analysis_key=job.analysis_key, **self._pipeline_kwargs(job))
                 self._update(job.id, run_dir=str(pipeline.run_dir))
                 if job.edits:
                     output = self._edit(job, pipeline)
                 else:
                     output = self._keep(job.id, pipeline.run())
                     self._save_artifacts(job.id, pipeline)
+                    self._save_choreography(job, pipeline)
                 finished = time.time()
                 summary["total_ms"] = round((finished - started) * 1000)
                 done = dict(status="done", stage="done", progress=1.0, message="Listo", output=str(output), finished=finished, metrics=summary, lease_until=None)
+                done["analysis_key"] = getattr(pipeline, "analysis_id", None) or job.analysis_key
                 if not job.saved:
                     done["keep_until"] = finished + self.unsaved_seconds()
                 if self._update(job.id, when=mine, **done):
                     telemetry.event("job.finished", outcome="ok", duration_ms=summary["total_ms"], output_bytes=output.stat().st_size, metrics=summary)
                     self._notify(job, "job_done", "Tu video está listo", "{name} terminó de procesarse.")
+            except _Refused as refused:  # el video no cabe en los límites (subida directa sin sondear)
+                finished = time.time()
+                summary["total_ms"] = round((finished - started) * 1000)
+                if self._update(job.id, when=mine, status="failed", message="Falló", error=refused.message, error_code=refused.code, finished=finished, metrics=summary, lease_until=None):
+                    self._notify(job, "job_failed", "No pudimos terminar tu video", "{name} no se pudo procesar. Revisa el video y vuelve a intentarlo.")
+                telemetry.event("job.failed", level=logging.WARNING, outcome="refused", error={"code": refused.code})
             except telemetry.Cancelled:
                 if flag.lost:  # el turno pasó a otro trabajador: el trabajo sigue, solo que no aquí
                     telemetry.event("job.abandoned", level=logging.WARNING, duration_ms=round((time.time() - started) * 1000))
@@ -897,6 +1104,26 @@ class JobStore:
                 )
             finally:
                 root.removeHandler(handler)
+
+    def _probe(self, job: Job, video: Path) -> None:
+        """Sondea un video de subida directa que nadie había sondeado: si no cabe en los límites,
+        el trabajo falla con el mensaje del sondeo (no se analiza un video de dos horas)."""
+        from fastapi import HTTPException
+
+        from vfxglow.api import limits
+
+        try:
+            info = limits.probe_video(video)
+        except HTTPException as error:
+            raise _Refused("invalid_video", str(error.detail)) from error
+        self._update(job.id, probe=False, video_seconds=info.duration_s, video_width=info.width, video_height=info.height)
+
+    def _save_choreography(self, job: Job, pipeline) -> None:
+        """La coreografía con que se hizo esta versión (para /choreography), junto a sus demás
+        archivos: así la API la lee del almacén aunque runs/ esté en otra máquina."""
+        path = Path(pipeline.run_dir) / "scripts" / f"{job.style}.choreography.json"
+        if path.exists():
+            self._write_artifact(job.id, "choreography", path.read_text(encoding="utf-8"))
 
     def _notify(self, job: Job, kind: str, title: str, text: str) -> None:
         """El aviso de la campana (si su dueño lo quiere). Va aquí, en el trabajador, para que
@@ -973,11 +1200,9 @@ class JobStore:
         """Deja editable una versión hecha antes del editor: vuelve a dirigir (sin analizar ni
         dibujar) con el análisis que quedó en disco y guarda sus artefactos. Se marca como
         `prepared`: el guion regenerado puede no coincidir al píxel con su video."""
-        from vfxglow.pipeline import Pipeline
-
         if not self.preparable(job):
             raise ValueError("Esta versión no necesita prepararse para editar.")
-        pipeline = Pipeline(self.config, self.local(job.video_path), **self._pipeline_kwargs(job))
+        pipeline = self.pipeline(self.local(job.video_path), restore=True, analysis_key=job.analysis_key, **self._pipeline_kwargs(job))
         if not (Path(pipeline.run_dir) / "analysis" / "motion_brief.json").exists():
             raise ValueError("Ya no está el análisis de este video: crea otra versión para editarla.")
         pipeline.direct()

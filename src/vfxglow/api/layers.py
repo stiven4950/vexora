@@ -1,29 +1,31 @@
 """Capas por pista para la vista en vivo del editor: un MP4 en mosaico por versión (composite/atlas.py).
 
-Un hilo aparte (como el de las vistas previas) y una generación a la vez: dibuja la versión entera
-a baja resolución (~0,1 s por fotograma). El resultado vive junto a los demás archivos de la
-versión (`outputs/<id>.layers.mp4` y `.layers.json`), así que se borra con ella. "Lista" = ambos
-archivos en disco (o en el almacén de archivos, store/blobs.py); el JSON se escribe y publica al
-final, así que sin él el MP4 a medias no cuenta.
+Una tarea de la cola (api/tasks.py, tipo "layers", id `l_<versión>`) que hace un trabajador: en la
+API con su propio hilo, o en `vexora-worker`. Dibuja la versión entera a baja resolución (~0,1 s
+por fotograma). El resultado vive junto a los demás archivos de la versión
+(`outputs/<id>.layers.mp4` y `.layers.json`), así que se borra con ella. "Lista" = ambos archivos
+en disco o en el almacén de archivos (store/blobs.py); el JSON se escribe y publica al final, así
+que sin él el MP4 a medias no cuenta. "Dibujándose" y "falló" salen del documento de la tarea:
+cualquier instancia de la API lo ve.
 """
 
 from __future__ import annotations
 
 import json
 import logging
-import queue
-import threading
 import time
 from pathlib import Path
 
 from vfxglow import telemetry
-from vfxglow.api.jobs import Job, JobStore
+from vfxglow.api import tasks
+from vfxglow.api.jobs import Job, JobStore, TaskHandler
 
 log = logging.getLogger("vfxglow.api")
 
 # Segundos por fotograma que se espera que tarde el dibujo (medido) y fijo de arranque.
 SECONDS_PER_FRAME = 0.1
 STARTUP_S = 5
+FAILED = "No pudimos preparar la vista en vivo. Inténtalo de nuevo."
 
 
 def estimate_seconds(frames: int) -> int:
@@ -48,10 +50,12 @@ def track_keys(moments, tracks) -> tuple[dict[str, str], list[str]]:
 class LayerStore:
     def __init__(self, jobs: JobStore) -> None:
         self.jobs = jobs
-        self._lock = threading.Lock()
-        self._state: dict[str, tuple[str, str | None]] = {}  # trabajo → ("rendering" | "failed", error)
-        self._queue: queue.Queue[str] = queue.Queue()
-        threading.Thread(target=self._worker, daemon=True, name="vfxglow-layers").start()
+        self.docs = jobs.docs
+        jobs.register(tasks.LAYERS, TaskHandler(self._run_task, error=FAILED))
+
+    @staticmethod
+    def task_id(job_id: str) -> str:
+        return f"l_{job_id}"
 
     # ----- consulta -----
 
@@ -66,13 +70,14 @@ class LayerStore:
 
     def status(self, job_id: str) -> tuple[str, str | None]:
         """("none" | "rendering" | "ready" | "failed", error)."""
-        with self._lock:
-            state = self._state.get(job_id)
-        if state is not None and state[0] == "rendering":
-            return state
+        doc = self.docs.get(tasks.TASKS, self.task_id(job_id))
+        if tasks.pending(doc):
+            return "rendering", None
         if self.ready(job_id):
             return "ready", None
-        return state if state is not None else ("none", None)
+        if doc is not None and doc.get("status") == "failed":
+            return "failed", doc.get("error") or FAILED
+        return "none", None
 
     def layout(self, job_id: str) -> dict | None:
         try:
@@ -86,67 +91,67 @@ class LayerStore:
         """Encola la generación. Devuelve el estado. ValueError si la versión no se puede editar."""
         if not self.jobs.editable(job):
             raise ValueError("Esta versión no se puede editar.")
-        with self._lock:
-            state = self._state.get(job.id)
-            if (state is not None and state[0] == "rendering") or self.ready(job.id):
-                return "rendering" if state is not None and state[0] == "rendering" else "ready"
+        if tasks.pending(self.docs.get(tasks.TASKS, self.task_id(job.id))):
+            return "rendering"
+        if self.ready(job.id):
+            return "ready"
         if check_quota is not None:
             check_quota()
-        with self._lock:
-            state = self._state.get(job.id)
-            if state is not None and state[0] == "rendering":
-                return "rendering"
-            self._state[job.id] = ("rendering", None)
+        created: dict = {}
+
+        def put(current: dict | None) -> dict | None:
+            created.clear()
+            if tasks.pending(current):
+                return None  # otra petición (quizá otra instancia) ya la encoló
+            created["doc"] = tasks.new_task(self.task_id(job.id), tasks.LAYERS, job.owner, job.id)
+            return created["doc"]
+
+        self.docs.transact(tasks.TASKS, self.task_id(job.id), put)
+        if "doc" not in created:
+            return "rendering"
         if on_queued is not None:
             on_queued()
-        self._queue.put(job.id)
+        self.jobs.enqueue_task(created["doc"])
         return "rendering"
 
-    # ----- trabajo -----
+    # ----- trabajo (en un trabajador) -----
 
-    def _worker(self) -> None:
-        while True:
-            self._render(self._queue.get())
-
-    def _render(self, job_id: str) -> None:
+    def _run_task(self, doc: dict, flag) -> dict:
+        job_id = doc["ref"]
         began = time.time()
-        result: tuple[str, str | None] | None = None
         frames = tracks = 0
         try:
             with telemetry.span("layers.render", job_id=job_id):
                 telemetry.event("layers.started", job_id=job_id)
                 frames, tracks = self._draw(job_id)
         except ValueError as error:
-            result = ("failed", str(error))
             self._discard(job_id)
+            return {"status": "failed", "error": str(error)}
         except Exception as error:  # el detalle va al registro; la persona ve un mensaje claro
             log.exception("Capas de %s fallaron", job_id)
-            result = ("failed", "No pudimos preparar la vista en vivo. Inténtalo de nuevo.")
             self._discard(job_id)
             telemetry.event("layers.failed", level=logging.ERROR, job_id=job_id, error={"kind": type(error).__name__, "message": telemetry.redact(str(error))[:500]})
-        with self._lock:
-            if result is None:
-                self._state.pop(job_id, None)
-            else:
-                self._state[job_id] = result
-        if result is None:
-            telemetry.event("layers.finished", job_id=job_id, duration_ms=round((time.time() - began) * 1000), frames=frames, tracks=tracks)
+            return {"status": "failed", "error": FAILED}
+        telemetry.event("layers.finished", job_id=job_id, duration_ms=round((time.time() - began) * 1000), frames=frames, tracks=tracks)
+        return {"status": "done", "result": {"frames": frames, "tracks": tracks}}
 
     def _discard(self, job_id: str) -> None:
         for path in (self.video_path(job_id), self.layout_path(job_id)):
             path.unlink(missing_ok=True)
             path.with_name(path.name + ".tmp").unlink(missing_ok=True)
+            key = self.jobs.key(path)
+            if key and not self.jobs.blobs.local:
+                self.jobs.blobs.delete(key)
 
     def _draw(self, job_id: str) -> tuple[int, int]:
         from vfxglow.analysis.schema import MotionEvent
         from vfxglow.director.edits import Moment, assign_tracks
         from vfxglow.director.schema import EffectScript
-        from vfxglow.pipeline import Pipeline
 
         job = self.jobs.get(job_id)
         if job is None:
             raise ValueError("La versión ya no existe.")
-        pipeline = Pipeline(self.jobs.config, self.jobs.local(job.video_path), **self.jobs._pipeline_kwargs(job))
+        pipeline = self.jobs.pipeline(self.jobs.local(job.video_path), restore=True, analysis_key=job.analysis_key, **self.jobs._pipeline_kwargs(job))
         script = EffectScript.model_validate_json(self.jobs.read_artifact(job.id, "script"))
         moments = [Moment.model_validate(m) for m in json.loads(self.jobs.read_artifact(job.id, "moments"))]
         events = [MotionEvent.model_validate(e) for e in json.loads(self.jobs.read_artifact(job.id, "events"))]

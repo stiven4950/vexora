@@ -17,6 +17,16 @@ toman el mismo.
 
 Un trabajador puede ser un hilo de la API (VEXORA_INPROCESS_WORKERS, por defecto 1) o un proceso
 aparte (`vexora-worker`, vfxglow/worker.py).
+
+Además de los trabajos, la misma maquinaria (tomar, turno, latido, reintento) mueve las **tareas**
+cortas de la colección `tasks` (api/tasks.py): análisis de subidas, vistas previas y capas. Todas
+las funciones de abajo reciben la colección. Un trabajador acepta ciertos tipos (`kinds`): los de
+la API, solo los suyos; los de `vexora-worker`, todos.
+
+Para no pagar trabajadores ociosos: cada trabajador deja su latido en la colección `workers`
+(`alive_workers` dice cuántos hay) y, con VEXORA_WORKER_IDLE_EXIT_S, sale tras ese tiempo sin
+nada que tomar (nunca con un turno en la mano: solo sale entre vuelta y vuelta). La API lo
+despierta al encolar (api/wakeup.py).
 """
 
 from __future__ import annotations
@@ -38,9 +48,15 @@ if TYPE_CHECKING:
 log = logging.getLogger("vfxglow.api")
 
 COLLECTION = "jobs"
+# Latido de cada trabajador vivo: {id, kinds, seen}. Lo lee la API para saber si hay alguien.
+WORKERS = "workers"
+# Cada cuánto escribe su latido un trabajador y cuánto vale (más de dos latidos perdidos = muerto).
+BEAT_EVERY_S = 30.0
+ALIVE_S = 90.0
 MAX_ATTEMPTS = 3
 LEASE_ENV = "VEXORA_LEASE_S"
 POLL_ENV = "VEXORA_QUEUE_POLL_S"
+IDLE_EXIT_ENV = "VEXORA_WORKER_IDLE_EXIT_S"
 DEFAULT_LEASE_S = 60.0
 # Cuántos candidatos se prueban por vuelta: si otro trabajador gana el primero, se intenta el siguiente.
 SCAN = 5
@@ -79,10 +95,22 @@ def new_worker_id(index: int = 0) -> str:
 # ----- operaciones sobre el almacén -----
 
 
-def claim(docs: DocStore, worker_id: str, now: float, lease_s: float) -> Doc | None:
-    """Toma el siguiente trabajo en cola (más prioridad, luego el más viejo) o None si no hay."""
-    candidates = docs.query(COLLECTION, where={"status": "queued", "worker": None}, order_by=[("priority", True), ("created", False)], limit=SCAN)
+def claim(
+    docs: DocStore,
+    worker_id: str,
+    now: float,
+    lease_s: float,
+    collection: str = COLLECTION,
+    where: dict[str, Any] | None = None,
+    accept: Callable[[Doc], bool] | None = None,
+) -> Doc | None:
+    """Toma el siguiente en cola (más prioridad, luego el más viejo) o None si no hay. `where`
+    filtra además por igualdad (p. ej. el tipo de tarea) y `accept` descarta candidatos (p. ej.
+    una vista previa de alguien que ya tiene otra dibujándose)."""
+    candidates = docs.query(collection, where={"status": "queued", "worker": None, **(where or {})}, order_by=[("priority", True), ("created", False)], limit=SCAN)
     for candidate in candidates:
+        if accept is not None and not accept(candidate):
+            continue
 
         def take(current: Doc | None) -> Doc | None:
             if current is None or current.get("status") != "queued" or current.get("worker") is not None:
@@ -96,23 +124,35 @@ def claim(docs: DocStore, worker_id: str, now: float, lease_s: float) -> Doc | N
                 "cancel_requested": False,
             }
 
-        taken = docs.transact(COLLECTION, candidate["id"], take)
+        taken = docs.transact(collection, candidate["id"], take)
         if taken is not None:
             return taken
     return None
 
 
-def heartbeat(docs: DocStore, job_id: str, worker_id: str, now: float, lease_s: float) -> bool:
+def heartbeat(docs: DocStore, job_id: str, worker_id: str, now: float, lease_s: float, collection: str = COLLECTION) -> bool:
     """Alarga el turno. False si el trabajo ya no es de este trabajador (se recuperó o se borró)."""
-    return docs.update(COLLECTION, job_id, {"lease_until": now + lease_s}, when={"status": "running", "worker": worker_id})
+    return docs.update(collection, job_id, {"lease_until": now + lease_s}, when={"status": "running", "worker": worker_id})
 
 
-def reap(docs: DocStore, now: float, failed: Doc) -> list[tuple[str, str]]:
-    """Los trabajos cuyo trabajador dejó de renovar el turno: vuelven a la cola, o fallan con
-    `failed` si ya se intentaron MAX_ATTEMPTS veces o se había pedido cancelarlos. Devuelve
-    (id, "requeued" | "failed")."""
+def _job_requeued(current: Doc, now: float) -> Doc:
+    """Lo que se le pone a un trabajo que vuelve a la cola (su pantalla de proceso lo cuenta)."""
+    note = {"at": now, "text": "De vuelta en la cola", "detail": "El proceso anterior se detuvo; se reintenta automáticamente."}
+    return {"stage": "queued", "progress": 0.0, "message": "En cola", "started": None, "activity": [*(current.get("activity") or []), note][-12:]}
+
+
+def reap(
+    docs: DocStore,
+    now: float,
+    failed: Doc | Callable[[Doc], Doc],
+    collection: str = COLLECTION,
+    requeued: Callable[[Doc, float], Doc] | None = _job_requeued,
+) -> list[tuple[str, str]]:
+    """Los que se quedaron sin trabajador (dejó de renovar el turno): vuelven a la cola, o fallan
+    con `failed` (o lo que devuelva `failed(doc)`) si ya se intentaron MAX_ATTEMPTS veces o se
+    había pedido cancelarlos. Devuelve (id, "requeued" | "failed")."""
     outcomes: list[tuple[str, str]] = []
-    for doc in docs.query(COLLECTION, where={"status": "running"}):
+    for doc in docs.query(collection, where={"status": "running"}):
         lease = doc.get("lease_until")
         if lease is None or lease > now:
             continue  # vigente, o de un trabajador sin turnos (las pruebas lo ponen a mano)
@@ -124,12 +164,11 @@ def reap(docs: DocStore, now: float, failed: Doc) -> list[tuple[str, str]]:
             released = {**current, "worker": None, "lease_until": None}
             if int(current.get("attempts") or 0) < MAX_ATTEMPTS and not current.get("cancel_requested"):
                 verdict["outcome"] = "requeued"
-                note = {"at": now, "text": "De vuelta en la cola", "detail": "El proceso anterior se detuvo; se reintenta automáticamente."}
-                return {**released, "status": "queued", "stage": "queued", "progress": 0.0, "message": "En cola", "started": None, "activity": [*(current.get("activity") or []), note][-12:]}
+                return {**released, "status": "queued", **(requeued(current, now) if requeued is not None else {})}
             verdict["outcome"] = "failed"
-            return {**released, **failed, "finished": now}
+            return {**released, **(failed(current) if callable(failed) else failed), "finished": now}
 
-        if docs.transact(COLLECTION, doc["id"], expire) is not None:
+        if docs.transact(collection, doc["id"], expire) is not None:
             outcomes.append((doc["id"], verdict["outcome"]))
     return outcomes
 
@@ -145,8 +184,8 @@ class StopFlag:
     trabajo ya no sea de este trabajador (`lost`: su turno venció y otro lo tomó; no hay que
     borrar nada, solo dejar de trabajar)."""
 
-    def __init__(self, docs: DocStore, job_id: str, worker_id: str, local: threading.Event | None = None, clock: Callable[[], float] = time.time) -> None:
-        self.docs, self.job_id, self.worker_id = docs, job_id, worker_id
+    def __init__(self, docs: DocStore, job_id: str, worker_id: str, local: threading.Event | None = None, clock: Callable[[], float] = time.time, collection: str = COLLECTION) -> None:
+        self.docs, self.job_id, self.worker_id, self.collection = docs, job_id, worker_id, collection
         self.local = local or threading.Event()
         self.clock = clock
         self.lost = False
@@ -163,7 +202,7 @@ class StopFlag:
         if now - self._checked < CANCEL_CHECK_S:
             return False
         self._checked = now
-        doc = self.docs.get(COLLECTION, self.job_id)
+        doc = self.docs.get(self.collection, self.job_id)
         if doc is None or doc.get("worker") != self.worker_id or doc.get("status") != "running":
             self.lose()
         elif doc.get("cancel_requested"):
@@ -174,8 +213,9 @@ class StopFlag:
 class Lease:
     """Renueva el turno de un trabajo cada tercio de su duración, en un hilo, mientras se procesa."""
 
-    def __init__(self, docs: DocStore, job_id: str, worker_id: str, lease_s: float, flag: StopFlag, clock: Callable[[], float] = time.time) -> None:
+    def __init__(self, docs: DocStore, job_id: str, worker_id: str, lease_s: float, flag: StopFlag, clock: Callable[[], float] = time.time, collection: str = COLLECTION) -> None:
         self.docs, self.job_id, self.worker_id, self.lease_s = docs, job_id, worker_id, lease_s
+        self.collection = collection
         self.flag, self.clock = flag, clock
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._loop, daemon=True, name=f"vexora-lease-{job_id}")
@@ -191,7 +231,7 @@ class Lease:
     def _loop(self) -> None:
         while not self._stop.wait(self.lease_s / 3):
             try:
-                if not heartbeat(self.docs, self.job_id, self.worker_id, self.clock(), self.lease_s):
+                if not heartbeat(self.docs, self.job_id, self.worker_id, self.clock(), self.lease_s, self.collection):
                     log.warning("Trabajo %s: el turno ya no es de %s; se deja de procesar", self.job_id, self.worker_id)
                     self.flag.lose()
                     return
@@ -199,40 +239,102 @@ class Lease:
                 log.exception("Trabajo %s: no se pudo renovar el turno", self.job_id)
 
 
-class Worker(threading.Thread):
-    """Un trabajador: recupera turnos vencidos, toma un trabajo, lo procesa y vuelve a empezar.
-    Sin trabajo, espera `poll_s` o a que la API de este mismo proceso avise que encoló uno."""
+def beat(docs: DocStore, worker_id: str, kinds: tuple[str, ...] | None, now: float) -> None:
+    """El latido de un trabajador vivo (lo lee `alive_workers`)."""
+    docs.set(WORKERS, worker_id, {"id": worker_id, "kinds": list(kinds) if kinds is not None else ["*"], "seen": now})
 
-    def __init__(self, store: JobStore, worker_id: str | None = None, poll_s: float | None = None, stop: threading.Event | None = None) -> None:
+
+def alive_workers(docs: DocStore, now: float) -> int:
+    """Cuántos trabajadores dieron latido hace menos de ALIVE_S (en cualquier máquina)."""
+    return sum(float(doc.get("seen") or 0) > now - ALIVE_S for doc in docs.query(WORKERS))
+
+
+def idle_exit_seconds() -> float | None:
+    """VEXORA_WORKER_IDLE_EXIT_S: tras cuántos segundos sin nada que tomar sale `vexora-worker`.
+    Sin valor (o 0), nunca."""
+    value = _number(IDLE_EXIT_ENV, 0.0)
+    return value if value > 0 else None
+
+
+class Worker(threading.Thread):
+    """Un trabajador: recupera turnos vencidos, toma un trabajo o una tarea, lo procesa y vuelve a
+    empezar. Sin nada que hacer, espera `poll_s` o a que la API de este mismo proceso avise que
+    encoló algo. `kinds`: qué toma ("job" y tipos de tarea); None = todo lo que este proceso sabe
+    hacer. Con `idle_exit_s`, termina tras ese tiempo sin nada que tomar (solo entre vueltas: nunca
+    con un turno en la mano)."""
+
+    def __init__(
+        self,
+        store: JobStore,
+        worker_id: str | None = None,
+        poll_s: float | None = None,
+        stop: threading.Event | None = None,
+        kinds: tuple[str, ...] | None = None,
+        idle_exit_s: float | None = None,
+        clock: Callable[[], float] | None = None,
+    ) -> None:
         self.store = store
         self.worker_id = worker_id or new_worker_id()
         super().__init__(daemon=True, name=f"vfxglow-jobs-{self.worker_id}")
         self.poll_s = poll_s if poll_s is not None else poll_seconds(store.docs.remote)
         self.stop = stop or threading.Event()
+        self.kinds = kinds
+        self.idle_exit_s = idle_exit_s
+        self.clock = clock or time.time
+        self.wake = store.waiter() if hasattr(store, "waiter") else threading.Event()
+        self.idle_exited = False
+        self._beat_at = float("-inf")
 
     def run(self) -> None:
-        while not self.stop.is_set():
-            try:
-                busy = self.step()
-            except Exception:  # p. ej. Firestore no responde: se reintenta en la siguiente vuelta
-                log.exception("Trabajador %s: fallo al buscar trabajo", self.worker_id)
-                busy = False
-            if not busy:
-                self.store.wait_for_work(self.poll_s)
+        last_busy = self.clock()
+        try:
+            while not self.stop.is_set():
+                self._beat()
+                try:
+                    busy = self.step()
+                except Exception:  # p. ej. Firestore no responde: se reintenta en la siguiente vuelta
+                    log.exception("Trabajador %s: fallo al buscar trabajo", self.worker_id)
+                    busy = False
+                if busy:
+                    last_busy = self.clock()
+                    continue
+                if self.idle_exit_s is not None and self.clock() - last_busy >= self.idle_exit_s:
+                    self.idle_exited = True
+                    log.info("Trabajador %s: %.0f s sin trabajo, sale", self.worker_id, self.idle_exit_s)
+                    return
+                self.store.wait_for_work(self.poll_s, self.wake)
+        finally:
+            self._forget()
+
+    def _beat(self) -> None:
+        now = self.clock()
+        if now - self._beat_at < BEAT_EVERY_S:
+            return
+        self._beat_at = now
+        try:
+            beat(self.store.docs, self.worker_id, self.kinds, time.time())
+        except Exception:  # el latido es informativo: un fallo no detiene al trabajador
+            log.exception("Trabajador %s: no se pudo escribir el latido", self.worker_id)
+
+    def _forget(self) -> None:
+        try:
+            self.store.docs.delete(WORKERS, self.worker_id)
+        except Exception:
+            log.exception("Trabajador %s: no se pudo borrar el latido", self.worker_id)
 
     def step(self) -> bool:
-        """Una vuelta: devuelve si procesó un trabajo. Las pruebas la llaman sin hilo."""
+        """Una vuelta: devuelve si procesó algo. Las pruebas la llaman sin hilo."""
         self.store.reap_expired()
-        doc = self.store.claim(self.worker_id)
+        doc = self.store.claim(self.worker_id, self.kinds)
         if doc is None:
             return False
         self.store.process(doc, self.worker_id)
         return True
 
 
-def run_workers(store: Any, count: int, stop: threading.Event) -> list[Worker]:
+def run_workers(store: Any, count: int, stop: threading.Event, kinds: tuple[str, ...] | None = None, idle_exit_s: float | None = None) -> list[Worker]:
     """Arranca `count` trabajadores sobre `store` (comparten `stop`)."""
-    workers = [Worker(store, new_worker_id(i), stop=stop) for i in range(count)]
+    workers = [Worker(store, new_worker_id(i), stop=stop, kinds=kinds, idle_exit_s=idle_exit_s) for i in range(count)]
     for worker in workers:
         worker.start()
     return workers

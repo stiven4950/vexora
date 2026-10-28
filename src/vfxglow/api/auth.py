@@ -136,6 +136,24 @@ def media_owner(job_id: str, key: str | None, owner: str | None) -> None:
         raise HTTPException(404, "Trabajo no encontrado")
 
 
+def upload_key(upload_id: str, owner: str, ttl_s: float, now: float | None = None) -> str:
+    """La llave de la URL local de subida directa (PUT /api/uploads/{id}/file?k=): ligada a la
+    subida y a su dueño, corta. Distinta de la de los archivos (otro propósito, otra firma)."""
+    expires = int((now or time.time()) + ttl_s)
+    return f"{expires}.{_sign(f'upload:{upload_id}', owner, expires)}"
+
+
+def check_upload_key(upload_id: str, key: str | None, owner: str) -> bool:
+    """Si `key` abre la subida `upload_id` de `owner`. Se comprueba siempre, también con la
+    autenticación apagada: es una escritura."""
+    try:
+        expires_text, signature = (key or "").split(".", 1)
+        expires = int(expires_text)
+    except ValueError:
+        return False
+    return expires >= time.time() and hmac.compare_digest(signature, _sign(f"upload:{upload_id}", owner, expires))
+
+
 def check_bind(host: str) -> None:
     """Sin autenticación solo se puede escuchar en la máquina local."""
     if not auth_enabled() and host not in ("127.0.0.1", "localhost", "::1"):

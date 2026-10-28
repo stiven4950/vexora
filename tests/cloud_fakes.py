@@ -2,7 +2,9 @@
 
 Imitan solo lo que usa el código: documentos con get/set/update/delete, consultas con where
 (FieldFilter), order_by, limit y stream, transacciones con el decorador `transactional`, y un
-bucket con blob(...).upload_from_filename/download_to_filename/exists/delete/generate_signed_url.
+bucket con blob(...).upload_from_filename/download_to_filename/exists/delete/generate_signed_url,
+get_blob (con `size`) y copy_blob. `FakeBucket.put_signed` imita al navegador que sube con la URL
+firmada de PUT: comprueba el tipo y el tope de tamaño que la firma exige.
 """
 
 from __future__ import annotations
@@ -133,6 +135,11 @@ class _Blob:
     def __init__(self, bucket: FakeBucket, name: str) -> None:
         self.bucket, self.name = bucket, name
 
+    @property
+    def size(self) -> int | None:
+        data = self.bucket.objects.get(self.name)
+        return len(data) if data is not None else None
+
     def upload_from_filename(self, filename: str, content_type: str | None = None) -> None:
         self.bucket.objects[self.name] = Path(filename).read_bytes()
         self.bucket.calls.append(("upload", self.name, content_type))
@@ -154,7 +161,7 @@ class _Blob:
 
     def generate_signed_url(self, **kwargs) -> str:
         self.bucket.signed.append((self.name, kwargs))
-        return f"https://storage.example/{self.name}?firma=1"
+        return f"https://storage.example/{self.name}?firma=1&metodo={kwargs.get('method', 'GET')}"
 
 
 class FakeBucket:
@@ -168,6 +175,32 @@ class FakeBucket:
 
     def list_blobs(self, prefix: str = ""):
         return [_Blob(self, name) for name in list(self.objects) if name.startswith(prefix)]
+
+    def get_blob(self, name: str) -> _Blob | None:
+        self.calls.append(("get", name))
+        return _Blob(self, name) if name in self.objects else None
+
+    def copy_blob(self, blob: _Blob, destination_bucket: FakeBucket, new_name: str) -> _Blob:
+        if blob.name not in self.objects:
+            raise NotFound(blob.name)
+        destination_bucket.objects[new_name] = self.objects[blob.name]
+        self.calls.append(("copy", blob.name, new_name))
+        return _Blob(destination_bucket, new_name)
+
+    def put_signed(self, url: str, data: bytes, headers: dict[str, str]) -> int:
+        """El navegador sube con la URL firmada: 403 si el tipo no es el firmado, 400 si pasa del tope."""
+        name = url.split("https://storage.example/", 1)[1].split("?", 1)[0]
+        signed = next(kwargs for key, kwargs in reversed(self.signed) if key == name and kwargs.get("method") == "PUT")
+        if headers.get("Content-Type") != signed.get("content_type"):
+            return 403
+        for header, value in (signed.get("headers") or {}).items():
+            if headers.get(header) != value:
+                return 403
+        low, high = (int(x) for x in signed["headers"]["x-goog-content-length-range"].split(","))
+        if not low <= len(data) <= high:
+            return 400
+        self.objects[name] = data
+        return 200
 
 
 def remove_local(path: Path) -> None:

@@ -275,14 +275,30 @@ def test_expiry_runs_on_create_and_on_start(client: TestClient, tmp_path: Path) 
     assert UploadStore(server.jobs(), lambda: AVAILABLE).peek(stale) is None  # al arrancar
 
 
-def test_uploads_still_analyzing_at_restart_are_marked_failed(client: TestClient) -> None:
+def test_another_api_instance_starting_does_not_cut_an_analysis_in_the_queue(client: TestClient) -> None:
+    """Antes, al arrancar, la API marcaba fallidas todas las subidas "analizando" (también las de
+    otra instancia). Ahora el análisis es una tarea de la cola: si su trabajador muere, la cola la
+    recupera; arrancar otra instancia no la toca."""
     FakePipeline.gate = threading.Event()
     upload_id = post_upload(client).json()["id"]
     from vfxglow.api.uploads import UploadStore
 
     reborn = UploadStore(server.jobs(), lambda: AVAILABLE)
+    assert reborn.peek(upload_id).status == "analyzing"
     FakePipeline.gate.set()
-    item = reborn.peek(upload_id)
+    assert wait_upload(client, upload_id)["status"] == "ready"
+
+
+def test_uploads_analyzing_without_a_task_are_marked_failed_at_start(client: TestClient) -> None:
+    """Una subida "analizando" sin tarea en la cola viene de una versión anterior (la analizaba un
+    hilo de la API que ya no existe): no terminó."""
+    from vfxglow.api import tasks
+    from vfxglow.api.uploads import UploadStore
+
+    upload_id = wait_upload(client, post_upload(client).json()["id"])["id"]
+    server.uploads()._set(upload_id, status="analyzing")
+    server.jobs().docs.delete(tasks.TASKS, upload_id)
+    item = UploadStore(server.jobs(), lambda: AVAILABLE).peek(upload_id)
     assert item.status == "failed" and item.error_code == "interrupted"
 
 
