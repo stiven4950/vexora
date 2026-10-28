@@ -33,6 +33,37 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
+/** Respuesta de POST /api/uploads con JSON: la subida y a dónde mandar el archivo. */
+interface DirectUpload extends UploadView {
+  upload: { method: string; url: string; headers: Record<string, string>; expires: number };
+}
+
+/** El PUT del archivo a la URL que dio la API, con las cabeceras exactas que pide la firma. */
+function putFile(target: DirectUpload["upload"], video: File, onUpload?: (fraction: number) => void, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(target.method || "PUT", target.url);
+    for (const [name, value] of Object.entries(target.headers)) xhr.setRequestHeader(name, value);
+    xhr.upload.onprogress = (event) => event.lengthComputable && onUpload?.(event.loaded / event.total);
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) return resolve();
+      let detail = xhr.status === 413 || xhr.status === 400 ? "El video supera el tamaño máximo permitido." : "No se pudo subir el video. Inténtalo de nuevo.";
+      try {
+        const body = xhr.responseText ? (JSON.parse(xhr.responseText) as { detail?: unknown }) : {};
+        if (typeof body.detail === "string") detail = body.detail;
+      } catch {
+        // el bucket responde XML: queda el mensaje claro
+      }
+      reject(new ApiError(xhr.status, detail));
+    };
+    xhr.onerror = () => reject(new ApiError(0, "No se pudo subir el video. Revisa tu conexión e inténtalo de nuevo."));
+    xhr.onabort = () => reject(new DOMException("Subida cancelada", "AbortError"));
+    signal?.addEventListener("abort", () => xhr.abort(), { once: true });
+    if (signal?.aborted) return reject(new DOMException("Subida cancelada", "AbortError"));
+    xhr.send(video);
+  });
+}
+
 export const api = {
   /** Perfil y ajustes de la cuenta. */
   me: () => request<Profile>("/api/me"),
@@ -147,32 +178,28 @@ export const api = {
     });
   },
 
-  /** Sube el video por adelantado (el servidor lo analiza); se puede cortar con `signal`. */
+  /**
+   * Sube el video por adelantado (el servidor lo analiza); se puede cortar con `signal`.
+   * Subida directa: la API da a dónde mandarlo (con GCS, una URL firmada del bucket; en local, una
+   * URL de la API con su llave ?k=), el archivo va ahí con un PUT con progreso real (XHR, sin la
+   * sesión: la URL ya lleva su permiso) y al final se avisa a la API para que lo analice.
+   */
   async upload(video: File, onUpload?: (fraction: number) => void, signal?: AbortSignal): Promise<UploadView> {
-    const headers = await authHeaders();
-    const form = new FormData();
-    form.append("video", video);
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open("POST", "/api/uploads");
-      for (const [name, value] of Object.entries(headers)) xhr.setRequestHeader(name, value);
-      xhr.upload.onprogress = (event) => event.lengthComputable && onUpload?.(event.loaded / event.total);
-      xhr.onload = () => {
-        let body: { detail?: unknown } = {};
-        try {
-          body = xhr.responseText ? JSON.parse(xhr.responseText) : {};
-        } catch {
-          // cuerpo sin JSON: queda el texto del estado
-        }
-        if (xhr.status >= 200 && xhr.status < 300) resolve(body as unknown as UploadView);
-        else reject(new ApiError(xhr.status, typeof body.detail === "string" ? body.detail : xhr.statusText));
-      };
-      xhr.onerror = () => reject(new ApiError(0, "No se pudo conectar con la API. ¿Está corriendo vfxglow-api?"));
-      xhr.onabort = () => reject(new DOMException("Subida cancelada", "AbortError"));
-      signal?.addEventListener("abort", () => xhr.abort(), { once: true });
-      if (signal?.aborted) return reject(new DOMException("Subida cancelada", "AbortError"));
-      xhr.send(form);
+    if (signal?.aborted) throw new DOMException("Subida cancelada", "AbortError");
+    const started = await request<DirectUpload>("/api/uploads", {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ filename: video.name, size: video.size, content_type: video.type || null }),
+      signal,
     });
+    try {
+      await putFile(started.upload, video, onUpload, signal);
+      return await request<UploadView>(`/api/uploads/${started.id}/complete`, { method: "POST", signal });
+    } catch (cause) {
+      // Cortada o fallida a medias: no queda una subida colgada ocupando cupo.
+      void request<void>(`/api/uploads/${started.id}`, { method: "DELETE" }).catch(() => undefined);
+      throw cause;
+    }
   },
   getUpload: (id: string) => request<UploadView>(`/api/uploads/${id}`),
   deleteUpload: (id: string) => request<void>(`/api/uploads/${id}`, { method: "DELETE" }),

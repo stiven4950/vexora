@@ -260,7 +260,7 @@ export interface QualityWarning {
 /** Un video subido por adelantado (POST /api/uploads) que se analiza mientras se elige el estilo. */
 export interface UploadView {
   id: string;
-  status: "analyzing" | "ready" | "failed" | "used";
+  status: "uploading" | "analyzing" | "ready" | "failed" | "used";
   filename: string;
   created: number;
   video_seconds: number | null;

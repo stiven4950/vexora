@@ -16,7 +16,7 @@ export interface UploadState {
 /** El estado que corresponde a lo que devolvió el servidor ("used" ya terminó el análisis). */
 export function fromView(view: UploadView): UploadState {
   if (view.status === "failed") return { phase: "failed", fraction: 1, view, error: view.error };
-  return { phase: view.status === "analyzing" ? "analyzing" : "ready", fraction: 1, view, error: null };
+  return { phase: view.status === "analyzing" || view.status === "uploading" ? "analyzing" : "ready", fraction: 1, view, error: null };
 }
 
 /** El texto de la fila de estado del resumen. */

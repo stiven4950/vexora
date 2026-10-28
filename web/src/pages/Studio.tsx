@@ -112,7 +112,7 @@ export function Studio() {
       })
       .catch((cause: unknown) => {
         if (abort.signal.aborted) return;
-        // Si el servidor la rechaza, el mensaje se ve y al lanzar se manda el archivo como siempre.
+        // Si el servidor la rechaza, el mensaje se ve y al lanzar se sube el archivo de nuevo.
         setEarly({ phase: "failed", fraction: 0, view: null, error: cause instanceof Error ? cause.message : String(cause) });
       });
     return () => {
@@ -163,8 +163,11 @@ export function Studio() {
     void askPermission();
     // Sin semilla: el servidor prueba varias coreografías y se queda con la mejor.
     const wear: Record<string, Wardrobe> = isCatalog && wardrobe !== "ninguno" ? { "*": wardrobe } : {};
-    const send = (uploadId: string | null) =>
-      api.create(file, chosen.kind, chosen.name, null, uploadId ? undefined : setUpload, season, wear, deepOn, hasFire ? fireStyle : null, hasBolt ? boltStyle : null, uploadId, hasProp ? prop : null);
+    // Sin subida lista, el archivo se sube de nuevo directo al almacén (con su barra) y el trabajo usa esa subida.
+    const send = async (uploadId: string | null) => {
+      const id = uploadId ?? (await api.upload(file, setUpload)).id;
+      return api.create(file, chosen.kind, chosen.name, null, undefined, season, wear, deepOn, hasFire ? fireStyle : null, hasBolt ? boltStyle : null, id, hasProp ? prop : null);
+    };
     // Con la subida ya hecha (analizando o lista) no hay que volver a subir el archivo.
     const ready = early && (early.phase === "analyzing" || early.phase === "ready") ? (early.view?.id ?? null) : null;
     setLaunching(true);
@@ -175,7 +178,7 @@ export function Studio() {
         job = await send(ready);
         if (ready) usedUpload.current = ready;
       } catch (cause) {
-        // La subida caducó (404): se manda el archivo como siempre.
+        // La subida caducó (404): se sube el archivo de nuevo.
         if (!(ready && cause instanceof ApiError && cause.status === 404)) throw cause;
         setUpload(0);
         job = await send(null);
