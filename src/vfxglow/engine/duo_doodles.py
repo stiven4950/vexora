@@ -51,6 +51,7 @@ from vfxglow.engine.fist import FISTS, fist_effect
 from vfxglow.engine.gun import GUNS, gun
 from vfxglow.engine.hand_props import HAND_PROPS, hand_prop
 from vfxglow.engine.energy_pass import ENERGY_PASS, energy_pass
+from vfxglow.engine.counting import COUNTING, finger_number
 from vfxglow.engine.stories import STORIES, story
 from vfxglow.engine.dresses import DRESSES, dress
 from vfxglow.engine.shoes import SHOES, shoe
@@ -64,7 +65,7 @@ DOODLES = (
     "shoulder_bolts", "head_bolts", "hand_ring", "moon", "chest_burst", "body_bolts", "foot_spark",
     "floor_arc", "leg_line", "leg_string", "side_edges", "shoulder_arcs", "heart_eyes", "spin_arcs", "glow_eyes",
     "foot_ring", "foot_bolts",
-) + DUO_FX + COSTUMES + SHOES + DRESSES + CRITTERS + STORIES + GUNS + FISTS + HAND_PROPS + ENERGY_PASS + FIREBEND + FIRE_CREATURES + WATERBEND + AIRBEND + EARTHBEND + CHARACTERS
+) + DUO_FX + COSTUMES + SHOES + DRESSES + CRITTERS + STORIES + GUNS + FISTS + HAND_PROPS + ENERGY_PASS + COUNTING + FIREBEND + FIRE_CREATURES + WATERBEND + AIRBEND + EARTHBEND + CHARACTERS
 WHITE = np.array([1.0, 1.0, 1.0], np.float32)
 
 
@@ -171,6 +172,8 @@ def doodle(shape, body, frame, scale, frame_index, seed, runtime, layer, color, 
         return hand_prop(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape in ENERGY_PASS:
         return energy_pass(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape in COUNTING:
+        return finger_number(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape in FIREBEND:
         return firebend(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape in EARTHBEND:

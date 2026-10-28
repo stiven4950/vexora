@@ -794,3 +794,13 @@ reactions:
     - type: adornment
       style: {shapes: [vape], thickness: 0.005, focus: false}
       trigger: {hold: 30, fade_in: 1, fade_out: 6}
+# Cuenta con los dedos (unpair_dance, seg. 15,9-19,5 y 29,2-31,6): el número sobre la cara.
+- action: finger_count
+  options:
+  - name: numero
+    weight: 1.0
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [finger_number], thickness: 0.007, focus: false}
+      trigger: {hold: 12, fade_in: 1, fade_out: 6}
