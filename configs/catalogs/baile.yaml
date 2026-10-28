@@ -511,14 +511,15 @@ reactions:
     - type: eyewear
       style: {shapes: [mask, band], thickness: 0.08, palette_every: 30}
       trigger: {hold: 10, fade_in: 2, fade_out: 8}
-  # video_41, seg. 16,2: al destaparse la cara, una de burla (ojos en X y la lengua afuera).
+  # video_41, seg. 16,0-16,3: mientras las manos tapan la cara se contornean ellas (la mano le gana
+  # a la máscara); al destaparse aparece la cara de burla (ojos en X y la lengua afuera).
   - name: burla
     weight: 0.35
     cooldown: 600
     effects:
     - type: face_toon
       style: {shapes: [prank], thickness: 0.012, palette_every: 30}
-      trigger: {anchor: end, hold: 20, fade_in: 1, fade_out: 6}
+      trigger: {hold: 20, fade_in: 1, fade_out: 6}
   - name: nada
     weight: 0.2
     effects: []
