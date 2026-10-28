@@ -275,3 +275,164 @@ se bloquea entre procesos.)
   nuevo las necesitara, hay que guardarlo como texto JSON.
 - Al arrancar, la API marca como fallidas las subidas que estaban "analizando" (las de otra
   instancia también): en un despliegue con dos instancias a la vez puede cortar un análisis.
+
+## Cola de tareas, subidas directas y caché de análisis
+
+Con esto la API ya no guarda estado entre peticiones y puede correr con varias instancias; todo lo
+pesado lo hacen trabajadores. Resuelve las limitaciones de arriba sobre subidas, vistas previas y
+capas en hilos de la API, `runs/` local de cada trabajador, `/choreography`, `/people` y "Preparar
+para editar" vacíos en la nube, y el corte de análisis al arrancar otra instancia.
+
+### Subida directa al bucket
+
+La web ya no manda el video a la API (Cloud Run corta los cuerpos a 32 MiB y Firebase Hosting las
+peticiones a 60 s):
+
+1. `POST /api/uploads` con JSON `{filename, size, content_type}`. La API valida extensión (415) y
+   tamaño declarado (413) **antes** de dar nada, crea la subida en estado `uploading` y responde
+   `upload: {method: "PUT", url, headers, expires}`:
+   - `VEXORA_BLOBS=gcs`: URL firmada V4 de PUT a `uploads/<id>/<nombre>` del bucket, válida 15 min,
+     con el `Content-Type` y `x-goog-content-length-range: 0,<tamaño declarado>` atados a la firma
+     (el bucket rechaza otro tipo o más bytes).
+   - `VEXORA_BLOBS=local`: `PUT /api/uploads/<id>/file?k=<llave>` de la propia API (en local se usa
+     igual). La llave va ligada a la subida y a su dueño; corta si llegan más bytes de los declarados.
+2. El navegador hace el PUT con esas cabeceras tal cual (XHR con progreso real, sin la sesión).
+3. `POST /api/uploads/<id>/complete`: la API comprueba que el objeto existe y su tamaño real (409
+   si no llegó, 413 si pasa del máximo; en ambos casos la subida queda `failed` y el objeto se
+   borra) y encola el sondeo + análisis como tarea. Responde `analyzing` sin esperar. Con archivos
+   locales sondea ya (422 con el motivo si el video no cabe); con el bucket sondea el trabajador
+   (bajar 500 MB puede pasar de 60 s) y, si no cabe, la subida queda `failed` con el mensaje del
+   sondeo (`error_code`: `invalid_video`, `too_large`, `upload_missing`) y el objeto se borra.
+4. `POST /api/jobs` con `upload_id`, como antes. El video se copia dentro del bucket a
+   `uploads/<trabajo>/` (copia del lado del servidor). Si la subida aún no se había sondeado, el
+   trabajo lleva `probe: true` y su trabajador lo sondea antes de procesarlo.
+
+`POST /api/uploads` con multipart (campo `video`) y `POST /api/jobs` con el archivo siguen
+funcionando (pruebas, clientes viejos, local). Las subidas `uploading` sin completar se borran a la
+hora (documento y objeto).
+
+**CORS del bucket** (el PUT del navegador es de otro origen y manda cabeceras propias). Reemplaza
+el `cors.json` de "Storage: CORS" por este (incluye lo de lectura):
+
+```json
+[
+  {
+    "origin": ["https://vexora-dev.web.app", "https://vexora-dev.firebaseapp.com", "https://<tu-dominio>", "http://localhost:5173"],
+    "method": ["PUT", "GET", "HEAD"],
+    "responseHeader": ["Content-Type", "x-goog-content-length-range", "Range", "Accept-Ranges", "Content-Length"],
+    "maxAgeSeconds": 3600
+  }
+]
+```
+
+```bash
+gcloud storage buckets update gs://vexora-dev.firebasestorage.app --cors-file=cors.json
+```
+
+**Ciclo de vida** (red de seguridad para subidas abandonadas que la API no alcance a borrar). Ojo:
+los videos de los trabajos también viven en `uploads/<trabajo>/`; si se quiere la regla, que borre a
+1 día solo las subidas tempranas, cuyo id empieza por `u_`:
+
+```json
+{ "rule": [{ "action": { "type": "Delete" }, "condition": { "age": 1, "matchesPrefix": ["uploads/u_"] } }] }
+```
+
+```bash
+gcloud storage buckets update gs://vexora-dev.firebasestorage.app --lifecycle-file=lifecycle.json
+```
+
+### Tareas en la cola
+
+Análisis de subidas, vistas previas (editor y Estudio) y capas de la vista en vivo son documentos de
+la colección `tasks` (api/tasks.py) con la misma maquinaria que los trabajos (tomar en transacción,
+turno con latido, 3 intentos, recuperación al vencer el turno). Prioridad, de más a menos:
+
+| `kind` | Prioridad | Por qué |
+| --- | --- | --- |
+| `preview` | 30 | Segundos de render; alguien mira la pantalla esperando. Una pendiente y una dibujándose por persona. |
+| `upload` | 20 | La persona elige estilo mientras tanto y el trabajo reutiliza el análisis. |
+| `layers` | 10 | Opcional; ~0,1 s por fotograma. |
+| trabajos (`jobs`) | 0 | Minutos; la persona ya sabe que espera. |
+
+Los resultados viven en el almacén: estado en el documento de la tarea (las respuestas de la API
+no cambian: `rendering`/`ready`/`failed`), MP4 de vistas previas en `previews/<trabajo>/<id>.mp4`,
+capas en `outputs/<id>.layers.*`, cuota diaria de vistas previas en `preview_quota/<uid>`.
+
+- En la API con `VEXORA_INPROCESS_WORKERS>0` (local): un hilo para trabajos y uno por tipo de
+  tarea, como antes.
+- `vexora-worker` toma todo por prioridad; `VEXORA_WORKER_KINDS=preview,upload` limita lo que toma
+  un proceso (p. ej. un servicio pequeño solo para vistas previas).
+- En la nube, la API va con `VEXORA_INPROCESS_WORKERS=0`.
+
+### Caché del análisis en el bucket
+
+Tras analizar, el trabajador publica `analysis/` (manifiesto aparte; sin `debug_overlay.mp4` ni
+`scene_cache/`) en `analysis/<sha256[:16]>/<clave[:24]>/` y al final `index.json` (sin él la entrada
+no existe: publicar es atómico). La clave es la de la etapa de análisis (config + huella del
+código). Antes de analizar, un trabajador frío la trae y no analiza. Entre máquinas, un candado con
+turno en `analysis_locks/<entrada>` evita que dos analicen el mismo video a la vez. La API trae del
+bucket lo que lee: brief de la vista previa del Estudio, pistas de `/people`, análisis para
+"Preparar para editar"; `/choreography` sale de `outputs/<id>.choreography.json`, que se guarda con
+cada versión. Con `VEXORA_BLOBS=local` no hace nada.
+
+### Índices de Firestore
+
+`firestore.indexes.json` suma dos índices de `tasks` (`status, worker, priority desc, created` y
+`kind, status, worker, priority desc, created`) y exenciones para `tasks.payload`, `tasks.result` y
+`preview_quota.times`. Despliégalos con `firebase deploy --only firestore:indexes` antes de subir la
+API nueva.
+
+### Trabajadores bajo demanda: Cloud Run Job
+
+Para no pagar un trabajador encendido sin trabajo:
+
+- `vexora-worker` con `VEXORA_WORKER_IDLE_EXIT_S=60` sale (código 0) tras 60 s sin nada que tomar.
+  Solo sale entre vuelta y vuelta: nunca con un turno en la mano.
+- Cada trabajador deja su latido en `workers/<id>` (cada 30 s; vivo = latido de menos de 90 s).
+- Al encolar cualquier cosa, la API mira si hay trabajadores vivos; si no, lanza una ejecución del
+  Job (`VEXORA_WORKER_JOB`). Una transacción sobre `system/worker_wake` cuenta las ejecuciones
+  lanzadas en los últimos 60 s como "arrancando": diez trabajos seguidos lanzan una sola.
+  `VEXORA_WORKER_MAX_PARALLEL` (por defecto 1) permite varias si la cola es profunda. Un fallo al
+  lanzar no falla la petición (registro + evento `worker.wake_failed`).
+
+```bash
+gcloud run jobs create vexora-worker --image $IMAGE --region $REGION --service-account $SA \
+  --command vexora-worker --tasks 1 --max-retries 0 --task-timeout 3600 --cpu 4 --memory 8Gi \
+  --set-env-vars VEXORA_ENV=prod,VEXORA_STORE=firestore,VEXORA_BLOBS=gcs,VEXORA_BUCKET=vexora-dev.firebasestorage.app,VEXORA_FIREBASE_PROJECT=$PROJECT,VEXORA_WORKERS=1,VEXORA_WORKER_IDLE_EXIT_S=60 \
+  --set-secrets GEMINI_API_KEY=gemini-api-key:latest,OPENAI_API_KEY=openai-api-key:latest
+
+# La API lo lanza: su cuenta de servicio necesita run.jobs.run sobre el Job.
+gcloud run jobs add-iam-policy-binding vexora-worker --region $REGION \
+  --member=serviceAccount:$SA --role=roles/run.invoker   # o roles/run.developer en el proyecto
+
+gcloud run services update vexora-api --region $REGION \
+  --update-env-vars VEXORA_INPROCESS_WORKERS=0,VEXORA_WORKER_JOB=projects/$PROJECT/locations/$REGION/jobs/vexora-worker
+```
+
+La imagen necesita el extra `[cloud]` (incluye `google-cloud-run`). Costo y espera: con todo
+apagado, el primer video (o vista previa) tras un rato sin uso espera el arranque en frío del Job,
+~30-60 s (imagen + modelos), antes de empezar. Si una ejecución llega a `--task-timeout` con un
+trabajo a medias, su turno vence, el trabajo vuelve a la cola y la siguiente ejecución lo toma.
+Mientras haya uso continuo, conviene el servicio siempre encendido de "Trabajadores" (opción A):
+responde al instante. Se pueden combinar: un servicio pequeño con `VEXORA_WORKER_KINDS=preview`
+siempre encendido y el Job para lo demás.
+
+### Variables nuevas
+
+| Variable | Dónde | Para qué |
+| --- | --- | --- |
+| `VEXORA_WORKER_KINDS` | worker | Qué toma: `job,preview,upload,layers` (sin valor, todo) |
+| `VEXORA_WORKER_IDLE_EXIT_S` | worker | Sale tras N s sin trabajo (sin valor, nunca) |
+| `VEXORA_WORKER_JOB` | API | Cloud Run Job a lanzar al encolar si no hay trabajadores vivos |
+| `VEXORA_WORKER_MAX_PARALLEL` | API | Ejecuciones a la vez del Job (por defecto 1) |
+
+### Lo que sigue pendiente
+
+- `runs/` de cada máquina sigue sin caducidad (ahora es solo caché: se puede borrar sin perder nada
+  publicado). Lo publicado en `analysis/` se borra con el último trabajo o subida del video.
+- Miniaturas y tira de fotogramas se siguen generando en el disco de la instancia de la API.
+- "Preparar para editar" (versiones anteriores al editor) sigue en la API y baja el video para
+  calcular su hash; solo encuentra el análisis si alguna máquina lo publicó.
+- Un trabajo lanzado antes de que termine el sondeo de su subida directa se sondea en el
+  trabajador: un video que no cabe falla ahí (con el mensaje claro), no al crearlo.
+- Los límites por IP de las páginas públicas siguen en memoria de cada instancia.
