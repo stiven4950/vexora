@@ -222,8 +222,8 @@ el trabajo espera a que termine: hay un candado por carpeta de análisis) y no s
 - Enlaces públicos con límites (`api/ratelimit.py`): 30 peticiones/min por IP a la página, 120 al
   video, bloqueo de 15 min tras 10 enlaces inexistentes en 10 min, y un tope de vistas al día por
   enlace según el plan (Pro 2.000, Ultra 10.000; al llegar se avisa al dueño una vez al día). Si el
-  dueño baja a un plan sin compartir, sus enlaces dejan de funcionar. En Cloud Run:
-  `VEXORA_PROXY_HOPS=1`.
+  dueño baja a un plan sin compartir, sus enlaces dejan de funcionar. En Cloud Run detrás de
+  Firebase Hosting: `VEXORA_PROXY_HOPS=2`.
 
 ## Trazabilidad (eventos JSON)
 

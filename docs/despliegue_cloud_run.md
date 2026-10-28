@@ -1,6 +1,7 @@
 # Despliegue en Google Cloud Run (API + trabajadores) con Firestore y Firebase Storage
 
-La web va a Vercel; la API de Python y los trabajadores, a Cloud Run, en el mismo proyecto de
+La web va a **Firebase Hosting** (que reenvía `/api/**` a la API); la API de Python y los
+trabajadores, a Cloud Run, todo en el mismo proyecto de
 Google Cloud que Firebase (`VEXORA_FIREBASE_PROJECT`, hoy `vexora-dev`). Región recomendada:
 **us-east1**, la misma del bucket (`vexora-dev.firebasestorage.app`), para no pagar tráfico entre
 regiones ni sumar latencia al subir y bajar videos.
@@ -119,14 +120,17 @@ trabajadores (cuenta de servicio) leen y escriben, y las cuentas de servicio no 
 gcloud run deploy vexora-api --image $IMAGE --region $REGION --service-account $SA \
   --allow-unauthenticated --port 8080 --cpu 2 --memory 4Gi --timeout 3600 \
   --min-instances 0 --max-instances 1 --session-affinity \
-  --set-env-vars VEXORA_ENV=prod,VEXORA_STORE=firestore,VEXORA_BLOBS=gcs,VEXORA_BUCKET=vexora-dev.firebasestorage.app,VEXORA_FIREBASE_PROJECT=$PROJECT,VEXORA_INPROCESS_WORKERS=0,VEXORA_PROXY_HOPS=1,VEXORA_CORS_ORIGINS=https://<tu-dominio-de-vercel> \
+  --set-env-vars VEXORA_ENV=prod,VEXORA_STORE=firestore,VEXORA_BLOBS=gcs,VEXORA_BUCKET=vexora-dev.firebasestorage.app,VEXORA_FIREBASE_PROJECT=$PROJECT,VEXORA_INPROCESS_WORKERS=0,VEXORA_PROXY_HOPS=2 \
   --set-secrets VEXORA_SECRET=vexora-secret:latest,GEMINI_API_KEY=gemini-api-key:latest
 ```
 
 - `VEXORA_INPROCESS_WORKERS=0`: la API no procesa trabajos (lo hacen los trabajadores).
-- `VEXORA_PROXY_HOPS=1`: Cloud Run agrega la IP real al final de `X-Forwarded-For`; los límites de
-  las páginas públicas (api/ratelimit.py) usan esa, no las que puede inventar el cliente. Con un
-  balanceador de carga delante son 2.
+- `VEXORA_PROXY_HOPS=2`: detrás de Firebase Hosting, `X-Forwarded-For` termina en
+  `<cliente>, <Hosting>` (Hosting agrega al cliente y Cloud Run agrega a Hosting): la IP real es la
+  segunda desde la derecha, y es la que usan los límites de las páginas públicas (api/ratelimit.py),
+  no las que puede inventar el cliente. Llamando a la URL directa de Cloud Run sería 1. **Verifícalo
+  en el primer despliegue**: con 30 recargas seguidas de un enlace compartido desde tu navegador, la
+  31 debe responder 429 a ti, no a todos.
 - `--max-instances 1` por ahora: las vistas previas del editor y del Estudio, las capas y el
   análisis de las subidas siguen en hilos de la API con estado en memoria y en su disco (ver
   "Limitaciones").
@@ -169,7 +173,7 @@ Los `<video>` y `<img>` no necesitan CORS para reproducir una URL de otro domini
 web lee los píxeles (canvas/WebGL del editor con capas) o usa `fetch` sobre esos archivos:
 
 ```json
-[{ "origin": ["https://<tu-dominio-de-vercel>", "http://localhost:5173"], "method": ["GET", "HEAD"], "responseHeader": ["Content-Type", "Range", "Accept-Ranges", "Content-Length"], "maxAgeSeconds": 3600 }]
+[{ "origin": ["https://vexora-dev.web.app", "https://<tu-dominio>", "http://localhost:5173"], "method": ["GET", "HEAD"], "responseHeader": ["Content-Type", "Range", "Accept-Ranges", "Content-Length"], "maxAgeSeconds": 3600 }]
 ```
 
 ```bash
@@ -178,20 +182,37 @@ gcloud storage buckets update gs://vexora-dev.firebasestorage.app --cors-file=co
 
 Y en ese caso los elementos que leen píxeles llevan `crossOrigin="anonymous"`.
 
-## Vercel
+## Web: Firebase Hosting
 
-El front pide `/api/...` a su mismo dominio. En Vercel, una reescritura lo manda a la API de Cloud
-Run (archivo `web/vercel.json`, que se crea del lado de la web):
+La web (React, `web/dist`) se publica en Firebase Hosting, en el mismo proyecto. `firebase.json`
+(raíz del repositorio) ya trae todo:
 
-```json
-{ "rewrites": [{ "source": "/api/(.*)", "destination": "https://vexora-api-<hash>-ue.a.run.app/api/$1" }] }
+- `/api/**` se reenvía al servicio de Cloud Run `vexora-api` en `us-east1`: la web y la API quedan
+  en el **mismo dominio**, sin CORS. Si el servicio o la región cambian, se cambian ahí.
+- Cualquier otra ruta devuelve `index.html` (la web es una SPA con rutas propias).
+- `/assets/**` (con hash en el nombre) se guarda en caché un año; `index.html` nunca, para que cada
+  despliegue se vea al instante. Cabeceras de seguridad para toda la web (nosniff, sin iframes,
+  HSTS, sin cámara/micrófono/ubicación).
+- `predeploy` construye la web antes de subirla.
+
+```bash
+# Las variables VITE_ se leen al construir: en web/.env.production.local (no se sube a git)
+# pon la configuración de Firebase (web/.env.example explica cada una).
+firebase deploy --only hosting
+# Una vista previa en un enlace temporal, sin tocar el sitio público:
+firebase hosting:channel:deploy prueba --expires 7d
 ```
 
-Notas: el proxy de Vercel puede imponer límites de tamaño de cuerpo y de duración (compruébalos
-en su documentación para tu plan), así que las **subidas de video** y el **SSE** conviene
-mandarlos directo a la URL de Cloud Run (con `VEXORA_CORS_ORIGINS` puesto al dominio de Vercel),
-y la reescritura para el resto. Las redirecciones 307 a URLs firmadas del bucket funcionan igual a
-través del proxy.
+Dominio propio: consola de Firebase → Hosting → **Agregar dominio personalizado**. Después pon
+ese dominio como `VITE_FIREBASE_AUTH_DOMAIN` y agrégalo en Authentication → Configuración →
+Dominios autorizados: así "Iniciar sesión con Google" funciona también en Safari y en navegadores
+que bloquean cookies de terceros.
+
+**Límite de 60 s por petición reenviada.** Firebase Hosting corta a los 60 s las peticiones que
+pasa a Cloud Run. Por eso nada largo pasa por ahí: los videos se suben **directo al bucket** con
+una URL firmada, los videos y descargas se sirven con **URLs firmadas** de Storage, y el progreso en
+vivo (SSE) se reconecta solo (EventSource) cuando la conexión llega a ese límite. La API no debe
+mandar `Cache-Control: public` en sus respuestas (Hosting las guardaría en su CDN); hoy no lo hace.
 
 ## Variables
 
@@ -208,7 +229,7 @@ través del proxy.
 | `VEXORA_FIRESTORE_PREFIX` | opcional | opcional | prefijo de colecciones por entorno |
 | `VEXORA_ENV` | `prod` | `prod` | |
 | `VEXORA_SECRET` | secreto | — | igual en todas las instancias |
-| `VEXORA_CORS_ORIGINS` | sí | — | dominio de Vercel |
+| `VEXORA_CORS_ORIGINS` | opcional | — | con Firebase Hosting la web y la API comparten dominio: solo hace falta para llamar a la URL directa de Cloud Run desde otro origen |
 | `GEMINI_API_KEY`, `OPENAI_API_KEY` | secreto | secreto | |
 
 ## Probar contra la nube desde local
