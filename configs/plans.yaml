@@ -17,6 +17,8 @@ plans:
     icon: sprout
     price_month: 0
     monthly_credits: 5
+    # Sus videos llevan la marca de agua de Vexora (también las vistas previas).
+    watermark: true
     features:
       - 5 créditos mensuales
       - Videos hasta 720p

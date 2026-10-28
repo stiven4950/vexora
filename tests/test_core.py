@@ -285,3 +285,40 @@ def test_chosen_prop_replaces_the_catalog_object_only_in_styles_that_follow_one(
     with pytest.raises(ValueError):
         configured("baile", "nave")
 
+
+def test_watermark_touches_only_its_corner_and_only_composed_frames(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+
+    import cv2
+
+    from vfxglow.composite import watermark
+    from vfxglow.pipeline import Pipeline
+
+    frame = np.full((720, 576, 3), 40, np.uint8)
+    marked = watermark.apply(frame.copy())
+    changed = np.argwhere((marked != frame).any(axis=-1))
+    assert len(changed) > 0
+    assert changed[:, 0].min() > 720 * 0.8 and changed[:, 1].min() > 576 * 0.4  # abajo a la derecha
+
+    video = tmp_path / "clip.mp4"
+    out = cv2.VideoWriter(str(video), cv2.VideoWriter_fourcc(*"mp4v"), 10.0, (64, 48))
+    for _ in range(30):
+        out.write(np.full((48, 64, 3), 40, np.uint8))
+    out.release()
+
+    class Engine:
+        def render_frame(self, track, index, *args):
+            return []
+
+    pipeline = Pipeline.__new__(Pipeline)
+    pipeline.video, pipeline.run_dir, pipeline.config = video, tmp_path, AppConfig()
+    pipeline.config.composite.watermark = True
+    pipeline._meta = lambda: SimpleNamespace(fps=10.0, frame_count=30, width=64, height=48, has_audio=False)
+    pipeline._engine = lambda script, events=None, tracks=None: (Engine(), {})
+    script = EffectScript.model_validate({"title": "t", "theme": "x", "effects": []})
+    pipeline.render_preview(script, tmp_path / "vista.mp4", (12, 20))
+    cap = cv2.VideoCapture(str(tmp_path / "vista.mp4"))
+    ok, first = cap.read()
+    cap.release()
+    assert ok and int(first[40:, 40:].astype(int).sum()) != int(np.full((8, 24, 3), 40).sum())
+

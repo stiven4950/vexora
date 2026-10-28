@@ -203,6 +203,16 @@ el trabajo espera a que termine: hay un candado por carpeta de análisis) y no s
 - API: `POST /api/uploads`, `GET /api/uploads/{id}` (estado, recomendación y avisos) y
   `DELETE /api/uploads/{id}`.
 
+## Planes y marca de agua
+
+- `configs/plans.yaml`: planes y paquetes de créditos de "Mi plan" (`GET /api/plans`). Es una
+  propuesta (`draft`): no hay cobros ni suscripciones todavía, así que el plan de todos es
+  `default_plan` (Free).
+- Marca de agua (`composite/watermark.py`): los planes con `watermark: true` (Free) la llevan en sus
+  videos y vistas previas, abajo a la derecha. Se decide al crear el trabajo (`Job.watermark`) y se
+  pinta en cada fotograma que se compone; al editar, lo que se copia del video anterior ya la trae.
+  Para quitarla en desarrollo: `watermark: false` en el plan Free.
+
 ## Trazabilidad (eventos JSON)
 
 La API y la línea de comandos escriben un evento JSON por línea en `logs/events.jsonl` (rota a

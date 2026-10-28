@@ -161,6 +161,13 @@ def test_prop_choices_listed_and_passed_to_the_pipeline(client: TestClient) -> N
     assert bad.status_code == 422
 
 
+def test_free_plan_videos_carry_the_watermark(client: TestClient) -> None:
+    job = _wait(client, client.post("/api/jobs", files={"video": ("c.mp4", io.BytesIO(b"x"), "video/mp4")}, data={"style": "avatar"}).json()["id"])
+    assert job["watermark"] and FakePipeline.last_kwargs["watermark"] is True  # hoy todos están en Free
+    version = _wait(client, client.post(f"/api/jobs/{job['id']}/variations", json={"style": "avatar"}).json()["id"])
+    assert version["watermark"] and FakePipeline.last_kwargs["watermark"] is True
+
+
 def test_plans_come_from_the_server_catalog(client: TestClient) -> None:
     shown = client.get("/api/plans").json()
     assert shown["draft"] and shown["currency"] == "USD" and shown["current"] == "free"

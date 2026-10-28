@@ -268,6 +268,13 @@ def props() -> list[PropView]:
     return [PropView(id=c.id, title=c.title, wearable=c.wearable) for c in PROP_CHOICES.values()]
 
 
+def _watermark(user: User) -> bool:
+    """Si los videos de esta persona llevan marca de agua (la pide su plan)."""
+    from vfxglow.api.plans import plan_of
+
+    return plan_of(ROOT / "configs" / "plans.yaml", user.uid).watermark
+
+
 def _check_prop(prop: str | None) -> None:
     from vfxglow.director.prop_choices import check
 
@@ -464,7 +471,7 @@ def create_job(
     deep = deep and style_kind == "catalog"
     limits.check_quota(user, jobs().list(user.uid), jobs().list(), deep)
     options = dict(
-        owner=user.uid, wardrobe=wear, deep=deep, fire_style=fire_style or None, bolt_style=bolt_style or None, prop=prop or None
+        owner=user.uid, wardrobe=wear, deep=deep, fire_style=fire_style or None, bolt_style=bolt_style or None, prop=prop or None, watermark=_watermark(user)
     )
     if video is None:
         return view(_job_from_upload(upload_id or "", user, style_kind, style, seed, season or None, options))
@@ -601,7 +608,7 @@ def create_variation(job_id: str, body: VariationRequest, user: User = Depends(c
     parent = _job(job_id, user)
     deep = (parent.deep if body.deep is None else body.deep) and body.style_kind == "catalog"
     limits.check_quota(user, jobs().list(user.uid), jobs().list(), deep)
-    return view(jobs().variation(parent, body.style_kind, style, body.seed, body.season, wear, body.deep, body.fire_style, body.bolt_style, body.prop))
+    return view(jobs().variation(parent, body.style_kind, style, body.seed, body.season, wear, body.deep, body.fire_style, body.bolt_style, body.prop, _watermark(user)))
 
 
 @app.post("/api/jobs/{job_id}/retry", response_model=JobView)
@@ -1003,6 +1010,7 @@ def create_upload_preview(upload_id: str, body: StudioPreviewRequest, user: User
         bolt_style=body.bolt_style or None,
         wardrobe=wear,
         prop=body.prop or None,
+        watermark=_watermark(user),
     )
     item, cached = previews().submit_studio(
         upload.id,

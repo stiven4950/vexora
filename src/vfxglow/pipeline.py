@@ -108,10 +108,13 @@ class Pipeline:
         wardrobe: dict[str, str] | None = None,
         deep: bool | None = None,
         prop: str | None = None,
+        watermark: bool = False,
     ) -> None:
         self.config_path = config_path
         self.config = load_config(config_path)
         self.prop = prop  # el objeto protagonista elegido (director/prop_choices.py)
+        if watermark:
+            self.config.composite.watermark = True
         if deep is not None:
             # Análisis profundo (director/deep.py): opcional, más lento y de pago.
             self.config.director.deep.enabled = bool(deep)
@@ -645,6 +648,7 @@ class Pipeline:
         final; con `max_side` el tramo se dibuja ya reducido (más rápido)."""
         from contextlib import nullcontext
 
+        from vfxglow.composite import watermark
         from vfxglow.composite.composite import composite_frame
         from vfxglow.composite.encode import FrameEncoder
         from vfxglow.director.edits import WARMUP_S
@@ -697,6 +701,9 @@ class Pipeline:
                         done = composite_frame(frame, layers, script.grade, enabled_groups=self.config.composite.enabled_groups())
                         if done.shape[1] != out_w or done.shape[0] != out_h:
                             done = cv2.resize(done, (out_w, out_h), interpolation=cv2.INTER_AREA)
+                        if self.config.composite.watermark:
+                            # Solo en lo que se compone: lo que se copia del video anterior ya la trae.
+                            watermark.apply(done)
                         encoder.write(done)
                     elif not only_window:
                         # El video anterior se lee en BGR (OpenCV); el codificador espera RGB.

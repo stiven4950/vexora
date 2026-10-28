@@ -76,6 +76,8 @@ class Job(BaseModel):
     deep: bool = False
     # Objeto protagonista de los estilos que siguen uno (director/prop_choices.py); sin él, el del catálogo.
     prop: str | None = None
+    # Lleva la marca de agua de Vexora (la pide el plan del dueño al crearlo; configs/plans.yaml).
+    watermark: bool = False
     # Traza que une la petición, el trabajo, sus etapas y sus llamadas a IA (telemetry.py).
     trace_id: str = Field(default_factory=telemetry.new_trace_id)
     # Si falló: el tipo de fallo (ERRORS); `error` lleva el mensaje para la persona.
@@ -313,6 +315,7 @@ class JobStore:
         fire_style: str | None = None,
         bolt_style: str | None = None,
         prop: str | None = None,
+        watermark: bool = False,
         max_bytes: int | None = None,
         check: Callable[[Path], object] | None = None,
         source: Path | None = None,
@@ -354,6 +357,7 @@ class JobStore:
             fire_style=fire_style,
             bolt_style=bolt_style,
             prop=prop,
+            watermark=watermark,
             video_seconds=getattr(info, "duration_s", None),
             video_width=getattr(info, "width", None),
             video_height=getattr(info, "height", None),
@@ -399,6 +403,7 @@ class JobStore:
         fire_style: str | None = None,
         bolt_style: str | None = None,
         prop: str | None = None,
+        watermark: bool | None = None,
     ) -> Job:
         """Mismo video, otro estilo u otra versión: el análisis queda en caché y es rápido.
 
@@ -431,6 +436,7 @@ class JobStore:
                 fire_style=fire_style,
                 bolt_style=bolt_style,
                 prop=prop,
+                watermark=parent.watermark if watermark is None else watermark,
                 parent=root,
                 owner=parent.owner,
                 video_seconds=parent.video_seconds,
@@ -627,6 +633,8 @@ class JobStore:
             kwargs["deep"] = True
         if job.style_kind == "catalog" and job.prop:
             kwargs["prop"] = job.prop
+        if job.watermark:
+            kwargs["watermark"] = True
         return kwargs
 
     def _note(self, job_id: str, text: str, detail: str = "") -> None:

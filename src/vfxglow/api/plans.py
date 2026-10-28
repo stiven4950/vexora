@@ -30,6 +30,8 @@ class Plan(BaseModel):
     features: list[str]
     footnote: str | None = None
     footnote_icon: str | None = None
+    # Sus videos llevan la marca de agua de Vexora (composite/watermark.py).
+    watermark: bool = False
 
 
 class CreditPack(BaseModel):
@@ -59,3 +61,9 @@ def load_catalog(path: Path, stamp: float) -> Catalog:
 
 def catalog(path: Path) -> Catalog:
     return load_catalog(path, path.stat().st_mtime)
+
+
+def plan_of(path: Path, uid: str) -> Plan:
+    """El plan de una persona. Sin suscripciones todavía, el de todos es `default_plan`."""
+    data = catalog(path)
+    return next(plan for plan in data.plans if plan.id == data.default_plan)

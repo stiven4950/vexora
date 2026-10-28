@@ -242,6 +242,8 @@ class CompositeConfig(_Strict):
     codec: Literal["h264", "prores"] = "h264"
     crf: int = 18
     soft_knee: float = 0.85
+    # Marca de agua de Vexora (composite/watermark.py): la llevan los planes que la piden (configs/plans.yaml).
+    watermark: bool = False
     groups: dict[str, bool] = Field(default_factory=lambda: {name: True for name in LAYER_GROUPS})
 
     def enabled_groups(self) -> set[str]:
