@@ -1,0 +1,96 @@
+# Planes y paquetes de créditos que muestra "Mi plan" (GET /api/plans).
+#
+# PROPUESTA: son los valores del diseño, no la estructura comercial definitiva. Antes de cobrar hay
+# que medir el costo real de cada operación (docs/analisis_mejoras_y_seguridad.md, §3.5) y fijar
+# aquí los precios, que deben coincidir con los del proveedor de pagos. La web nunca los inventa:
+# los lee de aquí.
+draft: true
+currency: USD
+# Plan de quien no tiene suscripción (hoy, todos).
+default_plan: free
+
+plans:
+  - id: free
+    title: Free
+    tagline: Explora y crea sin costo
+    badge: Para empezar
+    icon: sprout
+    price_month: 0
+    monthly_credits: 5
+    features:
+      - 5 créditos mensuales
+      - Videos hasta 720p
+      - Duración máx. 30 segundos
+      - 1 proyecto activo
+      - Marca de agua de Vexora
+    footnote: Ideal para probar la plataforma
+
+  - id: pro
+    title: Pro
+    tagline: Para creadores en serio
+    badge: Más popular
+    highlighted: true
+    icon: bolt
+    price_month: 14.99
+    monthly_credits: 100
+    features:
+      - 100 créditos mensuales
+      - Videos hasta 1080p
+      - Duración máx. 2 minutos
+      - Proyectos ilimitados
+      - Sin marca de agua
+      - Acceso a efectos exclusivos
+    footnote: Mejor relación calidad-precio
+    footnote_icon: crown
+
+  - id: ultra
+    title: Ultra
+    tagline: Para profesionales y equipos
+    icon: cube
+    price_month: 39.99
+    monthly_credits: 300
+    features:
+      - 300 créditos mensuales
+      - Videos hasta 4K
+      - Duración máx. 5 minutos
+      - Proyectos ilimitados
+      - Sin marca de agua
+      - Efectos premium + IA avanzada
+      - Soporte prioritario
+    footnote: Máximo rendimiento
+    footnote_icon: diamond
+
+  - id: enterprise
+    title: Enterprise
+    tagline: Soluciones a medida
+    icon: building
+    price_month: 99
+    price_from: true
+    contact: true
+    features:
+      - Créditos personalizados
+      - Calidad hasta 4K
+      - Duración ilimitada
+      - Equipo y colaboración
+      - API y acceso beta
+      - Soporte dedicado
+    footnote: Para empresas y grandes equipos
+    footnote_icon: building
+
+packs:
+  - id: c50
+    credits: 50
+    price: 4.99
+    note: Ideal para proyectos pequeños
+  - id: c100
+    credits: 100
+    price: 8.99
+    note: Más valor, más creatividad
+  - id: c250
+    credits: 250
+    price: 19.99
+    note: Para creadores frecuentes
+  - id: c500
+    credits: 500
+    price: 34.99
+    note: Máximo ahorro

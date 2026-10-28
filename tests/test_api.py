@@ -161,6 +161,15 @@ def test_prop_choices_listed_and_passed_to_the_pipeline(client: TestClient) -> N
     assert bad.status_code == 422
 
 
+def test_plans_come_from_the_server_catalog(client: TestClient) -> None:
+    shown = client.get("/api/plans").json()
+    assert shown["draft"] and shown["currency"] == "USD" and shown["current"] == "free"
+    plans = {p["id"]: p for p in shown["plans"]}
+    assert list(plans) == ["free", "pro", "ultra", "enterprise"]
+    assert plans["pro"]["price_month"] == 14.99 and plans["pro"]["highlighted"] and plans["enterprise"]["contact"]
+    assert [p["credits"] for p in shown["packs"]] == [50, 100, 250, 500]
+
+
 # ----- cuentas (Firebase Auth) -----
 
 USERS = {

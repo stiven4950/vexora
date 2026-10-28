@@ -222,6 +222,30 @@ class LooksView(BaseModel):
     rayo: list[LookView]
 
 
+class PlansView(BaseModel):
+    draft: bool
+    currency: str
+    # El plan de quien pregunta (hoy no hay suscripciones: el plan por omisión).
+    current: str
+    plans: list[dict]
+    packs: list[dict]
+
+
+@app.get("/api/plans", response_model=PlansView)
+def plans(user: User = Depends(current_user)) -> PlansView:
+    """Planes y paquetes de créditos de "Mi plan", con los precios del servidor (configs/plans.yaml)."""
+    from vfxglow.api.plans import catalog
+
+    data = catalog(ROOT / "configs" / "plans.yaml")
+    return PlansView(
+        draft=data.draft,
+        currency=data.currency,
+        current=data.default_plan,
+        plans=[plan.model_dump() for plan in data.plans],
+        packs=[pack.model_dump() for pack in data.packs],
+    )
+
+
 @app.get("/api/looks", response_model=LooksView)
 def looks() -> LooksView:
     """Estilos de fuego y de rayo que el cliente puede elegir antes de renderizar."""
