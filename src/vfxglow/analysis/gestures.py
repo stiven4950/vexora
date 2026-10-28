@@ -743,6 +743,82 @@ def hand_mouth_events(frames, fps, width, height):
     return _pose_events(frames, fps, width, height, "hand_mouth", "Una mano en la boca.", flag)
 
 
+# Contar con los dedos (unpair_dance, seg. 16,3-19,5 del 1 al 8 y 29,2-31,6 del 1 al 6): las manos
+# arriba (las muñecas por encima de la mitad del torso) y el número de dedos estirados cambia
+# varias veces. Un dedo está estirado si su punta queda más lejos de la muñeca que su nudillo
+# del medio (FINGER_OUT veces); el pulgar, si su punta se aleja del nudillo del índice.
+FINGER_OUT = 1.15
+COUNT_SMOOTH = 5  # mediana de tantos fotogramas contra el temblor de los dedos
+COUNT_MIN_CHANGES = 2
+COUNT_MIN_S = 0.6
+
+
+def _fingers_up(hand, side: str, width: int, height: int) -> int | None:
+    lm = {l.name.replace(f"{side}_", ""): np.array([l.x * width, l.y * height]) for l in hand.landmarks}
+    if "wrist" not in lm:
+        return None
+    count = 0
+    for finger in ("index", "middle", "ring", "pinky"):
+        tip, pip = lm.get(f"{finger}_tip"), lm.get(f"{finger}_pip")
+        if tip is None or pip is None:
+            return None
+        if float(np.linalg.norm(tip - lm["wrist"])) > FINGER_OUT * float(np.linalg.norm(pip - lm["wrist"])):
+            count += 1
+    tip, joint, base = lm.get("thumb_tip"), lm.get("thumb_ip"), lm.get("index_mcp")
+    if tip is not None and joint is not None and base is not None and float(np.linalg.norm(tip - base)) > FINGER_OUT * float(np.linalg.norm(joint - base)):
+        count += 1
+    return count
+
+
+def _count(owner, pts, width: int, height: int) -> int | None:
+    """Dedos estirados entre las manos que están arriba, o None si no hay ninguna arriba."""
+    mid_y = (pts["left_shoulder"][1] + pts["left_hip"][1]) / 2
+    total, seen = 0, False
+    for side in ("left", "right"):
+        hand = owner.left_hand if side == "left" else owner.right_hand
+        wrist = pts.get(f"{side}_wrist")
+        if hand is None or not hand.landmarks or wrist is None or wrist[1] > mid_y:
+            continue
+        up = _fingers_up(hand, side, width, height)
+        if up is not None:
+            total += up
+            seen = True
+    return total if seen else None
+
+
+def finger_count_events(frames, fps, width, height):
+    """Cuenta con los dedos: tramos con las manos arriba en los que el número de dedos estirados
+    cambia al menos COUNT_MIN_CHANGES veces. `detail` = "conteo=cuadro:n,cuadro:n" (cada cambio)."""
+
+    def flag(record, owner, pts):
+        total = _count(owner, pts, width, height)
+        return ("count", (pts["left_shoulder"] + pts["right_shoulder"]) / 2) if total else None
+
+    out = []
+    for event in _pose_events(frames, fps, width, height, "finger_count", "Cuenta con los dedos.", flag, COUNT_MIN_S):
+        person = event.target.split(":")[0]
+        raw = []
+        for record in frames:
+            if not event.start_frame <= record.frame <= event.end_frame:
+                continue
+            owner, pts = _pose(record, person, width, height)
+            ready = pts is not None and "left_shoulder" in pts and "left_hip" in pts
+            raw.append((record.frame, _count(owner, pts, width, height) if ready else None))
+        steps, current = [], None
+        for k, (frame, _) in enumerate(raw):
+            near = [n for _, n in raw[max(k - COUNT_SMOOTH // 2, 0):k + COUNT_SMOOTH // 2 + 1] if n]
+            n = int(np.median(near)) if near else None
+            if n is not None and n != current:
+                steps.append((frame, n))
+                current = n
+        if len(steps) - 1 < COUNT_MIN_CHANGES:
+            continue  # mostrar la mano no es contar
+        event.target, event.kind = person, ""
+        event.detail = "conteo=" + ",".join(f"{f}:{n}" for f, n in steps)
+        out.append(event)
+    return out
+
+
 GESTURE_DETECTORS = (
     throw_events,
     neck_slash_events,
@@ -764,5 +840,6 @@ GESTURE_DETECTORS = (
     fist_up_events,
     hand_chin_events,
     hand_mouth_events,
+    finger_count_events,
 )
-GESTURE_NAMES = {"hand_mouth", "hand_chin", "fist_up", "finger_gun", "rock_hands", "hands_on_head", "arms_x", "lunge", "throw", "neck_slash", "stomp", "frenzy", "heart_hands", "arms_up", "arms_open", "point", "hand_ear", "cover_eyes", "spin_body", "step"}
+GESTURE_NAMES = {"finger_count", "hand_mouth", "hand_chin", "fist_up", "finger_gun", "rock_hands", "hands_on_head", "arms_x", "lunge", "throw", "neck_slash", "stomp", "frenzy", "heart_hands", "arms_up", "arms_open", "point", "hand_ear", "cover_eyes", "spin_body", "step"}
