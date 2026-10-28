@@ -9,6 +9,7 @@ import { WARDROBES, type Limits, type Looks, type PropChoice, type Season, type 
 import { ChoiceCard } from "../components/ChoiceCard";
 import { Dropzone, problems, type VideoMeta } from "../components/Dropzone";
 import { Icon } from "../components/Icon";
+import { LookEmblem } from "../components/LookEmblem";
 import { NeonPreview } from "../components/NeonPreview";
 import { SeasonEmblem } from "../components/SeasonEmblem";
 import { Shell } from "../components/Shell";
@@ -34,21 +35,6 @@ const FILTERS = [
 type Filter = (typeof FILTERS)[number]["id"];
 
 const NAMED = new Set<string>(FILTERS.map((f) => f.id).filter((id) => id !== "all" && id !== "other"));
-
-/** El color de cada look, para su icono (director/looks.py los define por nombre). */
-const LOOK_COLOR: Record<string, string> = {
-  clasico: "#ff8a1f",
-  plano: "#ffd23f",
-  mixto: "#ff9a2e",
-  azul: "#4aa3ff",
-  verde: "#5be05b",
-  pixel: "#ff7a1a",
-  cian: "#35e0ff",
-  blanco: "#e8f1ff",
-  violeta: "#b06bff",
-  rojo: "#ff4d5e",
-  fuego: "#ff9a2e",
-};
 
 export function Studio() {
   const navigate = useNavigate();
@@ -365,7 +351,7 @@ export function Studio() {
                           small
                           selected={look.id === "clasico" ? fireStyle === null : fireStyle === look.id}
                           onSelect={() => setFireStyle(look.id === "clasico" ? null : look.id)}
-                          icon={<span style={{ color: LOOK_COLOR[look.id] }}><Icon name="flame" size={26} /></span>}
+                          art={(active) => <LookEmblem kind="fuego" look={look.id} active={active} />}
                           label={look.title}
                           title={look.description}
                         />
@@ -383,7 +369,7 @@ export function Studio() {
                           small
                           selected={look.id === "cian" ? boltStyle === null : boltStyle === look.id}
                           onSelect={() => setBoltStyle(look.id === "cian" ? null : look.id)}
-                          icon={<span style={{ color: LOOK_COLOR[look.id] }}><Icon name="bolt" size={26} /></span>}
+                          art={(active) => <LookEmblem kind="rayo" look={look.id} active={active} />}
                           label={look.id === "cian" ? "Del estilo" : look.title}
                           title={look.description}
                         />

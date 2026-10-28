@@ -96,6 +96,10 @@
   height: 100%;
 }
 
+.small .art {
+  height: 64px;
+}
+
 /* La cinta va dentro de la tarjeta: con overflow oculto se cortaría fuera. */
 .withArt .ribbon {
   top: 6px;
