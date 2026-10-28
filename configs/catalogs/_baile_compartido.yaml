@@ -6,6 +6,25 @@
 reactions:
 - action: spotlight
   options:
+  # Pase de energía (video_41 seg. 6,7-7,1; unpair_dance seg. 11,4-11,9): la energía sale de una
+  # mano, cruza el pecho y llega a la otra; nunca salta, viaja.
+  - name: pase_brazos
+    weight: 0.25
+    kinds: [left_arm, right_arm]
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [arm_relay], thickness: 0.008, focus: false}
+      trigger: {hold: 18, fade_in: 1, fade_out: 6}
+  # unpair_dance seg. 25,8-27,4: baja por la pierna, cruza el piso y sube por la otra persona.
+  - name: pase_piso
+    weight: 0.2
+    kinds: [legs, feet]
+    cooldown: 360
+    effects:
+    - type: adornment
+      style: {shapes: [person_relay], thickness: 0.008, focus: false}
+      trigger: {hold: 24, fade_in: 1, fade_out: 6}
   # Piernas (seg. 23.5-26.5, 33-34.8): puntos en las rodillas, banda en el tobillo con una línea
   # que sube por la pierna, o tramos del contorno que suben como una onda.
   - name: rodillas
@@ -440,6 +459,13 @@ reactions:
       trigger: {hold: 8, fade_in: 1, fade_out: 6}
 - action: stomp
   options:
+  - name: pase_persona
+    weight: 0.3
+    cooldown: 360
+    effects:
+    - type: adornment
+      style: {shapes: [person_relay], thickness: 0.008, focus: false}
+      trigger: {hold: 24, fade_in: 1, fade_out: 6}
   - name: destello
     weight: 0.3
     effects:
@@ -468,6 +494,14 @@ reactions:
     weight: 0.2
 - action: hands_on_head
   options:
+  # video_41 seg. 13,3-13,9: las manos juegan sobre la cabeza y la energía va y vuelve entre ellas.
+  - name: pase_manos
+    weight: 0.3
+    cooldown: 360
+    effects:
+    - type: adornment
+      style: {shapes: [hand_volley], thickness: 0.007, focus: false}
+      trigger: {hold: 16, fade_in: 1, fade_out: 4}
   # video_41, seg. 12,1: la mano sobre la cabeza y la cara de calavera con ojos en X; si después
   # una mano tapa la cara, la calavera se apaga y se contornea la mano.
   - name: calavera
@@ -578,6 +612,13 @@ reactions:
       trigger: {hold: 45, fade_in: 1, fade_out: 4}
 - action: arms_open
   options:
+  - name: pase_brazos
+    weight: 0.25
+    cooldown: 360
+    effects:
+    - type: adornment
+      style: {shapes: [arm_relay], thickness: 0.008, focus: false}
+      trigger: {hold: 18, fade_in: 1, fade_out: 6}
   - name: bateria
     weight: 0.3
     cooldown: 450
