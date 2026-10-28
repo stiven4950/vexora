@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
-import { api } from "../api/client";
+import { api, ApiError } from "../api/client";
 import type { PublicVideo as PublicVideoData } from "../api/types";
 import { Icon } from "../components/Icon";
 import { Logo } from "../components/Logo";
@@ -14,6 +14,8 @@ export function PublicVideo() {
   const { token = "" } = useParams();
   const [video, setVideo] = useState<PublicVideoData | null>(null);
   const [gone, setGone] = useState(false);
+  // Límite de peticiones o de vistas de hoy (429): el enlace existe, solo hay que esperar.
+  const [waitText, setWaitText] = useState<string | null>(null);
 
   useEffect(() => {
     // Un enlace compartido no debe aparecer en buscadores (el servidor también lo pide con X-Robots-Tag).
@@ -29,7 +31,11 @@ export function PublicVideo() {
     api
       .publicVideo(token)
       .then((found) => alive && setVideo(found))
-      .catch(() => alive && setGone(true));
+      .catch((cause: unknown) => {
+        if (!alive) return;
+        if (cause instanceof ApiError && cause.status === 429) setWaitText(cause.message);
+        else setGone(true);
+      });
     return () => {
       alive = false;
     };
@@ -51,6 +57,13 @@ export function PublicVideo() {
         </Link>
       </header>
       <main className={styles.main}>
+        {waitText && (
+          <div className={styles.empty}>
+            <Icon name="clock" size={28} />
+            <h1>Vuelve en un rato</h1>
+            <p>{waitText}</p>
+          </div>
+        )}
         {gone && (
           <div className={styles.empty}>
             <Icon name="alert" size={28} />
@@ -61,7 +74,7 @@ export function PublicVideo() {
             </Link>
           </div>
         )}
-        {!gone && !video && <p className={styles.loading}>Cargando video…</p>}
+        {!gone && !waitText && !video && <p className={styles.loading}>Cargando video…</p>}
         {video && (
           <>
             <video className={styles.player} src={video.video_url} controls playsInline preload="metadata" />
