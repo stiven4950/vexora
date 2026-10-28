@@ -299,3 +299,42 @@ export interface StudioPreviewOpts {
   wardrobe?: Record<string, string> | null;
   prop?: string | null;
 }
+
+/** Un plan del catálogo (GET /api/plans). Los precios y las funciones salen del servidor. */
+export interface Plan {
+  id: string;
+  title: string;
+  tagline: string;
+  /** Etiqueta junto al nombre ("Para empezar"). */
+  badge: string | null;
+  /** El plan destacado ("Más popular"). */
+  highlighted: boolean;
+  icon: "sprout" | "bolt" | "cube" | "building";
+  price_month: number;
+  /** `price_month` es el mínimo de un plan a medida: se muestra como "Desde $99". */
+  price_from: boolean;
+  /** Se contrata hablando con ventas, no desde la página. */
+  contact: boolean;
+  monthly_credits: number | null;
+  features: string[];
+  footnote: string | null;
+  footnote_icon: "crown" | "diamond" | "building" | null;
+}
+
+/** Un paquete de créditos sueltos. */
+export interface CreditPack {
+  id: string;
+  credits: number;
+  price: number;
+  note: string;
+}
+
+/** Catálogo de planes y paquetes (GET /api/plans). Con `draft` los precios son de referencia: aún no se cobra. */
+export interface PlansView {
+  draft: boolean;
+  currency: string;
+  /** Id del plan de la cuenta. */
+  current: string;
+  plans: Plan[];
+  packs: CreditPack[];
+}

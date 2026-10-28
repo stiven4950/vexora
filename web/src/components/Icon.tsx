@@ -56,6 +56,17 @@ const PATHS = {
   youtube: "M3 8a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3zM10 9v6l5-3z",
   tiktok: "M14 3v11a3 3 0 1 1-3-3M14 3c.5 2.5 2 4 5 4.2",
   x: "M4 4l16 16M20 4 4 20",
+  sprout: "M12 21v-8M12 13c0-4 2.5-6 7-6 0 4-2.5 6-7 6zM12 15c0-3-2-5-6-5 0 3 2 5 6 5z",
+  cube: "M12 3 4 7.5v9L12 21l8-4.5v-9zM4 7.5 12 12l8-4.5M12 12v9",
+  hexagon: "M12 3 4 7.5v9L12 21l8-4.5v-9zM12 9l3 1.7v3.6L12 16l-3-1.7v-3.6z",
+  building: "M5 21V4h9v17M14 9h5v12M3 21h18M8 8h3M8 12h3M8 16h3M16.5 13h.01M16.5 17h.01",
+  crown: "M4 18h16M4 18 3 7l5 4 4-6 4 6 5-4-1 11z",
+  diamond: "M6 4h12l4 6-10 11L2 10zM2 10h20M9 4l3 6 3-6M12 21l-3-11M12 21l3-11",
+  shield: "M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6zM9 12l2.2 2.2L15 10",
+  headset: "M4 14v-2a8 8 0 0 1 16 0v2M4 14h3v5H5a1 1 0 0 1-1-1zM20 14h-3v5h2a1 1 0 0 0 1-1zM17 19c0 1.5-2 2-5 2",
+  devices: "M3 5h14v10H3zM1 19h18M15 9h6v11h-6z",
+  gift: "M4 10h16v10H4zM3 7h18v3H3zM12 7v13M12 7C9 7 8 3.5 10 3.5S12 6 12 7zM12 7c3 0 4-3.5 2-3.5S12 6 12 7z",
+  history: "M3 12a9 9 0 1 0 3-6.7M3 4v5h5M12 8v4l3 2",
 } as const;
 
 export type IconName = keyof typeof PATHS;

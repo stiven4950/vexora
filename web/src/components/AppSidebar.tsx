@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 
 import { ROUTES } from "../routes";
 import { Icon, type IconName } from "./Icon";
@@ -16,6 +16,8 @@ const ITEMS: { to: string; label: string; icon: IconName; end?: boolean }[] = [
 
 /** Barra lateral de la app (diseños de Estudio y Mis proyectos). */
 export function AppSidebar() {
+  const { pathname } = useLocation();
+  const enPlan = pathname === ROUTES.plan;
   return (
     <>
       <nav className={styles.menu} aria-label="Principal">
@@ -26,7 +28,11 @@ export function AppSidebar() {
         ))}
       </nav>
       <div className={styles.foot}>
-        <PromoCard title="Tu creatividad no tiene límites" text="Explora nuevos estilos, combina efectos y dale vida a tus ideas." cta="Ir al estudio" to={ROUTES.studio} />
+        {enPlan ? (
+          <PromoCard title="Lleva tus ideas al siguiente nivel" text="Con más créditos, más efectos y mayor calidad." cta="Mejorar plan" to={ROUTES.plan} />
+        ) : (
+          <PromoCard title="Tu creatividad no tiene límites" text="Explora nuevos estilos, combina efectos y dale vida a tus ideas." cta="Ir al estudio" to={ROUTES.studio} />
+        )}
       </div>
     </>
   );

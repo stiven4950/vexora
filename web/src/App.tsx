@@ -7,6 +7,7 @@ import { JobPage } from "./pages/JobPage";
 import { Landing } from "./pages/Landing";
 import { Library } from "./pages/Library";
 import { Login } from "./pages/Login";
+import { Plan } from "./pages/Plan";
 import { LegalPlaceholder, Placeholder } from "./pages/Placeholder";
 import { ProjectSummary } from "./pages/ProjectSummary";
 import { Settings } from "./pages/Settings";
@@ -69,7 +70,7 @@ function AppRoutes() {
         <Route path="jobs/:id" element={<JobPage />} />
         <Route path="library" element={<Library />} />
         <Route path="explore" element={<Placeholder title="Explorar efectos" phase="fase 2" text="Una galería de cada estilo y efecto con videos de demostración." />} />
-        <Route path="plan" element={<Placeholder title="Mi plan" phase="fase 3" text="Tu plan, tus créditos y tu consumo." />} />
+        <Route path="plan" element={<Plan />} />
         <Route path="settings" element={<Settings />} />
         <Route path="projects/:id/edit" element={<Editor />} />
         <Route path="projects/:id" element={<ProjectSummary />} />

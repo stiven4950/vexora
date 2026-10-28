@@ -22,8 +22,34 @@ export const NOTIFICATIONS = [
   { id: "n2", title: "Bienvenido a VEXORA", text: "Sube tu primer video y crea tus efectos.", when: "ayer" },
 ] as const;
 
-// PENDIENTE(fase 3): créditos y plan reales (docs/analisis_mejoras_y_seguridad.md, §3.5).
-export const PLAN = { name: "Free", creditsLeft: 3, creditsTotal: 5, creditsPerRender: 1 } as const;
+// PENDIENTE(fase 3): libro de créditos real (docs/analisis_mejoras_y_seguridad.md, §3.5): saldo con
+// reservas por trabajo y cobros idempotentes, y las reglas de consumo por efecto y render (hoy sin
+// definir). Mientras tanto el saldo, la renovación y el costo por render son datos fijos del diseño.
+export const CREDITS = {
+  balance: 42,
+  /** Créditos que se renuevan y cuándo (ISO). */
+  renewal: { credits: 5, date: "2026-11-01" },
+  creditsPerRender: 1,
+  // PENDIENTE(fase 3): consumo por proyecto de los últimos 30 días, calculado desde el libro de créditos.
+  usage: { total: 150, effects: 85, renders: 12, other: 5 },
+  // PENDIENTE(fase 3): historial de compras y recibos reales del proveedor de pagos.
+  purchases: [
+    { id: "p1", title: "Paquete de 100 créditos", when: "18 oct 2026 · 10:24 a. m.", amount: 8.99, icon: "card" },
+    { id: "p2", title: "Paquete de 50 créditos", when: "3 oct 2026 · 6:17 p. m.", amount: 4.99, icon: "card" },
+    { id: "p3", title: "Bono de bienvenida +10 créditos", when: "1 sep 2026 · 12:00 p. m.", amount: 0, icon: "gift" },
+  ],
+  // PENDIENTE(fase 3): movimientos reales (compras, renovaciones, consumo por proyecto, bonos y reembolsos).
+  movements: [
+    { id: "m1", date: "26 oct 2026", kind: "consumo", project: "Poderes de Avatar", credits: -1, status: "Completado", value: null },
+    { id: "m2", date: "24 oct 2026", kind: "consumo", project: "Baile en la azotea", credits: -2, status: "Completado", value: null },
+    { id: "m3", date: "21 oct 2026", kind: "reembolso", project: "Pelea en el callejón", credits: 1, status: "Reembolsado", value: null },
+    { id: "m4", date: "18 oct 2026", kind: "compra", project: null, credits: 100, status: "Pagado", value: 8.99 },
+    { id: "m5", date: "12 oct 2026", kind: "consumo", project: "Pelea en el callejón", credits: -1, status: "Reembolsado", value: null },
+    { id: "m6", date: "3 oct 2026", kind: "compra", project: null, credits: 50, status: "Pagado", value: 4.99 },
+    { id: "m7", date: "1 oct 2026", kind: "renovación", project: null, credits: 5, status: "Aplicado", value: null },
+    { id: "m8", date: "1 sep 2026", kind: "bono", project: null, credits: 10, status: "Aplicado", value: 0 },
+  ],
+} as const;
 
 // Respaldo de "Sorpréndeme con IA" cuando no hay análisis del video (aún sin subir, o falló): elige entre
 // estos estilos. Con análisis, el Estudio usa la recomendación real del servidor.

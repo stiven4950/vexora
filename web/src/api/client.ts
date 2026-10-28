@@ -1,5 +1,5 @@
 import { idToken } from "../auth/firebase";
-import type { StudioPreviewOpts, EditOp, EditorView, PreviewView, LayersView, Season, Job, Limits, Looks, Moment, PropChoice, Person, Style, StyleKind, UploadView, Wardrobe } from "./types";
+import type { PlansView, StudioPreviewOpts, EditOp, EditorView, PreviewView, LayersView, Season, Job, Limits, Looks, Moment, PropChoice, Person, Style, StyleKind, UploadView, Wardrobe } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -37,6 +37,8 @@ export const api = {
   looks: () => request<Looks>("/api/looks"),
   props: () => request<PropChoice[]>("/api/props"),
   limits: () => request<Limits>("/api/limits"),
+  /** Catálogo de planes y paquetes de créditos (precios de referencia mientras `draft`). */
+  plans: () => request<PlansView>("/api/plans"),
   jobs: () => request<Job[]>("/api/jobs"),
   job: (id: string) => request<Job>(`/api/jobs/${id}`),
   choreography: (id: string) => request<Moment[]>(`/api/jobs/${id}/choreography`),

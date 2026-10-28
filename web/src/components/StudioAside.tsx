@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { approx, mmss } from "../api/format";
 import type { Style, StudioPreviewOpts } from "../api/types";
 import { rgb } from "../api/format";
-import { PLAN, PREVIEW_WITH_EFFECTS_NOTE } from "../mocks/pendientes";
+import { CREDITS, PREVIEW_WITH_EFFECTS_NOTE } from "../mocks/pendientes";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
 import { NeonPreview } from "./NeonPreview";
@@ -187,7 +187,7 @@ export function StudioAside({ file, meta, style, season, wardrobe, analysis, loo
         <p className={styles.note}>Tiempo estimado: {estimate ?? "—"}</p>
         {/* PENDIENTE(fase 3): créditos reales; hoy un dato fijo del diseño. */}
         <p className={styles.credit}>
-          <Icon name="clock" size={14} /> {PLAN.creditsPerRender} crédito
+          <Icon name="clock" size={14} /> {CREDITS.creditsPerRender} crédito
         </p>
       </section>
     </aside>
