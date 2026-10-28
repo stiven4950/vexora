@@ -707,6 +707,42 @@ def hand_chin_events(frames, fps, width, height):
     return _pose_events(frames, fps, width, height, "hand_chin", "Mano en el mentón y la otra extendida.", flag)
 
 
+# Mano en la boca (unpair_dance, seg. 13,4-14,4: los dos fuman; video_41, seg. 0,5-0,9: bebe de una
+# botella). Las puntas de los dedos junto a la boca o, si no se ven los dedos, la muñeca cerca
+# (en torsos); una sola mano: con las dos es taparse la cara.
+MOUTH_TIP = 0.2
+MOUTH_WRIST = 0.3
+
+
+def _mouth(pts) -> np.ndarray | None:
+    if "mouth_left" in pts and "mouth_right" in pts:
+        return (pts["mouth_left"] + pts["mouth_right"]) / 2
+    nose = pts.get("nose")
+    return nose + np.array([0.0, 0.12 * _torso(pts)]) if nose is not None else None
+
+
+def hand_mouth_events(frames, fps, width, height):
+    """Una mano en la boca (fumar, beber, vapear): el lado del evento es esa mano."""
+
+    def flag(record, owner, pts):
+        mouth = _mouth(pts)
+        if mouth is None:
+            return None
+        torso = _torso(pts)
+        near = []
+        for side in ("left", "right"):
+            hand = owner.left_hand if side == "left" else owner.right_hand
+            tips = [np.array([l.x * width, l.y * height]) for l in hand.landmarks if l.name.endswith(("index_tip", "middle_tip", "thumb_tip"))] if hand is not None else []
+            wrist = pts.get(f"{side}_wrist")
+            if tips and min(float(np.linalg.norm(t - mouth)) for t in tips) / torso <= MOUTH_TIP:
+                near.append((side, wrist if wrist is not None else tips[0]))
+            elif wrist is not None and float(np.linalg.norm(wrist - mouth)) / torso <= MOUTH_WRIST:
+                near.append((side, wrist))
+        return near[0] if len(near) == 1 else None
+
+    return _pose_events(frames, fps, width, height, "hand_mouth", "Una mano en la boca.", flag)
+
+
 GESTURE_DETECTORS = (
     throw_events,
     neck_slash_events,
@@ -727,5 +763,6 @@ GESTURE_DETECTORS = (
     finger_gun_events,
     fist_up_events,
     hand_chin_events,
+    hand_mouth_events,
 )
-GESTURE_NAMES = {"hand_chin", "fist_up", "finger_gun", "rock_hands", "hands_on_head", "arms_x", "lunge", "throw", "neck_slash", "stomp", "frenzy", "heart_hands", "arms_up", "arms_open", "point", "hand_ear", "cover_eyes", "spin_body", "step"}
+GESTURE_NAMES = {"hand_mouth", "hand_chin", "fist_up", "finger_gun", "rock_hands", "hands_on_head", "arms_x", "lunge", "throw", "neck_slash", "stomp", "frenzy", "heart_hands", "arms_up", "arms_open", "point", "hand_ear", "cover_eyes", "spin_body", "step"}

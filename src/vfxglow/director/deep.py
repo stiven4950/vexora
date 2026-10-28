@@ -43,6 +43,7 @@ ACTIONS = {
     "spotlight": "cualquier momento (la parte del cuerpo protagonista)",
     "point": "señala con el brazo extendido",
     "hand_chin": "una mano en el mentón y la otra extendida",
+    "hand_mouth": "una mano en la boca: fuma, bebe o vapea",
     "fist_up": "puño en alto a la altura del hombro (la atención en el puño)",
     "finger_gun": "la mano en forma de revólver (índice al frente, pulgar arriba); el pulgar que baja es el disparo",
     "hands_on_head": "manos sobre o alrededor de la cabeza",
