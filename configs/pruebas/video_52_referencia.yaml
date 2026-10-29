@@ -1,0 +1,50 @@
+# Calco de la referencia de video_52 (docs/referencias/video_52.md): cada momento con su efecto, su
+# segundo, su duración y el color de su toma. Para comparar con tools/compare_reference.py.
+catalogo: baile
+solo_estos: true
+momentos:
+- {seg: 0.0, accion: spotlight, opcion: brazo, dur: 0.15, exacto: true, color: "#ff3030"}
+- {seg: 1.1, accion: spotlight, opcion: cintas, dur: 0.6, exacto: true, color: "#33ff55"}
+- {seg: 1.8, accion: spotlight, opcion: aro_cabeza, dur: 0.65, exacto: true}
+- {seg: 2.5, accion: spotlight, opcion: ojos_x, dur: 0.85, exacto: true}
+- {seg: 3.4, accion: spotlight, opcion: cuernos_a_x, dur: 1.7, exacto: true, color: "#ff4040"}
+- {seg: 5.2, accion: spotlight, opcion: rodillas, dur: 0.35, exacto: true, color: "#ff3030"}
+- {seg: 5.6, accion: spotlight, opcion: remolino, dur: 0.35, exacto: true, lado: right}
+- {seg: 6.0, accion: arms_open, opcion: liga, dur: 0.6, exacto: true}
+- {seg: 6.6, accion: spotlight, opcion: aro_pie, dur: 0.3, exacto: true}
+- {seg: 6.9, accion: spotlight, opcion: manos_eco, dur: 0.95, exacto: true}
+- {seg: 7.9, accion: spotlight, opcion: animal, figura: cat_mask, dur: 0.6, exacto: true, color: "#4848ff"}
+- {seg: 8.7, accion: spotlight, opcion: aureola, dur: 0.95, exacto: true}
+- {seg: 9.6, accion: finger_gun, opcion: disparo_cabeza, dur: 0.5, exacto: true, lado: right, color: "#ffd030"}
+- {seg: 10.35, accion: raise_hand, opcion: rayo_cielo, dur: 0.35, exacto: true, lado: right}
+- {seg: 10.7, accion: spotlight, opcion: cintas, dur: 2.1, exacto: true, color: "#33ff55"}
+- {seg: 12.9, accion: spotlight, opcion: expresion, figura: question, dur: 0.45, exacto: true, color: "#4848ff"}
+- {seg: 13.4, accion: arms_crossed, opcion: pensando, dur: 0.75, exacto: true}
+- {seg: 14.1, accion: spotlight, opcion: manos_eco, dur: 0.4, exacto: true, color: "#ffd030"}
+- {seg: 14.5, accion: spotlight, opcion: corbata_puesta, dur: 0.5, exacto: true}
+- {seg: 15.0, accion: spotlight, opcion: aro_orbita, dur: 0.6, exacto: true, lado: right}
+- {seg: 15.6, accion: spotlight, opcion: ojos_x, dur: 0.45, exacto: true, color: "#33ff55"}
+- {seg: 16.1, accion: spotlight, opcion: brazo, dur: 0.65, exacto: true, color: "#ff3030"}
+- {seg: 17.0, accion: spotlight, opcion: torso_abdominales, dur: 0.6, exacto: true}
+- {seg: 17.7, accion: spotlight, opcion: manos_eco, dur: 0.3, exacto: true, color: "#c8ff30"}
+- {seg: 18.0, accion: spotlight, opcion: tobillos, dur: 0.55, exacto: true}
+- {seg: 18.55, accion: spotlight, opcion: zapatos, dur: 0.35, exacto: true}
+- {seg: 18.9, accion: spotlight, opcion: aro_pie, dur: 0.45, exacto: true}
+- {seg: 19.4, accion: spotlight, opcion: cintas_reloj, dur: 1.65, exacto: true, lado: right}
+- {seg: 21.1, accion: spotlight, opcion: estallido, dur: 0.3, exacto: true, color: "#ff7a20"}
+- {seg: 21.5, accion: arms_up, opcion: espadas, dur: 0.75, exacto: true, color: "#33ff55"}
+- {seg: 22.3, accion: spotlight, opcion: cadena_energia, dur: 0.85, exacto: true, lado: right}
+- {seg: 23.2, accion: point, opcion: pulso, dur: 1.35, exacto: true, lado: right, color: "#ff3030"}
+- {seg: 24.8, accion: spotlight, opcion: aro_muneca, dur: 0.4, exacto: true, lado: right, color: "#4848ff"}
+- {seg: 25.2, accion: spotlight, opcion: aros, dur: 0.8, exacto: true}
+- {seg: 26.0, accion: hands_on_head, opcion: carcel, dur: 0.85, exacto: true}
+- {seg: 26.9, accion: spotlight, opcion: manos_eco, dur: 1.25, exacto: true, color: "#33ff55"}
+- {seg: 28.15, accion: spotlight, opcion: expresion, figura: exclaim, dur: 0.35, exacto: true}
+- {seg: 28.5, accion: hands_on_head, opcion: diablo, dur: 0.95, exacto: true, color: "#ff3030"}
+- {seg: 29.5, accion: raise_hand, opcion: luna_paloma, dur: 1.05, exacto: true, lado: right, color: "#c040ff"}
+- {seg: 30.8, accion: spotlight, opcion: cintas, dur: 0.6, exacto: true, color: "#33ff55"}
+- {seg: 31.5, accion: fast_swing, opcion: garras, dur: 0.35, exacto: true, lado: right}
+- {seg: 32.1, accion: spotlight, opcion: resorte_pierna, dur: 0.35, exacto: true, color: "#ff7a20"}
+- {seg: 32.5, accion: fast_swing, opcion: rayo_patada, dur: 0.35, exacto: true, lado: left}
+- {seg: 33.0, accion: spotlight, opcion: estelas_pelo, dur: 0.3, exacto: true}
+- {seg: 33.4, accion: spotlight, opcion: ojos_mas, dur: 0.45, exacto: true, color: "#33ff55"}
