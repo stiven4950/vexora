@@ -55,6 +55,8 @@ ECHO_KEEP = 2
 # cada copia hacia atrás.
 ECHO_STEP = 0.15
 ECHO_FADE = 0.45
+# Fotogramas que tarda en salir la espada de la espalda hasta la dirección del brazo.
+SWORD_DRAW_FRAMES = 7
 # Masa a corbata: fracción del momento con los dedos resaltados y fin de la masa que da vueltas.
 DOUGH_FINGERS = 0.3
 DOUGH_TIE = 0.55
@@ -431,24 +433,32 @@ def _bow(at: np.ndarray, size: float, across, up) -> list[np.ndarray]:
     return wings + [knot]
 
 
-def _watch(at: np.ndarray, size: float, along, frame_index: int) -> list[np.ndarray]:
-    """Un reloj puesto en la muñeca: la esfera sobre la muñeca y la correa que la rodea de lado a lado
-    del brazo (cruza el antebrazo, no corre a lo largo de él), con las dos manecillas que avanzan."""
+def _watch(at: np.ndarray, size: float, along, frame_index: int, layer=None, color=None, alpha: float = 1.0) -> list[np.ndarray]:
+    """Un reloj puesto en la muñeca, en perspectiva. La muñeca es un cilindro a lo largo del
+    antebrazo: la correa es un aro alrededor de él (una elipse achatada a lo largo del brazo) y su
+    mitad de atrás queda tapada por el brazo; la esfera mira a la cámara, también achatada, con un
+    bisel que le da grosor y dos manecillas que avanzan."""
     n = np.array([-along[1], along[0]])  # el ancho del brazo
-    t = np.linspace(0, TAU, 32)
-    dial = at + np.stack([np.cos(t), np.sin(t)], axis=1) * size * 0.5
-    bezel = at + np.stack([np.cos(t), np.sin(t)], axis=1) * size * 0.6
-    half = size * 0.32  # la correa, un poco más angosta que la esfera
-    strap = [np.array([at + along * half + n * size * 0.6, at + along * half + n * size * 1.15]),
-             np.array([at - along * half + n * size * 0.6, at - along * half + n * size * 1.15]),
-             np.array([at + along * half - n * size * 0.6, at + along * half - n * size * 1.15]),
-             np.array([at - along * half - n * size * 0.6, at - along * half - n * size * 1.15]),
-             np.array([at + along * half + n * size * 1.15, at - along * half + n * size * 1.15]),
-             np.array([at + along * half - n * size * 1.15, at - along * half - n * size * 1.15])]
+    wrist_r = size * 0.55  # radio del cilindro de la muñeca
+    tilt = 0.38  # cuánto se ve el aro de la correa: 0 de canto, 1 de frente
+    lines = []
+    for offset in (-0.22, 0.22):  # los dos bordes de la correa
+        c = at + along * size * offset
+        t = np.linspace(0, np.pi, 18)  # la mitad de delante; la de atrás la tapa el brazo
+        lines.append(c + np.outer(np.cos(t) * wrist_r, n) + np.outer(np.sin(t) * wrist_r * tilt, along))
+    face = at + along * wrist_r * tilt * 0.6  # la esfera, en el frente de la muñeca
+    t = np.linspace(0, TAU, 36)
+    rx, ry = size * 0.42, size * 0.42 * 0.72  # achatada en la dirección del brazo
+    bezel = face + np.outer(np.cos(t) * rx, n) + np.outer(np.sin(t) * ry, along)
+    rim = bezel + along * size * 0.06  # el canto de la caja, apenas corrido: se ve el grosor
+    dial = face + np.outer(np.cos(t) * rx * 0.78, n) + np.outer(np.sin(t) * ry * 0.78, along)
+    if layer is not None and color is not None:
+        fill_polygon(layer, dial, np.asarray(color, np.float32) * 0.35, alpha * 0.6, 1.0, feather=1.0)
     minute = frame_index * 0.25
-    hands_ = [np.array([at, at + np.array([np.sin(minute), -np.cos(minute)]) * size * 0.42]),
-              np.array([at, at + np.array([np.sin(minute / 12), -np.cos(minute / 12)]) * size * 0.28])]
-    return [bezel, dial] + strap + hands_
+    tick = [face + np.cos(a) * rx * 0.62 * n + np.sin(a) * ry * 0.62 * along for a in np.linspace(0, TAU, 4, endpoint=False)]
+    hands_ = [np.array([face, face + (np.sin(minute) * n * rx - np.cos(minute) * along * ry) * 0.7]),
+              np.array([face, face + (np.sin(minute / 12) * n * rx - np.cos(minute / 12) * along * ry) * 0.45])]
+    return lines + [rim, bezel, dial] + [np.array([p, p + (face - p) * 0.15]) for p in tick] + hands_
 
 
 def _ribbon_watch(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
@@ -461,7 +471,10 @@ def _ribbon_watch(body, frame, scale, frame_index, runtime, layer, color, alpha,
         return []
     highest = min(wrists, key=lambda s: wrists[s][1])
     st = runtime.swoosh.setdefault(f"watch:{body.prefix}:{event.start_frame if event else 0}", {})
-    side = st.setdefault("side", highest if body.get("left_shoulder") is not None and wrists[highest][1] < body.get("left_shoulder")[1] + 0.3 * scale else _moving_hand(body, event))
+    raised = body.get("left_shoulder") is not None and wrists[highest][1] < body.get("left_shoulder")[1] + 0.3 * scale
+    side = highest if raised else _moving_hand(body, event)
+    if _phase(runtime, event) >= 0.38:  # la mano se fija al formarse el moño, no al empezar las cintas
+        side = st.setdefault("side", side)
     wrist, elbow = body.get(f"{side}_wrist"), body.get(f"{side}_elbow")
     if wrist is None or elbow is None:
         return []
@@ -470,10 +483,10 @@ def _ribbon_watch(body, frame, scale, frame_index, runtime, layer, color, alpha,
     if u < 0.4:  # las cintas orbitan y se van cerrando sobre la muñeca
         return ribbon_curves(body, frame, scale, age, layer, alpha, wrist, _ease(_seg(u, 0.2, 0.4)) * 0.9)
     along = (wrist - elbow) / max(float(np.linalg.norm(wrist - elbow)), 1e-6)
-    size = 0.2 * scale
+    size = 0.32 * scale  # que se lea: con la mano a 15-20 px, un reloj del tamaño real es una mancha
     ribbons = [resample(c) for c in ribbon_curves(body, frame, scale, age, np.zeros_like(layer), 0.0, wrist, 0.9)] or [np.array([wrist, wrist + across])]
     bow = _bow(wrist, size, across, up)
-    watch = _watch(wrist, size, along, frame_index)
+    watch = _watch(wrist, size, along, frame_index, layer if u >= 0.68 else None, color, alpha)
     lines, _stage = chain([(0.4, ribbons), (0.5, bow), (0.68, watch)], u, blend=0.6)
     tint = accent(runtime, color) if u >= 0.62 else color  # el cambio de color al volverse reloj
     return [(line, tint) for line in lines]
@@ -502,16 +515,34 @@ def _samurai(body, frame, scale, runtime, layer, alpha, event) -> list[np.ndarra
         d_hilt = _unit(up * 1.0 + out * 0.35)
         hilt_tip = hilt_base + d_hilt * 0.55 * scale
         reach = wrist is not None and wrist[1] < shoulder[1] + 0.1 * scale and float(np.linalg.norm(wrist - hilt_tip)) < 0.6 * scale
-        if reach:
-            st[side] = True  # la alcanzó: la espada sale
-        if st.get(side) and wrist is not None and elbow is not None:
-            d = _unit(wrist - elbow)
+        if reach and side not in st:
+            st[side] = runtime.active_frames  # la alcanzó: empieza a sacarla
+        grip = _hand(body, side)
+        if side in st and grip is not None and elbow is not None:
+            # La dirección del brazo, suavizada: los puntos de la mano tiemblan y la hoja los amplifica.
+            aim = _unit(grip - elbow)
+            prev = st.get(f"{side}_aim")
+            aim = _unit(prev * 0.6 + aim * 0.4) if prev is not None else aim
+            st[f"{side}_aim"] = aim
+            # Al sacarla, la hoja sale de la espalda: apunta hacia abajo por detrás del hombro y gira
+            # hasta quedar en la dirección del brazo, descubriéndose.
+            k = _ease(min((runtime.active_frames - st[side]) / SWORD_DRAW_FRAMES, 1.0))
+            sheathed = -d_hilt
+            ang0, ang1 = np.arctan2(sheathed[1], sheathed[0]), np.arctan2(aim[1], aim[0])
+            turn = (ang1 - ang0 + np.pi) % TAU - np.pi
+            ang = ang0 + turn * k
+            d = np.array([np.cos(ang), np.sin(ang)])
             n = np.array([-d[1], d[0]])
-            guard = wrist + d * 0.05 * scale
-            tip = guard + d * 1.3 * scale
+            guard = grip + d * 0.04 * scale
+            tip = guard + d * 1.3 * scale * (0.35 + 0.65 * k)
+            lines += [np.array([guard + n * 0.08 * scale, guard - n * 0.08 * scale]), np.array([grip - d * 0.1 * scale, guard])]
+            if k < 0.5 and mask is not None:  # todavía detrás del hombro: solo asoma fuera del cuerpo
+                spine = guard + np.outer(np.linspace(0, float(np.linalg.norm(tip - guard)), 30), d)
+                lines += [spine[a:b] for a, b in visible(spine, -np.ones(len(spine)), mask)]
+                continue
             blade = np.array([guard + n * 0.025 * scale, tip - d * 0.08 * scale + n * 0.02 * scale, tip, guard - n * 0.025 * scale])
             fill_polygon(layer, blade, WHITE * 0.95, alpha * 0.9, 1.0, feather=1.0)
-            lines += [blade, np.array([guard + n * 0.08 * scale, guard - n * 0.08 * scale]), np.array([wrist - d * 0.12 * scale, guard])]
+            lines.append(blade)
             continue
         n = np.array([-d_hilt[1], d_hilt[0]])
         fill_band(layer, np.array([hilt_base, hilt_tip]), np.array([0.05, 0.05]) * scale, alpha * 0.85)
