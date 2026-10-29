@@ -729,11 +729,15 @@ def hand_mouth_events(frames, fps, width, height):
         if mouth is None:
             return None
         torso = _torso(pts)
+        eyes = [pts[e] for e in ("left_eye", "right_eye") if e in pts]
+        eyes_y = float(np.mean([e[1] for e in eyes])) if eyes else None
         near = []
         for side in ("left", "right"):
             hand = owner.left_hand if side == "left" else owner.right_hand
             tips = [np.array([l.x * width, l.y * height]) for l in hand.landmarks if l.name.endswith(("index_tip", "middle_tip", "thumb_tip"))] if hand is not None else []
             wrist = pts.get(f"{side}_wrist")
+            if tips and eyes_y is not None and sum(t[1] < eyes_y for t in tips) * 2 > len(tips):
+                continue  # la mano sube a los ojos: se tapa la cara, no se lleva algo a la boca
             if tips and min(float(np.linalg.norm(t - mouth)) for t in tips) / torso <= MOUTH_TIP:
                 near.append((side, wrist if wrist is not None else tips[0]))
             elif wrist is not None and float(np.linalg.norm(wrist - mouth)) / torso <= MOUTH_WRIST:
@@ -751,6 +755,12 @@ FINGER_OUT = 1.15
 COUNT_SMOOTH = 5  # mediana de tantos fotogramas contra el temblor de los dedos
 COUNT_MIN_CHANGES = 2
 COUNT_MIN_S = 0.6
+# Contar es mostrar un número un rato y pasar al siguiente: cada número se sostiene al menos
+# COUNT_HOLD_S, y hacen falta COUNT_MIN_CHANGES pasos de uno en uno (1→2→3). Con las manos
+# abiertas que se mueven (video_41) el total salta 8, 10, 9, 4 en uno o dos cuadros.
+COUNT_HOLD_S = 0.2
+# Se empieza a contar desde abajo: el primer número del conteo es como mucho este.
+COUNT_FIRST_MAX = 3
 
 
 def _fingers_up(hand, side: str, width: int, height: int) -> int | None:
@@ -786,6 +796,19 @@ def _count(owner, pts, width: int, height: int) -> int | None:
     return total if seen else None
 
 
+def _held_steps(smooth: list[tuple[int, int | None]], hold: int) -> list[tuple[int, int]]:
+    """Los números que se sostienen al menos `hold` cuadros seguidos: (primer cuadro, número)."""
+    steps, run_start, run_value = [], 0, None
+    for k in range(len(smooth) + 1):
+        value = smooth[k][1] if k < len(smooth) else None
+        if k < len(smooth) and value == run_value:
+            continue
+        if run_value is not None and k - run_start >= hold and (not steps or steps[-1][1] != run_value):
+            steps.append((smooth[run_start][0], run_value))
+        run_start, run_value = k, value
+    return steps
+
+
 def finger_count_events(frames, fps, width, height):
     """Cuenta con los dedos: tramos con las manos arriba en los que el número de dedos estirados
     cambia al menos COUNT_MIN_CHANGES veces. `detail` = "conteo=cuadro:n,cuadro:n" (cada cambio)."""
@@ -804,15 +827,14 @@ def finger_count_events(frames, fps, width, height):
             owner, pts = _pose(record, person, width, height)
             ready = pts is not None and "left_shoulder" in pts and "left_hip" in pts
             raw.append((record.frame, _count(owner, pts, width, height) if ready else None))
-        steps, current = [], None
+        smooth = []
         for k, (frame, _) in enumerate(raw):
             near = [n for _, n in raw[max(k - COUNT_SMOOTH // 2, 0):k + COUNT_SMOOTH // 2 + 1] if n]
-            n = int(np.median(near)) if near else None
-            if n is not None and n != current:
-                steps.append((frame, n))
-                current = n
-        if len(steps) - 1 < COUNT_MIN_CHANGES:
-            continue  # mostrar la mano no es contar
+            smooth.append((frame, int(np.median(near)) if near else None))
+        steps = _held_steps(smooth, int(round(COUNT_HOLD_S * fps)))
+        ups = [k for k, (a, b) in enumerate(zip(steps, steps[1:])) if b[1] - a[1] == 1]
+        if len(ups) < COUNT_MIN_CHANGES or steps[ups[0]][1] > COUNT_FIRST_MAX:
+            continue  # mostrar la mano, abrirla y cerrarla, o pasar de 8 a 10 no es contar
         event.target, event.kind = person, ""
         event.detail = "conteo=" + ",".join(f"{f}:{n}" for f, n in steps)
         out.append(event)
