@@ -751,7 +751,7 @@ reactions:
       style: {shapes: [camera_flash], thickness: 0.008, focus: false}
       trigger: {hold: 14, fade_in: 1, fade_out: 6}
   # video_52 seg. 23,5: el brazo estirado con un electrocardiograma.
-  - name: pulso
+  - name: electrocardiograma
     weight: 0.3
     cooldown: 300
     effects:
@@ -838,7 +838,7 @@ reactions:
     - type: adornment
       style: {shapes: [rubber_band], thickness: 0.008, focus: false}
       trigger: {hold: 20, fade_in: 1, fade_out: 6}
-  - name: pulso
+  - name: electrocardiograma
     weight: 0.2
     cooldown: 300
     effects:

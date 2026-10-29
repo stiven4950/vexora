@@ -34,7 +34,7 @@ momentos:
 - {seg: 21.1, accion: spotlight, opcion: estallido, dur: 0.3, exacto: true, color: "#ff7a20"}
 - {seg: 21.5, accion: arms_up, opcion: espadas, dur: 0.75, exacto: true, color: "#33ff55"}
 - {seg: 22.3, accion: spotlight, opcion: cadena_energia, dur: 0.85, exacto: true, lado: right}
-- {seg: 23.2, accion: point, opcion: pulso, dur: 1.35, exacto: true, lado: right, color: "#ff3030"}
+- {seg: 23.2, accion: point, opcion: electrocardiograma, dur: 1.35, exacto: true, lado: right, color: "#ff3030"}
 - {seg: 24.8, accion: spotlight, opcion: aro_muneca, dur: 0.4, exacto: true, lado: right, color: "#4848ff"}
 - {seg: 25.2, accion: spotlight, opcion: aros, dur: 0.8, exacto: true}
 - {seg: 26.0, accion: hands_on_head, opcion: carcel, dur: 0.85, exacto: true}
