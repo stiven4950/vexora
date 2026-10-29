@@ -12,9 +12,11 @@ generales.
 
 ## La intención del creador
 
-1. **Un color por toma.** El color cambia en cada corte de cámara: rojo, verde, azul, amarillo,
-   naranja, morado, turquesa. Dentro de una toma todo comparte color. Es la regla más visible del
-   video.
+1. **Un dibujo nuevo, un color nuevo.** El color cambia con cada idea (rojo, verde, azul, amarillo,
+   naranja, morado, turquesa), cada 1,3 s en promedio. Primero se leyó como "un color por toma",
+   pero no hay cortes: la cámara es de mano y se mueve suave (el flujo del fondo no tiene picos en
+   los cambios), y lo que cambia a los 0,5 s es que el bailarín se da vuelta. Tampoco sigue la
+   música (70% de los cambios caen cerca de un golpe; al azar, 62%) ni el foco del cuerpo.
 2. **La cabeza es el lienzo favorito**: ojos en X (cuatro veces), cuernos, gato, aureola, "?", nube de
    pensamiento, ojos de diablo, aro que orbita la cabeza.
 3. **Una cosa a la vez y muy rápido**: casi nunca hay dos dibujos a la vez; cada uno dura 0,3-0,8 s y
@@ -95,8 +97,9 @@ Estado: ✅ ya lo hacemos · 🟡 hay algo parecido · ❌ nuevo · ❓ no está
 
 ### Nuevos
 
-1. **Un color por toma** (todo el video). Cada corte de cámara abre un capítulo de color. Es una regla
-   de coreografía (`build_chapters`), no un dibujo.
+1. **Un color por efecto** (todo el video). Cada efecto nuevo abre un capítulo de color si el anterior
+   ya duró 0,8 s (`color_per_effect` en el catálogo `baile`, `build_chapters`). En videos editados,
+   cada corte de cámara también abre capítulo.
 2. **Electrocardiograma por el brazo** (23,5-24,5). Con el brazo estirado, una línea de pulso corre
    del hombro a la mano; al final se vuelve aros y puntos.
 3. **Rayo del cielo a la mano levantada** (10,4-10,6). Lo mismo que el meteoro de unpair_dance:
@@ -121,7 +124,7 @@ Estado: ✅ ya lo hacemos · 🟡 hay algo parecido · ❌ nuevo · ❓ no está
 
 ## Patrones
 
-1. **El corte de cámara cambia el color.** Dentro de una toma, un solo color.
+1. **Cada idea trae su color.** Un dibujo nuevo, un color nuevo.
 2. **La cabeza encadena accesorios**: uno se transforma en el siguiente en vez de apagarse.
 3. **Un dibujo a la vez**, de 0,3-0,8 s.
 4. **Lo que aparece se deshace**: en guiones, garabatos o chispas (letras, músculos, pulso).
