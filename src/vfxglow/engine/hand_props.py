@@ -356,7 +356,13 @@ def _drink(shape, body, frame, scale, frame_index, runtime, layer, color, alpha,
         return []
     mouth, hand, _reach = found
     span = hand - mouth
-    if float(np.linalg.norm(span)) < 0.3 * scale:
+    length = _VESSELS[shape][0]
+    if float(np.linalg.norm(span)) > 0.6 * scale:
+        # Lejos de la boca, el envase va en la mano, de pie: el pico arriba y la mano a media altura
+        # (video_41 seg. 0,0-0,4 y 1,0-1,4).
+        down = frame[2]
+        mouth, span = hand - down * length * 0.55 * scale, down * scale
+    elif float(np.linalg.norm(span)) < 0.3 * scale:
         # La mano en la boca: el envase se inclina hacia arriba y hacia el lado del codo, como al
         # beber (colgando hacia abajo se leía como un bloque sobre el pecho, video_41 seg. 17,2).
         _center, across, down = frame

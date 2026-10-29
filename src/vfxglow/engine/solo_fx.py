@@ -47,6 +47,20 @@ def _side(body, event, joint: str = "wrist") -> str | None:
     return min(found, key=lambda item: item[1][1])[0] if joint == "wrist" else max(found, key=lambda item: item[1][1])[0]
 
 
+def head_point(body, frame, scale: float) -> np.ndarray:
+    """La nariz o, si las manos la tapan y la pose la pierde, lo más parecido: el punto medio de
+    las orejas o de los ojos, o encima de los hombros (video_41 seg. 15,1: manos en la cara)."""
+    nose = body.get("nose")
+    if nose is not None:
+        return nose
+    for a, b in (("left_ear", "right_ear"), ("left_eye", "right_eye")):
+        mid = body.mid(a, b)
+        if mid is not None:
+            return mid
+    center, _across, down = frame
+    return center - down * 0.45 * scale
+
+
 def _velocity(body, joint: str) -> np.ndarray:
     vel = body.points.get(f"vel:{body.prefix}{joint}")
     return np.asarray(vel, dtype=np.float64) if vel is not None else np.zeros(2)
@@ -157,9 +171,7 @@ def _cloud(center: np.ndarray, rx: float, ry: float, wobble: float, lumps: int =
 
 
 def _thought(body, scale, frame_index, runtime, layer, color, alpha, event, rng, frame) -> list[np.ndarray]:
-    nose = body.get("nose")
-    if nose is None:
-        return []
+    nose = head_point(body, frame, scale)
     center, across, down = frame
     up = -down
     u = _phase(runtime, event)
@@ -274,18 +286,16 @@ def _hair(body, scale, frame_index, runtime, layer, color, alpha, event, rng, fr
 
 
 def _head_orbit(body, scale, frame_index, runtime, layer, color, alpha, event, frame) -> list[np.ndarray]:
-    nose = body.get("nose")
-    if nose is None:
-        return []
+    nose = head_point(body, frame, scale)
     _center, across, down = frame
     up = -down
     from vfxglow.engine.duo_fx import body_mask
 
-    pivot = nose + up * 0.1 * scale
-    radius = 0.5 * scale
+    pivot = nose + up * 0.12 * scale
+    radius = 0.65 * scale  # más ancho que la cabeza y las manos: se ve aunque las manos tapen la cara
     age = runtime.active_frames
     a0 = age * 0.35
-    phi = np.linspace(a0, a0 + 3.2, 48)  # un arco que gira
+    phi = np.linspace(a0, a0 + 4.4, 56)  # un arco largo que gira
     x, z = np.cos(phi), np.sin(phi)
     tilt = 0.35 * np.sin(age * 0.08)
     curve = pivot + np.outer(x * radius, across) + np.outer(z * radius * 0.3 + x * radius * tilt, up)

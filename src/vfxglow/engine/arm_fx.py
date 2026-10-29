@@ -3,8 +3,8 @@
 Adornos (`type: adornment`, `style.shapes`), como los de engine/duo_fx.py y engine/solo_fx.py:
 
 - walk_slash: al caminar, cada paso es un tajo: una banda ancha que cruza el torso en diagonal, del
-  hombro a la cadera contraria, se desliza hacia abajo y sale por la mano (seg. 2,0-4,1). La
-  diagonal cambia de un paso al siguiente.
+  hombro de la derecha de la imagen a la cadera de la izquierda, y se desliza hacia abajo
+  (seg. 2,0-4,1). Es siempre la misma diagonal.
 - spray_can: un aerosol en la mano que rocía una nube blanca hacia adelante; la nube crece y se abre
   con salpicaduras (seg. 5,0-5,9). camera_flash: la variante de flash de cámara, un destello que
   sale de la mano y se apaga.
@@ -79,16 +79,22 @@ def _circle(center: np.ndarray, rx: float, ry: float | None = None, n: int = 28,
     return center + np.outer(np.cos(t) * rx, a) + np.outer(np.sin(t) * (ry if ry is not None else rx), b)
 
 
-def _walk_slash(body, frame, scale, runtime, layer, alpha, event, seed) -> list[np.ndarray]:
+def _walk_slash(body, frame, scale, runtime, layer, alpha, event) -> list[np.ndarray]:
     ls, rs, lh, rh = (body.get(n) for n in ("left_shoulder", "right_shoulder", "left_hip", "right_hip"))
     if any(p is None for p in (ls, rs, lh, rh)):
         return []
-    a, b = (ls, rh) if seed % 2 == 0 else (rs, lh)  # la diagonal cambia de paso a paso
+    # Del hombro de la derecha de la imagen a la cadera de la izquierda, siempre la misma diagonal
+    # (video_41 seg. 2,0-4,1), cruzando todo el torso de lado a lado.
+    shoulders, hips = sorted((ls, rs), key=lambda p: p[0]), sorted((lh, rh), key=lambda p: p[0])
+    a, b = shoulders[1] - (shoulders[0] - shoulders[1]) * 0.15, hips[0] - (hips[1] - hips[0]) * 0.8
     u = _phase(runtime, event)
-    _center, _across, down = frame
-    slide = (_ease(_seg(u, 0.0, 0.8)) - 0.3) * 0.9 * scale  # se desliza hacia abajo
-    q = np.linspace(-0.1, 1.1, 30)[:, None]
-    curve = a + (b - a) * q + down * slide
+    d = _unit(b - a)
+    normal = np.array([-d[1], d[0]])
+    if normal[1] < 0:
+        normal = -normal
+    slide = (_ease(_seg(u, 0.0, 0.8)) - 0.6) * 0.7 * scale  # se desliza hacia abajo, de lado
+    q = np.linspace(-0.2, 1.0, 30)[:, None]
+    curve = a + (b - a) * q + normal * slide
     widths = 0.38 * scale * taper(len(curve), 0.3).clip(0.3, 1.0) * (1.0 - 0.6 * _seg(u, 0.7, 1.0))
     fill_band(layer, curve, widths, alpha)
     return [curve]
@@ -115,6 +121,12 @@ def _spray(shape, body, scale, frame_index, runtime, layer, color, alpha, event,
     nozzle = can + ahead * 0.05 * scale
     lines.append(np.array([can, nozzle]))
     spray = _seg(u, 0.1, 0.75)
+    if spray > 0:  # la nube blanca, rellena y con bordes de nube, que crece frente a la boquilla
+        t = np.linspace(0, TAU, 60)
+        lump = 1.0 + 0.18 * np.abs(np.sin(t * 3.5 + frame_index * 0.2))
+        r = (0.15 + 0.45 * spray) * scale * lump
+        cloud = nozzle + ahead * r.mean() * 0.8 + np.stack([np.cos(t) * r, np.sin(t) * r], axis=1)
+        fill_polygon(layer, cloud, WHITE * 0.9 + tint * 0.15, alpha * 0.85 * (1 - _seg(u, 0.8, 1.0)), 1.0, feather=2.0)
     for _ in range(int(60 * spray)):  # la nube: muchas gotas finas en un cono
         r = rng.uniform(0.1, 1.0) * (0.3 + 1.1 * spray) * scale
         angle = rng.normal(0.0, 0.35 + 0.3 * spray)
@@ -201,9 +213,9 @@ def _charge(body, scale, frame_index, runtime, layer, alpha, event) -> list[np.n
 
 
 def _profile_head(body, frame, scale, layer, alpha) -> list[np.ndarray]:
-    nose = body.get("nose")
-    if nose is None:
-        return []
+    from vfxglow.engine.solo_fx import head_point
+
+    nose = head_point(body, frame, scale)
     _center, across, down = frame
     ears = [e for e in (body.get("left_ear"), body.get("right_ear")) if e is not None]
     back = np.mean(ears, axis=0) if ears else nose - across * 0.15 * scale
@@ -349,7 +361,7 @@ def _arrows_mask(body, frame, scale, runtime, layer, alpha, event) -> list[np.nd
         for k in range(3):
             q = (k / 3 + runtime.active_frames * 0.06) % 1.0
             tip = low + (high - low) * q
-            lines.append(np.array([tip - d * 0.08 * scale + n * 0.07 * scale, tip, tip - d * 0.08 * scale - n * 0.07 * scale]))
+            lines.append(np.array([tip - d * 0.12 * scale + n * 0.11 * scale, tip, tip - d * 0.12 * scale - n * 0.11 * scale]))
         return lines
     face = _ease(_seg(u, 0.6, 0.75))  # las flechas se vuelven la máscara
     up = -frame[2]
@@ -370,7 +382,7 @@ def arm_fx(shape, body, frame, scale, frame_index, runtime, layer, color, alpha,
     seed = zlib.crc32(f"{shape}:{body.prefix}:{event.start_frame if event else 0}".encode())
     rng = np.random.default_rng((seed + frame_index // 2) & 0xFFFFFFFF)
     if shape == "walk_slash":
-        return _walk_slash(body, frame, scale, runtime, layer, alpha, event, seed)
+        return _walk_slash(body, frame, scale, runtime, layer, alpha, event)
     if shape in ("spray_can", "camera_flash"):
         return _spray(shape, body, scale, frame_index, runtime, layer, color, alpha, event, np.random.default_rng(seed))
     if shape == "hook_ball":
