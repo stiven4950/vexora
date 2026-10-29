@@ -29,6 +29,8 @@ prop: a baseball cap. a hat.
 # Color por capítulo (como la referencia): gorra y parte del cuerpo encendida comparten color, y
 # el color solo cambia cuando cambia el foco.
 chapters: true
+# video_52: un dibujo nuevo, un color nuevo.
+color_per_effect: true
 # Nada compite con el protagonista: lo que no está en foco se apaga (línea de atención).
 attention: true
 # Dibujos de video_34 (configs/catalogs/_baile_compartido.yaml), a un peso que deja espacio a los

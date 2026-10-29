@@ -158,6 +158,9 @@ class Catalog(_Strict):
     # atención del análisis (engine/focus.py).
     attention: bool = False
     chapter_min_s: float = 0.8
+    # También abre capítulo de color cada efecto nuevo (un dibujo nuevo, un color nuevo; video_52:
+    # el color cambia con cada idea, cada 1,3 s en promedio, sin relación con la cámara ni la música).
+    color_per_effect: bool = False
     # Ningún tramo sin efecto: un hueco más largo que esto (s) se rellena con un efecto del foco de
     # ese momento (0 = no se rellena). Ver fill_gaps.
     max_gap_s: float = 0.0
@@ -565,7 +568,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
     if catalog.chapters and not pair:
         palette = catalog.defaults.get("style", {}).get("palette") or catalog.colors
         weights = skin_scores(palette, luma) ** 2 if luma is not None else None
-        script.chapters = build_chapters(events, palette, seed, fps, brief.video.frame_count, catalog.chapter_min_s, weights, cuts)
+        starts = [d.frame for d in decisions if not d.choice.startswith("nada")] if catalog.color_per_effect else None
+        script.chapters = build_chapters(events, palette, seed, fps, brief.video.frame_count, catalog.chapter_min_s, weights, cuts, starts)
     if pins is not None and not pair:
         acts = pin_chapters(pins, fps, brief.video.frame_count)
         if acts:
@@ -1056,7 +1060,7 @@ def pin_chapters(pins, fps: float, frame_count: int) -> list[Chapter]:
     return chapters
 
 
-def build_chapters(events: list[MotionEvent], palette, seed: int, fps: float, frame_count: int, min_s: float = 0.8, weights=None, cuts: list[int] | None = None) -> list[Chapter]:
+def build_chapters(events: list[MotionEvent], palette, seed: int, fps: float, frame_count: int, min_s: float = 0.8, weights=None, cuts: list[int] | None = None, starts: list[int] | None = None) -> list[Chapter]:
     """Capítulos de foco estable con dos colores cada uno (principal y acento).
 
     Un capítulo nuevo empieza cuando un evento de foco nombra otro foco. Un capítulo dura al
@@ -1065,7 +1069,8 @@ def build_chapters(events: list[MotionEvent], palette, seed: int, fps: float, fr
     capítulos seguidos nunca repiten color principal. `weights` (uno por color) hace que unos
     colores salgan más que otros (los que contrastan con la piel, ver director/palette.py).
     Cada corte de cámara (`cuts`) también abre capítulo, aunque llegue antes de `min_s`: en un
-    video editado, cada toma tiene su color (video_52).
+    video editado, cada toma tiene su color. `starts` (el inicio de cada efecto elegido) abre
+    capítulo si el anterior ya duró `min_s`: un dibujo nuevo, un color nuevo (video_52).
     """
     shortest = min_s * fps
     marks: list[tuple[int, str]] = []
@@ -1085,6 +1090,11 @@ def build_chapters(events: list[MotionEvent], palette, seed: int, fps: float, fr
         marks.append((start, focus))
     if not marks or marks[0][0] > 0:
         marks.insert(0, (0, "inicio"))
+    if starts:
+        for start in sorted(starts):
+            if all(abs(start - m[0]) >= shortest for m in marks):
+                marks.append((start, "efecto"))
+        marks.sort()
     if cuts:
         by_start = dict(marks)
         for cut in cuts:

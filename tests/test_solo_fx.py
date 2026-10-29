@@ -41,3 +41,10 @@ def test_every_camera_cut_opens_a_color_chapter() -> None:
     assert [c.start_frame for c in chapters] == [0, 40, 55, 200]
     colors = [c.colors[0] for c in chapters]
     assert all(a != b for a, b in zip(colors, colors[1:]))  # cada toma cambia de color
+
+
+def test_every_new_effect_brings_a_new_color() -> None:
+    palette = [(1, 0, 0), (0, 1, 0), (0, 0, 1)]
+    chapters = build_chapters([], palette, 1, 30.0, 300, 0.8, starts=[10, 40, 60, 150])
+    # Cada efecto abre capítulo, salvo el que llega antes de 0,8 s del anterior (60).
+    assert [c.start_frame for c in chapters] == [0, 40, 150]
