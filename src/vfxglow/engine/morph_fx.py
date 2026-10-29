@@ -432,25 +432,36 @@ def _bow(at: np.ndarray, size: float, across, up) -> list[np.ndarray]:
 
 
 def _watch(at: np.ndarray, size: float, along, frame_index: int) -> list[np.ndarray]:
-    """Un reloj en la muñeca: la correa a los lados, la carátula y dos manecillas que avanzan."""
-    n = np.array([-along[1], along[0]])
-    face = at + 0.0
-    t = np.linspace(0, TAU, 28)
-    dial = face + np.stack([np.cos(t), np.sin(t)], axis=1) * size * 0.55
-    strap = [np.array([face + n * size * 0.35 - along * size * 0.55, face + n * size * 0.35 - along * size * 1.3]),
-             np.array([face - n * size * 0.35 - along * size * 0.55, face - n * size * 0.35 - along * size * 1.3]),
-             np.array([face + n * size * 0.35 + along * size * 0.55, face + n * size * 0.35 + along * size * 1.3]),
-             np.array([face - n * size * 0.35 + along * size * 0.55, face - n * size * 0.35 + along * size * 1.3])]
+    """Un reloj puesto en la muñeca: la esfera sobre la muñeca y la correa que la rodea de lado a lado
+    del brazo (cruza el antebrazo, no corre a lo largo de él), con las dos manecillas que avanzan."""
+    n = np.array([-along[1], along[0]])  # el ancho del brazo
+    t = np.linspace(0, TAU, 32)
+    dial = at + np.stack([np.cos(t), np.sin(t)], axis=1) * size * 0.5
+    bezel = at + np.stack([np.cos(t), np.sin(t)], axis=1) * size * 0.6
+    half = size * 0.32  # la correa, un poco más angosta que la esfera
+    strap = [np.array([at + along * half + n * size * 0.6, at + along * half + n * size * 1.15]),
+             np.array([at - along * half + n * size * 0.6, at - along * half + n * size * 1.15]),
+             np.array([at + along * half - n * size * 0.6, at + along * half - n * size * 1.15]),
+             np.array([at - along * half - n * size * 0.6, at - along * half - n * size * 1.15]),
+             np.array([at + along * half + n * size * 1.15, at - along * half + n * size * 1.15]),
+             np.array([at + along * half - n * size * 1.15, at - along * half - n * size * 1.15])]
     minute = frame_index * 0.25
-    hands_ = [np.array([face, face + np.array([np.sin(minute), -np.cos(minute)]) * size * 0.42]),
-              np.array([face, face + np.array([np.sin(minute / 12), -np.cos(minute / 12)]) * size * 0.28])]
-    return [dial] + strap + hands_
+    hands_ = [np.array([at, at + np.array([np.sin(minute), -np.cos(minute)]) * size * 0.42]),
+              np.array([at, at + np.array([np.sin(minute / 12), -np.cos(minute / 12)]) * size * 0.28])]
+    return [bezel, dial] + strap + hands_
 
 
 def _ribbon_watch(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
     _center, across, down = frame
     up = -down
-    side = event.kind if event is not None and event.kind in ("left", "right") else "right"
+    # La muñeca de la mano levantada (video_52 seg. 20,1: el moño y el reloj van en la mano que sube
+    # junto a la cara), la de la mano que se mueve si las dos están abajo.
+    wrists = {s: body.get(f"{s}_wrist") for s in ("left", "right") if body.get(f"{s}_wrist") is not None}
+    if not wrists:
+        return []
+    highest = min(wrists, key=lambda s: wrists[s][1])
+    st = runtime.swoosh.setdefault(f"watch:{body.prefix}:{event.start_frame if event else 0}", {})
+    side = st.setdefault("side", highest if body.get("left_shoulder") is not None and wrists[highest][1] < body.get("left_shoulder")[1] + 0.3 * scale else _moving_hand(body, event))
     wrist, elbow = body.get(f"{side}_wrist"), body.get(f"{side}_elbow")
     if wrist is None or elbow is None:
         return []
@@ -459,7 +470,7 @@ def _ribbon_watch(body, frame, scale, frame_index, runtime, layer, color, alpha,
     if u < 0.4:  # las cintas orbitan y se van cerrando sobre la muñeca
         return ribbon_curves(body, frame, scale, age, layer, alpha, wrist, _ease(_seg(u, 0.2, 0.4)) * 0.9)
     along = (wrist - elbow) / max(float(np.linalg.norm(wrist - elbow)), 1e-6)
-    size = 0.16 * scale
+    size = 0.2 * scale
     ribbons = [resample(c) for c in ribbon_curves(body, frame, scale, age, np.zeros_like(layer), 0.0, wrist, 0.9)] or [np.array([wrist, wrist + across])]
     bow = _bow(wrist, size, across, up)
     watch = _watch(wrist, size, along, frame_index)
@@ -475,6 +486,7 @@ def _samurai(body, frame, scale, runtime, layer, alpha, event) -> list[np.ndarra
     center, across, down = frame
     up = -down
     st = runtime.swoosh.setdefault(f"swords:{body.prefix}:{event.start_frame if event else 0}", {})
+    mask = body_mask(body, layer.shape[:2], scale)
     lines = []
     for side in ("left", "right"):
         shoulder, wrist, elbow = body.get(f"{side}_shoulder"), body.get(f"{side}_wrist"), body.get(f"{side}_elbow")
@@ -482,9 +494,14 @@ def _samurai(body, frame, scale, runtime, layer, alpha, event) -> list[np.ndarra
             continue
         sign = 1.0 if float((shoulder - center) @ across) >= 0 else -1.0
         out = across * sign
-        hilt_base = shoulder + up * 0.1 * scale - out * 0.05 * scale
-        hilt_tip = hilt_base + up * 0.32 * scale + out * 0.12 * scale
-        reach = wrist is not None and wrist[1] < shoulder[1] + 0.1 * scale and float(np.linalg.norm(wrist - hilt_tip)) < 0.55 * scale
+        # Colgada en la espalda en diagonal: la empuñadura sale junto al cuello, hacia arriba y un poco
+        # afuera; la hoja baja cruzando la espalda hacia la cadera contraria y solo asoma por fuera de
+        # la silueta (video_52 seg. 21,5).
+        neck = center + up * 0.05 * scale
+        hilt_base = neck + out * 0.18 * scale
+        d_hilt = _unit(up * 1.0 + out * 0.35)
+        hilt_tip = hilt_base + d_hilt * 0.55 * scale
+        reach = wrist is not None and wrist[1] < shoulder[1] + 0.1 * scale and float(np.linalg.norm(wrist - hilt_tip)) < 0.6 * scale
         if reach:
             st[side] = True  # la alcanzó: la espada sale
         if st.get(side) and wrist is not None and elbow is not None:
@@ -495,11 +512,14 @@ def _samurai(body, frame, scale, runtime, layer, alpha, event) -> list[np.ndarra
             blade = np.array([guard + n * 0.025 * scale, tip - d * 0.08 * scale + n * 0.02 * scale, tip, guard - n * 0.025 * scale])
             fill_polygon(layer, blade, WHITE * 0.95, alpha * 0.9, 1.0, feather=1.0)
             lines += [blade, np.array([guard + n * 0.08 * scale, guard - n * 0.08 * scale]), np.array([wrist - d * 0.12 * scale, guard])]
-        else:  # la empuñadura asoma sobre el hombro, con su guarda; la hoja va en la espalda
-            d = _unit(hilt_tip - hilt_base)
-            n = np.array([-d[1], d[0]])
-            lines += [np.array([hilt_base, hilt_tip]), np.array([hilt_base + n * 0.06 * scale, hilt_base - n * 0.06 * scale])]
-            fill_band(layer, np.array([hilt_base, hilt_tip]), np.array([0.04, 0.04]) * scale, alpha * 0.8)
+            continue
+        n = np.array([-d_hilt[1], d_hilt[0]])
+        fill_band(layer, np.array([hilt_base, hilt_tip]), np.array([0.05, 0.05]) * scale, alpha * 0.85)
+        lines += [np.array([hilt_base, hilt_tip]), np.array([hilt_base + n * 0.08 * scale, hilt_base - n * 0.08 * scale])]
+        if mask is not None:  # la hoja por la espalda: se ve solo donde no la tapa el cuerpo
+            sheath = hilt_base + np.outer(np.linspace(0, 1.4 * scale, 30), -d_hilt)
+            for a, b in visible(sheath, -np.ones(len(sheath)), mask):
+                lines.append(sheath[a:b])
     return lines
 
 

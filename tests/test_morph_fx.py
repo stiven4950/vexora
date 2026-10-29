@@ -58,6 +58,7 @@ def test_horns_end_as_x_eyes_of_the_other_color() -> None:
 def test_swords_come_out_only_when_the_hands_reach_them() -> None:
     low = {**POSE, "left_wrist": (205, 215), "right_wrist": (95, 215)}
     sheathed = _items("samurai_swords", range(0, 10), pose=low)[-1][0]
-    drawn = _items("samurai_swords", range(0, 10))[-1][0]
-    assert len(sheathed) == 4  # las dos empuñaduras con su guarda, en la espalda
-    assert len(drawn) > len(sheathed)  # con las manos arriba, junto a los hombros, salen las espadas
+    up = {**POSE, "left_wrist": (172, 98), "right_wrist": (128, 98), "left_elbow": (195, 120), "right_elbow": (105, 120)}
+    drawn = _items("samurai_swords", range(0, 10), pose=up)[-1][0]
+    assert sum(len(line) == 2 for line in sheathed) == 4  # dos empuñaduras con su guarda, en la espalda
+    assert any(len(line) == 4 for line in drawn)  # con las manos junto a la cabeza, salen las hojas
