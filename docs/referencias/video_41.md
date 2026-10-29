@@ -181,3 +181,33 @@ Estado: ✅ ya lo hacemos · 🟡 hay algo parecido · ❌ nuevo · ❓ no está
 - **20,0-21,9**: partes del cuerpo pintadas con transición hacia la parte que recibe el
   protagonismo; al deslizar una mano por el brazo, flechas en la dirección del movimiento, que
   terminan en la máscara (21,9, f27).
+
+## Qué se implementó
+
+| Efecto de la referencia | Forma (`style.shapes`) | Opción del catálogo `baile` |
+| --- | --- | --- |
+| Botella que se bebe (0-1,7) | `water_bottle`, `beer`, `can` | `hand_mouth`: botella, cerveza, lata |
+| Tajo en cada paso (2,0-4,1) | `walk_slash` | `step`: tajo |
+| Aerosol o flash (5,0-5,9) | `spray_can`, `camera_flash` | `point`: aerosol, flash |
+| Línea por el cierre de un brazo al otro (6,7-7,1) | `zipper_line` | `spotlight`: linea_cierre |
+| Pelota que se aplasta y se vuelve gancho (7,3-7,6) | `hook_ball` | `fast_swing`: gancho |
+| Cabeza en línea (8,2) | `profile_head` | `spotlight`: cabeza_perfil |
+| Barra de carga en el antebrazo (10,0-11,3) | `charge_bar` | `spotlight`: barra_carga |
+| Calavera, burla, asombro (12,1; 16,2; 21,9) | `skull`, `prank`, `shock` (`face_toon`) | `hands_on_head`: calavera; `cover_eyes`: burla; `face_touch`: asombro |
+| Pase de energía entre las manos (13,0-13,9) | `hand_volley` | `hands_on_head`: pase_manos |
+| Abanico (14,0) | `fan` | `hands_on_head`: abanico |
+| Una línea por mano en triángulo (15,6-15,9) | `hand_lines` | `cover_eyes`: lineas_manos |
+| Burbuja soplada (16,5-17,9) | `bubble_blow` | `hand_mouth`: burbuja_soplada |
+| Ola que se hala (18,0-19,3) | `wave_pull` | `spotlight`: ola_brazo |
+| Partes pintadas con transición (20,0-20,9) | `paint_relay` | `spotlight`: parte_pintada |
+| Flechas que se vuelven máscara (21,4-21,9) | `arrows_mask` | `spotlight`: flechas_mascara |
+
+## Calco de la referencia
+
+`configs/pruebas/video_41_referencia.yaml` fija los 25 momentos de la tabla, cada uno con su efecto,
+segundo y duración. Comparado con `tools/compare_reference.py`:
+
+- Donde la referencia dibuja, nosotros también dibujamos en el 74% de los fotogramas.
+- En la misma parte del cuerpo (la medida estricta): 42%. Lo que queda es sobre todo forma y
+  tiempo: un dibujo a mano no coincide trazo por trazo, y los momentos más cortos (destellos de
+  1-3 cuadros) no se fijaron uno por uno.
