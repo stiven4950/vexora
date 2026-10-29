@@ -122,10 +122,10 @@ def figure(shape: str, left: np.ndarray, right: np.ndarray, frame_index: int = 0
     if shape == "dots":
         return [place(np.stack([c[0] + np.cos(theta) * 0.06, c[1] + np.sin(theta) * 0.06], axis=1)) for c in lenses]
     if shape == "x_eyes":
-        size = 0.2
+        size = 0.3  # grandes: en video_52 cubren el ojo entero
         return [place(np.array([c + [-size, -size], c + [size, size]])) for c in lenses] + [place(np.array([c + [size, -size], c + [-size, size]])) for c in lenses]
     if shape == "plus_eyes":
-        size = 0.2
+        size = 0.3
         return [place(np.array([c + [-size, 0.0], c + [size, 0.0]])) for c in lenses] + [place(np.array([c + [0.0, -size], c + [0.0, size]])) for c in lenses]
     if shape == "band":
         t = np.linspace(-1.6, 1.5, 24)

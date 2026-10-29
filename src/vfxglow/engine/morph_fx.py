@@ -295,13 +295,14 @@ def ribbon_curves(body, frame, scale, age: float, layer, alpha, toward: np.ndarr
     center, across, down = frame
     up = -down
     hips = body.mid("left_hip", "right_hip")
-    pivot = center + (hips - center) * 0.4 if hips is not None else center + down * 0.4 * scale
+    # Alrededor del pecho y la cabeza (video_52 seg. 10,7-12,8: los arcos pasan junto a la cara).
+    pivot = center + (hips - center) * 0.15 if hips is not None else center + down * 0.15 * scale
     mask = body_mask(body, layer.shape[:2], scale)
     out = []
     # Tres cintas repartidas a un tercio de vuelta y largas (más de media vuelta): siempre hay
     # alguna por delante; giran a distinto ritmo, una al revés.
     for k, (height, tilt, speed, span) in enumerate(((-0.35, 0.28, 0.16, 3.6), (0.15, -0.22, -0.13, 3.3), (0.6, 0.18, 0.2, 3.0))):
-        radius = (0.95 - 0.12 * k) * scale * (1.0 - 0.85 * pull)
+        radius = (0.75 - 0.1 * k) * scale * (1.0 - 0.85 * pull)  # pegadas al cuerpo, no un aro lejano
         a0 = age * speed + k * TAU / 3
         phi = np.linspace(a0, a0 + span * (1.0 - 0.4 * pull), 72)
         x, z = np.cos(phi), np.sin(phi)
