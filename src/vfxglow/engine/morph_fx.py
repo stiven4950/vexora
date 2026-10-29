@@ -12,6 +12,8 @@ Adornos (`type: adornment`, `style.shapes`):
   anteriores y los más viejos desaparecen (seg. 6,9-7,8; 26,9-28,1).
 - head_shot: la mano como un arma apuntando a la cabeza; el disparo y la cabeza que estalla en
   llamas y chispas: la mente que explota (seg. 9,7-9,9).
+- dough_tie: los dedos se encienden, aparece una masa que él amasa de lado a lado como un panadero
+  (se aplasta y se estira con la mano) y la masa se convierte en la corbata (seg. 14,2-14,9).
 - tie_on: ponerse una corbata: el nudo en el cuello y la corbata que baja con la mano; la mano tapa
   su continuidad (seg. 14,6-14,9).
 - orbit_ribbons: cintas que orbitan alrededor del cuerpo en 3D, se tuercen (se ven de canto y de
@@ -45,7 +47,7 @@ from vfxglow.engine.solo_fx import head_point
 
 TAU = 2.0 * np.pi
 WHITE = np.array([1.0, 1.0, 1.0], np.float32)
-MORPH_FX = ("horns_morph", "rubber_band", "hand_echo", "head_shot", "tie_on", "orbit_ribbons", "ribbon_watch", "samurai_swords", "energy_chain", "jail_break", "moon_dove_wifi")
+MORPH_FX = ("horns_morph", "rubber_band", "hand_echo", "head_shot", "dough_tie", "tie_on", "orbit_ribbons", "ribbon_watch", "samurai_swords", "energy_chain", "jail_break", "moon_dove_wifi")
 FINGERS = ("thumb", "index", "middle", "ring", "pinky")
 # Cuántos contornos de las manos se quedan atrás (además del actual).
 ECHO_KEEP = 2
@@ -269,6 +271,58 @@ def _head_shot(body, frame, scale, frame_index, runtime, layer, color, event, rn
 
 
 # ----- ponerse la corbata -----
+
+
+def _tie_outline(knot: np.ndarray, across, down, length: float, scale: float) -> np.ndarray:
+    """El contorno de una corbata (nudo y cuerpo que se ensancha y acaba en punta), en un trazo."""
+    w = 0.07 * scale
+    top = knot + down * w * 1.2
+    end = top + down * max(length - w * 1.2, w)
+    return np.array([knot - across * w * 0.8, knot + across * w * 0.8, top + across * w * 0.5, end - down * w * 1.2 + across * w * 1.3,
+                     end, end - down * w * 1.2 - across * w * 1.3, top - across * w * 0.5, knot - across * w * 0.8])
+
+
+def _dough_tie(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
+    center, across, down = frame
+    side = _moving_hand(body, event)
+    hand = _hand(body, side)
+    hips = body.mid("left_hip", "right_hip")
+    if hand is None or hips is None:
+        return []
+    u = _phase(runtime, event)
+    tint = np.asarray(color, np.float32)
+    if u < 0.25:  # los dedos resaltados: rayitos desde las puntas
+        lines = []
+        for finger in FINGERS:
+            tip = body.get(f"{side}_{finger}_tip")
+            base = body.get(f"{side}_{finger}_{'ip' if finger == 'thumb' else 'pip'}")
+            if tip is not None and base is not None:
+                d = _unit(tip - base)
+                lines.append(np.array([tip + d * 0.02 * scale, tip + d * 0.12 * scale]))
+        return lines or [np.array([hand, hand + _unit(hand - center) * 0.15 * scale])]
+    # La masa bajo la mano: se aplasta y se estira hacia donde la mano la amasa.
+    vel = body.points.get(f"vel:{body.prefix}{side}_wrist")
+    push = float(np.clip(abs(float(np.asarray(vel) @ across)) / max(scale * 0.05, 1e-6), 0.0, 1.0)) if vel is not None else 0.0
+    knead = 0.5 + 0.5 * np.sin(runtime.active_frames * 0.6)  # el vaivén del amasado
+    stretch = 0.25 + 0.5 * max(push, knead)
+    r = 0.24 * scale  # una masa que se ve: en la referencia ocupa la mano entera
+    blob_at = hand + down * 0.08 * scale
+    t = np.linspace(0, TAU, 40)
+    lumps = 1.0 + 0.1 * np.sin(t * 5 + runtime.active_frames * 0.4) + 0.05 * np.sin(t * 9)
+    dough = blob_at + np.outer(np.cos(t) * r * (1 + stretch) * lumps, across) + np.outer(np.sin(t) * r * (1 - 0.4 * stretch) * lumps, down)
+    knot = center + down * 0.08 * scale
+    full = float(np.linalg.norm(hips - knot)) * 0.85
+    tie = _tie_outline(knot, across, down, full, scale)
+    if u < 0.6:
+        fill_polygon(layer, dough, tint * 0.6 + WHITE * 0.4, alpha * 0.75, 1.0, feather=1.5)
+        return [dough]
+    if u < 0.75:  # la masa se estira hasta volverse la corbata
+        k = (u - 0.6) / 0.15
+        shape = morph_lines([dough], [tie], k)[0]
+        fill_polygon(layer, shape, tint * 0.6 + WHITE * 0.3, alpha * 0.55 * (1 - 0.3 * k), 1.0, feather=1.5)
+        return [shape]
+    fill_polygon(layer, tie, tint * 0.6 + WHITE * 0.4, alpha * 0.7, 1.0, feather=1.2)
+    return [tie, np.array([knot + down * 0.084 * scale - across * 0.035 * scale, knot + down * 0.084 * scale + across * 0.035 * scale])]
 
 
 def _tie_on(body, frame, scale, runtime, layer, event) -> list[np.ndarray]:
@@ -556,6 +610,8 @@ def morph_fx(shape, body, frame, scale, frame_index, runtime, layer, color, alph
         return _hand_echo(body, scale, frame_index, runtime, color, event)
     if shape == "head_shot":
         return _head_shot(body, frame, scale, frame_index, runtime, layer, color, event, np.random.default_rng(seed))
+    if shape == "dough_tie":
+        return _dough_tie(body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape == "tie_on":
         return _tie_on(body, frame, scale, runtime, layer, event)
     if shape == "orbit_ribbons":
