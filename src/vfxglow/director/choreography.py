@@ -565,7 +565,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
     if catalog.chapters and not pair:
         palette = catalog.defaults.get("style", {}).get("palette") or catalog.colors
         weights = skin_scores(palette, luma) ** 2 if luma is not None else None
-        script.chapters = build_chapters(events, palette, seed, fps, brief.video.frame_count, catalog.chapter_min_s, weights)
+        script.chapters = build_chapters(events, palette, seed, fps, brief.video.frame_count, catalog.chapter_min_s, weights, cuts)
     if pins is not None and not pair:
         acts = pin_chapters(pins, fps, brief.video.frame_count)
         if acts:
@@ -1056,7 +1056,7 @@ def pin_chapters(pins, fps: float, frame_count: int) -> list[Chapter]:
     return chapters
 
 
-def build_chapters(events: list[MotionEvent], palette, seed: int, fps: float, frame_count: int, min_s: float = 0.8, weights=None) -> list[Chapter]:
+def build_chapters(events: list[MotionEvent], palette, seed: int, fps: float, frame_count: int, min_s: float = 0.8, weights=None, cuts: list[int] | None = None) -> list[Chapter]:
     """Capítulos de foco estable con dos colores cada uno (principal y acento).
 
     Un capítulo nuevo empieza cuando un evento de foco nombra otro foco. Un capítulo dura al
@@ -1064,6 +1064,8 @@ def build_chapters(events: list[MotionEvent], palette, seed: int, fps: float, fr
     que se queda con el capítulo (llegar a la cabeza pesa más que un brazo que se mueve). Dos
     capítulos seguidos nunca repiten color principal. `weights` (uno por color) hace que unos
     colores salgan más que otros (los que contrastan con la piel, ver director/palette.py).
+    Cada corte de cámara (`cuts`) también abre capítulo, aunque llegue antes de `min_s`: en un
+    video editado, cada toma tiene su color (video_52).
     """
     shortest = min_s * fps
     marks: list[tuple[int, str]] = []
@@ -1083,6 +1085,12 @@ def build_chapters(events: list[MotionEvent], palette, seed: int, fps: float, fr
         marks.append((start, focus))
     if not marks or marks[0][0] > 0:
         marks.insert(0, (0, "inicio"))
+    if cuts:
+        by_start = dict(marks)
+        for cut in cuts:
+            if 0 < cut < frame_count:
+                by_start[cut] = "corte"
+        marks = sorted(by_start.items())
     end = max(frame_count, marks[-1][0] + 1)
     spans = [(start, nxt, focus) for (start, focus), nxt in zip(marks, [m[0] for m in marks[1:]] + [end])]
     rng = np.random.default_rng(seed * 7919 + 17)
