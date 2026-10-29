@@ -49,6 +49,10 @@ MORPH_FX = ("horns_morph", "rubber_band", "hand_echo", "head_shot", "tie_on", "o
 FINGERS = ("thumb", "index", "middle", "ring", "pinky")
 # Cuántos contornos de las manos se quedan atrás (además del actual).
 ECHO_KEEP = 2
+# Distancia (anchos de hombros) que se aparta la mano antes de dejar otra copia, y cuánto se apaga
+# cada copia hacia atrás.
+ECHO_STEP = 0.15
+ECHO_FADE = 0.45
 
 
 def accent(runtime, color) -> np.ndarray:
@@ -185,12 +189,38 @@ def _hand_shape(body, side: str, scale: float) -> list[np.ndarray]:
     return [center + np.outer(np.cos(t) * 0.14 * scale * bump, d) + np.outer(np.sin(t) * 0.1 * scale, n)]
 
 
-def _hand_echo(body, scale, frame_index, runtime) -> list[np.ndarray]:
-    st = runtime.swoosh.setdefault(f"echo:{body.prefix}", {})
-    st[frame_index] = [shape for side in ("left", "right") for shape in _hand_shape(body, side, scale)]
-    for old in [f for f in st if f < frame_index - ECHO_KEEP or f > frame_index]:
-        del st[old]
-    return [line for f in sorted(st) for line in st[f]]
+def _moving_hand(body, event) -> str:
+    """La mano que se mueve (la de más velocidad); si ninguna se mueve, la del evento o la más alta."""
+    speeds = {}
+    for side in ("left", "right"):
+        vel = body.points.get(f"vel:{body.prefix}{side}_wrist")
+        speeds[side] = float(np.linalg.norm(vel)) if vel is not None else 0.0
+    if max(speeds.values()) > 1e-3:
+        return max(speeds, key=speeds.get)
+    if event is not None and event.kind in ("left", "right"):
+        return event.kind
+    wrists = {s: body.get(f"{s}_wrist") for s in ("left", "right") if body.get(f"{s}_wrist") is not None}
+    return min(wrists, key=lambda s: wrists[s][1]) if wrists else "right"
+
+
+def _hand_echo(body, scale, frame_index, runtime, color, event) -> list:
+    """El contorno de la mano que se mueve y, detrás, las copias que dejó: cada copia nueva solo si
+    la mano se apartó ECHO_STEP de la anterior (si no, se encimarían en un bloque de luz), y las de
+    atrás más tenues (video_52, explicación del usuario: se quedan las dos anteriores)."""
+    side = _moving_hand(body, event)
+    current = _hand_shape(body, side, scale)
+    wrist = body.get(f"{side}_wrist")
+    st = runtime.swoosh.setdefault(f"echo:{body.prefix}", {"copies": []})
+    copies = st["copies"]
+    if current and wrist is not None and (not copies or float(np.linalg.norm(wrist - copies[-1][0])) >= ECHO_STEP * scale):
+        copies.append((wrist.copy(), current))
+        del copies[:-(ECHO_KEEP + 1)]
+    tint = np.asarray(color, np.float32)
+    out = [(line, tint) for line in current]
+    behind = [c for c in copies if c[1] is not current][-ECHO_KEEP:]
+    for age, (_at, lines) in enumerate(reversed(behind), start=1):
+        out += [(line, tint * ECHO_FADE ** age) for line in lines]
+    return out
 
 
 # ----- el disparo a la cabeza: la mente que explota -----
@@ -523,7 +553,7 @@ def morph_fx(shape, body, frame, scale, frame_index, runtime, layer, color, alph
     if shape == "rubber_band":
         return _rubber_band(body, frame, scale, frame_index, runtime, layer, event)
     if shape == "hand_echo":
-        return _hand_echo(body, scale, frame_index, runtime)
+        return _hand_echo(body, scale, frame_index, runtime, color, event)
     if shape == "head_shot":
         return _head_shot(body, frame, scale, frame_index, runtime, layer, color, event, np.random.default_rng(seed))
     if shape == "tie_on":
