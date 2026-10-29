@@ -1,0 +1,31 @@
+# Calco de la referencia de video_41 (docs/referencias/video_41.md): cada momento de la tabla con su
+# efecto, en su segundo y con la duración que se ve en la referencia. Para comparar cuadro a cuadro
+# con tools/compare_reference.py.
+catalogo: baile
+solo_estos: true
+momentos:
+- {seg: 0.0, accion: hand_mouth, opcion: botella, dur: 1.7, exacto: true, lado: right, color: "#33ffe0"}
+- {seg: 2.0, accion: step, opcion: tajo, dur: 0.45, exacto: true}
+- {seg: 2.5, accion: step, opcion: tajo, dur: 0.5, exacto: true}
+- {seg: 3.1, accion: step, opcion: tajo, dur: 0.45, exacto: true}
+- {seg: 3.7, accion: step, opcion: tajo, dur: 0.45, exacto: true}
+- {seg: 5.0, accion: point, opcion: aerosol, dur: 0.95, exacto: true, lado: right}
+- {seg: 6.0, accion: spotlight, opcion: linea_cierre, dur: 1.1, exacto: true, lado: right}
+- {seg: 7.2, accion: fast_swing, opcion: gancho, dur: 0.7, exacto: true, lado: left}
+- {seg: 8.2, accion: spotlight, opcion: cabeza_perfil, dur: 0.3, exacto: true}
+- {seg: 8.3, accion: hands_on_head, opcion: pase_manos, dur: 0.6, exacto: true}
+- {seg: 9.1, accion: spotlight, opcion: solapa, dur: 0.5, exacto: true}
+- {seg: 10.0, accion: spotlight, opcion: barra_carga, dur: 1.3, exacto: true, lado: left}
+- {seg: 12.1, accion: hands_on_head, opcion: calavera, dur: 0.9, exacto: true}
+- {seg: 13.0, accion: hands_on_head, opcion: pase_manos, dur: 0.9, exacto: true}
+- {seg: 14.0, accion: hands_on_head, opcion: abanico, dur: 0.3, exacto: true}
+- {seg: 14.2, accion: spotlight, opcion: parte_pintada, dur: 0.7, exacto: true}
+- {seg: 15.1, accion: spotlight, opcion: aro_cabeza, dur: 0.5, exacto: true}
+- {seg: 15.6, accion: cover_eyes, opcion: lineas_manos, dur: 0.4, exacto: true}
+- {seg: 16.0, accion: cover_eyes, opcion: burla, dur: 0.4, exacto: true}
+- {seg: 16.5, accion: hand_mouth, opcion: burbuja_soplada, dur: 1.4, exacto: true}
+- {seg: 18.0, accion: spotlight, opcion: ola_brazo, dur: 1.3, exacto: true, lado: left}
+- {seg: 19.1, accion: spotlight, opcion: remolino, dur: 0.2, exacto: true}
+- {seg: 20.0, accion: spotlight, opcion: parte_pintada, dur: 0.9, exacto: true}
+- {seg: 21.3, accion: spotlight, opcion: flechas_mascara, dur: 0.55, exacto: true, lado: right}
+- {seg: 21.9, accion: face_touch, opcion: asombro, dur: 0.6, exacto: true}
