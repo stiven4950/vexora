@@ -5,10 +5,10 @@ catalogo: baile
 solo_estos: true
 momentos:
 - {seg: 0.0, accion: hand_mouth, opcion: botella, dur: 1.7, exacto: true, lado: right, color: "#33ffe0"}
-- {seg: 2.0, accion: step, opcion: tajo, dur: 0.35, exacto: true}
-- {seg: 2.5, accion: step, opcion: tajo, dur: 0.38, exacto: true}
-- {seg: 3.1, accion: step, opcion: tajo, dur: 0.35, exacto: true}
-- {seg: 3.7, accion: step, opcion: tajo, dur: 0.33, exacto: true}
+- {seg: 2.0, accion: walk, opcion: tajo, dur: 0.35, exacto: true}
+- {seg: 2.5, accion: walk, opcion: tajo, dur: 0.38, exacto: true}
+- {seg: 3.1, accion: walk, opcion: tajo, dur: 0.35, exacto: true}
+- {seg: 3.7, accion: walk, opcion: tajo, dur: 0.33, exacto: true}
 - {seg: 4.9, accion: point, opcion: aerosol, dur: 1.0, exacto: true, lado: right}
 - {seg: 5.95, accion: spotlight, opcion: parte_pintada, dur: 0.65, exacto: true, lado: right}
 - {seg: 6.6, accion: spotlight, opcion: linea_cierre, dur: 0.3, exacto: true, lado: right}

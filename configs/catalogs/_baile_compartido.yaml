@@ -1102,8 +1102,9 @@ reactions:
   - name: nada
     weight: 0.6
     effects: []
-# Caminar (video_41 seg. 2,0-4,1): cada paso es un tajo por el torso.
-- action: step
+# Caminar (video_41 seg. 2,0-4,1): cada paso es un tajo por el torso; los pasos del baile en el
+# sitio no (video_52).
+- action: walk
   options:
   - name: tajo
     weight: 0.4
