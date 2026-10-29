@@ -1,0 +1,13 @@
+# Efectos nuevos de unpair_dance y video_41, fijados en los momentos de la referencia de video_41
+# (docs/referencias/video_41.md) para verlos sobre el original.
+catalogo: baile
+solo_estos: true
+momentos:
+- {seg: 0.55, accion: hand_mouth, opcion: botella, dur: 1.2}
+- {seg: 6.6, accion: spotlight, opcion: pase_brazos, dur: 0.6}
+- {seg: 12.1, accion: hands_on_head, opcion: calavera, dur: 1.0, exacto: true}
+- {seg: 13.3, accion: hands_on_head, opcion: pase_manos, dur: 0.6, exacto: true}
+- {seg: 15.9, accion: cover_eyes, opcion: burla, dur: 0.8, exacto: true}
+- {seg: 17.15, accion: hand_mouth, opcion: cigarro, dur: 0.8}
+- {seg: 18.2, accion: finger_count, opcion: numero, dur: 1.0, exacto: true}
+- {seg: 21.6, accion: face_touch, opcion: asombro, dur: 0.9, exacto: true}
