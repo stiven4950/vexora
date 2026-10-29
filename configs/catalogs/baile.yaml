@@ -505,6 +505,14 @@ reactions:
     effects: []
 - action: cover_eyes
   options:
+  # video_41 seg. 15,6: las manos se mueven sobre la cara: una línea por mano, en triángulo.
+  - name: lineas_manos
+    weight: 0.3
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [hand_lines], thickness: 0.008, focus: false}
+      trigger: {hold: 12, fade_in: 1, fade_out: 6}
   - name: antifaz
     weight: 0.8
     effects:

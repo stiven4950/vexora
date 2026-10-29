@@ -6,6 +6,55 @@
 reactions:
 - action: spotlight
   options:
+  # video_41 (docs/referencias/video_41.md): brazos, cabeza y partes pintadas.
+  - name: linea_cierre
+    weight: 0.15
+    cooldown: 300
+    kinds: [left_arm, right_arm]
+    effects:
+    - type: adornment
+      style: {shapes: [zipper_line], thickness: 0.008, focus: false}
+      trigger: {hold: 18, fade_in: 1, fade_out: 6}
+  - name: barra_carga
+    weight: 0.15
+    cooldown: 300
+    kinds: [left_arm, right_arm]
+    effects:
+    - type: adornment
+      style: {shapes: [charge_bar], thickness: 0.008, focus: false}
+      trigger: {hold: 20, fade_in: 1, fade_out: 6}
+  - name: ola_brazo
+    weight: 0.15
+    cooldown: 300
+    kinds: [left_arm, right_arm]
+    effects:
+    - type: adornment
+      style: {shapes: [wave_pull], thickness: 0.008, focus: false}
+      trigger: {hold: 24, fade_in: 1, fade_out: 6}
+  - name: flechas_mascara
+    weight: 0.12
+    cooldown: 450
+    kinds: [left_arm, right_arm]
+    effects:
+    - type: adornment
+      style: {shapes: [arrows_mask], thickness: 0.008, focus: false}
+      trigger: {hold: 20, fade_in: 1, fade_out: 6}
+  - name: parte_pintada
+    weight: 0.15
+    cooldown: 300
+    kinds: [torso, left_arm, right_arm]
+    effects:
+    - type: adornment
+      style: {shapes: [paint_relay], thickness: 0.008, focus: false}
+      trigger: {hold: 20, fade_in: 1, fade_out: 6}
+  - name: cabeza_perfil
+    weight: 0.12
+    cooldown: 300
+    kinds: [head]
+    effects:
+    - type: adornment
+      style: {shapes: [profile_head], thickness: 0.008, focus: false}
+      trigger: {hold: 12, fade_in: 1, fade_out: 6}
   # video_52 (docs/referencias/video_52.md): resorte por la pierna (32,1) y aro que orbita la cabeza (1,8).
   - name: resorte_pierna
     weight: 0.15
@@ -520,6 +569,14 @@ reactions:
     weight: 0.2
 - action: hands_on_head
   options:
+  # video_41 seg. 14,0: las manos juntas que se separan abren un abanico.
+  - name: abanico
+    weight: 0.25
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [fan], thickness: 0.008, focus: false}
+      trigger: {hold: 16, fade_in: 1, fade_out: 6}
   # video_41 seg. 13,3-13,9: las manos juegan sobre la cabeza y la energía va y vuelve entre ellas.
   - name: pase_manos
     weight: 0.3
@@ -594,6 +651,21 @@ reactions:
     weight: 0.3
 - action: point
   options:
+  # video_41 seg. 5,0: un aerosol en la mano, o un flash de cámara.
+  - name: aerosol
+    weight: 0.2
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [spray_can], thickness: 0.008, focus: false}
+      trigger: {hold: 24, fade_in: 1, fade_out: 6}
+  - name: flash
+    weight: 0.15
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [camera_flash], thickness: 0.008, focus: false}
+      trigger: {hold: 14, fade_in: 1, fade_out: 6}
   # video_52 seg. 23,5: el brazo estirado con un electrocardiograma.
   - name: pulso
     weight: 0.3
@@ -619,6 +691,16 @@ reactions:
       trigger: {hold: 45, fade_in: 1, fade_out: 4}
 - action: fast_swing
   options:
+  # video_41 seg. 7,3: la pelota que se aplasta con la velocidad y se vuelve gancho.
+  - name: gancho
+    weight: 0.2
+    cooldown: 300
+    min_speed: 0.3
+    limbs: [left_wrist, right_wrist]
+    effects:
+    - type: adornment
+      style: {shapes: [hook_ball], thickness: 0.008, focus: false}
+      trigger: {hold: 16, fade_in: 1, fade_out: 6}
   # video_52 seg. 32,5: la patada suelta un rayo por el pie.
   - name: rayo_patada
     weight: 0.2
@@ -810,6 +892,14 @@ reactions:
 # Mano en la boca (unpair_dance, seg. 13,4-14,4: fuman; video_41, seg. 0-1,7: bebe de una botella).
 - action: hand_mouth
   options:
+  # video_41 seg. 16,5: sopla una burbuja y la maneja con las manos.
+  - name: burbuja_soplada
+    weight: 0.25
+    cooldown: 600
+    effects:
+    - type: adornment
+      style: {shapes: [bubble_blow], thickness: 0.008, focus: false}
+      trigger: {hold: 36, fade_in: 1, fade_out: 6}
   - name: botella
     weight: 0.3
     cooldown: 600
@@ -885,6 +975,19 @@ reactions:
     - type: adornment
       style: {shapes: [thought_cloud], thickness: 0.008, focus: false}
       trigger: {hold: 24, fade_in: 1, fade_out: 6}
+  - name: nada
+    weight: 0.6
+    effects: []
+# Caminar (video_41 seg. 2,0-4,1): cada paso es un tajo por el torso.
+- action: step
+  options:
+  - name: tajo
+    weight: 0.4
+    cooldown: 20
+    effects:
+    - type: adornment
+      style: {shapes: [walk_slash], thickness: 0.008, focus: false}
+      trigger: {hold: 10, fade_in: 1, fade_out: 6}
   - name: nada
     weight: 0.6
     effects: []
