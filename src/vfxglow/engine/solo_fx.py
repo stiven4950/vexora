@@ -2,8 +2,9 @@
 
 Adornos (`type: adornment`, `style.shapes`), como los de engine/duo_fx.py:
 
-- ecg_arm: con el brazo estirado, una línea de electrocardiograma corre del hombro a la mano con
-  el pulso que avanza; al final se vuelve aros ("OOOO") y se deshace en puntos (seg. 23,5-24,5).
+- ecg_arm: con el brazo estirado, primero una espada que atraviesa el brazo (seg. 23,2-23,4) y luego
+  una línea de electrocardiograma que corre del hombro a la mano con el pulso que avanza; al final
+  se vuelve aros ("OOOO") y se deshace en puntos (seg. 23,5-24,5).
 - sky_bolt: la mano levantada recibe un rayo que baja desde el borde de arriba del cuadro y se
   abre en chispas al tocarla (seg. 10,4-10,6; el meteoro de unpair_dance, seg. 12,8-13,6).
 - wifi_hand: arcos de wifi que se abren uno tras otro sobre la mano abierta (seg. 30,0-30,5).
@@ -33,6 +34,8 @@ WHITE = np.array([1.0, 1.0, 1.0], np.float32)
 SOLO_FX = ("ecg_arm", "sky_bolt", "wifi_hand", "thought_cloud", "leg_coil", "kick_bolt", "hair_trails", "head_orbit")
 # Los rayos cambian de forma cada tantos fotogramas, como un dibujo a mano.
 BOLT_FRAMES = 2
+# Fracción del electrocardiograma que es la espada que atraviesa el brazo, antes del pulso.
+SWORD_U = 0.2
 
 
 def _side(body, event, joint: str = "wrist") -> str | None:
@@ -82,6 +85,11 @@ def _ecg(body, scale, frame_index, runtime, layer, color, alpha, event, rng) -> 
     if n[1] > 0:
         n = -n  # el pulso sube
     u = _phase(runtime, event)
+    if u < SWORD_U:  # la espada atraviesa el brazo, del hombro hasta pasar la mano
+        reach = _ease(u / SWORD_U)
+        blade = np.array([shoulder - d * 0.15 * scale, shoulder + d * (length + 0.35 * scale) * reach])
+        fill_band(layer, blade, np.array([0.07, 0.05]) * scale, alpha)
+        return [blade]
     if u > 0.8:  # el pulso se vuelve aros y luego puntos
         rings = []
         fade = _seg(u, 0.9, 1.0)
@@ -100,7 +108,7 @@ def _ecg(body, scale, frame_index, runtime, layer, color, alpha, event, rng) -> 
     for center in (head, (head + 0.5) % 1.0):
         s = (x - center) / 0.08
         beat += np.where(np.abs(s) < 1.0, np.interp(s, [-1, -0.6, -0.3, 0.0, 0.3, 0.6, 1.0], [0, 0.1, -0.25, 1.0, -0.45, 0.08, 0]), 0.0)
-    grow = _ease(_seg(u, 0.0, 0.2))  # la línea se traza del hombro a la mano
+    grow = _ease(_seg(u, SWORD_U, SWORD_U + 0.15))  # la línea se traza del hombro a la mano
     keep = x <= grow
     line = shoulder + np.outer(x[keep] * length, d) + np.outer(beat[keep] * 0.5 * scale, n)
     if len(line) < 2:

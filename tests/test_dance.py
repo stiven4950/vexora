@@ -48,7 +48,7 @@ def test_every_adornment_draws(shape: str) -> None:
         pytest.skip("nacen al lanzar (crecen en los primeros cuadros del gesto): se prueban en test_elements")
     if shape in ("water_ribbon", "water_stream", "water_ring", "water_splash", "water_refract", "air_slash", "air_dash", "air_vortex", "air_burst", "air_refract", "earth_fist", "earth_orbit", "earth_slam", "earth_crystals"):
         pytest.skip("crecen en los primeros cuadros, o refractan el agua o el aire de otro efecto: se prueban en test_water, test_air y test_earth")
-    if shape in ("ecg_arm", "sky_bolt", "thought_cloud", "kick_bolt", "spray_can", "zipper_line", "fan"):
+    if shape in ("ecg_arm", "sky_bolt", "thought_cloud", "kick_bolt", "spray_can", "zipper_line", "fan", "rubber_band", "head_shot", "tie_on", "ribbon_watch", "energy_chain", "moon_dove_wifi", "horns_morph"):
         pytest.skip("se trazan o caen en los primeros cuadros del gesto: se prueban en test_solo_fx")
     if shape in FACE + NECK + ("battery", "hero_text", "venom", "iron_man"):
         # Van sobre la cara o el pecho: de frente (la pose de prueba está de espaldas).
