@@ -55,6 +55,9 @@ ECHO_KEEP = 2
 # cada copia hacia atrás.
 ECHO_STEP = 0.15
 ECHO_FADE = 0.45
+# Masa a corbata: fracción del momento con los dedos resaltados y fin de la masa que da vueltas.
+DOUGH_FINGERS = 0.3
+DOUGH_TIE = 0.55
 
 
 def accent(runtime, color) -> np.ndarray:
@@ -283,6 +286,13 @@ def _tie_outline(knot: np.ndarray, across, down, length: float, scale: float) ->
 
 
 def _dough_tie(body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
+    """Dedos resaltados, la masa que da vueltas alrededor de la mano (por detrás la tapan la mano y el
+    antebrazo, como las cintas) y la masa que se estira en la corbata. Tiempos de video_52, seg.
+    14,1-14,8: dedos 30%, masa 25%, conversión 10%, corbata el resto."""
+    import cv2
+
+    from vfxglow.engine.bodyglow import part_mask
+
     center, across, down = frame
     side = _moving_hand(body, event)
     hand = _hand(body, side)
@@ -291,7 +301,7 @@ def _dough_tie(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
         return []
     u = _phase(runtime, event)
     tint = np.asarray(color, np.float32)
-    if u < 0.25:  # los dedos resaltados: rayitos desde las puntas
+    if u < DOUGH_FINGERS:  # los dedos resaltados: rayitos desde las puntas
         lines = []
         for finger in FINGERS:
             tip = body.get(f"{side}_{finger}_tip")
@@ -300,28 +310,37 @@ def _dough_tie(body, frame, scale, frame_index, runtime, layer, color, alpha, ev
                 d = _unit(tip - base)
                 lines.append(np.array([tip + d * 0.02 * scale, tip + d * 0.12 * scale]))
         return lines or [np.array([hand, hand + _unit(hand - center) * 0.15 * scale])]
-    # La masa bajo la mano: se aplasta y se estira hacia donde la mano la amasa.
-    vel = body.points.get(f"vel:{body.prefix}{side}_wrist")
-    push = float(np.clip(abs(float(np.asarray(vel) @ across)) / max(scale * 0.05, 1e-6), 0.0, 1.0)) if vel is not None else 0.0
-    knead = 0.5 + 0.5 * np.sin(runtime.active_frames * 0.6)  # el vaivén del amasado
-    stretch = 0.25 + 0.5 * max(push, knead)
-    r = 0.24 * scale  # una masa que se ve: en la referencia ocupa la mano entera
-    blob_at = hand + down * 0.08 * scale
+    # La masa orbita la mano: una vuelta y media en su tramo, achatada como un aro visto de lado.
+    spin = _seg(u, DOUGH_FINGERS, DOUGH_TIE) * TAU * 1.5 - np.pi / 2
+    depth = np.sin(spin)  # > 0 delante de la mano, < 0 detrás
+    at = hand + across * np.cos(spin) * 0.3 * scale + down * (0.05 + 0.12 * depth) * scale
+    r = 0.2 * scale * (1.0 + 0.25 * depth)  # más grande delante, por perspectiva
     t = np.linspace(0, TAU, 40)
     lumps = 1.0 + 0.1 * np.sin(t * 5 + runtime.active_frames * 0.4) + 0.05 * np.sin(t * 9)
-    dough = blob_at + np.outer(np.cos(t) * r * (1 + stretch) * lumps, across) + np.outer(np.sin(t) * r * (1 - 0.4 * stretch) * lumps, down)
+    dough = at + np.outer(np.cos(t) * r * 1.2 * lumps, across) + np.outer(np.sin(t) * r * 0.8 * lumps, down)
     knot = center + down * 0.08 * scale
     full = float(np.linalg.norm(hips - knot)) * 0.85
     tie = _tie_outline(knot, across, down, full, scale)
-    if u < 0.6:
-        fill_polygon(layer, dough, tint * 0.6 + WHITE * 0.4, alpha * 0.75, 1.0, feather=1.5)
-        return [dough]
-    if u < 0.75:  # la masa se estira hasta volverse la corbata
-        k = (u - 0.6) / 0.15
+    fill = tint * 0.6 + WHITE * 0.4
+    if u < DOUGH_TIE:
+        visible_parts = [dough]
+        if depth < 0:  # por detrás: lo que cae sobre la mano y el antebrazo no se ve
+            covered = part_mask(body, "arms", layer.shape[:2], scale)
+            if covered is not None:
+                mask = np.zeros(layer.shape[:2], np.uint8)
+                cv2.fillPoly(mask, [np.round(dough).astype(np.int32)], 1)
+                mask &= (covered == 0).astype(np.uint8)
+                contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+                visible_parts = [c[:, 0, :].astype(np.float64) for c in contours if len(c) >= 3]
+        for part in visible_parts:
+            fill_polygon(layer, part, fill, alpha * 0.75, 1.0, feather=1.5)
+        return [np.vstack([p, p[:1]]) for p in visible_parts]
+    if u < DOUGH_TIE + 0.1:  # la masa se estira hasta volverse la corbata
+        k = (u - DOUGH_TIE) / 0.1
         shape = morph_lines([dough], [tie], k)[0]
-        fill_polygon(layer, shape, tint * 0.6 + WHITE * 0.3, alpha * 0.55 * (1 - 0.3 * k), 1.0, feather=1.5)
+        fill_polygon(layer, shape, fill, alpha * 0.75 * (1 - 0.2 * k), 1.0, feather=1.5)
         return [shape]
-    fill_polygon(layer, tie, tint * 0.6 + WHITE * 0.4, alpha * 0.7, 1.0, feather=1.2)
+    fill_polygon(layer, tie, fill, alpha * 0.7, 1.0, feather=1.2)
     return [tie, np.array([knot + down * 0.084 * scale - across * 0.035 * scale, knot + down * 0.084 * scale + across * 0.035 * scale])]
 
 
