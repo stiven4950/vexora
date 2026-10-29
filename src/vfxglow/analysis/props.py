@@ -303,6 +303,29 @@ def _head(person: PersonPose, width: int, height: int) -> tuple[np.ndarray, floa
     return (shoulders[0] + shoulders[1]) * 0.5 - np.array([0.0, size * 2.2]), size
 
 
+# Un objeto que no toca nadie y está a más de esto (en torsos) del cuerpo de toda persona no está en
+# el aire: es de otro, del público (video_52: la gorra de alguien del fondo se contorneaba entera).
+AIR_REACH = 0.5
+
+
+def _near_someone(record: FrameRecord, center: np.ndarray, width: int, height: int) -> bool:
+    people = _people(record)
+    if not people:
+        return True
+    for person in people:
+        named = {lm.name: np.array([lm.x * width, lm.y * height]) for lm in person.pose if lm.c > 0.3}
+        if len(named) < 3 or "left_shoulder" not in named or "left_hip" not in named:
+            return True  # sin cuerpo que medir, no se descarta
+        pts = np.array(list(named.values()))
+        torso = max(float(np.linalg.norm(named["left_shoulder"] - named["left_hip"])), 1.0)
+        lo, hi = pts.min(axis=0) - AIR_REACH * torso, pts.max(axis=0) + AIR_REACH * torso
+        if "left_ankle" not in named and "right_ankle" not in named:
+            hi[1] += 1.5 * torso  # sin piernas a la vista, el cuerpo sigue abajo
+        if np.all(center >= lo) and np.all(center <= hi):
+            return True
+    return False
+
+
 def frame_state(record: FrameRecord, width: int, height: int, wearable: bool = True) -> tuple[str, str]:
     """(estado, persona) del objeto en este fotograma. Sin `wearable` nunca está en la cabeza."""
     prop = record.prop
@@ -329,7 +352,9 @@ def frame_state(record: FrameRecord, width: int, height: int, wearable: bool = T
             best = ("both", person.person_id)
         elif touching and best is None:
             best = (touching[0], person.person_id)
-    return best or ("air", record.person_id)
+    if best:
+        return best
+    return ("air" if _near_someone(record, center, width, height) else "away"), record.person_id
 
 
 def assign_states(records: list[FrameRecord], width: int, height: int, wearable: bool = True) -> None:

@@ -51,7 +51,7 @@ SPRING_SAMPLES = 28
 
 
 def prop_polygon(track: FrameRecord | None, width: int, height: int) -> np.ndarray | None:
-    if track is None or track.prop is None or len(track.prop.contour) < 3:
+    if track is None or track.prop is None or len(track.prop.contour) < 3 or track.prop.state == "away":
         return None
     return _smooth(np.array(track.prop.contour, dtype=np.float64) * [width, height])
 

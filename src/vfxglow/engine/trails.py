@@ -77,7 +77,7 @@ def draw_prop_swoosh(runtime, track, points, frame_index: int, height: int, enve
     style = runtime.effect.style
     trail = runtime.swoosh.setdefault("prop", deque(maxlen=max(style.trail_frames, 4)))
     prop = track.prop if track is not None else None
-    if prop is None or prop.state in ("worn", "fitting"):
+    if prop is None or prop.state in ("worn", "fitting", "away"):
         trail.clear()
         return
     width, torso = layer.shape[1], torso_pixels(points, height)

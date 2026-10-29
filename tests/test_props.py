@@ -227,3 +227,24 @@ def test_outline_steps_aside_while_spinning() -> None:
     prop = _cap(0.3, 0.5, 0.08).model_copy(update={"spinning": True})
     assert _render(prop, ["outline"])[..., 3].max() == 0
     assert _render(prop, ["outline", "spin"])[..., 3].max() > 0.5
+
+
+def test_a_prop_far_from_everyone_is_someone_elses() -> None:
+    """La gorra de alguien del público (video_52) no es el objeto protagonista en el aire."""
+    import numpy as np
+
+    from vfxglow.analysis.props import frame_state
+    from vfxglow.analysis.schema import FrameRecord, Landmark, Prop
+
+    pose = [Landmark(name=n, x=x, y=y, c=0.95) for n, (x, y) in {"nose": (0.7, 0.3), "left_shoulder": (0.75, 0.4), "right_shoulder": (0.65, 0.4),
+            "left_hip": (0.74, 0.6), "right_hip": (0.66, 0.6), "left_wrist": (0.78, 0.6), "right_wrist": (0.62, 0.6),
+            "left_ankle": (0.73, 0.9), "right_ankle": (0.67, 0.9)}.items()]
+
+    def prop_at(x: float, y: float) -> Prop:
+        contour = [(x + 0.02 * np.cos(t), y + 0.02 * np.sin(t)) for t in np.linspace(0, 2 * np.pi, 12, endpoint=False)]
+        return Prop(label="cap", contour=contour, box=(x - 0.02, y - 0.02, x + 0.02, y + 0.02))
+
+    far = FrameRecord(frame=0, time_s=0.0, pose=pose, prop=prop_at(0.1, 0.3))
+    near = FrameRecord(frame=0, time_s=0.0, pose=pose, prop=prop_at(0.86, 0.35))  # recién lanzada, junto al hombro
+    assert frame_state(far, 640, 640)[0] == "away"
+    assert frame_state(near, 640, 640)[0] == "air"
