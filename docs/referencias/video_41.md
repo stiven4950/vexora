@@ -204,10 +204,18 @@ Estado: ✅ ya lo hacemos · 🟡 hay algo parecido · ❌ nuevo · ❓ no está
 
 ## Calco de la referencia
 
-`configs/pruebas/video_41_referencia.yaml` fija los 25 momentos de la tabla, cada uno con su efecto,
-segundo y duración. Comparado con `tools/compare_reference.py`:
+`configs/pruebas/video_41_referencia.yaml` fija 32 momentos, cada uno con su efecto, segundo,
+duración y lado. Los tiempos y los lados se afinaron en tres vueltas con
+`tools/compare_reference.py`: en cada tramo que no coincidía se midió en qué parte del cuerpo
+dibuja la referencia y en cuál nosotros.
 
-- Donde la referencia dibuja, nosotros también dibujamos en el 74% de los fotogramas.
-- En la misma parte del cuerpo (la medida estricta): 42%. Lo que queda es sobre todo forma y
-  tiempo: un dibujo a mano no coincide trazo por trazo, y los momentos más cortos (destellos de
-  1-3 cuadros) no se fijaron uno por uno.
+| Vuelta | Presencia (dibujamos donde la referencia dibuja) | Misma parte del cuerpo |
+| --- | --- | --- |
+| 1: la tabla tal cual | 73% | 37% |
+| 2: botella en la mano, diagonal del tajo, nube del aerosol, cabeza sin nariz | 74% | 42% |
+| 3: huecos rellenos (partes pintadas, guantes, barras), lados de la persona | 91% | 52% |
+| 4: colas más cortas, remolino, flechas que se vuelven máscara al 75% | 89% | 56% |
+
+Lo que queda es sobre todo forma: un dibujo a mano no coincide trazo por trazo con el nuestro (el
+aro de energía entre las manos de 16,8-17,6 es una burbuja; las líneas en "L" de la chaqueta de
+9,1-9,6 son la solapa), y los destellos de 1-3 cuadros.
