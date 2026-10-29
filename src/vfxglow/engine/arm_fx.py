@@ -354,7 +354,7 @@ def _arrows_mask(body, frame, scale, runtime, layer, alpha, event) -> list[np.nd
         return []
     u = _phase(runtime, event)
     lines = []
-    if u < 0.6:  # flechas que suben por el antebrazo, en la dirección del movimiento
+    if u < 0.75:  # flechas que suben por el antebrazo, en la dirección del movimiento
         low, high = (elbow, wrist) if elbow[1] >= wrist[1] else (wrist, elbow)
         d = -frame[2]  # apuntan hacia arriba, hacia la cabeza
         n = np.array([-d[1], d[0]])
@@ -363,7 +363,7 @@ def _arrows_mask(body, frame, scale, runtime, layer, alpha, event) -> list[np.nd
             tip = low + (high - low) * q
             lines.append(np.array([tip - d * 0.12 * scale + n * 0.11 * scale, tip, tip - d * 0.12 * scale - n * 0.11 * scale]))
         return lines
-    face = _ease(_seg(u, 0.6, 0.75))  # las flechas se vuelven la máscara
+    face = _ease(_seg(u, 0.75, 0.85))  # al final, las flechas se vuelven la máscara
     up = -frame[2]
     center = nose + up * 0.05 * scale
     r = 0.3 * scale
