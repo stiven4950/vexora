@@ -6,6 +6,32 @@
 reactions:
 - action: spotlight
   options:
+  # video_52 (docs/referencias/video_52.md): resorte por la pierna (32,1) y aro que orbita la cabeza (1,8).
+  - name: resorte_pierna
+    weight: 0.15
+    cooldown: 300
+    kinds: [legs, feet]
+    effects:
+    - type: adornment
+      style: {shapes: [leg_coil], thickness: 0.008, focus: false}
+      trigger: {hold: 14, fade_in: 1, fade_out: 6}
+  - name: aro_cabeza
+    weight: 0.15
+    cooldown: 300
+    kinds: [head]
+    effects:
+    - type: adornment
+      style: {shapes: [head_orbit], thickness: 0.008, focus: false}
+      trigger: {hold: 16, fade_in: 1, fade_out: 6}
+  - name: estelas_pelo
+    weight: 0.12
+    cooldown: 300
+    kinds: [head]
+    min_speed: 0.3
+    effects:
+    - type: adornment
+      style: {shapes: [hair_trails], thickness: 0.008, focus: false}
+      trigger: {hold: 10, fade_in: 1, fade_out: 6}
   # Pase de energía (video_41 seg. 6,7-7,1; unpair_dance seg. 11,4-11,9): la energía sale de una
   # mano, cruza el pecho y llega a la otra; nunca salta, viaja.
   - name: pase_brazos
@@ -568,6 +594,14 @@ reactions:
     weight: 0.3
 - action: point
   options:
+  # video_52 seg. 23,5: el brazo estirado con un electrocardiograma.
+  - name: pulso
+    weight: 0.3
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [ecg_arm], thickness: 0.008, focus: false}
+      trigger: {hold: 20, fade_in: 1, fade_out: 6}
   # La aventura del muñequito: camina por el brazo extendido, cae, la otra mano lo atrapa.
   - name: disparo
     weight: 0.15
@@ -585,6 +619,16 @@ reactions:
       trigger: {hold: 45, fade_in: 1, fade_out: 4}
 - action: fast_swing
   options:
+  # video_52 seg. 32,5: la patada suelta un rayo por el pie.
+  - name: rayo_patada
+    weight: 0.2
+    cooldown: 240
+    min_speed: 0.35
+    limbs: [left_ankle, right_ankle]
+    effects:
+    - type: adornment
+      style: {shapes: [kick_bolt], thickness: 0.008, focus: false}
+      trigger: {hold: 10, fade_in: 1, fade_out: 6}
   - name: manos_fuego
     weight: 0.25
     min_speed: 0.35
@@ -612,6 +656,13 @@ reactions:
       trigger: {hold: 45, fade_in: 1, fade_out: 4}
 - action: arms_open
   options:
+  - name: pulso
+    weight: 0.2
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [ecg_arm], thickness: 0.008, focus: false}
+      trigger: {hold: 20, fade_in: 1, fade_out: 6}
   - name: pase_brazos
     weight: 0.25
     cooldown: 360
@@ -804,3 +855,36 @@ reactions:
     - type: adornment
       style: {shapes: [finger_number], thickness: 0.007, focus: false}
       trigger: {hold: 12, fade_in: 1, fade_out: 6}
+# Mano levantada (video_52 seg. 10,4 y 30,0; unpair_dance seg. 12,8): le cae un rayo o emite wifi.
+- action: raise_hand
+  options:
+  - name: rayo_cielo
+    weight: 0.3
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [sky_bolt], thickness: 0.008, focus: false}
+      trigger: {hold: 16, fade_in: 1, fade_out: 6}
+  - name: wifi
+    weight: 0.3
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [wifi_hand], thickness: 0.008, focus: false}
+      trigger: {hold: 16, fade_in: 1, fade_out: 6}
+  - name: nada
+    weight: 0.4
+    effects: []
+# Brazos cruzados mirando arriba (video_52 seg. 12,9-14,1): pensando.
+- action: arms_crossed
+  options:
+  - name: pensando
+    weight: 0.4
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [thought_cloud], thickness: 0.008, focus: false}
+      trigger: {hold: 24, fade_in: 1, fade_out: 6}
+  - name: nada
+    weight: 0.6
+    effects: []
