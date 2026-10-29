@@ -55,3 +55,15 @@ def test_steps_leave_footprints() -> None:
     alpha = _alpha(Effect(id="f", type="footprints", target=EffectTarget(kind="joint", id="legs")), records, steps)
     ys, _ = np.nonzero(alpha > 0.3)
     assert ys.size and ys.mean() > 0.8 * H
+
+
+def test_a_step_with_the_arms_down_and_calm_is_walking() -> None:
+    from vfxglow.analysis.gestures import walk_events
+
+    heights = [0.91] * 15 + [0.88, 0.86, 0.86, 0.88, 0.9, 0.91] + [0.91] * 10
+    arms_down = {"left_elbow": (0.6, 0.42), "right_elbow": (0.4, 0.42), "left_wrist": (0.6, 0.58), "right_wrist": (0.4, 0.58)}
+    walking = [_record(i, left_heel=(0.56, y), left_ankle=(0.56, y - 0.01), **arms_down) for i, y in enumerate(heights)]
+    assert [e.name for e in walk_events(walking, FPS, W, H)] == ["walk"]
+    # El mismo paso con los brazos arriba (bailando) no es caminar.
+    dancing = [_record(i, left_heel=(0.56, y), left_ankle=(0.56, y - 0.01)) for i, y in enumerate(heights)]
+    assert step_events(dancing, FPS, W, H) and walk_events(dancing, FPS, W, H) == []

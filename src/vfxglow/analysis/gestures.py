@@ -461,6 +461,43 @@ def step_events(frames, fps, width, height):
     return stomp_events(frames, fps, width, height, lift=STEP_LIFT, speed=STEP_SPEED, name="step")
 
 
+# Caminar (video_41 seg. 2,0-4,1: viene hacia la cámara): un paso con los brazos abajo y tranquilos
+# (las muñecas bajo la cadera, sin moverse rápido en el último WALK_CALM_S). En un baile en el sitio
+# los brazos van activos (video_52); el tamaño no sirve: al acercarse crece un 2-3% por segundo y la
+# cámara de mano del 52 acerca y aleja ±50%.
+WALK_CALM_S = 0.5
+WALK_ARM_SPEED = 0.04  # en torsos por fotograma
+WALK_HIP_MARGIN = 0.1  # en torsos: la muñeca hasta un poco por encima de la cadera
+
+
+def walk_events(frames, fps, width, height):
+    """Pasos al caminar: el pie que vuelve al piso mientras los brazos van abajo y tranquilos."""
+    by_frame = {record.frame: record for record in frames}
+    out = []
+    for step in step_events(frames, fps, width, height):
+        person = step.target.split(":")[0]
+        calm, seen = True, 0
+        previous = None
+        for frame in range(step.end_frame - int(WALK_CALM_S * fps), step.end_frame + 1):
+            record = by_frame.get(frame)
+            pts = _pose(record, person, width, height)[1] if record is not None else None
+            if not pts or "left_hip" not in pts or "right_hip" not in pts or "left_shoulder" not in pts:
+                continue
+            torso = _torso(pts)
+            hip_y = (pts["left_hip"][1] + pts["right_hip"][1]) / 2
+            wrists = [pts.get(f"{side}_wrist") for side in ("left", "right")]
+            if any(w is None for w in wrists) or any(w[1] < hip_y - WALK_HIP_MARGIN * torso for w in wrists):
+                calm = False
+                break
+            if previous is not None and max(float(np.linalg.norm(w - q)) for w, q in zip(wrists, previous)) / torso > WALK_ARM_SPEED:
+                calm = False
+                break
+            previous, seen = wrists, seen + 1
+        if calm and seen >= WALK_CALM_S * fps * 0.5:
+            out.append(step.model_copy(update={"name": "walk", "detail": "Camina: un paso con los brazos abajo y tranquilos."}))
+    return out
+
+
 def _frenzy(frames, fps, width, height):
     from vfxglow.analysis.attention import frenzy_events
 
@@ -863,5 +900,6 @@ GESTURE_DETECTORS = (
     hand_chin_events,
     hand_mouth_events,
     finger_count_events,
+    walk_events,
 )
-GESTURE_NAMES = {"finger_count", "hand_mouth", "hand_chin", "fist_up", "finger_gun", "rock_hands", "hands_on_head", "arms_x", "lunge", "throw", "neck_slash", "stomp", "frenzy", "heart_hands", "arms_up", "arms_open", "point", "hand_ear", "cover_eyes", "spin_body", "step"}
+GESTURE_NAMES = {"walk", "finger_count", "hand_mouth", "hand_chin", "fist_up", "finger_gun", "rock_hands", "hands_on_head", "arms_x", "lunge", "throw", "neck_slash", "stomp", "frenzy", "heart_hands", "arms_up", "arms_open", "point", "hand_ear", "cover_eyes", "spin_body", "step"}
