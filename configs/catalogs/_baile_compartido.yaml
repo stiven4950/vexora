@@ -6,6 +6,74 @@
 reactions:
 - action: spotlight
   options:
+  # video_52: ojos en X (cuatro veces en el video) y en "+".
+  - name: ojos_x
+    weight: 0.15
+    kinds: [head]
+    cooldown: 300
+    effects:
+    - type: eyewear
+      target: {kind: joint, id: nose}
+      style: {thickness: 0.07, shapes: [x_eyes]}
+      trigger: {hold: 10, fade_in: 1, fade_out: 6}
+  - name: ojos_mas
+    weight: 0.1
+    kinds: [head]
+    cooldown: 300
+    effects:
+    - type: eyewear
+      target: {kind: joint, id: nose}
+      style: {thickness: 0.07, shapes: [plus_eyes]}
+      trigger: {hold: 10, fade_in: 1, fade_out: 6}
+  # video_52 explicado (docs/referencias/video_52.md): dibujos que se convierten en otros (engine/morph_fx.py).
+  - name: cuernos_a_x
+    weight: 0.18
+    cooldown: 450
+    kinds: [head]
+    effects:
+    - type: adornment
+      style: {shapes: [horns_morph], thickness: 0.008, focus: false}
+      trigger: {hold: 30, fade_in: 1, fade_out: 6}
+  - name: manos_eco
+    weight: 0.18
+    cooldown: 300
+    kinds: [left_arm, right_arm]
+    effects:
+    - type: adornment
+      style: {shapes: [hand_echo], thickness: 0.008, focus: false}
+      trigger: {hold: 20, fade_in: 1, fade_out: 6}
+  - name: corbata_puesta
+    weight: 0.15
+    cooldown: 450
+    kinds: [torso]
+    effects:
+    - type: adornment
+      style: {shapes: [tie_on], thickness: 0.008, focus: false}
+      trigger: {hold: 20, fade_in: 1, fade_out: 6}
+  - name: cintas
+    weight: 0.25
+    cooldown: 300
+    kinds: [torso, head]
+    effects:
+    - type: adornment
+      style: {shapes: [orbit_ribbons], thickness: 0.008, focus: false}
+      trigger: {hold: 30, fade_in: 1, fade_out: 6}
+  - name: cintas_reloj
+    weight: 0.15
+    cooldown: 450
+    kinds: [left_arm, right_arm]
+    effects:
+    - type: adornment
+      style: {shapes: [ribbon_watch], thickness: 0.008, focus: false}
+      trigger: {hold: 36, fade_in: 1, fade_out: 6}
+  - name: cadena_energia
+    weight: 0.12
+    cooldown: 450
+    kinds: [torso]
+    effects:
+    - type: adornment
+      style: {shapes: [energy_chain], thickness: 0.008, focus: false}
+      trigger: {hold: 36, fade_in: 1, fade_out: 6}
   # video_41 (docs/referencias/video_41.md): brazos, cabeza y partes pintadas.
   - name: linea_cierre
     weight: 0.15
@@ -526,6 +594,14 @@ reactions:
       trigger: {hold: 18, fade_in: 3, fade_out: 8}
 - action: spin_body
   options:
+  # video_52 seg. 19,8: cintas que orbitan alrededor del cuerpo al girar.
+  - name: cintas
+    weight: 0.4
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [orbit_ribbons], thickness: 0.008, focus: false}
+      trigger: {hold: 24, fade_in: 1, fade_out: 6}
   - name: arcos
     weight: 0.4
     effects:
@@ -569,6 +645,14 @@ reactions:
     weight: 0.2
 - action: hands_on_head
   options:
+  # video_52 seg. 26,0: preso enojado que rompe las rejas en partículas.
+  - name: carcel
+    weight: 0.25
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [jail_break], thickness: 0.008, focus: false}
+      trigger: {hold: 24, fade_in: 1, fade_out: 6}
   # video_41 seg. 14,0: las manos juntas que se separan abren un abanico.
   - name: abanico
     weight: 0.25
@@ -691,6 +775,14 @@ reactions:
       trigger: {hold: 45, fade_in: 1, fade_out: 4}
 - action: fast_swing
   options:
+  - name: liga
+    weight: 0.12
+    cooldown: 300
+    limbs: [left_wrist, right_wrist]
+    effects:
+    - type: adornment
+      style: {shapes: [rubber_band], thickness: 0.008, focus: false}
+      trigger: {hold: 16, fade_in: 1, fade_out: 6}
   # video_41 seg. 7,3: la pelota que se aplasta con la velocidad y se vuelve gancho.
   - name: gancho
     weight: 0.2
@@ -738,6 +830,14 @@ reactions:
       trigger: {hold: 45, fade_in: 1, fade_out: 4}
 - action: arms_open
   options:
+  # video_52 seg. 6,0: estira una liga elástica entre las manos.
+  - name: liga
+    weight: 0.3
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [rubber_band], thickness: 0.008, focus: false}
+      trigger: {hold: 20, fade_in: 1, fade_out: 6}
   - name: pulso
     weight: 0.2
     cooldown: 300
@@ -789,6 +889,14 @@ reactions:
       trigger: {hold: 14, fade_in: 2, fade_out: 6}
 - action: arms_up
   options:
+  # video_52 seg. 21,5: dos espadas de samurái que salen al alcanzarlas sobre los hombros.
+  - name: espadas
+    weight: 0.35
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [samurai_swords], thickness: 0.008, focus: false}
+      trigger: {hold: 40, fade_in: 1, fade_out: 6}
   - name: cohete
     weight: 0.4
     cooldown: 900
@@ -817,6 +925,14 @@ reactions:
 # Revólver con la mano (dance_two_mens, seg. 7,2): el pulgar que baja es el disparo.
 - action: finger_gun
   options:
+  # video_52 seg. 9,7: se apunta a la cabeza y la mente le explota en llamas.
+  - name: disparo_cabeza
+    weight: 0.35
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [head_shot], thickness: 0.008, focus: false}
+      trigger: {hold: 24, fade_in: 1, fade_out: 6}
   - name: revolver
     weight: 0.7
     effects:
@@ -948,6 +1064,14 @@ reactions:
 # Mano levantada (video_52 seg. 10,4 y 30,0; unpair_dance seg. 12,8): le cae un rayo o emite wifi.
 - action: raise_hand
   options:
+  # video_52 seg. 29,6: luna en la palma que se vuelve paloma y luego wifi.
+  - name: luna_paloma
+    weight: 0.3
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [moon_dove_wifi], thickness: 0.008, focus: false}
+      trigger: {hold: 36, fade_in: 1, fade_out: 6}
   - name: rayo_cielo
     weight: 0.3
     cooldown: 450
