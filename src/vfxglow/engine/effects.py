@@ -52,6 +52,8 @@ class EffectRuntime:
         self.bits: list = []
         self.limb_frames: dict[str, int] = {}
         self.chapter_colors: list | None = None
+        # Compartido entre los efectos de un video (engine/bodyglow.py, continuidad entre dibujos).
+        self.relay: dict = {}
         self.chapter_frame = 0
         self.focus_level = 1.0
         self.beats: list[int] = []

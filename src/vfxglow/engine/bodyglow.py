@@ -579,6 +579,54 @@ def biceps_lines(body: Body, side: str, frame_index: int = 0) -> list[np.ndarray
 FACE_SHAPES = ("hero_mask", "masquerade", "bat_mask", "cat_mask", "fox_mask", "mustache", "pirate_patch", "heart_eyes", "glow_eyes", "lion_roar", "avatar_mark")
 
 
+# Continuidad entre dibujos (pedido del usuario, video_52): en cerca de CONTINUITY de los cambios de
+# un adorno al siguiente sobre la misma persona, el dibujo que se va se convierte en el que llega
+# (engine/morph.py) durante MORPH_FRAMES, en vez de apagarse uno y encenderse el otro. Solo si el
+# anterior dibujó hace menos de CONTINUITY_GAP fotogramas.
+CONTINUITY = 0.4
+MORPH_FRAMES = 6
+CONTINUITY_GAP = 15
+
+
+def _handed_off(runtime, person, frame_index: int) -> bool:
+    """Este efecto ya le pasó su dibujo al siguiente: deja de dibujarse (no se ven los dos)."""
+    taken = runtime.relay.get(("taken", person))
+    start = runtime.swoosh.get("_relay_start")
+    # Solo en esta activación: si el efecto vuelve a salir más tarde, se dibuja normal.
+    return taken is not None and taken[0] is runtime and start is not None and start["since"] <= taken[1] <= frame_index
+
+
+def _continuity(runtime, person, frame_index: int, pairs: list, key) -> tuple[list, bool]:
+    """Las líneas de este fotograma, convertidas desde las del adorno anterior al empezar.
+    Devuelve (líneas, si está convirtiéndose)."""
+    from vfxglow.engine.morph import morph_lines
+
+    relay = runtime.relay
+    start = runtime.swoosh.get("_relay_start")
+    if runtime.active_frames <= 1 or start is None or start.get("key") != key:
+        start = {"key": key, "from": None, "since": frame_index}
+        previous = relay.get(("last", person))
+        if previous is not None and previous["runtime"] is not runtime and frame_index - previous["frame"] <= CONTINUITY_GAP and previous["pairs"]:
+            coin = zlib.crc32(f"relay:{runtime.effect.id}:{key}:{person}".encode()) % 1000 / 1000.0
+            if coin < CONTINUITY:
+                start["from"] = previous["pairs"]
+                start["at"] = frame_index
+                relay[("taken", person)] = (previous["runtime"], frame_index)
+        runtime.swoosh["_relay_start"] = start
+    morphing = False
+    source = start.get("from")
+    if source and pairs:
+        t = (frame_index - start["at"] + 1) / MORPH_FRAMES
+        if t < 1.0:
+            curves = morph_lines([c for c, _ in source], [c for c, _ in pairs], t)
+            src_tint, dst_tint = np.asarray(source[0][1], np.float32), np.asarray(pairs[0][1], np.float32)
+            tint = src_tint + (dst_tint - src_tint) * t
+            pairs, morphing = [(c, tint) for c in curves], True
+    if pairs:
+        relay[("last", person)] = {"runtime": runtime, "frame": frame_index, "pairs": pairs}
+    return pairs, morphing
+
+
 def draw_adornment(runtime, track, points, frame_index: int, height: int, envelope: float, layer: np.ndarray, event: MotionEvent | None) -> None:
     effect = runtime.effect
     style = effect.style
@@ -615,11 +663,15 @@ def draw_adornment(runtime, track, points, frame_index: int, height: int, envelo
         color = _color(style, person)
         line = max(1.4, style.thickness * scale)
         halo = FACE_HALO if shape in FACE_SHAPES else 1.0  # sobre la cara, poco halo (no la lava de luz)
-        for item in adornment(shape, body, frame, scale, frame_index, seed, runtime, layer, color, envelope * grow, event):
-            # Una línea puede traer su propio color (curva, color): el dibujo cambia de color a mitad
-            # del efecto (video_52: los cuernos se vuelven ojos en X de otro color).
-            curve, tint = item if isinstance(item, tuple) else (item, color)
-            strokes += neon_layers(curve, tint, line, envelope * grow, halo=halo)
+        if _handed_off(runtime, person, frame_index):
+            continue  # su dibujo ya se convirtió en el del efecto siguiente
+        items = adornment(shape, body, frame, scale, frame_index, seed, runtime, layer, color, envelope * grow, event)
+        # Una línea puede traer su propio color (curva, color): el dibujo cambia de color a mitad
+        # del efecto (video_52: los cuernos se vuelven ojos en X de otro color).
+        pairs = [item if isinstance(item, tuple) else (item, color) for item in items]
+        pairs, morphing = _continuity(runtime, person, frame_index, pairs, key)
+        for curve, tint in pairs:
+            strokes += neon_layers(curve, tint, line, envelope * (1.0 if morphing else grow), halo=halo)
     from vfxglow.engine.firebend import flush_fire
 
     from vfxglow.engine.critters import _phase
