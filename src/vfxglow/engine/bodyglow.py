@@ -615,8 +615,11 @@ def draw_adornment(runtime, track, points, frame_index: int, height: int, envelo
         color = _color(style, person)
         line = max(1.4, style.thickness * scale)
         halo = FACE_HALO if shape in FACE_SHAPES else 1.0  # sobre la cara, poco halo (no la lava de luz)
-        for curve in adornment(shape, body, frame, scale, frame_index, seed, runtime, layer, color, envelope * grow, event):
-            strokes += neon_layers(curve, color, line, envelope * grow, halo=halo)
+        for item in adornment(shape, body, frame, scale, frame_index, seed, runtime, layer, color, envelope * grow, event):
+            # Una línea puede traer su propio color (curva, color): el dibujo cambia de color a mitad
+            # del efecto (video_52: los cuernos se vuelven ojos en X de otro color).
+            curve, tint = item if isinstance(item, tuple) else (item, color)
+            strokes += neon_layers(curve, tint, line, envelope * grow, halo=halo)
     from vfxglow.engine.firebend import flush_fire
 
     from vfxglow.engine.critters import _phase
