@@ -356,8 +356,14 @@ def _drink(shape, body, frame, scale, frame_index, runtime, layer, color, alpha,
         return []
     mouth, hand, _reach = found
     span = hand - mouth
-    if float(np.linalg.norm(span)) < 0.1 * scale:
-        span = frame[2] * scale  # la mano justo en la boca: el envase cuelga hacia abajo
+    if float(np.linalg.norm(span)) < 0.3 * scale:
+        # La mano en la boca: el envase se inclina hacia arriba y hacia el lado del codo, como al
+        # beber (colgando hacia abajo se leía como un bloque sobre el pecho, video_41 seg. 17,2).
+        _center, across, down = frame
+        side = event.kind if event is not None and event.kind in ("left", "right") else "right"
+        elbow = body.get(f"{side}_elbow")
+        out = across if elbow is None or (elbow - mouth) @ across >= 0 else -across
+        span = (out * 0.85 - down * 0.5) * scale
     axis = span / max(float(np.linalg.norm(span)), 1e-6)
     u = _phase(runtime, event)
     st = _activation(runtime, event, shape, body)
@@ -370,7 +376,7 @@ def _drink(shape, body, frame, scale, frame_index, runtime, layer, color, alpha,
     if crumple < 0.5 and keep > 0.5:
         liquid = _liquid(outline, level)
         if len(liquid):
-            fill_polygon(layer, liquid, WHITE * 0.6 + tint * 0.6, alpha * 0.7, 1.0, feather=1.0)
+            fill_polygon(layer, liquid, WHITE * 0.4 + tint * 0.5, alpha * 0.45, 1.0, feather=1.0)  # tenue: no un bloque de luz
             rng = np.random.default_rng(seed)
             lo, hi = float(liquid[:, 1].min()), float(liquid[:, 1].max())
             contour = liquid.astype(np.float32).reshape(-1, 1, 2)
