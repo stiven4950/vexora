@@ -6,6 +6,16 @@
 reactions:
 - action: spotlight
   options:
+  # video_52 seg. 14,2-14,9 (explicación del usuario): los dedos se encienden, amasa una masa de lado
+  # a lado como un panadero y la masa se vuelve la corbata.
+  - name: masa_corbata
+    weight: 0.15
+    cooldown: 450
+    kinds: [torso, left_arm, right_arm]
+    effects:
+    - type: adornment
+      style: {shapes: [dough_tie], thickness: 0.008, focus: false}
+      trigger: {hold: 26, fade_in: 1, fade_out: 6}
   # video_52: ojos en X (cuatro veces en el video) y en "+".
   - name: ojos_x
     weight: 0.15

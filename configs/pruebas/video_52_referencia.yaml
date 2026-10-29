@@ -20,8 +20,7 @@ momentos:
 - {seg: 10.7, accion: spotlight, opcion: cintas, dur: 2.1, exacto: true, color: "#33ff55"}
 - {seg: 12.9, accion: spotlight, opcion: expresion, figura: question, dur: 0.45, exacto: true, color: "#4848ff"}
 - {seg: 13.4, accion: arms_crossed, opcion: pensando, dur: 0.75, exacto: true}
-- {seg: 14.1, accion: spotlight, opcion: manos_eco, dur: 0.4, exacto: true, color: "#ffd030"}
-- {seg: 14.5, accion: spotlight, opcion: corbata_puesta, dur: 0.5, exacto: true}
+- {seg: 14.05, accion: spotlight, opcion: masa_corbata, dur: 0.75, exacto: true, lado: right, color: "#ffd030"}
 - {seg: 15.0, accion: spotlight, opcion: aro_orbita, dur: 0.6, exacto: true, lado: right}
 - {seg: 15.6, accion: spotlight, opcion: ojos_x, dur: 0.45, exacto: true, color: "#33ff55"}
 - {seg: 16.1, accion: spotlight, opcion: brazo, dur: 0.65, exacto: true, color: "#ff3030"}

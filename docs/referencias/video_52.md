@@ -55,7 +55,7 @@ Estado: ✅ ya lo hacemos · 🟡 hay algo parecido · ❌ nuevo · ❓ no está
 | 12,9-13,3 | frente, azul | **Brazos cruzados, mira hacia arriba** | **"?" grande** sobre la cabeza y un icono junto a la boca | ✅ `question` |
 | 13,4-14,1 | — | **Levanta el índice** (idea) | **Nube de pensamiento**: círculos que suben de la cabeza a una nube grande; luego un icono en la otra mano y rayitas | ❌ |
 | 14,2-14,3 | frente, amarillo | Mano en la panza | Rayos en los dedos | 🟡 |
-| 14,6-14,9 | — | Mano al pecho | **Una barra rellena vertical** en el pecho, del cuello a la panza | ❓ |
+| 14,4-14,9 | — | Amasa frente a la panza y sube la mano al pecho | **Una masa** que amasa de lado a lado como un panadero y que se convierte en **la corbata** (explicación del usuario) | ✅ `dough_tie` |
 | 15,0-15,5 | — | Barre con la mano | **Media luna rellena** que sigue la mano | ✅ |
 | 15,6-16,0 | desde abajo, verde | Mira a la cámara | Ojos en X | ✅ |
 | 16,1-16,7 | frente, rojo | **Flexiona los dos brazos** | **Brazos musculosos** | ✅ `biceps` |
@@ -136,7 +136,7 @@ Estado: ✅ ya lo hacemos · 🟡 hay algo parecido · ❌ nuevo · ❓ no está
 3. **6,9-7,8 y 26,9-28,1**: el cuerpo dibujado por piezas, como piedras separadas que se mueven con
    él. ¿Qué representa?
 4. **9,8-9,9**: la nube que sale de la cabeza y estalla. ¿"Mente que explota"?
-5. **14,6-14,9**: la barra rellena vertical en el pecho.
+5. **14,6-14,9**: la barra rellena vertical en el pecho. Resuelta: es la corbata en que se convierte la masa que amasa como un panadero (`dough_tie`).
 6. **20,1-20,5**: la figura en la muñeca (¿reloj, dulce, moño?).
 7. **21,5-22,2**: las barras verticales que flotan alrededor del cuerpo (¿barras de luz?).
 8. **22,5-23,1**: el remolino que se vuelve punto y luego aro en la panza.
