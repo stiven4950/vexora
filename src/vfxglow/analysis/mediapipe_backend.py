@@ -190,10 +190,12 @@ class MediaPipeDetector:
         people = self._track_people(poses, frame_bgr)
         claimed: set[int] = set()
         for person in people:
-            assigned, claimed = _assign_hands(hands, person.pose, claimed)
             torso = _torso_px(person.pose, width, height)
+            assigned, claimed = _assign_hands(hands, person.pose, claimed, torso / max(min(width, height), 1))
             for side, wrist_name in (("left", "left_wrist"), ("right", "right_wrist")):
-                if assigned[side] is not None:
+                # Sin mano, o con una tan chica que sus dedos no son fiables: se busca otra vez en un
+                # recorte ampliado alrededor de la muñeca.
+                if assigned[side] is not None and _hand_px(assigned[side], width, height) >= SMALL_HAND_PX:
                     continue
                 wrist = _pose_point(person.pose, wrist_name)
                 if wrist is None:
@@ -383,6 +385,9 @@ class MediaPipeDetector:
         if x1 - x0 < 16 or y1 - y0 < 16:
             return None
         crop = np.ascontiguousarray(rgb[y0:y1, x0:x1])
+        zoom = HAND_ZOOM_PX / max(x1 - x0, y1 - y0)
+        if zoom > 1.0:  # una mano de 15-20 px se agranda antes de buscar sus dedos
+            crop = np.ascontiguousarray(cv2.resize(crop, None, fx=zoom, fy=zoom, interpolation=cv2.INTER_CUBIC))
         image = mp.Image(image_format=mp.ImageFormat.SRGB, data=crop)
         result = self._hands_still.detect(image)
         groups = getattr(result, "hand_landmarks", None) or []
@@ -404,10 +409,27 @@ class MediaPipeDetector:
         return HandFrame(landmarks=landmarks, score=0.6)
 
 
+# Manos chicas (video_52: 15-20 px): la palma por debajo de esto se vuelve a buscar en un recorte
+# ampliado a HAND_ZOOM_PX (el detector trabaja a 224 px). Una mano cuya muñeca queda a más de
+# HAND_WRIST_MAX torsos de la muñeca de la pose no es de esa persona.
+SMALL_HAND_PX = 18.0
+HAND_ZOOM_PX = 320
+HAND_WRIST_MAX = 0.35
+
+
+def _hand_px(hand: HandFrame, width: int, height: int) -> float:
+    """Largo de la palma (muñeca al nudillo del medio) en píxeles."""
+    if len(hand.landmarks) < 10:
+        return 0.0
+    wrist, knuckle = hand.landmarks[0], hand.landmarks[9]
+    return float(np.hypot((wrist.x - knuckle.x) * width, (wrist.y - knuckle.y) * height))
+
+
 def _assign_hands(
     hands: list[HandFrame],
     pose: list[Landmark],
     claimed: set[int],
+    torso: float = 1.0,
 ) -> tuple[dict[str, HandFrame | None], set[int]]:
     assigned: dict[str, HandFrame | None] = {"left": None, "right": None}
     owners: dict[str, int] = {}
@@ -420,6 +442,8 @@ def _assign_hands(
         dl = _dist((wrist.x, wrist.y), left)
         dr = _dist((wrist.x, wrist.y), right)
         side = "left" if dl <= dr else "right"
+        if min(dl, dr) > HAND_WRIST_MAX * torso:
+            continue  # su muñeca no es la de esta persona: es otra mano (del público) o un error
         renamed = HandFrame(
             landmarks=[
                 _lm(hand_landmark_name(side, i), lm.x, lm.y, lm.z, lm.c) for i, lm in enumerate(hand.landmarks)
