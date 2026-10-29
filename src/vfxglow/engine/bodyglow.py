@@ -85,10 +85,28 @@ def _people(track: FrameRecord | None, event: MotionEvent | None, style) -> list
     if owner:
         people = [owner]
     elif track is not None and track.people:
-        people = [p.person_id for p in track.people]
+        people = _dancers(track)
     else:
         people = [None]
     return [p for p in people if not style.people or p in style.people]
+
+
+# Sin dueño en el evento, el adorno va en los bailarines: las personas de al menos este tamaño (ancho de
+# hombros) frente a la más grande. El público del fondo es mucho más chico (video_52: las aureolas y
+# la nube de pensamiento salían sobre la gente de atrás); una pareja que baila, del mismo tamaño.
+DANCER_SIZE = 0.6
+
+
+def _dancers(track: FrameRecord) -> list[str]:
+    sizes = {}
+    for person in track.people:
+        pts = {lm.name: np.array([lm.x, lm.y]) for lm in person.pose if lm.c > 0.3}
+        if "left_shoulder" in pts and "right_shoulder" in pts:
+            sizes[person.person_id] = float(np.linalg.norm(pts["left_shoulder"] - pts["right_shoulder"]))
+    if not sizes:
+        return [p.person_id for p in track.people]
+    biggest = max(sizes.values())
+    return [p.person_id for p in track.people if sizes.get(p.person_id, 0.0) >= DANCER_SIZE * biggest]
 
 
 def _color(style, person: str | None) -> np.ndarray:
