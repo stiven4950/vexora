@@ -44,6 +44,7 @@ import numpy as np
 
 from vfxglow.analysis.names import FACE_FEATURES
 from vfxglow.engine.critters import _ease, _phase, _seg
+from vfxglow.engine.dissolve import melt
 from vfxglow.engine.duo_fx import body_mask, fill_band, visible
 from vfxglow.engine.raster import fill_polygon, splat
 
@@ -57,6 +58,8 @@ FACE_GLOW = (
 )
 # Los que van sobre la piel: con poco halo (FACE_HALO), para no lavar la cara de luz.
 ON_FACE = tuple(s for s in FACE_GLOW if s not in ("rune_orbit", "head_echo", "eye_beams", "breath", "face_emanate", "face_swirl", "face_sparkle_rain", "eye_sparks"))
+# Lo que ya tiene su propia salida no se suelta en polvo.
+NO_MELT = ("face_mesh_live", "head_echo")
 # Un ojo que se ve más angosto que esto frente al otro está del lado que gira hacia atrás.
 FAR_EYE = 0.6
 # Orden del delineado y del contorno.
@@ -696,6 +699,13 @@ def face_glow(shape, body, frame, scale, frame_index, runtime, layer, color, alp
     face = Face(body, scale)
     u = _phase(runtime, event)
     seed = _seed(shape, body, event)
+    items = _draw(shape, body, scale, frame_index, runtime, layer, color, face, u, seed, event)
+    if shape in NO_MELT:
+        return items
+    return melt(items, u, face, layer, color, alpha, runtime.kernels, seed)
+
+
+def _draw(shape, body, scale, frame_index, runtime, layer, color, face, u, seed, event) -> list:
     rng = np.random.default_rng(seed)
     kernels = runtime.kernels
     openness = float(getattr(runtime, "expressions", {}).get("jawOpen", 0.5))
