@@ -25,7 +25,8 @@ def _names(frames) -> list[tuple[str, str]]:
 
 def test_mouth_open_and_a_blink() -> None:
     frames = _frames(60, lambda k: {"jawOpen": 0.7} if 10 <= k < 25 else {"eyeBlinkLeft": 0.9, "eyeBlinkRight": 0.9} if 40 <= k < 44 else {})
-    assert _names(frames) == [("mouth_open", ""), ("blink", "")]
+    # Sostenida, la boca bien abierta también cuenta como impresión.
+    assert _names(frames) == [("mouth_open", ""), ("surprise", ""), ("blink", "")]
 
 
 def test_eyes_closed_long_is_not_a_blink_and_one_eye_is_a_wink() -> None:

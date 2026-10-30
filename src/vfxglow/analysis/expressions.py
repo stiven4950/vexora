@@ -17,6 +17,9 @@ cabeza (`FrameRecord.head_pose`, grados). Sin ellas (análisis viejo, cara perdi
 - head_turn: la cabeza gira rápido hacia un lado (`kind` = hacia dónde).
 - head_tilt: la cabeza se inclina hacia un hombro (`kind` = hacia dónde).
 
+`cheekPuff` de MediaPipe casi no se mueve (expressions_1: 0,002 como máximo), así que `cheeks_puff` rara
+vez sale; los labios fruncidos sí se ven (`pucker`).
+
 Las cejas, la sonrisa, las mejillas y el beso se miden contra el valor habitual de esa persona en el
 video (la mediana): en facil_1 las cejas en reposo ya marcan 0,5-0,7.
 """
@@ -35,8 +38,6 @@ BLINK_MAX_S = 0.4
 WINK_CLOSED = 0.6
 WINK_OPEN = 0.35
 WINK_MIN_S = 0.15
-EYES_WIDE = 0.35
-EYES_WIDE_MIN_S = 0.2
 # Lo que se mide contra el valor habitual de la persona: cuánto por encima de su mediana, y además
 # un mínimo absoluto.
 SMILE = (0.5, 0.15)
@@ -44,12 +45,24 @@ SMILE_MIN_S = 0.3
 BROWS = (0.45, 0.2)
 BROWS_MIN_S = 0.2
 CHEEKS = (0.35, 0.2)
+# Ojos abiertos: el valor es bajo en caras reales (expressions_1, ojos muy abiertos: 0,14; máximo 0,27).
+EYES_WIDE = (0.12, 0.08)
+EYES_WIDE_MIN_S = 0.2
 PUCKER = (0.55, 0.2)
 POSE_MIN_S = 0.2
+# Cara tensa (ceño fruncido u ojos entrecerrados): con ella, la boca torcida no es un beso y la boca
+# abierta no es asombro, es un grito (expressions_1: entrecerrados 0,18 al asombrarse, 0,45 al gritar).
+FROWN = 0.35
+SQUINT = 0.38
+# Con la boca más abierta que esto, los labios redondos son habla, no un beso.
+PUCKER_JAW = 0.35
 # Impresión: las cejas arriba con los ojos algo abiertos o la boca algo abierta.
-SURPRISE_EYES = 0.2
+SURPRISE_EYES = 0.1
 SURPRISE_JAW = 0.25
-SURPRISE_MIN_S = 0.15
+# La boca bien abierta y sostenida ya es asombro aunque las cejas casi no suban (expressions_1).
+SURPRISE_MOUTH = 0.4
+SURPRISE_MIN_S = 0.3
+SURPRISE_GAP_S = 0.3
 # Hablar: volumen (analysis/voice.py) y boca en movimiento; las pausas cortas no cortan la frase.
 SPEAK_VOICE = 0.55
 SPEAK_JAW_MOVE = 0.03
@@ -83,6 +96,16 @@ def _spans(flags: np.ndarray, min_len: int, max_len: int | None = None) -> list[
             if k - start >= min_len and (max_len is None or k - start <= max_len):
                 out.append((start, k - 1))
             start = None
+    return out
+
+
+def _bridge(flags: np.ndarray, gap: int) -> np.ndarray:
+    """Une los tramos separados por huecos de hasta `gap` cuadros."""
+    out = flags.copy()
+    idx = np.flatnonzero(flags)
+    for a, b in zip(idx, idx[1:]):
+        if 1 < b - a <= gap + 1:
+            out[a:b] = True
     return out
 
 
@@ -134,7 +157,7 @@ def expression_events(frames: list[FrameRecord], fps: float) -> list[MotionEvent
             for span in _spans((closed >= WINK_CLOSED) & (opened <= WINK_OPEN), n(WINK_MIN_S)):
                 events.append(_event(frames, "wink", span, "Guiña un ojo.", side))
         wide = (_series(frames, "eyeWideLeft") + _series(frames, "eyeWideRight")) / 2
-        for span in _spans(wide >= EYES_WIDE, n(EYES_WIDE_MIN_S)):
+        for span in _spans(_above(wide, EYES_WIDE), n(EYES_WIDE_MIN_S)):
             events.append(_event(frames, "eyes_wide", span, "Abre mucho los ojos."))
         smile = (_series(frames, "mouthSmileLeft") + _series(frames, "mouthSmileRight")) / 2
         for span in _spans(_above(smile, SMILE), n(SMILE_MIN_S)):
@@ -142,14 +165,16 @@ def expression_events(frames: list[FrameRecord], fps: float) -> list[MotionEvent
         brows = np.fmax(_series(frames, "browInnerUp"), (_series(frames, "browOuterUpLeft") + _series(frames, "browOuterUpRight")) / 2)
         for span in _spans(_above(brows, BROWS), n(BROWS_MIN_S)):
             events.append(_event(frames, "brows_up", span, "Sube las cejas."))
-        with_mouth = np.nan_to_num(wide) >= SURPRISE_EYES
-        with_mouth |= np.nan_to_num(jaw) >= SURPRISE_JAW
-        for span in _spans(_above(brows, BROWS) & with_mouth, n(SURPRISE_MIN_S)):
+        frown = np.nan_to_num(np.fmax(_series(frames, "browDownLeft"), _series(frames, "browDownRight"))) >= FROWN
+        frown |= np.nan_to_num((_series(frames, "eyeSquintLeft") + _series(frames, "eyeSquintRight")) / 2) >= SQUINT
+        open_jaw, open_eyes = np.nan_to_num(jaw), np.nan_to_num(wide) >= SURPRISE_EYES
+        raised = _above(brows, BROWS) & (open_eyes | (open_jaw >= SURPRISE_JAW))
+        for span in _spans(_bridge((raised | (open_jaw >= SURPRISE_MOUTH)) & ~frown, n(SURPRISE_GAP_S)), n(SURPRISE_MIN_S)):
             events.append(_event(frames, "surprise", span, "Pone cara de impresión."))
         for span in _spans(_above(_series(frames, "cheekPuff"), CHEEKS), n(POSE_MIN_S)):
             events.append(_event(frames, "cheeks_puff", span, "Infla las mejillas."))
         pucker = np.fmax(_series(frames, "mouthPucker"), _series(frames, "mouthFunnel"))
-        for span in _spans(_above(pucker, PUCKER), n(POSE_MIN_S)):
+        for span in _spans(_above(pucker, PUCKER) & ~frown & (open_jaw < PUCKER_JAW), n(POSE_MIN_S)):
             events.append(_event(frames, "pucker", span, "Pone los labios en beso."))
     events += _speech_events(frames, fps)
     events += _gaze_events(frames, fps)

@@ -437,7 +437,8 @@ EXPRESSIONS = (
     "jawOpen", "eyeBlinkLeft", "eyeBlinkRight", "eyeWideLeft", "eyeWideRight", "mouthSmileLeft",
     "mouthSmileRight", "browInnerUp", "browOuterUpLeft", "browOuterUpRight", "cheekPuff", "mouthPucker",
     "mouthFunnel", "eyeLookInLeft", "eyeLookInRight", "eyeLookOutLeft", "eyeLookOutRight", "eyeLookUpLeft",
-    "eyeLookUpRight", "eyeLookDownLeft", "eyeLookDownRight",
+    "eyeLookUpRight", "eyeLookDownLeft", "eyeLookDownRight", "browDownLeft", "browDownRight", "mouthFrownLeft",
+    "mouthFrownRight", "eyeSquintLeft", "eyeSquintRight",
 )
 
 
