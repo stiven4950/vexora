@@ -39,6 +39,15 @@ reactions:
 # Al empezar: el contorno de la cara se traza solo, o un barrido holográfico.
 - action: entrance
   options:
+  # Rostro de terror en neón (assets/masks, engine/horror_masks.py): se arma sobre la cara y grita
+  # con la boca. Sale más en la temporada de Halloween.
+  - name: mascara_terror
+    weight: 0.15
+    cooldown: 600
+    effects:
+    - type: adornment
+      style: {shapes: [terror_ghostface], thickness: 0.008, focus: false}
+      trigger: {hold: 50, fade_in: 1, fade_out: 6}
   - name: contorno
     weight: 0.5
     cooldown: 0
@@ -148,6 +157,15 @@ reactions:
 - action: still
   cooldown: 60
   options:
+  # Rostro de terror en neón (assets/masks, engine/horror_masks.py): se arma sobre la cara y grita
+  # con la boca. Sale más en la temporada de Halloween.
+  - name: mascara_terror
+    weight: 0.15
+    cooldown: 600
+    effects:
+    - type: adornment
+      style: {shapes: [terror_ghostface], thickness: 0.008, focus: false}
+      trigger: {hold: 50, fade_in: 1, fade_out: 6}
   - name: runas
     weight: 0.3
     cooldown: 300
@@ -179,6 +197,15 @@ reactions:
 # Boca abierta: carga una esfera de energía que sale en ondas al cerrarla, o un aliento.
 - action: mouth_open
   options:
+  # Rostro de terror en neón (assets/masks, engine/horror_masks.py): se arma sobre la cara y grita
+  # con la boca. Sale más en la temporada de Halloween.
+  - name: mascara_terror
+    weight: 0.15
+    cooldown: 600
+    effects:
+    - type: adornment
+      style: {shapes: [terror_ghostface], thickness: 0.008, focus: false}
+      trigger: {hold: 50, fade_in: 1, fade_out: 6}
   - name: carga_boca
     weight: 0.5
     cooldown: 300

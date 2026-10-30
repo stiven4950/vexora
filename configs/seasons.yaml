@@ -38,7 +38,13 @@ seasons:
   - {action: still, moment: pumpkin_head, weight: 0.7, size: 2.2, max_uses: 1}
   - {action: still, moment: spider_drop, weight: 0.4, size: 2.5, max_uses: 1}
   - {action: lull, moment: web_corner, weight: 0.5, size: 2.0, max_uses: 1}
-  boost: [rayos_x, expresion]
+  # Rostros de terror en neón sobre la cara (assets/masks, engine/horror_masks.py): al empezar, en
+  # una pausa o al abrir la boca (el grito).
+  - {action: entrance, moment: terror_ghostface, weight: 0.8, size: 2.0, max_uses: 1}
+  - {action: still, moment: terror_ghostface, weight: 0.6, size: 2.0, max_uses: 2}
+  - {action: mouth_open, moment: terror_ghostface, weight: 0.8, size: 1.6, max_uses: 2}
+  - {action: blink, moment: terror_ghostface, weight: 0.3, size: 1.2, max_uses: 1}
+  boost: [rayos_x, expresion, mascara_terror]
 - id: dia_de_muertos
   title: Día de Muertos
   emoji: "💀"
