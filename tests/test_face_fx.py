@@ -90,6 +90,44 @@ def test_surprise_needs_brows_with_eyes_or_mouth() -> None:
     shocked = dict(only_brows, jawOpen=0.5)
     assert not [e for e in expression_events(_frames([calm] * 40 + [only_brows] * 20), 30.0) if e.name == "surprise"]
     assert [e for e in expression_events(_frames([calm] * 40 + [shocked] * 20), 30.0) if e.name == "surprise"]
+    # La boca muy abierta basta (asombro con las cejas quietas), pero con los ojos entrecerrados es un grito.
+    gasp = dict(calm, jawOpen=0.7)
+    scream = dict(gasp, eyeSquintLeft=0.5, eyeSquintRight=0.5)
+    assert [e for e in expression_events(_frames([calm] * 40 + [gasp] * 20), 30.0) if e.name == "surprise"]
+    assert not [e for e in expression_events(_frames([calm] * 40 + [scream] * 20), 30.0) if e.name == "surprise"]
+
+
+def test_eyes_wide_at_real_values_and_a_tense_mouth_is_no_kiss() -> None:
+    calm = {"eyeWideLeft": 0.01, "eyeWideRight": 0.01, "mouthPucker": 0.01}
+    wide = dict(calm, eyeWideLeft=0.15, eyeWideRight=0.14)  # así de bajo marca en una cara real
+    assert [e for e in expression_events(_frames([calm] * 40 + [wide] * 10), 30.0) if e.name == "eyes_wide"]
+    kiss = dict(calm, mouthPucker=0.9)
+    assert [e for e in expression_events(_frames([calm] * 40 + [kiss] * 10), 30.0) if e.name == "pucker"]
+    for tense in (dict(kiss, browDownLeft=0.5), dict(kiss, jawOpen=0.5)):  # enojo, o hablar con labios redondos
+        assert not [e for e in expression_events(_frames([calm] * 40 + [tense] * 10), 30.0) if e.name == "pucker"]
+
+
+def test_catalog_durations_follow_the_video_fps() -> None:
+    from vfxglow.director.choreography import Catalog, Option, Reaction, at_fps
+
+    option = Option(name="o", cooldown=300, effects=[{"type": "adornment", "trigger": {"hold": 90, "fade_in": 1, "fade_out": 6}}])
+    catalog = Catalog(name="c", title="C", reactions=[Reaction(action="still", cooldown=60, options=[option])])
+    assert at_fps(catalog, 29.97) is catalog
+    slow = at_fps(catalog, 15.0)
+    trigger = slow.reactions[0].options[0].effects[0]["trigger"]
+    assert (trigger["hold"], trigger["fade_out"], trigger["fade_in"]) == (45, 3, 1)
+    assert slow.reactions[0].options[0].cooldown == 150 and slow.reactions[0].cooldown == 30
+    assert catalog.reactions[0].options[0].effects[0]["trigger"]["hold"] == 90  # el original no se toca
+
+
+def test_time_is_counted_as_if_at_30_fps() -> None:
+    from types import SimpleNamespace
+
+    from vfxglow.engine.face_glow import paced, steps
+
+    slow = SimpleNamespace(fps=15.0)
+    assert paced(100, slow) == 200 and steps(slow) == 2
+    assert paced(100, SimpleNamespace(fps=30.0)) == 100 and steps(SimpleNamespace(fps=60.0)) == 1
 
 
 def test_the_face_mesh_survives_choosing_the_lead() -> None:
