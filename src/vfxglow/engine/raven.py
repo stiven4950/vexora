@@ -209,7 +209,8 @@ def _perch(body, runtime, layer, face, pos: np.ndarray) -> np.ndarray | None:
         if joint is None or not 0 <= joint[1] < height:
             continue
         # Entre el cuello y la punta del hombro: la parte plana del hombro.
-        x = float(np.clip(head[0] + (joint[0] - head[0]) * 0.88, 0.1 * width, 0.9 * width))
+        margin = 0.6 * SIZE * face.unit  # que quepa entero en el cuadro, con la cola
+        x = float(np.clip(head[0] + (joint[0] - head[0]) * 0.88, margin, width - margin))
         y = float(joint[1]) - 0.2 * face.unit
         for outline in getattr(runtime, "silhouettes", []) or []:
             near = outline[np.abs(outline[:, 0] - x) < 0.14 * face.unit]
