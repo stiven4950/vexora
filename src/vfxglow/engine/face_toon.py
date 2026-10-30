@@ -50,6 +50,8 @@ MOUTH_OPEN = 0.12  # separación de los labios internos, en tamaños de cara
 # lejos (video_33), a tamaño real quedan del tamaño del halo del neón y no se leen.
 EMOTE_SCALE = 2.5
 EMOTE_PIVOT = np.array([0.5, 0.75])
+# Margen (tamaños de cara) entre lo más alto del signo y el borde de arriba del cuadro.
+EMOTE_MARGIN = 0.15
 # Duración del jalón, en segundos.
 YANK_S = 0.3
 
@@ -228,10 +230,14 @@ def _heart_local(center: tuple[float, float], size: float) -> np.ndarray:
 def _emote(name: str, face: FaceFrame, pts, frame_index: int, color, line: float, envelope: float) -> list:
     bob = 0.03 * np.sin(frame_index * 0.4)
 
+    # Si lo más alto del signo queda fuera del cuadro (la cabeza arriba del todo), baja hasta entrar.
+    top = face.place(EMOTE_PIVOT + (np.array([[0.62, 1.45]]) - EMOTE_PIVOT) * EMOTE_SCALE)[0]
+    shift = np.array([0.0, max(0.0, EMOTE_MARGIN * face.size - float(top[1]))])
+
     def place(local: np.ndarray) -> np.ndarray:
         # Crece alrededor de un punto sobre la cabeza: grande sin irse lejos de la cara.
         local = np.asarray(local, dtype=np.float64)
-        return face.place(EMOTE_PIVOT + (local - EMOTE_PIVOT) * EMOTE_SCALE)
+        return face.place(EMOTE_PIVOT + (local - EMOTE_PIVOT) * EMOTE_SCALE) + shift
 
     strokes: list = []
     if name == "sweat":

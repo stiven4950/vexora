@@ -108,6 +108,14 @@ class Face:
             return self.place([(sx - 0.25, -0.22), (sx, -0.32), (sx + 0.25, -0.24)])
         return None
 
+    def local(self, name: str, default) -> tuple[float, float]:
+        """Un punto de la malla en coordenadas de cara, o `default` si no hay malla."""
+        point = self.points.get(name)
+        if point is None or not self.mesh:
+            return float(default[0]), float(default[1])
+        x, y = np.linalg.solve(np.stack([self.ux, self.uy], axis=1), point - self.origin)
+        return float(x), float(y)
+
     def at(self, name: str, local) -> np.ndarray:
         point = self.points.get(name)
         return point if point is not None and self.mesh else self.place(local)[0]
@@ -191,12 +199,16 @@ def _oval_trace(face: Face, u: float, layer, kernels) -> list[np.ndarray]:
 
 def _cells(face: Face) -> list[tuple[str, np.ndarray]]:
     """Triángulos de la cara por zona: frente, dos pómulos, nariz y mentón (en coordenadas de cara)."""
+    # Con malla, la frente y el mentón se miden en la cara real (la plantilla subía la frente hasta
+    # el pelo en las caras de cerca).
+    forehead = face.local("forehead_top", (0.0, -1.05))[1] * 0.85
+    chin = face.local("chin", (0.0, 1.6))[1]
     cells = [
-        ("forehead", [(-0.6, -0.55), (0.0, -1.05), (0.6, -0.55)]),
+        ("forehead", [(-0.6, -0.5), (0.0, forehead), (0.6, -0.5)]),
         ("right", [(-0.85, 0.25), (-0.35, 0.3), (-0.65, 0.75)]),
         ("left", [(0.85, 0.25), (0.35, 0.3), (0.65, 0.75)]),
         ("nose", [(0.0, 0.05), (-0.18, 0.6), (0.18, 0.6)]),
-        ("chin", [(-0.3, 1.3), (0.3, 1.3), (0.0, 1.6)]),
+        ("chin", [(-0.25, chin - 0.3), (0.25, chin - 0.3), (0.0, chin - 0.05)]),
     ]
     return [(zone, face.place(tri)) for zone, tri in cells if zone not in ("right", "left") or face.visible(zone)]
 
@@ -282,8 +294,23 @@ def _scan(face: Face, u: float, layer, kernels) -> list[np.ndarray]:
     return lines
 
 
+# Zonas del cristal en coordenadas de cara: (centro x, centro y, radio). Se sortea una por vez.
+_CRYSTAL_ZONES = {"forehead": (0.0, -0.6, 0.55), "right": (-0.6, 0.5, 0.42), "left": (0.6, 0.5, 0.42), "nose": (0.0, 0.4, 0.38), "chin": (0.0, 1.25, 0.42)}
+
+
 def _crystal(face: Face, u: float, layer, color, rng) -> list[np.ndarray]:
-    tris = _triangles(_mesh_points(face), 11)  # pocas facetas grandes
+    zones = [z for z in _CRYSTAL_ZONES if z not in ("right", "left") or face.visible(z)]
+    zone = zones[int(rng.integers(0, len(zones)))]
+    cx, cy, radius = _CRYSTAL_ZONES[zone]
+    basis = np.stack([face.ux, face.uy], axis=1)
+    points = _mesh_points(face)
+    local = np.linalg.solve(basis, (points - face.origin).T).T
+    near = points[np.linalg.norm(local - [cx, cy], axis=1) <= radius]
+    if len(near) < 5:  # sin malla: unos puntos al azar dentro de la zona
+        angles = rng.uniform(0, TAU, 9)
+        near = face.place(np.stack([cx + np.cos(angles) * radius * rng.uniform(0.3, 1.0, 9), cy + np.sin(angles) * radius * rng.uniform(0.3, 1.0, 9)], axis=1))
+    stride = max(len(near) // int(rng.integers(6, 12)), 1)  # entre 6 y 11 puntos: más o menos facetas
+    tris = _triangles(near, stride)
     grow = _ease(_seg(u, 0.0, 0.4))
     lines = []
     for k, tri in enumerate(tris):
