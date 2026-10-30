@@ -46,6 +46,8 @@ serpientes, cachos, guadaña, esqueletos y hadas.
 | Desintegración en polvo (máscaras y dibujos de cara) | `engine/dissolve.py` |
 | Eventos `surprise`, `speaking` y `gaze_shift` (la mirada usa las expresiones `eyeLook*`) | `analysis/expressions.py` |
 | Volumen por fotograma (`FrameRecord.voice`) | `analysis/voice.py` |
+| El cuervo: silueta que se transforma entre vuelo y posado, aterrizaje sobre el contorno del hombro | `engine/raven.py` |
+| Colores de las máscaras: `MASK_PALETTES`, se sortea una por aparición | `engine/horror_masks.py` |
 | Efectos que responden por grados: aliento de dragón, pulso sónico, marioneta, cuervo, sellos en los ojos | `engine/living_fx.py` |
 | Señales por grados en el motor: `runtime.voice`, `runtime.head_pose`, `runtime.energy` (además de `runtime.expressions`) | `engine/bodyglow.py` |
 | Máscara viva `terror_<id>` (se ajusta por los ojos, grita con `jawOpen`, parpadea, luz que fluye, salida en figuras de Halloween) | `engine/horror_masks.py` |

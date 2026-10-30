@@ -19,7 +19,8 @@ from vfxglow.engine.face_wounds import WOUNDS
 from vfxglow.engine.face_zone import on_face
 from vfxglow.engine.head_beasts import BEASTS, _fairy_at
 from vfxglow.engine.horror_masks import HORROR_MASKS
-from vfxglow.engine.living_fx import LIVING, _raven_shape
+from vfxglow.engine.living_fx import LIVING
+from vfxglow.engine.raven import raven_shape
 
 KERNELS: dict = {}
 
@@ -203,6 +204,11 @@ def test_the_flame_follows_how_open_the_mouth_is() -> None:
     assert reach(0.6) > reach(0.0)
 
 
-def test_raven_folds_its_wing_when_perched() -> None:
+def test_raven_morphs_between_flying_and_perched() -> None:
     at = np.array([100.0, 100.0])
-    assert len(_raven_shape(at, 50.0, 1.0, 0.5, True)) != len(_raven_shape(at, 50.0, 1.0, 0.5, False))
+    flying, perched = raven_shape(at, 50.0, 1.0, 0.5, 0.0), raven_shape(at, 50.0, 1.0, 0.5, 1.0)
+    assert "far" in flying and "far" not in perched  # el ala de atrás se esconde
+    assert perched["legs"] and not flying["legs"]
+    assert len(flying["body"]) == len(perched["body"])  # la misma silueta, sin salto al aterrizar
+    half = raven_shape(at, 50.0, 1.0, 0.5, 0.5)
+    assert np.allclose(half["body"], (flying["body"] + perched["body"]) / 2)
