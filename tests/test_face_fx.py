@@ -19,6 +19,7 @@ from vfxglow.engine.face_wounds import WOUNDS
 from vfxglow.engine.face_zone import on_face
 from vfxglow.engine.head_beasts import BEASTS, _fairy_at
 from vfxglow.engine.horror_masks import HORROR_MASKS
+from vfxglow.engine.living_fx import LIVING, _raven_shape
 
 KERNELS: dict = {}
 
@@ -34,7 +35,7 @@ def _frames(rows: list[dict]) -> list[FrameRecord]:
     return [FrameRecord(frame=k, time_s=k / 30.0, person_id="person_0", expressions=row) for k, row in enumerate(rows)]
 
 
-@pytest.mark.parametrize("shape", CREATURES + WOUNDS + MOODS + BEASTS)
+@pytest.mark.parametrize("shape", CREATURES + WOUNDS + MOODS + BEASTS + LIVING)
 def test_every_new_shape_draws_something(shape: str) -> None:
     body = _body()
     effect = Effect(id="a", type="adornment", target=EffectTarget(kind="joint", id="body"), style=EffectStyle(shapes=[shape]), triggers=[{"event": "x", "hold": 90}])
@@ -120,3 +121,50 @@ def test_terror_moment_draws_any_of_the_faces_and_season_adds_ambient() -> None:
 
     catalog = Catalog(name="c", title="C", reactions=[])
     assert apply_to_catalog(catalog, season).always[-1]["style"]["shapes"] == ["fairies"]
+
+
+def test_loudness_is_relative_to_the_video() -> None:
+    from vfxglow.analysis.voice import RATE, loudness
+
+    tone = np.sin(np.linspace(0, 2000, RATE)) * 0.02  # un video grabado bajo
+    levels = loudness(np.concatenate([tone, np.zeros(RATE)]), 30.0, 60)
+    assert levels[:30].min() > 0.8 and levels[30:].max() == 0.0
+
+
+def test_speaking_needs_sound_and_a_moving_mouth() -> None:
+    def talk(moves: bool) -> list[FrameRecord]:
+        rows = [{"jawOpen": 0.3 * (k % 4 == 0) if moves else 0.0} for k in range(60)]
+        frames = _frames(rows)
+        for frame in frames:
+            frame.voice = 0.9
+        return frames
+
+    assert [e for e in expression_events(talk(True), 30.0) if e.name == "speaking"]
+    assert not [e for e in expression_events(talk(False), 30.0) if e.name == "speaking"]  # música de fondo
+
+
+def test_the_flame_follows_how_open_the_mouth_is() -> None:
+    body = _body()
+    effect = Effect(id="a", type="adornment", target=EffectTarget(kind="joint", id="body"), style=EffectStyle(shapes=["dragon_breath"]), triggers=[{"event": "x", "hold": 60}])
+    event = MotionEvent(name="x", target="person_0", start_frame=0, end_frame=0, confidence=1.0)
+
+    def reach(jaw: float) -> float:
+        """Hasta dónde llega lo que brilla de verdad, medido desde la boca (el resplandor no cuenta)."""
+        runtime = EffectRuntime(effect, 1, 10)
+        runtime.expressions = {"jawOpen": jaw}
+        far = 0.0
+        for f in range(1, 40):
+            runtime.active_frames = f
+            layer = np.zeros((600, 700, 4), np.float32)
+            adornment("dragon_breath", body, body.frame(), body.scale, f, 1, runtime, layer, np.array([1, 0.5, 0], np.float32), 1.0, event=event)
+            ys, xs = np.nonzero(layer[..., 3] > 0.25)
+            if len(xs):
+                far = max(far, float(np.hypot(xs - 200.0, ys - 150.0).max()))
+        return far
+
+    assert reach(0.6) > reach(0.0)
+
+
+def test_raven_folds_its_wing_when_perched() -> None:
+    at = np.array([100.0, 100.0])
+    assert len(_raven_shape(at, 50.0, 1.0, 0.5, True)) != len(_raven_shape(at, 50.0, 1.0, 0.5, False))
