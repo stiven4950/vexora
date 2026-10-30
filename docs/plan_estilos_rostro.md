@@ -44,7 +44,10 @@ serpientes, cachos, guadaña, esqueletos y hadas.
 | Beso lanzado, impresión (ojos y líneas de impacto), ráfaga de la mirada | `engine/face_moods.py` |
 | Balaca y corona de serpientes, cachos rojos, gancho de la muerte, esqueletos, hadas | `engine/head_beasts.py` |
 | Desintegración en polvo (máscaras y dibujos de cara) | `engine/dissolve.py` |
-| Eventos `surprise` y `gaze_shift` (la mirada usa las expresiones `eyeLook*`) | `analysis/expressions.py` |
+| Eventos `surprise`, `speaking` y `gaze_shift` (la mirada usa las expresiones `eyeLook*`) | `analysis/expressions.py` |
+| Volumen por fotograma (`FrameRecord.voice`) | `analysis/voice.py` |
+| Efectos que responden por grados: aliento de dragón, pulso sónico, marioneta, cuervo, sellos en los ojos | `engine/living_fx.py` |
+| Señales por grados en el motor: `runtime.voice`, `runtime.head_pose`, `runtime.energy` (además de `runtime.expressions`) | `engine/bodyglow.py` |
 | Máscara viva `terror_<id>` (se ajusta por los ojos, grita con `jawOpen`, parpadea, luz que fluye, salida en figuras de Halloween) | `engine/horror_masks.py` |
 | Halloween: la máscara como momento de temporada | `configs/seasons.yaml` (halloween → moments), `director/seasons.py` |
 | Opciones de motor nuevas: `keep_on_cut` (sigue tras un corte de toma), `one_at_a_time` y `moment_scale` en el catálogo | `director/schema.py`, `director/choreography.py`, `engine/engine.py` |
@@ -71,6 +74,8 @@ fotogramas 2 y 470.
 - Sin video de referencia de cara: tiempos y pesos calibrados a ojo sobre `facil_1`.
 - `facil_1` no tiene boca abierta ni ojos muy abiertos: la carga en la boca, el grito y `surprise` no
   se probaron con un evento real (sí con eventos sintéticos en vistas previas).
+  El aliento de dragón tampoco: se probó con una apertura de boca simulada. Hace falta un video donde
+  la persona abra la boca, grite o sople para calibrarlo. El fuego se ve mejor sobre fondos oscuros.
 - Los análisis anteriores a octubre de 2026 no tienen malla facial (se borraba en `analysis/cast.py`)
   ni mirada: hay que reanalizar el video. Al cambiar el código de análisis eso ocurre solo.
 - El gancho de la muerte entra desde un lado de la cabeza; no lo agarra la mano.

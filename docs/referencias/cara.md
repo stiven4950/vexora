@@ -95,3 +95,18 @@ hecho antes de este cambio no lo tiene hasta que se vuelva a analizar.
 
 - Un video de referencia de cara con efectos glowing, para calibrar tiempos (fade, hold, cooldown) y
   formas de cada dibujo.
+
+## Efectos por grados (engine/living_fx.py)
+
+Leen cada fotograma cuánto abre la boca, el volumen, la energía de la cabeza y la mirada.
+
+| Forma | Qué hace | Se activa con |
+| --- | --- | --- |
+| `dragon_breath` | Llamarada cuyo largo sigue a la boca o al soplido; apunta hacia donde gira la cabeza | `mouth_open`, `cheeks_puff` |
+| `sonic_pulse` | Ondas que salen de la boca con el tamaño del volumen y barras de ecualizador | `speaking` |
+| `puppet_strings` | Hilos desde una cruceta a sienes, hombros y muñecas; vibran con el movimiento y se rompen | `head_tilt`, `head_turn`, pausas |
+| `raven` | Cuervo que orbita, se posa en el hombro si la persona se queda quieta y acaba en plumas | `head_turn`, pausas |
+| `eye_curse` | Sellos que siguen la mirada, se apagan al cerrar los ojos y sueltan una onda al abrirlos | `blink` |
+
+`speaking` exige volumen y boca en movimiento a la vez: con solo música de fondo no se dispara. Los
+análisis anteriores no tienen volumen hasta reanalizar el video.
