@@ -2,7 +2,7 @@
 #
 # Solo luz sobre la cara real (sin deformarla ni cambiarle la piel). Reacciona a lo que hace la cara:
 # expresiones y cabeza (analysis/expressions.py: boca abierta, parpadeo, guiño, ojos muy abiertos,
-# sonrisa, cejas, mejillas, beso, giro e inclinación), trazos de maquillaje (paint_stroke, con la
+# sonrisa, cejas, mejillas, beso, impresión, mirada, giro e inclinación), trazos de maquillaje (paint_stroke, con la
 # figura que más se parece al trazo) y la punta del pincel (tool_touch), y los gestos de las manos
 # en la cara. Dibujos en engine/face_glow.py; se suman máscaras y gafas de engine/face_toon.py,
 # eyewear.py y costumes.py. Sin video de referencia todavía (docs/referencias/cara.md).
@@ -19,6 +19,10 @@ chapters: true
 color_per_effect: true
 # Un solo efecto a la vez sobre el rostro.
 one_at_a_time: true
+# Orden de reparto con un efecto a la vez: primero lo que no cabe en cualquier lado (el rostro de
+# entrada y los efectos largos de las pausas), luego los gestos clave y al final la mirada, que es
+# corta y llena los huecos. Con la mirada antes, sus ráfagas no dejaban lugar a los largos.
+priority: [entrance, still, surprise, pucker, mouth_open, eyes_wide, gaze_shift, wink]
 defaults:
   type: adornment
   target: {kind: joint, id: body}
@@ -65,8 +69,9 @@ reactions:
     cooldown: 600
     effects:
     - type: adornment
-      style: {shapes: [terror_ghostface], thickness: 0.008, focus: false}
-      trigger: {hold: 45, fade_in: 1, fade_out: 6}
+      # Los 24 rostros (se sortea uno por activación).
+      style: {shapes: &terror [terror_alien, terror_billy_saw, terror_calabaza, terror_chica_poseida, terror_chucky, terror_demonio, terror_dracula, terror_espantapajaros, terror_espectro, terror_frankenstein, terror_freddy_krueger, terror_ghostface, terror_hannibal_lecter, terror_hombre_lobo, terror_jason_voorhees, terror_michael_myers, terror_momia, terror_nosferatu, terror_novia_frankenstein, terror_payaso_maldito, terror_pennywise, terror_predator, terror_rey_infierno, terror_vampiro], thickness: 0.008, focus: false}
+      trigger: {hold: 72, fade_in: 1, fade_out: 6}
   - name: contorno
     weight: 0.5
     cooldown: 0
@@ -109,6 +114,105 @@ reactions:
     - type: adornment
       style: {shapes: [face_sparkle_rain], thickness: 0.008, focus: false}
       trigger: {hold: 90, fade_in: 1, fade_out: 8}
+  # Bichos que caminan por la cara (engine/face_creatures.py): efectos largos, como los de Instagram.
+  - name: aranas
+    weight: 0.5
+    cooldown: 450
+    kinds: [head]
+    effects:
+    - type: adornment
+      style: {shapes: [face_spiders], thickness: 0.008, focus: false}
+      trigger: {hold: 165, fade_in: 1, fade_out: 8}
+  - name: hormigas
+    weight: 0.3
+    cooldown: 450
+    kinds: [head]
+    effects:
+    - type: adornment
+      style: {shapes: [face_ants], thickness: 0.008, focus: false}
+      trigger: {hold: 165, fade_in: 1, fade_out: 8}
+  - name: ciempies
+    weight: 0.3
+    cooldown: 450
+    kinds: [head]
+    effects:
+    - type: adornment
+      style: {shapes: [face_centipede], thickness: 0.008, focus: false}
+      trigger: {hold: 165, fade_in: 1, fade_out: 8}
+  - name: cucarachas
+    weight: 0.25
+    cooldown: 450
+    kinds: [head]
+    effects:
+    - type: adornment
+      style: {shapes: [face_roaches], thickness: 0.008, focus: false}
+      trigger: {hold: 150, fade_in: 1, fade_out: 8}
+  # Heridas de luz (engine/face_wounds.py).
+  - name: zarpazo
+    weight: 0.3
+    cooldown: 450
+    kinds: [head]
+    effects:
+    - type: adornment
+      style: {shapes: [face_claws], thickness: 0.008, focus: false}
+      trigger: {hold: 110, fade_in: 1, fade_out: 6}
+  - name: cicatriz
+    weight: 0.3
+    cooldown: 450
+    kinds: [head]
+    effects:
+    - type: adornment
+      style: {shapes: [face_stitches], thickness: 0.008, focus: false}
+      trigger: {hold: 110, fade_in: 1, fade_out: 6}
+  - name: grietas
+    weight: 0.25
+    cooldown: 450
+    kinds: [head]
+    effects:
+    - type: adornment
+      style: {shapes: [face_cracks], thickness: 0.008, focus: false}
+      trigger: {hold: 110, fade_in: 1, fade_out: 6}
+  # Lo que aparece en la cabeza y alrededor (engine/head_beasts.py).
+  - name: balaca_serpientes
+    weight: 0.4
+    cooldown: 450
+    kinds: [head]
+    effects:
+    - type: adornment
+      style: {shapes: [snake_band], thickness: 0.008, focus: false}
+      trigger: {hold: 120, fade_in: 1, fade_out: 6}
+  - name: corona_serpientes
+    weight: 0.3
+    cooldown: 450
+    kinds: [head]
+    effects:
+    - type: adornment
+      style: {shapes: [snake_crown], thickness: 0.008, focus: false}
+      trigger: {hold: 120, fade_in: 1, fade_out: 6}
+  - name: cachos_rojos
+    weight: 0.3
+    cooldown: 450
+    kinds: [head]
+    effects:
+    - type: adornment
+      style: {shapes: [red_horns], thickness: 0.008, focus: false}
+      trigger: {hold: 100, fade_in: 1, fade_out: 6}
+  - name: gancho_muerte
+    weight: 0.2
+    cooldown: 600
+    kinds: [head]
+    effects:
+    - type: adornment
+      style: {shapes: [death_hook], thickness: 0.008, focus: false}
+      trigger: {hold: 100, fade_in: 1, fade_out: 8}
+  - name: esqueletos
+    weight: 0.2
+    cooldown: 600
+    kinds: [head]
+    effects:
+    - type: adornment
+      style: {shapes: [skeleton_dance], thickness: 0.008, focus: false}
+      trigger: {hold: 130, fade_in: 1, fade_out: 8}
   - name: delineado
     weight: 0.35
     cooldown: 240
@@ -230,8 +334,95 @@ reactions:
     cooldown: 600
     effects:
     - type: adornment
-      style: {shapes: [terror_ghostface], thickness: 0.008, focus: false}
-      trigger: {hold: 45, fade_in: 1, fade_out: 6}
+      style: {shapes: *terror, thickness: 0.008, focus: false}
+      trigger: {hold: 72, fade_in: 1, fade_out: 6}
+  # Bichos que caminan por la cara (engine/face_creatures.py): efectos largos, como los de Instagram.
+  - name: aranas
+    weight: 1.0
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [face_spiders], thickness: 0.008, focus: false}
+      trigger: {hold: 165, fade_in: 1, fade_out: 8}
+  - name: hormigas
+    weight: 0.6
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [face_ants], thickness: 0.008, focus: false}
+      trigger: {hold: 165, fade_in: 1, fade_out: 8}
+  - name: ciempies
+    weight: 0.6
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [face_centipede], thickness: 0.008, focus: false}
+      trigger: {hold: 165, fade_in: 1, fade_out: 8}
+  - name: cucarachas
+    weight: 0.5
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [face_roaches], thickness: 0.008, focus: false}
+      trigger: {hold: 150, fade_in: 1, fade_out: 8}
+  # Heridas de luz (engine/face_wounds.py).
+  - name: zarpazo
+    weight: 0.6
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [face_claws], thickness: 0.008, focus: false}
+      trigger: {hold: 110, fade_in: 1, fade_out: 6}
+  - name: cicatriz
+    weight: 0.6
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [face_stitches], thickness: 0.008, focus: false}
+      trigger: {hold: 110, fade_in: 1, fade_out: 6}
+  - name: grietas
+    weight: 0.5
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [face_cracks], thickness: 0.008, focus: false}
+      trigger: {hold: 110, fade_in: 1, fade_out: 6}
+  # Lo que aparece en la cabeza y alrededor (engine/head_beasts.py).
+  - name: balaca_serpientes
+    weight: 0.8
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [snake_band], thickness: 0.008, focus: false}
+      trigger: {hold: 120, fade_in: 1, fade_out: 6}
+  - name: corona_serpientes
+    weight: 0.3
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [snake_crown], thickness: 0.008, focus: false}
+      trigger: {hold: 120, fade_in: 1, fade_out: 6}
+  - name: cachos_rojos
+    weight: 0.3
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [red_horns], thickness: 0.008, focus: false}
+      trigger: {hold: 100, fade_in: 1, fade_out: 6}
+  - name: gancho_muerte
+    weight: 0.2
+    cooldown: 600
+    effects:
+    - type: adornment
+      style: {shapes: [death_hook], thickness: 0.008, focus: false}
+      trigger: {hold: 100, fade_in: 1, fade_out: 8}
+  - name: esqueletos
+    weight: 0.2
+    cooldown: 600
+    effects:
+    - type: adornment
+      style: {shapes: [skeleton_dance], thickness: 0.008, focus: false}
+      trigger: {hold: 130, fade_in: 1, fade_out: 8}
   - name: runas
     weight: 0.3
     cooldown: 300
@@ -270,8 +461,15 @@ reactions:
     cooldown: 600
     effects:
     - type: adornment
-      style: {shapes: [terror_ghostface], thickness: 0.008, focus: false}
-      trigger: {hold: 45, fade_in: 1, fade_out: 6}
+      style: {shapes: *terror, thickness: 0.008, focus: false}
+      trigger: {hold: 72, fade_in: 1, fade_out: 6}
+  - name: impresion_rayos
+    weight: 0.4
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [shock_burst], thickness: 0.008, focus: false}
+      trigger: {hold: 60, fade_in: 1, fade_out: 6}
   - name: carga_boca
     weight: 0.5
     cooldown: 300
@@ -302,6 +500,36 @@ reactions:
   - name: nada
     weight: 0.65
     effects: []
+# Cara de impresión (cejas arriba con ojos o boca abiertos): ojos y boca de susto o líneas de impacto.
+- action: surprise
+  options:
+  - name: impresion_cara
+    weight: 0.7
+    cooldown: 120
+    effects:
+    - type: adornment
+      style: {shapes: [shock_face], thickness: 0.008, focus: false}
+      trigger: {hold: 75, fade_in: 1, fade_out: 6}
+  - name: impresion_rayos
+    weight: 0.6
+    cooldown: 120
+    effects:
+    - type: adornment
+      style: {shapes: [shock_burst], thickness: 0.008, focus: false}
+      trigger: {hold: 60, fade_in: 1, fade_out: 6}
+# Cambio de mirada: los ojos disparan partículas hacia donde mira.
+- action: gaze_shift
+  options:
+  - name: rafaga_mirada
+    weight: 0.85
+    cooldown: 75
+    effects:
+    - type: adornment
+      style: {shapes: [gaze_burst], thickness: 0.008, focus: false}
+      trigger: {hold: 28, fade_in: 1, fade_out: 4}
+  - name: nada
+    weight: 0.15
+    effects: []
 # Guiño: un destello en el ojo.
 - action: wink
   options:
@@ -320,6 +548,13 @@ reactions:
 - action: eyes_wide
   options:
   # Partículas que salen del rostro o lo rodean: lo que más sale.
+  - name: impresion_cara
+    weight: 0.6
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [shock_face], thickness: 0.008, focus: false}
+      trigger: {hold: 75, fade_in: 1, fade_out: 6}
   - name: chispas_ojos
     weight: 0.7
     cooldown: 120
@@ -383,8 +618,22 @@ reactions:
     - type: adornment
       style: {shapes: [face_emanate], thickness: 0.008, focus: false}
       trigger: {hold: 90, fade_in: 1, fade_out: 8}
+  - name: impresion_cara
+    weight: 0.45
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [shock_face], thickness: 0.008, focus: false}
+      trigger: {hold: 75, fade_in: 1, fade_out: 6}
+  - name: impresion_rayos
+    weight: 0.35
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [shock_burst], thickness: 0.008, focus: false}
+      trigger: {hold: 60, fade_in: 1, fade_out: 6}
   - name: arcos_cejas
-    weight: 0.5
+    weight: 0.4
     cooldown: 240
     effects:
     - type: adornment
@@ -413,11 +662,18 @@ reactions:
   - name: nada
     weight: 0.2
     effects: []
-# Labios en beso: el beso de face_toon.
+# Labios en beso: lanza corazones y una marca de labios (engine/face_moods.py), o el beso de face_toon.
 - action: pucker
   options:
+  - name: beso_lanzado
+    weight: 1.0
+    cooldown: 150
+    effects:
+    - type: adornment
+      style: {shapes: [kiss_blow], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 4}
   - name: beso
-    weight: 0.7
+    weight: 0.25
     cooldown: 300
     effects:
     - type: face_toon
@@ -570,6 +826,13 @@ reactions:
 # Mano en la boca: botella, cigarro o vapeador (de baile).
 - action: hand_mouth
   options:
+  - name: beso_lanzado
+    weight: 0.5
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [kiss_blow], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 4}
   - name: cigarro
     weight: 0.3
     cooldown: 600

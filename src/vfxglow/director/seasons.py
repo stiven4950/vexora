@@ -44,6 +44,8 @@ class Season(BaseModel):
     hats: list[str] = Field(default_factory=list)
     closing: list[str] = Field(default_factory=list)
     moments: list[Moment] = Field(default_factory=list)
+    # Efectos de toda la temporada, encima del catálogo: no compiten por el lugar del efecto de turno.
+    ambient: list[dict] = Field(default_factory=list)
     boost: list[str] = Field(default_factory=list)
 
     def active(self, date: dt.date) -> int:
@@ -78,12 +80,16 @@ HEAD_HATS = {"cap", "cowboy_hat", "top_hat", "fedora", "party_hat", "headphones"
 
 
 def moment_effect(season: Season, moment: Moment, scale: float = 1.0) -> dict:
-    if moment.moment.startswith("terror_"):
+    if moment.moment.startswith("terror"):
         # Un rostro de terror en neón sobre la cara (engine/horror_masks.py), con sus colores.
+        # `terror` a secas: uno cualquiera de los de assets/masks, sorteado en cada activación.
+        from vfxglow.engine.horror_masks import HORROR_MASKS
+
+        shapes = list(HORROR_MASKS) if moment.moment == "terror" else [moment.moment]
         return {
             "type": "adornment",
             "target": {"kind": "joint", "id": "body"},
-            "style": {"shapes": [moment.moment], "thickness": 0.008, "hdr_gain": 1.6, "focus": False, "keep_on_cut": True},
+            "style": {"shapes": shapes, "thickness": 0.008, "hdr_gain": 1.6, "focus": False, "keep_on_cut": True},
             "render": {"blend": "add", "motion_blur": 0.0, "persistence": 0.0, "group": "glow"},
             "trigger": {"hold": int(moment.size * scale * 30), "fade_in": 1, "fade_out": 6},
         }
@@ -123,7 +129,7 @@ def apply_to_catalog(catalog, season: Season):
         defaults.setdefault("style", {})["palette"] = [list(c) for c in season.palette]
         out.colors = [tuple(c) for c in season.palette[:2]]
     out.defaults = defaults
-    out.always = [_theme_effect(copy.deepcopy(effect), season) for effect in out.always]
+    out.always = [_theme_effect(copy.deepcopy(effect), season) for effect in out.always] + copy.deepcopy(season.ambient)
     boosted = set(season.boost)
     for reaction in out.reactions:
         for option in reaction.options:

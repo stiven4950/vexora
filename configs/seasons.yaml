@@ -15,7 +15,7 @@ seasons:
   emoji: "🎃"
   months: [10]
   tags: [halloween, terror, calabazas, arañas, telarañas, murciélagos, fantasmas]
-  description: La mano suelta murciélagos, los golpes dejan arañazos, un fantasma sale del piso al pisar, la cabeza se vuelve calabaza en una pausa y una araña baja de su hilo.
+  description: La mano suelta murciélagos, los golpes dejan arañazos, un fantasma sale del piso al pisar, la cabeza se vuelve calabaza en una pausa, una araña baja de su hilo y las hadas vuelan alrededor.
   palette:
   - [1.0, 0.5, 0.05]
   - [0.6, 0.2, 1.0]
@@ -39,14 +39,21 @@ seasons:
   - {action: still, moment: spider_drop, weight: 0.4, size: 2.5, max_uses: 1}
   - {action: lull, moment: web_corner, weight: 0.5, size: 2.0, max_uses: 1}
   # Rostros de terror en neón sobre la cara (assets/masks, engine/horror_masks.py): al empezar, en
-  # una pausa o al abrir la boca (el grito).
-  # Duran como un efecto normal; al irse se deshacen en murciélagos, calabazas y estrellas.
+  # una pausa o al abrir la boca (el grito). `terror`: se sortea uno de los 24 por activación.
+  # Aparecen en ~0,8 s y se sueltan en polvo en ~1,1 s.
   # Al empezar casi siempre sale el rostro: es lo que define el modo Halloween.
-  - {action: entrance, moment: terror_ghostface, weight: 4.0, size: 1.5, max_uses: 1}
-  - {action: still, moment: terror_ghostface, weight: 1.5, size: 1.5, max_uses: 2}
-  - {action: mouth_open, moment: terror_ghostface, weight: 1.5, size: 1.5, max_uses: 2}
-  - {action: blink, moment: terror_ghostface, weight: 0.3, size: 0.8, max_uses: 1}
-  boost: [rayos_x, expresion, mascara_terror]
+  - {action: entrance, moment: terror, weight: 12.0, size: 2.4, max_uses: 1}
+  - {action: still, moment: terror, weight: 5.0, size: 2.4, max_uses: 2}
+  - {action: mouth_open, moment: terror, weight: 1.5, size: 2.4, max_uses: 2}
+  - {action: blink, moment: terror, weight: 0.3, size: 2.4, max_uses: 1}
+  # Hadas que vuelan alrededor de la persona en oleadas (engine/head_beasts.py).
+  ambient:
+  - type: adornment
+    target: {kind: joint, id: body}
+    time: {start_frame: 0, end_frame: -1, fade_in: 2, fade_out: 4}
+    style: {shapes: [fairies], thickness: 0.006, hdr_gain: 1.6, focus: false, keep_on_cut: true}
+    render: {blend: add, motion_blur: 0.0, persistence: 0.0, group: glow}
+  boost: [rayos_x, expresion, mascara_terror, aranas, hormigas, ciempies, cucarachas, zarpazo, cicatriz, grietas, balaca_serpientes, corona_serpientes, cachos_rojos, gancho_muerte, esqueletos]
 - id: dia_de_muertos
   title: Día de Muertos
   emoji: "💀"
