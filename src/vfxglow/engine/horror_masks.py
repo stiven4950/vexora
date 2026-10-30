@@ -12,6 +12,8 @@ color, en coordenadas de cara (ojos en x = ±0,5, y hacia el mentón). La forma 
 - Aparece en orden: partículas que llegan a las líneas → el contorno se traza de afuera hacia
   adentro → ojos, nariz y boca → los huecos se llenan de una luz tenue → pulso. Al final se
   deshace en guiones y partículas.
+- Ya armada, la figura queda quieta y la luz corre por dentro de cada línea, como agua por una
+  zanja: un tramo brillante recorre cada trazo y suelta chispas por delante.
 - El color es el del dibujo (el degradado de la referencia).
 """
 
@@ -117,6 +119,49 @@ def _dashed(line: np.ndarray, keep: float, period: float) -> list[np.ndarray]:
     return dashed(line, keep, period)
 
 
+# El neón fluye (pedido del usuario): las líneas son zanjas y la luz corre por dentro como agua. La
+# figura no se mueve: cada trazo queda tenue (FLOW_BASE) y un tramo brillante de FLOW_LEN de su
+# largo lo recorre una vez cada FLOW_PERIOD fotogramas, soltando chispas por delante. Cada trazo
+# arranca desfasado, así la luz no corre a la vez por toda la cara.
+FLOW_BASE = 0.45
+FLOW_LEN = 0.28
+FLOW_PERIOD = 40
+FLOW_BOOST = 1.6
+
+
+def _window(line: np.ndarray, a: float, b: float) -> np.ndarray:
+    """El tramo de la línea entre las fracciones `a` y `b` de su largo."""
+    seg = np.linalg.norm(np.diff(line, axis=0), axis=1)
+    acc = np.concatenate([[0.0], np.cumsum(seg)])
+    total = acc[-1]
+    if total <= 0:
+        return line[:1]
+    marks = np.linspace(max(a, 0.0) * total, min(b, 1.0) * total, max(int((b - a) * len(line) * 3), 3))
+    return np.stack([np.interp(marks, acc, line[:, 0]), np.interp(marks, acc, line[:, 1])], axis=1)
+
+
+def _flow(placed: dict, strokes: list[dict], age: int, face, layer, alpha: float, kernels) -> list:
+    """La luz que corre por las líneas: el tramo brillante y sus chispas."""
+    out = []
+    for k, pts in placed.items():
+        if len(pts) < 2:
+            continue
+        head = ((age + k * 7) % FLOW_PERIOD) / FLOW_PERIOD * (1.0 + FLOW_LEN)
+        tail = head - FLOW_LEN
+        piece = _window(pts, max(tail, 0.0), min(head, 1.0))
+        if len(piece) < 2 or head <= 0.0 or tail >= 1.0:
+            continue
+        color = strokes[k]["color"]
+        out.append((piece, color * FLOW_BOOST))
+        tip, behind = piece[-1], piece[max(len(piece) - 3, 0)]
+        ahead = (tip - behind) / max(float(np.linalg.norm(tip - behind)), 1e-6)
+        if head <= 1.0:  # chispas por delante de la luz que avanza
+            for j in range(3):
+                fly = tip + ahead * (0.05 + 0.07 * j) * face.unit
+                splat(layer, float(fly[0]), float(fly[1]), 0.03 * face.unit + 0.6, color * 1.4, alpha * (0.8 - 0.2 * j), kernels)
+    return out
+
+
 def horror_mask(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
     mask_id = shape.removeprefix("terror_")
     try:
@@ -129,6 +174,7 @@ def horror_mask(shape, body, frame, scale, frame_index, runtime, layer, color, a
     anchors = mask["anchors"]
     strokes = mask["strokes"]
     placed = {k: face.place(_warp(s["points"], s["role"], anchors, expressions)) for k, s in enumerate(strokes)}
+    flowing = 0.62 <= u < DISSOLVE  # ya armada: la luz corre por las líneas
     out: list = []
     rng = np.random.default_rng(len(strokes) + (event.start_frame if event else 0))
     if u < PARTICLES_END:  # las partículas llegan a las líneas
@@ -150,6 +196,8 @@ def horror_mask(shape, body, frame, scale, frame_index, runtime, layer, color, a
         part = _seg(u, *FEATURES)
         if part > 0:
             out.append((_trim(placed[k], _ease(part)), stroke["color"]))
+    if flowing:
+        out = [(line, tint * FLOW_BASE) for line, tint in out] + _flow(placed, strokes, runtime.active_frames, face, layer, alpha, runtime.kernels)
     if u >= FILL_AT:  # los huecos se llenan de una luz tenue, con un pulso
         glow = _seg(u, FILL_AT, FILL_AT + 0.08) * (0.75 + 0.25 * np.sin(frame_index * 0.3))
         for role in FEATURE_ROLES:
