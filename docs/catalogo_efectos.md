@@ -667,7 +667,7 @@ temporada está encendido todo el tiempo. Sobre cualquier catálogo:
 
 | Temporada | Se sugiere | Objetos | Momentos |
 | --- | --- | --- | --- |
-| Halloween 🎃 | Octubre | Murciélagos, calabazas, fantasmas, arañas; sombrero de bruja | Pausa: araña que baja hasta la cabeza. Pausa larga: telaraña que se teje en la esquina. Baile intenso: enjambre de murciélagos. Pisotón: fantasmas que suben |
+| Halloween 🎃 | Octubre | Murciélagos, calabazas, fantasmas, arañas; sombrero de bruja | Pausa: araña que baja hasta la cabeza. Pausa larga: telaraña que se teje en la esquina. Baile intenso: enjambre de murciélagos. Pisotón: fantasmas que suben. Al empezar, en pausa o al abrir la boca: rostro de terror (`terror`, uno de 24 por activación). Siempre: hadas alrededor (`ambient`, no ocupan el lugar del efecto de turno) |
 | Día de Muertos 💀 | 28 oct – 3 nov | Cempasúchil, calaveras; corona de flores | Pausa y baile intenso: lluvia de pétalos |
 | Navidad 🎄 | Diciembre | Copos, esferas, estrellas; gorro de Santa | Pausa: estrella sobre la cabeza. Baile intenso: nevada |
 | Año Nuevo 🎆 | 28 dic – 3 ene | Estrellas; gorro de fiesta | Baile intenso y brazos arriba: fuegos artificiales |

@@ -7,8 +7,9 @@ los archivos que la tarea pida.
 
 vfxglow (Vexora) dibuja efectos glowing sobre videos. Además de baile y peleas, ahora hay una línea
 de **efectos para el rostro**: el catálogo `cara` y un **modo Halloween** con rostros de terror en
-neón sacados de una cuadrícula de 24 personajes. Por ahora solo el personaje 01 (Ghostface) está
-hecho; la idea es probar que funciona y luego sacar los demás.
+neón sacados de una cuadrícula de 24 personajes, ya todos hechos. Además hay bichos que caminan por
+la cara, heridas de luz, besos lanzados, caras de impresión, ráfagas con la mirada, balacas de
+serpientes, cachos, guadaña, esqueletos y hadas.
 
 ## Reglas que dio el usuario (no romperlas)
 
@@ -19,9 +20,10 @@ hecho; la idea es probar que funciona y luego sacar los demás.
   de líneas).
 - Con un **rostro especial** puesto (máscara de terror) no va nada más sobre la cara: la coreografía
   rechaza esas opciones y el motor apaga las que ya estaban (`engine/face_zone.py`).
-- Las máscaras duran como un efecto normal (~1,5 s): se arman rápido, la luz corre por sus líneas
-  "como agua por una zanja" (no giran las figuras) y al irse se deshacen en murciélagos, calabazas,
-  fantasmas y estrellas de colores.
+- Las máscaras se arman rápido (~0,8 s), la luz corre por sus líneas "como agua por una zanja" (no
+  giran las figuras) y al irse se sueltan en polvo fino con figuritas diminutas, con mucha expansión
+  y fluido (~1,1 s, `engine/dissolve.py`). Por eso duran ~2,4 s y no 1,5.
+- Bichos que caminan: efectos largos (~5 s), como los filtros de Instagram. Heridas: solo luz.
 - En `baile` los efectos de cara son cortos; en `cara` pueden durar más.
 - ~40% de los cambios de efecto se transforman del dibujo anterior al nuevo (continuidad), pero solo
   si el anterior ya terminó.
@@ -36,7 +38,13 @@ hecho; la idea es probar que funciona y luego sacar los demás.
 | ~23 dibujos de cara (delineado, malla, cristal, runas, ojos, boca, partículas `face_emanate`, `face_swirl`, `face_sparkle_rain`, `eye_sparks`) | `engine/face_glow.py` |
 | Catálogo `cara` (alias de los viejos presets `face_neon` y `face_runes`) | `configs/catalogs/cara.yaml`, doc `docs/referencias/cara.md` |
 | Cuadrícula de 24 rostros neón (fuente) y su índice (n, id, nombre) | `assets/masks/source/halloween_grid.png` y `.yaml` |
-| Herramienta: celda de la cuadrícula → trazos vectoriales con rol (ojos, nariz, boca, línea) en coordenadas de cara | `tools/mask_from_grid.py --cell N` → `assets/masks/<id>.yaml` |
+| Herramienta: celda de la cuadrícula → trazos vectoriales con rol, en coordenadas de cara. Los rasgos salen de `marks` en el índice (leídos a mano); el detector de huecos solo sirve para Ghostface | `tools/mask_from_grid.py --cell N` → `assets/masks/<id>.yaml` |
+| Bichos: arañas, hormigas, ciempiés, cucarachas | `engine/face_creatures.py` |
+| Heridas: zarpazo, cicatriz cosida, grietas | `engine/face_wounds.py` |
+| Beso lanzado, impresión (ojos y líneas de impacto), ráfaga de la mirada | `engine/face_moods.py` |
+| Balaca y corona de serpientes, cachos rojos, gancho de la muerte, esqueletos, hadas | `engine/head_beasts.py` |
+| Desintegración en polvo (máscaras y dibujos de cara) | `engine/dissolve.py` |
+| Eventos `surprise` y `gaze_shift` (la mirada usa las expresiones `eyeLook*`) | `analysis/expressions.py` |
 | Máscara viva `terror_<id>` (se ajusta por los ojos, grita con `jawOpen`, parpadea, luz que fluye, salida en figuras de Halloween) | `engine/horror_masks.py` |
 | Halloween: la máscara como momento de temporada | `configs/seasons.yaml` (halloween → moments), `director/seasons.py` |
 | Opciones de motor nuevas: `keep_on_cut` (sigue tras un corte de toma), `one_at_a_time` y `moment_scale` en el catálogo | `director/schema.py`, `director/choreography.py`, `engine/engine.py` |
@@ -49,20 +57,22 @@ subidas; si no está, buscar `facil_1.mp4` en `api_data/uploads/`). Resultado:
 
 ## Siguiente paso (plan)
 
-1. Que el usuario vea el último render y apruebe Ghostface.
-2. Sacar los otros 23 personajes: `tools/mask_from_grid.py --cell N` para N = 2..24, revisar la hoja
-   de roles de cada uno (pintar los trazos por rol) y ajustar la clasificación donde falle. Los de
-   rasgos poco marcados (pelo, sombrero, capucha, la calabaza 23, Predator 18, Alien 17) seguramente
-   necesiten reglas propias (p. ej. la calabaza no tiene cara humana: ojos y boca son huecos grandes).
-3. Agregarlos a Halloween (`seasons.yaml`) y a `cara` (opción `mascara_terror` con varias formas;
-   se sortea una por activación).
-4. Cuando llegue un video de referencia de cara con efectos glowing: analizarlo como los de baile
+1. Que el usuario vea el render y diga qué ajustar.
+2. Cuando llegue un video de referencia de cara con efectos glowing: analizarlo como los de baile
    (`docs/criterio_de_analisis.md`) y calibrar tiempos y formas.
+3. Falta probar en video real lo que `facil_1` no tiene: boca abierta y cara de impresión.
+
+Para revisar efectos sin renderizar todo, dibujarlos sobre fotogramas reales con `EffectEngine` y un
+evento sintético (como `tools/preview.py`); los tramos de frente de `facil_1` empiezan en los
+fotogramas 2 y 470.
 
 ## Pendientes conocidos
 
 - Sin video de referencia de cara: tiempos y pesos calibrados a ojo sobre `facil_1`.
-- `facil_1` no tiene boca abierta: la carga en la boca y el grito no se probaron en video real (sí en
-  vistas previas).
+- `facil_1` no tiene boca abierta ni ojos muy abiertos: la carga en la boca, el grito y `surprise` no
+  se probaron con un evento real (sí con eventos sintéticos en vistas previas).
+- Los análisis anteriores a octubre de 2026 no tienen malla facial (se borraba en `analysis/cast.py`)
+  ni mirada: hay que reanalizar el video. Al cambiar el código de análisis eso ocurre solo.
+- El gancho de la muerte entra desde un lado de la cabeza; no lo agarra la mano.
 - Si la cara gira mucho, el lado de atrás se oculta por el ancho de los ojos; no hay oclusión 3D.
 - Commits en `main` sin subir al cerrar esta sesión: subirlos cuando el usuario lo pida.

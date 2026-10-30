@@ -25,12 +25,15 @@ un video de referencia de cara con efectos glowing.
 | `paint_stroke` | Trazo de maquillaje nuevo: figura en detalle, zona de la cara en `kind` | figura_maquillaje, delineado |
 | `tool_touch` | La punta del pincel deja pigmento | llama_pincel, nada |
 | `face_touch` | Mano en la cara | beso, asombro, nada |
+| `surprise` | Cara de impresión: cejas arriba con ojos muy abiertos o boca abierta | impresion_cara, impresion_rayos |
+| `gaze_shift` | La mirada salta a otro lado (izquierda, derecha, arriba, abajo) | rafaga_mirada, nada |
 | `cover_eyes` | Se tapa los ojos | antifaz, burla, nada |
 | `hands_on_head` | Manos en la cabeza | calavera, aro_runas, nada |
 | `hand_mouth` | Mano en la boca | cigarro, vapeador, botella, nada |
 
 Las expresiones salen de MediaPipe (0 a 1) y de la orientación de la cabeza. Sin ellas (análisis
-viejo o cara perdida) no hay eventos.
+viejo o cara perdida) no hay eventos. `gaze_shift` necesita los blendshapes `eyeLook`: un análisis
+hecho antes de este cambio no lo tiene hasta que se vuelva a analizar.
 
 ## Los dibujos
 
@@ -55,6 +58,19 @@ viejo o cara perdida) no hay eventos.
 | `rune_orbit` | Un anillo de runas que gira alrededor de la cabeza y se esconde detrás |
 | `head_echo` | Copias del contorno de la cabeza que se quedan atrás y se apagan |
 | `makeup_figure` | El trazo de maquillaje se vuelve su figura (triángulo, elipse, rectángulo, círculo): se traza, un arco la recorre, se itera hacia afuera y queda como cristal |
+| `face_spiders`, `face_ants`, `face_centipede`, `face_roaches` | Bichos de luz que caminan por la cara (largos, ~5 s): entran, cruzan con pausas y salen; las patas siguen lo caminado |
+| `face_claws` | Zarpazo de cuatro tajos en mejilla o frente que gotean luz |
+| `face_stitches` | Una cicatriz que se traza sola y se cose puntada por puntada |
+| `face_cracks` | La piel se raja desde un punto y por las grietas sale luz de brasa |
+| `kiss_blow` | Los labios sueltan corazones hacia la cámara y una marca de labios estalla en corazoncitos |
+| `shock_face` | Cara de impresión: anillos en los ojos, boca en "O", cejas que saltan y gotas de susto |
+| `shock_burst` | Líneas de impacto de cómic alrededor de la cabeza, "!!" y estrellas |
+| `gaze_burst` | Al cambiar la mirada, los ojos disparan partículas hacia donde mira |
+| `snake_band`, `snake_crown` | Balaca de dos serpientes en la frente, o serpientes que nacen del pelo |
+| `red_horns` | Cachos rojos que crecen de la frente y sueltan brasas |
+| `death_hook` | Una guadaña enorme entra, se detiene junto al cuello y se retira |
+| `skeleton_dance` | Esqueletos pequeños que suben por los lados y bailan |
+| `fairies` | Hadas con estela de polvo alrededor de la persona (ver Halloween) |
 
 ## Reglas
 
@@ -65,6 +81,15 @@ viejo o cara perdida) no hay eventos.
 - Sin malla facial, el dibujo cae en plantillas puestas con los ojos y la nariz de la pose.
 - Los dibujos sobre la piel llevan poco halo, para no lavar la cara de luz. Los rayos, el aliento y
   los anillos orbitales sí llevan halo completo.
+- Los dibujos de línea sobre la cara terminan en polvo de luz (`engine/dissolve.py`), no se apagan.
+
+## Halloween
+
+- Hay 24 rostros de terror en `assets/masks`, sacados de `assets/masks/source/halloween_grid.yaml`
+  con las `marks` de cada celda (ojos, nariz, boca).
+- El momento de temporada `terror` sortea uno por activación.
+- Las hadas (`fairies`) son un efecto `ambient` de la temporada: van y vienen en oleadas y no
+  compiten con `one_at_a_time`.
 
 ## Pendiente
 
