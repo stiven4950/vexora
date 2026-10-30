@@ -7,8 +7,12 @@ encendidas cuando llega (engine/engine.py).
 from __future__ import annotations
 
 from vfxglow.engine.costumes import FACE, HEAD
+from vfxglow.engine.face_creatures import CREATURES
 from vfxglow.engine.face_glow import FACE_GLOW
+from vfxglow.engine.face_moods import MOODS
+from vfxglow.engine.face_wounds import WOUNDS
 from vfxglow.engine.hand_props import DRINKS, SMOKES
+from vfxglow.engine.head_beasts import HEAD_BEASTS
 from vfxglow.engine.horror_masks import HORROR_MASKS
 
 # Tipos de efecto que siempre dibujan sobre la cara.
@@ -20,7 +24,7 @@ FACE_SHAPES = (
     frozenset(FACE_GLOW) - {"rune_orbit"}
     | set(FACE) | set(HEAD)
     | {"venom", "iron_man", "devil_eyes", "heart_eyes", "glow_eyes", "lion_roar", "avatar_mark", "finger_number"}
-    | set(DRINKS) | set(SMOKES)
+    | set(DRINKS) | set(SMOKES) | set(CREATURES) | set(WOUNDS) | set(MOODS) | set(HEAD_BEASTS)
 )
 
 

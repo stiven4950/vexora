@@ -56,6 +56,10 @@ from vfxglow.engine.solo_fx import SOLO_FX, solo_fx
 from vfxglow.engine.arm_fx import ARM_FX, arm_fx
 from vfxglow.engine.morph_fx import MORPH_FX, morph_fx
 from vfxglow.engine.face_glow import FACE_GLOW, face_glow
+from vfxglow.engine.face_creatures import CREATURES, face_creature
+from vfxglow.engine.face_moods import MOODS, face_mood
+from vfxglow.engine.face_wounds import WOUNDS, face_wound
+from vfxglow.engine.head_beasts import BEASTS, head_beast
 from vfxglow.engine.horror_masks import HORROR_MASKS, horror_mask
 from vfxglow.engine.stories import STORIES, story
 from vfxglow.engine.dresses import DRESSES, dress
@@ -70,7 +74,7 @@ DOODLES = (
     "shoulder_bolts", "head_bolts", "hand_ring", "moon", "chest_burst", "body_bolts", "foot_spark",
     "floor_arc", "leg_line", "leg_string", "side_edges", "shoulder_arcs", "heart_eyes", "spin_arcs", "glow_eyes",
     "foot_ring", "foot_bolts",
-) + DUO_FX + COSTUMES + SHOES + DRESSES + CRITTERS + STORIES + GUNS + FISTS + HAND_PROPS + ENERGY_PASS + COUNTING + SOLO_FX + ARM_FX + MORPH_FX + FACE_GLOW + HORROR_MASKS + FIREBEND + FIRE_CREATURES + WATERBEND + AIRBEND + EARTHBEND + CHARACTERS
+) + DUO_FX + COSTUMES + SHOES + DRESSES + CRITTERS + STORIES + GUNS + FISTS + HAND_PROPS + ENERGY_PASS + COUNTING + SOLO_FX + ARM_FX + MORPH_FX + FACE_GLOW + HORROR_MASKS + CREATURES + WOUNDS + MOODS + BEASTS + FIREBEND + FIRE_CREATURES + WATERBEND + AIRBEND + EARTHBEND + CHARACTERS
 WHITE = np.array([1.0, 1.0, 1.0], np.float32)
 
 
@@ -189,6 +193,14 @@ def doodle(shape, body, frame, scale, frame_index, seed, runtime, layer, color, 
         return face_glow(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape in HORROR_MASKS:
         return horror_mask(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape in CREATURES:
+        return face_creature(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape in WOUNDS:
+        return face_wound(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape in MOODS:
+        return face_mood(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape in BEASTS:
+        return head_beast(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape in FIREBEND:
         return firebend(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape in EARTHBEND:

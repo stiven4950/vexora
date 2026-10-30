@@ -595,9 +595,12 @@ def biceps_lines(body: Body, side: str, frame_index: int = 0) -> list[np.ndarray
 # Avatar): van con poco
 # halo de neón.
 FACE_SHAPES = ("hero_mask", "masquerade", "bat_mask", "cat_mask", "fox_mask", "mustache", "pirate_patch", "heart_eyes", "glow_eyes", "lion_roar", "avatar_mark")
+from vfxglow.engine.face_creatures import CREATURES as _CREATURES  # noqa: E402
 from vfxglow.engine.face_glow import ON_FACE as _FACE_GLOW_ON_FACE  # noqa: E402
+from vfxglow.engine.face_wounds import WOUNDS as _WOUNDS  # noqa: E402
+from vfxglow.engine.head_beasts import SNAKES as _SNAKES  # noqa: E402
 
-FACE_SHAPES += _FACE_GLOW_ON_FACE
+FACE_SHAPES += _FACE_GLOW_ON_FACE + _CREATURES + _WOUNDS + _SNAKES + ("shock_face", "shock_burst")
 
 
 # Continuidad entre dibujos (pedido del usuario, video_52): en cerca de CONTINUITY de los cambios de
