@@ -436,7 +436,8 @@ HAND_WRIST_MAX = 0.35
 EXPRESSIONS = (
     "jawOpen", "eyeBlinkLeft", "eyeBlinkRight", "eyeWideLeft", "eyeWideRight", "mouthSmileLeft",
     "mouthSmileRight", "browInnerUp", "browOuterUpLeft", "browOuterUpRight", "cheekPuff", "mouthPucker",
-    "mouthFunnel",
+    "mouthFunnel", "eyeLookInLeft", "eyeLookInRight", "eyeLookOutLeft", "eyeLookOutRight", "eyeLookUpLeft",
+    "eyeLookUpRight", "eyeLookDownLeft", "eyeLookDownRight",
 )
 
 

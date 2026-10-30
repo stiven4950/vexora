@@ -11,6 +11,8 @@ cabeza (`FrameRecord.head_pose`, grados). Sin ellas (análisis viejo, cara perdi
 - brows_up: las cejas suben.
 - cheeks_puff: las mejillas infladas.
 - pucker: los labios en beso.
+- surprise: cara de impresión: cejas arriba y, a la vez, ojos muy abiertos o boca abierta.
+- gaze_shift: la mirada salta a otro lado (`kind` = hacia dónde: left, right, up o down, de la persona).
 - head_turn: la cabeza gira rápido hacia un lado (`kind` = hacia dónde).
 - head_tilt: la cabeza se inclina hacia un hombro (`kind` = hacia dónde).
 
@@ -43,6 +45,16 @@ BROWS_MIN_S = 0.2
 CHEEKS = (0.35, 0.2)
 PUCKER = (0.55, 0.2)
 POSE_MIN_S = 0.2
+# Impresión: las cejas arriba con los ojos algo abiertos o la boca algo abierta.
+SURPRISE_EYES = 0.2
+SURPRISE_JAW = 0.25
+SURPRISE_MIN_S = 0.15
+# Mirada: un salto de al menos GAZE_JUMP en GAZE_S (expresiones de 0 a 1), uno cada GAZE_GAP_S. Con
+# los ojos medio cerrados no vale: al parpadear las expresiones marcan que mira abajo.
+GAZE_JUMP = 0.3
+GAZE_S = 0.2
+GAZE_GAP_S = 0.8
+GAZE_BLINK = 0.4
 # Cabeza: un giro de al menos HEAD_TURN_DEG en HEAD_TURN_S; una inclinación de HEAD_TILT_DEG respecto
 # de la habitual, sostenida.
 HEAD_TURN_DEG = 25.0
@@ -124,13 +136,49 @@ def expression_events(frames: list[FrameRecord], fps: float) -> list[MotionEvent
         brows = np.fmax(_series(frames, "browInnerUp"), (_series(frames, "browOuterUpLeft") + _series(frames, "browOuterUpRight")) / 2)
         for span in _spans(_above(brows, BROWS), n(BROWS_MIN_S)):
             events.append(_event(frames, "brows_up", span, "Sube las cejas."))
+        with_mouth = np.nan_to_num(wide) >= SURPRISE_EYES
+        with_mouth |= np.nan_to_num(jaw) >= SURPRISE_JAW
+        for span in _spans(_above(brows, BROWS) & with_mouth, n(SURPRISE_MIN_S)):
+            events.append(_event(frames, "surprise", span, "Pone cara de impresión."))
         for span in _spans(_above(_series(frames, "cheekPuff"), CHEEKS), n(POSE_MIN_S)):
             events.append(_event(frames, "cheeks_puff", span, "Infla las mejillas."))
         pucker = np.fmax(_series(frames, "mouthPucker"), _series(frames, "mouthFunnel"))
         for span in _spans(_above(pucker, PUCKER), n(POSE_MIN_S)):
             events.append(_event(frames, "pucker", span, "Pone los labios en beso."))
+    events += _gaze_events(frames, fps)
     events += _head_events(frames, fps)
     return sorted(events, key=lambda e: e.start_frame)
+
+
+def gaze_vector(expressions: dict[str, float]) -> tuple[float, float]:
+    """Hacia dónde mira: (x, y), con x hacia la izquierda de la persona e y hacia arriba."""
+    get = expressions.get
+    x = (get("eyeLookOutLeft", 0.0) - get("eyeLookInLeft", 0.0) + get("eyeLookInRight", 0.0) - get("eyeLookOutRight", 0.0)) / 2
+    y = (get("eyeLookUpLeft", 0.0) + get("eyeLookUpRight", 0.0) - get("eyeLookDownLeft", 0.0) - get("eyeLookDownRight", 0.0)) / 2
+    return x, y
+
+
+def _gaze_events(frames: list[FrameRecord], fps: float) -> list[MotionEvent]:
+    if not any("eyeLookInLeft" in (f.expressions or {}) for f in frames):
+        return []  # análisis anterior a la mirada
+    gaze = np.array([gaze_vector(f.expressions) if f.expressions else (np.nan, np.nan) for f in frames], dtype=np.float64)
+    blink = np.fmax(_series(frames, "eyeBlinkLeft"), _series(frames, "eyeBlinkRight"))
+    with np.errstate(invalid="ignore"):
+        gaze[blink >= GAZE_BLINK] = np.nan
+    window, gap = max(int(round(GAZE_S * fps)), 1), max(int(round(GAZE_GAP_S * fps)), 1)
+    events: list[MotionEvent] = []
+    k, last = window, -10_000
+    while k < len(frames):
+        change = gaze[k] - gaze[k - window]
+        if np.isfinite(change).all() and float(np.linalg.norm(change)) >= GAZE_JUMP and k - last > gap:
+            if abs(change[0]) >= abs(change[1]):
+                kind = "left" if change[0] > 0 else "right"
+            else:
+                kind = "up" if change[1] > 0 else "down"
+            events.append(_event(frames, "gaze_shift", (k - window, k), "Cambia la mirada.", kind))
+            last = k
+        k += 1
+    return events
 
 
 def _head_events(frames: list[FrameRecord], fps: float) -> list[MotionEvent]:

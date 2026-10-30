@@ -97,6 +97,8 @@ EVENT_CATALOG: dict[str, str] = {
     "brows_up": "Sube las cejas.",
     "cheeks_puff": "Infla las mejillas.",
     "pucker": "Pone los labios en beso.",
+    "surprise": "Pone cara de impresión: cejas arriba con los ojos o la boca abiertos.",
+    "gaze_shift": "La mirada salta a otro lado.",
     "head_turn": "Gira la cabeza rápido hacia un lado.",
     "head_tilt": "Inclina la cabeza hacia un hombro.",
     "paint_stroke": "Un trazo de maquillaje o pintura nueva sobre la cara.",

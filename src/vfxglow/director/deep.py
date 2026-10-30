@@ -54,6 +54,8 @@ ACTIONS = {
     "brows_up": "sube las cejas",
     "cheeks_puff": "infla las mejillas",
     "pucker": "pone los labios en beso",
+    "surprise": "pone cara de impresión",
+    "gaze_shift": "cambia la mirada de golpe",
     "head_turn": "gira la cabeza rápido hacia un lado",
     "head_tilt": "inclina la cabeza hacia un hombro",
     "paint_stroke": "se maquilla o pinta la cara: un trazo nuevo",
