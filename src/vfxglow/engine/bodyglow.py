@@ -23,6 +23,7 @@ import numpy as np
 from vfxglow.analysis.schema import FrameRecord, MotionEvent
 from vfxglow.engine.duo_doodles import DOODLES, doodle
 from vfxglow.engine.raster import fill_polygon, splat, stroke_batch
+from vfxglow.engine.anchors import joint_speed
 from vfxglow.engine.swoosh import FACE_HALO, neon_layers
 
 TAU = 2.0 * np.pi
@@ -600,7 +601,11 @@ from vfxglow.engine.face_glow import ON_FACE as _FACE_GLOW_ON_FACE  # noqa: E402
 from vfxglow.engine.face_wounds import WOUNDS as _WOUNDS  # noqa: E402
 from vfxglow.engine.head_beasts import SNAKES as _SNAKES  # noqa: E402
 
-FACE_SHAPES += _FACE_GLOW_ON_FACE + _CREATURES + _WOUNDS + _SNAKES + ("shock_face", "shock_burst")
+FACE_SHAPES += _FACE_GLOW_ON_FACE + _CREATURES + _WOUNDS + _SNAKES + ("shock_face", "shock_burst", "eye_curse", "sonic_pulse")
+
+
+# Velocidad de la cabeza que ya cuenta como energía máxima (facil_1: mediana 0,01; percentil 99, 0,19).
+HEAD_ENERGY_SPEED = 0.15
 
 
 # Continuidad entre dibujos (pedido del usuario, video_52): en cerca de CONTINUITY de los cambios de
@@ -674,7 +679,7 @@ def draw_adornment(runtime, track, points, frame_index: int, height: int, envelo
     from vfxglow.engine.earthbend import EARTHBEND
     from vfxglow.engine.waterbend import WATERBEND
 
-    if shape in FIREBEND or shape in FIRE_CREATURES or shape in WATERBEND or shape in AIRBEND or shape in EARTHBEND:
+    if shape in FIREBEND or shape == "dragon_breath" or shape in FIRE_CREATURES or shape in WATERBEND or shape in AIRBEND or shape in EARTHBEND:
         # El fuego nace creciendo en forma y opaco: con el fundido quedaba gris y transparente
         # los primeros cuadros (piezas grises a 6,3 s en marcial_arts).
         grow = 1.0
@@ -684,6 +689,10 @@ def draw_adornment(runtime, track, points, frame_index: int, height: int, envelo
     runtime.silhouettes = [np.array(o, dtype=np.float64) * [layer.shape[1], height] for o in outlines if len(o) >= 3]
     # Para los efectos de la cara (engine/face_glow.py): las expresiones del cuadro y su tamaño.
     runtime.expressions = track.expressions if track is not None else {}
+    # Señales por grados, no solo encendido o apagado: voz, orientación y energía de la cabeza (0-1).
+    runtime.voice = track.voice if track is not None else 0.0
+    runtime.head_pose = track.head_pose if track is not None else None
+    runtime.energy = float(np.clip(joint_speed(track, "nose") / HEAD_ENERGY_SPEED, 0.0, 1.0))
     runtime.frame_shape = (height, layer.shape[1])
     for person in _people(track, event, style):
         body = Body(points, person)

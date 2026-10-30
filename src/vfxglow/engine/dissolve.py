@@ -70,9 +70,10 @@ def _spread(points: np.ndarray, tints: np.ndarray, unit: float) -> tuple[np.ndar
     return filled, tints[index]
 
 
-def disintegrate(sources: list, k: float, unit: float, layer: np.ndarray, alpha: float, kernels: dict, seed: int, lines: list | None = None, gain: float = 1.6) -> list:
+def disintegrate(sources: list, k: float, unit: float, layer: np.ndarray, alpha: float, kernels: dict, seed: int, lines: list | None = None, gain: float = 1.6, figure=None) -> list:
     """El dibujo `sources` [(curva, color)] soltándose en polvo. Dibuja el polvo en `layer` y devuelve
-    lo que queda de las líneas (`lines` si lo que se ve no son las líneas de partida)."""
+    lo que queda de las líneas (`lines` si lo que se ve no son las líneas de partida). `figure(centro,
+    tamaño, giro)` cambia las figuritas por otra forma (las plumas del cuervo)."""
     from vfxglow.engine.hand_props import _dashed
     from vfxglow.engine.season import object_outline
 
@@ -106,7 +107,8 @@ def disintegrate(sources: list, k: float, unit: float, layer: np.ndarray, alpha:
         if i % FIGURE_EVERY == 0:
             size = (FIGURE_SIZE[0] + (FIGURE_SIZE[1] - FIGURE_SIZE[0]) * sized[i]) * unit * float(np.sin(np.pi * min(t[i] * 1.6, 1.0)) * 0.5 + 0.6)
             name = FIGURES[(i // FIGURE_EVERY) % len(FIGURES)]
-            for curve in object_outline(name, moved[i], size, age=float(t[i]) + i * 0.1, spin=float(i)):
+            curves = figure(moved[i], size, float(t[i]) * 6.0 + i) if figure else object_outline(name, moved[i], size, age=float(t[i]) + i * 0.1, spin=float(i))
+            for curve in curves:
                 strokes.append((curve, tint, 3.0, a * 0.3, 1.5))
                 strokes.append((curve, tint, 0.9, a))
         else:

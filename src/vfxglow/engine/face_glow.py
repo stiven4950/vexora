@@ -454,7 +454,7 @@ def _star(center: np.ndarray, size: float) -> list[np.ndarray]:
             np.array([center - [size * 0.5, size * 0.5], center + [size * 0.5, size * 0.5]]), np.array([center - [size * 0.5, -size * 0.5], center + [size * 0.5, -size * 0.5]])]
 
 
-def _smile_sparks(face: Face, u: float, frame_index: int, rng) -> list[np.ndarray]:
+def _smile_sparks(face: Face, u: float, frame_index: int, rng, smile: float) -> list[np.ndarray]:
     lines = []
     for side, out in (("right", -1.0), ("left", 1.0)):
         if not face.visible(side):
@@ -464,7 +464,7 @@ def _smile_sparks(face: Face, u: float, frame_index: int, rng) -> list[np.ndarra
             age = (u * 2.0 + k / 3) % 1.0  # saltan hacia afuera y arriba
             d = face.ux / face.unit * out * 0.7 - face.uy / face.unit * 0.7
             at = cheek + d * age * 0.9 * face.unit + rng.uniform(-0.1, 0.1, 2) * face.unit
-            size = 0.12 * face.unit * np.sin(age * np.pi)
+            size = (0.08 + 0.1 * smile) * face.unit * np.sin(age * np.pi)  # más sonrisa, más grandes
             if size > 0.5:
                 lines += _star(at, size)
     return lines
@@ -482,9 +482,9 @@ def _brow_lines(face: Face, u: float) -> list[np.ndarray]:
     return lines
 
 
-def _cheek_glow(face: Face, u: float, layer, color) -> list[np.ndarray]:
+def _cheek_glow(face: Face, u: float, layer, color, puff: float) -> list[np.ndarray]:
     lines = []
-    inflate = 0.15 + 0.2 * _ease(_seg(u, 0.0, 0.4))
+    inflate = 0.15 + (0.12 + 0.2 * puff) * _ease(_seg(u, 0.0, 0.4))  # crecen con la mejilla
     for side, out in (("right", -1.0), ("left", 1.0)):
         if not face.visible(side):
             continue
@@ -618,6 +618,15 @@ def _makeup_figure(face: Face, u: float, frame_index: int, runtime, layer, color
 # ----- partículas -----
 
 
+def _clock(runtime) -> float:
+    """Un reloj que corre más rápido cuando la cabeza se mueve: las partículas siguen su energía."""
+    st = runtime.swoosh.setdefault("_clock", {"t": 0.0, "frame": -1})
+    if st["frame"] != runtime.active_frames:
+        st["frame"] = runtime.active_frames
+        st["t"] += 1.0 + 2.5 * float(getattr(runtime, "energy", 0.0))
+    return st["t"]
+
+
 def _palette(runtime, color) -> list[np.ndarray]:
     colors = [np.asarray(c, np.float32) for c in (runtime.effect.style.colors or [])] or [np.asarray(color, np.float32)]
     return colors
@@ -708,7 +717,8 @@ def face_glow(shape, body, frame, scale, frame_index, runtime, layer, color, alp
 def _draw(shape, body, scale, frame_index, runtime, layer, color, face, u, seed, event) -> list:
     rng = np.random.default_rng(seed)
     kernels = runtime.kernels
-    openness = float(getattr(runtime, "expressions", {}).get("jawOpen", 0.5))
+    expressions = getattr(runtime, "expressions", {}) or {}
+    openness = float(expressions.get("jawOpen", 0.5))
     if shape == "liner_trace":
         return _liner(face, u, layer, kernels)
     if shape == "face_oval_trace":
@@ -734,11 +744,12 @@ def _draw(shape, body, scale, frame_index, runtime, layer, color, face, u, seed,
     if shape == "breath":
         return _breath(face, u, frame_index, layer, kernels, color, rng)
     if shape == "smile_sparks":
-        return _smile_sparks(face, u, frame_index, np.random.default_rng((seed + frame_index // 3) & 0xFFFFFFFF))
+        smile = (float(expressions.get("mouthSmileLeft", 0.5)) + float(expressions.get("mouthSmileRight", 0.5))) / 2
+        return _smile_sparks(face, u, frame_index, np.random.default_rng((seed + frame_index // 3) & 0xFFFFFFFF), smile)
     if shape == "brow_lines":
         return _brow_lines(face, u)
     if shape == "cheek_glow":
-        return _cheek_glow(face, u, layer, color)
+        return _cheek_glow(face, u, layer, color, float(expressions.get("cheekPuff", 0.5)))
     if shape == "blink_mask":
         return _blink_mask(face, u, seed)
     if shape == "rune_orbit":
@@ -749,9 +760,9 @@ def _draw(shape, body, scale, frame_index, runtime, layer, color, face, u, seed,
         return _makeup_figure(face, u, frame_index, runtime, layer, color, event)
     colors = _palette(runtime, color)
     if shape == "face_emanate":
-        return _emanate(face, u, frame_index, layer, kernels, colors, seed)
+        return _emanate(face, u, _clock(runtime), layer, kernels, colors, seed)
     if shape == "face_swirl":
-        return _swirl(face, body, scale, u, frame_index, layer, kernels, colors)
+        return _swirl(face, body, scale, u, _clock(runtime), layer, kernels, colors)
     if shape == "face_sparkle_rain":
         return _sparkle_rain(face, u, frame_index, layer, kernels, colors, seed)
     if shape == "eye_sparks":

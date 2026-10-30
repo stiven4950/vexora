@@ -14,6 +14,7 @@ from vfxglow.engine.face_wounds import WOUNDS
 from vfxglow.engine.hand_props import DRINKS, SMOKES
 from vfxglow.engine.head_beasts import HEAD_BEASTS
 from vfxglow.engine.horror_masks import HORROR_MASKS
+from vfxglow.engine.living_fx import ON_THE_FACE
 
 # Tipos de efecto que siempre dibujan sobre la cara.
 FACE_TYPES = ("face_toon", "eyewear", "face_linework", "eye_rings", "decal")
@@ -24,7 +25,7 @@ FACE_SHAPES = (
     frozenset(FACE_GLOW) - {"rune_orbit"}
     | set(FACE) | set(HEAD)
     | {"venom", "iron_man", "devil_eyes", "heart_eyes", "glow_eyes", "lion_roar", "avatar_mark", "finger_number"}
-    | set(DRINKS) | set(SMOKES) | set(CREATURES) | set(WOUNDS) | set(MOODS) | set(HEAD_BEASTS)
+    | set(DRINKS) | set(SMOKES) | set(CREATURES) | set(WOUNDS) | set(MOODS) | set(HEAD_BEASTS) | set(ON_THE_FACE)
 )
 
 
