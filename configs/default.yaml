@@ -13,7 +13,7 @@ analysis:
   max_gap: 6
   one_euro:
     min_cutoff: 1.2
-    beta: 1.0
+    beta: 10.0
     d_cutoff: 1.0
   mediapipe:
     pose_variant: full

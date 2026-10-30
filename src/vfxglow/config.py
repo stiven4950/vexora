@@ -15,7 +15,10 @@ class _Strict(BaseModel):
 
 class OneEuroConfig(_Strict):
     min_cutoff: float = 1.2
-    beta: float = 1.0
+    # Las posiciones van en fracción del cuadro: las velocidades salen ~600 veces menores que en
+    # píxeles, y con beta 1 el filtro casi no se abría en los gestos rápidos (la mano se quedaba
+    # hasta 33 px atrás y no llegaba arriba, video_52). Con 10: 8,5 px y menos temblor en quieto.
+    beta: float = 10.0
     d_cutoff: float = 1.0
 
 
