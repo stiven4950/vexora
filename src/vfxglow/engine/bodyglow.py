@@ -627,7 +627,10 @@ def _continuity(runtime, person, frame_index: int, pairs: list, key) -> tuple[li
     if runtime.active_frames <= 1 or start is None or start.get("key") != key:
         start = {"key": key, "from": None, "since": frame_index}
         previous = relay.get(("last", person))
-        if previous is not None and previous["runtime"] is not runtime and frame_index - previous["frame"] <= CONTINUITY_GAP and previous["pairs"]:
+        # Solo un dibujo que ya terminó (dejó de dibujarse al menos un cuadro) se convierte en el nuevo:
+        # uno que sigue encendido no se le quita (la máscara de Halloween se apagaba al sonreír).
+        ended = previous is not None and frame_index - 1 > previous["frame"]
+        if ended and previous["runtime"] is not runtime and frame_index - previous["frame"] <= CONTINUITY_GAP and previous["pairs"]:
             coin = zlib.crc32(f"relay:{runtime.effect.id}:{key}:{person}".encode()) % 1000 / 1000.0
             if coin < CONTINUITY:
                 start["from"] = previous["pairs"]
