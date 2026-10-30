@@ -69,13 +69,24 @@ Para revisar efectos sin renderizar todo, dibujarlos sobre fotogramas reales con
 evento sintético (como `tools/preview.py`); los tramos de frente de `facil_1` empiezan en los
 fotogramas 2 y 470.
 
+## Calibración con `expressions_1.mp4` (video de gestos, 14,9 fps)
+
+| Señal | Qué se midió | Decisión |
+| --- | --- | --- |
+| `eyeWide*` | Ojos muy abiertos: 0,14; máximo 0,27 | `eyes_wide` pasa de 0,35 fijo a 0,12 sobre lo habitual |
+| Asombro | Boca muy abierta con cejas casi quietas | `surprise` también con la boca bien abierta y sostenida |
+| `eyeSquint*` | 0,18 al asombrarse, 0,45 al gritar con dientes | Cara tensa: ni asombro ni beso |
+| `mouthPucker` | 0,9 también al hablar con labios redondos | El beso exige boca casi cerrada |
+| `cheekPuff` | Máximo 0,002: MediaPipe casi no lo mide | `cheeks_puff` rara vez sale; la llamarada también arranca con labios fruncidos |
+| Ancho de cara como medida de mejillas | Varía más por el ángulo que por el gesto | Descartado |
+| 14,9 fps | Los efectos duraban el doble | `at_fps` (duraciones) y `paced`/`steps` (animación): todo a tiempo real |
+
+Un grito sin ceño ni ojos entrecerrados (fotogramas 214-219) no se distingue del asombro.
+
 ## Pendientes conocidos
 
 - Sin video de referencia de cara: tiempos y pesos calibrados a ojo sobre `facil_1`.
-- `facil_1` no tiene boca abierta ni ojos muy abiertos: la carga en la boca, el grito y `surprise` no
-  se probaron con un evento real (sí con eventos sintéticos en vistas previas).
-  El aliento de dragón tampoco: se probó con una apertura de boca simulada. Hace falta un video donde
-  la persona abra la boca, grite o sople para calibrarlo. El fuego se ve mejor sobre fondos oscuros.
+- `facil_1` no tiene boca abierta ni ojos muy abiertos: para eso usar `expressions_1.mp4`.
 - Los análisis anteriores a octubre de 2026 no tienen malla facial (se borraba en `analysis/cast.py`)
   ni mirada: hay que reanalizar el video. Al cambiar el código de análisis eso ocurre solo.
 - El gancho de la muerte entra desde un lado de la cabeza; no lo agarra la mano.
