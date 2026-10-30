@@ -872,6 +872,12 @@ def fill_gaps(catalog: Catalog, brief: MotionBrief, events, extra, chosen, decis
     for d in decisions:
         if not d.choice.startswith("nada") and d.action not in AMBIENT_ACTIONS and d.until >= d.frame:
             covered[max(d.frame, 0) : min(until_cut(d.frame, d.until, shot_cuts), total) + 1] = True
+    # Con un efecto a la vez, lo encendido ocupa toda su ventana: los efectos de cara siguen en la toma
+    # siguiente (`keep_on_cut`), así que un corte no libera el lugar.
+    occupied = np.zeros(total + 1, dtype=bool)
+    for d in decisions:
+        if not d.choice.startswith("nada") and d.action not in AMBIENT_ACTIONS and d.until >= d.frame:
+            occupied[max(d.frame, 0) : min(d.until, total) + 1] = True
     people = brief.people or [brief.person_id]
     heavies = heavies or []
     options = {(r.action, o.name): o for r in catalog.reactions for o in r.options}
@@ -889,7 +895,7 @@ def fill_gaps(catalog: Catalog, brief: MotionBrief, events, extra, chosen, decis
     def fits(first: int, last: int) -> bool:
         """Que el relleno no se encime con un pesado ni con el aire de antes de que nazca; con un
         efecto a la vez (`one_at_a_time`), tampoco con nada de lo encendido."""
-        if catalog.one_at_a_time and covered[max(first, 0) : min(last, total) + 1].any():
+        if catalog.one_at_a_time and occupied[max(first, 0) : min(last, total) + 1].any():
             return False
         return not any(first <= end + after - 1 and start - before <= last for start, end in heavies)
 
@@ -944,6 +950,7 @@ def fill_gaps(catalog: Catalog, brief: MotionBrief, events, extra, chosen, decis
         )
         covered[max(first, 0) : min(last, total) + 1] = True
         strong[max(first, 0) : min(last, total) + 1] = True
+        occupied[max(first, 0) : min(last, total) + 1] = True
         return True
 
     attempt = 0
