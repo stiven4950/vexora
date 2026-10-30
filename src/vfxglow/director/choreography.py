@@ -887,7 +887,10 @@ def fill_gaps(catalog: Catalog, brief: MotionBrief, events, extra, chosen, decis
     before, after = int(round(UNCLUTTER_MARGIN_S * fps)), int(round(RELAY_S * fps))
 
     def fits(first: int, last: int) -> bool:
-        """Que el relleno no se encime con un pesado ni con el aire de antes de que nazca."""
+        """Que el relleno no se encime con un pesado ni con el aire de antes de que nazca; con un
+        efecto a la vez (`one_at_a_time`), tampoco con nada de lo encendido."""
+        if catalog.one_at_a_time and covered[max(first, 0) : min(last, total) + 1].any():
+            return False
         return not any(first <= end + after - 1 and start - before <= last for start, end in heavies)
 
     def place(start: int, attempt: int, pad: int | None = None, length: int | None = None, chapters: bool = True, light: bool = True) -> bool:
