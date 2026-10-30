@@ -731,6 +731,13 @@ reactions:
 # Labios en beso: lanza corazones y una marca de labios (engine/face_moods.py), o el beso de face_toon.
 - action: pucker
   options:
+  - name: aliento_dragon
+    weight: 0.4
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [dragon_breath], thickness: 0.008, focus: false, look: hot}
+      trigger: {hold: 90, fade_in: 1, fade_out: 6}
   - name: beso_lanzado
     weight: 1.0
     cooldown: 150
