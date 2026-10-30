@@ -164,6 +164,8 @@ class Catalog(_Strict):
     # Cuánto duran los momentos de temporada en este estilo (x la duración de seasons.yaml): en cara
     # los rostros se quedan más; en baile, el momento normal (corto).
     moment_scale: float = 1.0
+    # Un solo efecto encendido a la vez (cara): ninguna opción empieza mientras otra esté encendida.
+    one_at_a_time: bool = False
     # Ningún tramo sin efecto: un hueco más largo que esto (s) se rellena con un efecto del foco de
     # ese momento (0 = no se rellena). Ver fill_gaps.
     max_gap_s: float = 0.0
@@ -281,6 +283,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
     face_windows: list[tuple[int, int]] = []
     # Rostros especiales (máscaras de terror): mientras duran, nada más sobre la cara.
     mask_windows: list[tuple[int, int]] = []
+    # Lo encendido hasta ahora, para `one_at_a_time`.
+    taken: list[tuple[int, int]] = []
     # Ventanas encendidas que no son momentos clave ni ambiente. Un efecto nuevo cuenta estas
     # (al empezar) y los momentos clave que se crucen con su ventana: como mucho MAX_TOGETHER.
     lit: list[tuple[int, int]] = []
@@ -414,6 +418,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 option = Option(name="nada (cede a la cara)")
             if option.effects and not _special(option) and _touches_face(option) and any(ms <= end and start <= me for ms, me in mask_windows):
                 option = Option(name="nada (cede al rostro especial)")
+            if option.effects and catalog.one_at_a_time and reaction.action not in AMBIENT_ACTIONS and any(ts <= end and start <= te for ts, te in taken):
+                option = Option(name="nada (un efecto a la vez)")
             person = _person(event) if duet else None
             span = duet_at(duet, event.start_frame) if person else None
             group = "motion" if reaction.action in TURN_ACTIONS else reaction.action
@@ -465,6 +471,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                     face_windows.append((start, until_cut(start, end, cuts)))
                 if _special(option):
                     mask_windows.append((start, end))
+                if reaction.action not in AMBIENT_ACTIONS:
+                    taken.append((start, end))
                 if reaction.action not in AMBIENT_ACTIONS and reaction.action not in KEY_ACTIONS and weight_class(option) != "ligero":
                     lit.append((start, until_cut(start, end, cuts)))  # lo ligero no ocupa lugar de foco; el corte lo apaga
                 partner = _partner(person, span, brief)

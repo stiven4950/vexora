@@ -104,3 +104,15 @@ def test_every_option_of_the_face_catalog_draws_where_it_is_pinned() -> None:
             if drawn < 0.05:
                 silent.append(f"{reaction.action}:{option.name}")
     assert not silent, f"No dibujan nada al fijarlos: {silent}"
+
+
+def test_the_face_catalog_lights_one_effect_at_a_time() -> None:
+    catalog = load_catalog(ROOT / "configs/catalogs/cara.yaml")
+    events = [MotionEvent(name=name, target="person_0", start_frame=f, end_frame=f + 15, confidence=1.0, kind="head" if name == "spotlight" else "")
+              for f in range(0, 280, 12) for name in ("spotlight", "smile")]
+    meta = VideoMeta(path="x", fps=FPS, width=W, height=H, frame_count=300, duration_s=10.0)
+    brief = MotionBrief(video=meta, person_id="person_0", anchors=[], limbs=[], events=events, summary="", people=["person_0"])
+    _, choreo = choreograph(catalog, brief, 3)
+    lit = sorted((d.frame, d.until) for d in choreo.decisions if not d.choice.startswith("nada") and d.action not in ("beat", "lull"))
+    assert len(lit) >= 2
+    assert all(b[0] > a[1] for a, b in zip(lit, lit[1:]))  # nunca dos encendidos a la vez

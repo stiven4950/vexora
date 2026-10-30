@@ -17,9 +17,8 @@ max_gap_s: 2.0
 chapters: true
 # Un dibujo nuevo, un color nuevo.
 color_per_effect: true
-# Los rostros y dibujos de la cara se quedan: los momentos de temporada (la máscara de Halloween)
-# duran 3 veces lo de seasons.yaml.
-moment_scale: 3.0
+# Un solo efecto a la vez sobre el rostro.
+one_at_a_time: true
 defaults:
   type: adornment
   target: {kind: joint, id: body}
@@ -44,6 +43,21 @@ reactions:
 # Al empezar: el contorno de la cara se traza solo, o un barrido holográfico.
 - action: entrance
   options:
+  # Partículas que salen del rostro o lo rodean: lo que más sale.
+  - name: particulas_salen
+    weight: 0.8
+    cooldown: 120
+    effects:
+    - type: adornment
+      style: {shapes: [face_emanate], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 8}
+  - name: remolino
+    weight: 0.8
+    cooldown: 120
+    effects:
+    - type: adornment
+      style: {shapes: [face_swirl], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 8}
   # Rostro de terror en neón (assets/masks, engine/horror_masks.py): se arma sobre la cara y grita
   # con la boca. Sale más en la temporada de Halloween.
   - name: mascara_terror
@@ -52,7 +66,7 @@ reactions:
     effects:
     - type: adornment
       style: {shapes: [terror_ghostface], thickness: 0.008, focus: false}
-      trigger: {hold: 150, fade_in: 1, fade_out: 6}
+      trigger: {hold: 45, fade_in: 1, fade_out: 6}
   - name: contorno
     weight: 0.5
     cooldown: 0
@@ -70,6 +84,31 @@ reactions:
 # Lo que más se mueve es la cabeza, o la persona está quieta: dibujos sobre el rostro.
 - action: spotlight
   options:
+  # Partículas que salen del rostro o lo rodean: lo que más sale.
+  - name: particulas_salen
+    weight: 0.9
+    cooldown: 120
+    kinds: [head]
+    effects:
+    - type: adornment
+      style: {shapes: [face_emanate], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 8}
+  - name: remolino
+    weight: 0.9
+    cooldown: 120
+    kinds: [head]
+    effects:
+    - type: adornment
+      style: {shapes: [face_swirl], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 8}
+  - name: lluvia_destellos
+    weight: 0.7
+    cooldown: 120
+    kinds: [head]
+    effects:
+    - type: adornment
+      style: {shapes: [face_sparkle_rain], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 8}
   - name: delineado
     weight: 0.35
     cooldown: 240
@@ -162,6 +201,28 @@ reactions:
 - action: still
   cooldown: 60
   options:
+  # Partículas que salen del rostro o lo rodean: lo que más sale.
+  - name: particulas_salen
+    weight: 0.8
+    cooldown: 120
+    effects:
+    - type: adornment
+      style: {shapes: [face_emanate], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 8}
+  - name: remolino
+    weight: 0.8
+    cooldown: 120
+    effects:
+    - type: adornment
+      style: {shapes: [face_swirl], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 8}
+  - name: lluvia_destellos
+    weight: 0.6
+    cooldown: 120
+    effects:
+    - type: adornment
+      style: {shapes: [face_sparkle_rain], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 8}
   # Rostro de terror en neón (assets/masks, engine/horror_masks.py): se arma sobre la cara y grita
   # con la boca. Sale más en la temporada de Halloween.
   - name: mascara_terror
@@ -170,7 +231,7 @@ reactions:
     effects:
     - type: adornment
       style: {shapes: [terror_ghostface], thickness: 0.008, focus: false}
-      trigger: {hold: 150, fade_in: 1, fade_out: 6}
+      trigger: {hold: 45, fade_in: 1, fade_out: 6}
   - name: runas
     weight: 0.3
     cooldown: 300
@@ -210,7 +271,7 @@ reactions:
     effects:
     - type: adornment
       style: {shapes: [terror_ghostface], thickness: 0.008, focus: false}
-      trigger: {hold: 150, fade_in: 1, fade_out: 6}
+      trigger: {hold: 45, fade_in: 1, fade_out: 6}
   - name: carga_boca
     weight: 0.5
     cooldown: 300
@@ -258,6 +319,14 @@ reactions:
 # Ojos muy abiertos: rayos o llamas que salen de los ojos.
 - action: eyes_wide
   options:
+  # Partículas que salen del rostro o lo rodean: lo que más sale.
+  - name: chispas_ojos
+    weight: 0.7
+    cooldown: 120
+    effects:
+    - type: adornment
+      style: {shapes: [eye_sparks], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 8}
   - name: rayos_ojos
     weight: 0.5
     cooldown: 300
@@ -278,6 +347,14 @@ reactions:
 # Sonrisa: destellos que saltan de las mejillas o círculos de luz.
 - action: smile
   options:
+  # Partículas que salen del rostro o lo rodean: lo que más sale.
+  - name: lluvia_destellos
+    weight: 0.6
+    cooldown: 120
+    effects:
+    - type: adornment
+      style: {shapes: [face_sparkle_rain], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 8}
   - name: destellos
     weight: 0.5
     cooldown: 240
@@ -298,6 +375,14 @@ reactions:
 # Cejas arriba: arcos de sorpresa.
 - action: brows_up
   options:
+  # Partículas que salen del rostro o lo rodean: lo que más sale.
+  - name: particulas_salen
+    weight: 0.5
+    cooldown: 120
+    effects:
+    - type: adornment
+      style: {shapes: [face_emanate], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 8}
   - name: arcos_cejas
     weight: 0.5
     cooldown: 240
@@ -344,6 +429,14 @@ reactions:
 # Giro rápido de la cabeza: copias del contorno o el anillo de runas.
 - action: head_turn
   options:
+  # Partículas que salen del rostro o lo rodean: lo que más sale.
+  - name: remolino
+    weight: 0.6
+    cooldown: 120
+    effects:
+    - type: adornment
+      style: {shapes: [face_swirl], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 8}
   - name: eco_cabeza
     weight: 0.4
     cooldown: 240
