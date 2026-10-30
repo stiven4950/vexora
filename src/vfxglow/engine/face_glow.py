@@ -24,6 +24,12 @@ se dibuja.
 - blink_mask: al parpadear, por un momento, una máscara de neón (robot o calavera).
 - rune_orbit: un anillo de runas que gira alrededor de la cabeza y se esconde detrás.
 - head_echo: copias del contorno de la cabeza que se quedan atrás y se apagan.
+- face_emanate: partículas que nacen en el contorno de la cara y salen hacia afuera, como vapor de
+  luz.
+- face_swirl: un remolino de partículas que gira alrededor de la cabeza en dos órbitas, pasando por
+  detrás.
+- face_sparkle_rain: destellos que caen desde la frente por los lados de la cara.
+- eye_sparks: chispas que salen de los ojos y se esparcen.
 - makeup_figure: el trazo de maquillaje (`paint_stroke`) se vuelve su figura (triángulo, elipse,
   rectángulo, círculo): se traza desde un vértice, un arco la recorre, se itera hacia afuera y queda
   como cristal; sigue a la cara aunque se mueva.
@@ -47,9 +53,10 @@ FACE_GLOW = (
     "liner_trace", "face_oval_trace", "face_geometry", "face_mesh_live", "face_scan", "face_crystal",
     "face_circuit", "face_runes", "eye_beams", "eye_flames", "mouth_charge", "breath", "smile_sparks",
     "brow_lines", "cheek_glow", "blink_mask", "rune_orbit", "head_echo", "makeup_figure",
+    "face_emanate", "face_swirl", "face_sparkle_rain", "eye_sparks",
 )
 # Los que van sobre la piel: con poco halo (FACE_HALO), para no lavar la cara de luz.
-ON_FACE = tuple(s for s in FACE_GLOW if s not in ("rune_orbit", "head_echo", "eye_beams", "breath"))
+ON_FACE = tuple(s for s in FACE_GLOW if s not in ("rune_orbit", "head_echo", "eye_beams", "breath", "face_emanate", "face_swirl", "face_sparkle_rain", "eye_sparks"))
 # Un ojo que se ve más angosto que esto frente al otro está del lado que gira hacia atrás.
 FAR_EYE = 0.6
 # Orden del delineado y del contorno.
@@ -605,6 +612,86 @@ def _makeup_figure(face: Face, u: float, frame_index: int, runtime, layer, color
     return lines
 
 
+# ----- partículas -----
+
+
+def _palette(runtime, color) -> list[np.ndarray]:
+    colors = [np.asarray(c, np.float32) for c in (runtime.effect.style.colors or [])] or [np.asarray(color, np.float32)]
+    return colors
+
+
+def _emanate(face: Face, u: float, frame_index: int, layer, kernels, colors, seed: int) -> list[np.ndarray]:
+    oval = _oval(face)
+    if oval is None:
+        return []
+    center = oval.mean(axis=0)
+    rng = np.random.default_rng(seed)
+    starts = rng.integers(0, len(oval), 70)
+    phases = rng.uniform(0, 1, 70)
+    fade = 1.0 - _seg(u, 0.85, 1.0)
+    for k, (i, ph) in enumerate(zip(starts, phases)):
+        age = (frame_index * 0.025 + ph) % 1.0
+        p = oval[i]
+        out = (p - center) / max(float(np.linalg.norm(p - center)), 1e-6)
+        at = p + out * age * 0.9 * face.unit - np.array([0.0, 0.3 * age * face.unit])
+        size = (0.02 + 0.05 * (1 - age)) * face.unit + 0.5
+        splat(layer, float(at[0]), float(at[1]), size, colors[k % len(colors)] * 1.3, (1 - age) * fade, kernels)
+    return []
+
+
+def _swirl(face: Face, body, scale: float, u: float, frame_index: int, layer, kernels, colors) -> list[np.ndarray]:
+    center = face.place([(0.0, 0.3)])[0]
+    across, up = face.ux / face.unit, -face.uy / face.unit
+    mask = body_mask(body, layer.shape[:2], scale)
+    fade = 1.0 - _seg(u, 0.85, 1.0)
+    grow = _ease(_seg(u, 0.0, 0.2))
+    for ring, (radius, tilt, speed, count) in enumerate(((1.4, 0.3, 0.09, 26), (1.75, -0.25, -0.07, 30))):
+        for k in range(count):
+            a = frame_index * speed + TAU * k / count
+            depth = np.sin(a)
+            at = center + across * np.cos(a) * radius * face.unit * grow + up * (depth * tilt + 0.15 * np.sin(a * 3 + k)) * face.unit
+            if depth < 0 and mask is not None:
+                x, y = int(np.clip(at[0], 0, mask.shape[1] - 1)), int(np.clip(at[1], 0, mask.shape[0] - 1))
+                if mask[y, x]:
+                    continue  # detrás de la cabeza
+            size = (0.035 + 0.025 * (depth + 1)) * face.unit + 0.5
+            splat(layer, float(at[0]), float(at[1]), size, colors[(k + ring) % len(colors)] * 1.3, fade * (0.6 + 0.4 * (depth + 1) / 2), kernels)
+    return []
+
+
+def _sparkle_rain(face: Face, u: float, frame_index: int, layer, kernels, colors, seed: int) -> list[np.ndarray]:
+    rng = np.random.default_rng(seed)
+    lines = []
+    fade = 1.0 - _seg(u, 0.85, 1.0)
+    for k in range(28):
+        side = rng.choice([-1.0, 1.0])
+        x = side * rng.uniform(0.6, 1.3)
+        age = (frame_index * 0.03 + rng.uniform()) % 1.0
+        at = face.place([(x, -1.0 + 2.8 * age)])[0]
+        size = (0.04 + 0.04 * np.sin(age * np.pi)) * face.unit
+        tint = colors[k % len(colors)]
+        splat(layer, float(at[0]), float(at[1]), size + 0.5, tint * 1.3, fade * np.sin(age * np.pi), kernels)
+        if k % 4 == 0 and size > 1.0:
+            lines += _star(at, size * 1.6)
+    return lines
+
+
+def _eye_sparks(face: Face, u: float, frame_index: int, layer, kernels, colors, seed: int) -> list[np.ndarray]:
+    rng = np.random.default_rng(seed)
+    fade = 1.0 - _seg(u, 0.85, 1.0)
+    for side, out in (("right", -1.0), ("left", 1.0)):
+        if not face.visible(side):
+            continue
+        eye = face.at(f"{side}_iris", (0.5 * out, 0.0))
+        for k in range(18):
+            age = (frame_index * 0.05 + rng.uniform()) % 1.0
+            angle = rng.uniform(-1.2, 1.2) + (0.0 if out > 0 else np.pi)
+            d = np.array([np.cos(angle), np.sin(angle) - 0.4])
+            at = eye + d * age * 1.1 * face.unit
+            splat(layer, float(at[0]), float(at[1]), (0.02 + 0.04 * (1 - age)) * face.unit + 0.5, colors[k % len(colors)] * 1.4, (1 - age) * fade, kernels)
+    return []
+
+
 def face_glow(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
     face = Face(body, scale)
     u = _phase(runtime, event)
@@ -650,6 +737,15 @@ def face_glow(shape, body, frame, scale, frame_index, runtime, layer, color, alp
         return _echo_colored(face, frame_index, runtime, color)
     if shape == "makeup_figure":
         return _makeup_figure(face, u, frame_index, runtime, layer, color, event)
+    colors = _palette(runtime, color)
+    if shape == "face_emanate":
+        return _emanate(face, u, frame_index, layer, kernels, colors, seed)
+    if shape == "face_swirl":
+        return _swirl(face, body, scale, u, frame_index, layer, kernels, colors)
+    if shape == "face_sparkle_rain":
+        return _sparkle_rain(face, u, frame_index, layer, kernels, colors, seed)
+    if shape == "eye_sparks":
+        return _eye_sparks(face, u, frame_index, layer, kernels, colors, seed)
     return []
 
 
