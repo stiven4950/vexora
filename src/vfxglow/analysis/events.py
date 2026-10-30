@@ -99,6 +99,7 @@ EVENT_CATALOG: dict[str, str] = {
     "pucker": "Pone los labios en beso.",
     "surprise": "Pone cara de impresión: cejas arriba con los ojos o la boca abiertos.",
     "gaze_shift": "La mirada salta a otro lado.",
+    "speaking": "Habla o grita: suena fuerte y la boca se mueve.",
     "head_turn": "Gira la cabeza rápido hacia un lado.",
     "head_tilt": "Inclina la cabeza hacia un hombro.",
     "paint_stroke": "Un trazo de maquillaje o pintura nueva sobre la cara.",

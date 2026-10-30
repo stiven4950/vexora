@@ -127,6 +127,8 @@ class FrameRecord(_Strict):
     # orientación de la cabeza en grados (giro, cabeceo, inclinación). Vacías en análisis viejos.
     expressions: dict[str, float] = Field(default_factory=dict)
     head_pose: tuple[float, float, float] | None = None
+    # Volumen del audio en este fotograma, 0-1 (analysis/voice.py).
+    voice: float = 0.0
 
 
 class VideoMeta(_Strict):

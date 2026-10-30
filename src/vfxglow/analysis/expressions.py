@@ -13,6 +13,7 @@ cabeza (`FrameRecord.head_pose`, grados). Sin ellas (análisis viejo, cara perdi
 - pucker: los labios en beso.
 - surprise: cara de impresión: cejas arriba y, a la vez, ojos muy abiertos o boca abierta.
 - gaze_shift: la mirada salta a otro lado (`kind` = hacia dónde: left, right, up o down, de la persona).
+- speaking: habla o grita: suena fuerte y la boca se mueve a la vez.
 - head_turn: la cabeza gira rápido hacia un lado (`kind` = hacia dónde).
 - head_tilt: la cabeza se inclina hacia un hombro (`kind` = hacia dónde).
 
@@ -49,6 +50,11 @@ POSE_MIN_S = 0.2
 SURPRISE_EYES = 0.2
 SURPRISE_JAW = 0.25
 SURPRISE_MIN_S = 0.15
+# Hablar: volumen (analysis/voice.py) y boca en movimiento; las pausas cortas no cortan la frase.
+SPEAK_VOICE = 0.55
+SPEAK_JAW_MOVE = 0.03
+SPEAK_GAP_S = 0.3
+SPEAK_MIN_S = 0.5
 # Mirada: un salto de al menos GAZE_JUMP en GAZE_S (expresiones de 0 a 1), uno cada GAZE_GAP_S. Con
 # los ojos medio cerrados no vale: al parpadear las expresiones marcan que mira abajo.
 GAZE_JUMP = 0.3
@@ -145,6 +151,7 @@ def expression_events(frames: list[FrameRecord], fps: float) -> list[MotionEvent
         pucker = np.fmax(_series(frames, "mouthPucker"), _series(frames, "mouthFunnel"))
         for span in _spans(_above(pucker, PUCKER), n(POSE_MIN_S)):
             events.append(_event(frames, "pucker", span, "Pone los labios en beso."))
+    events += _speech_events(frames, fps)
     events += _gaze_events(frames, fps)
     events += _head_events(frames, fps)
     return sorted(events, key=lambda e: e.start_frame)
@@ -156,6 +163,19 @@ def gaze_vector(expressions: dict[str, float]) -> tuple[float, float]:
     x = (get("eyeLookOutLeft", 0.0) - get("eyeLookInLeft", 0.0) + get("eyeLookInRight", 0.0) - get("eyeLookOutRight", 0.0)) / 2
     y = (get("eyeLookUpLeft", 0.0) + get("eyeLookUpRight", 0.0) - get("eyeLookDownLeft", 0.0) - get("eyeLookDownRight", 0.0)) / 2
     return x, y
+
+
+def _speech_events(frames: list[FrameRecord], fps: float) -> list[MotionEvent]:
+    voice = np.array([f.voice for f in frames], dtype=np.float64)
+    if not voice.any():
+        return []  # sin audio, o análisis anterior al volumen
+    jaw = np.nan_to_num(_series(frames, "jawOpen"))
+    moved = np.abs(np.diff(jaw, prepend=jaw[0]))
+    width = max(int(round(SPEAK_GAP_S * fps)), 1)
+    kernel = np.ones(width)
+    loud = np.convolve((voice >= SPEAK_VOICE).astype(float), kernel, "same") > 0
+    moving = np.convolve(moved, kernel / width, "same") >= SPEAK_JAW_MOVE / 3
+    return [_event(frames, "speaking", span, "Habla.") for span in _spans(loud & moving, max(int(round(SPEAK_MIN_S * fps)), 1))]
 
 
 def _gaze_events(frames: list[FrameRecord], fps: float) -> list[MotionEvent]:

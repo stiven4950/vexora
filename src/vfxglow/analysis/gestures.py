@@ -910,5 +910,5 @@ GESTURE_DETECTORS = (
     walk_events,
     face_expression_events,
 )
-EXPRESSION_NAMES = {"mouth_open", "blink", "wink", "eyes_wide", "smile", "brows_up", "cheeks_puff", "pucker", "surprise", "gaze_shift", "head_turn", "head_tilt"}
+EXPRESSION_NAMES = {"mouth_open", "blink", "wink", "eyes_wide", "smile", "brows_up", "cheeks_puff", "pucker", "surprise", "gaze_shift", "speaking", "head_turn", "head_tilt"}
 GESTURE_NAMES = EXPRESSION_NAMES | {"walk", "finger_count", "hand_mouth", "hand_chin", "fist_up", "finger_gun", "rock_hands", "hands_on_head", "arms_x", "lunge", "throw", "neck_slash", "stomp", "frenzy", "heart_hands", "arms_up", "arms_open", "point", "hand_ear", "cover_eyes", "spin_body", "step"}
