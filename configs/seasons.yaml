@@ -46,6 +46,8 @@ seasons:
   - {action: still, moment: terror, weight: 5.0, size: 2.4, max_uses: 2}
   - {action: mouth_open, moment: terror, weight: 1.5, size: 2.4, max_uses: 2}
   - {action: blink, moment: terror, weight: 0.3, size: 2.4, max_uses: 1}
+  # Al abrir la boca sale el enjambre de murciélagos.
+  - {action: mouth_open, moment: bat_swarm, weight: 0.8, size: 1.5, max_uses: 2}
   # Hadas que vuelan alrededor de la persona en oleadas (engine/head_beasts.py).
   ambient:
   - type: adornment
@@ -53,7 +55,7 @@ seasons:
     time: {start_frame: 0, end_frame: -1, fade_in: 2, fade_out: 4}
     style: {shapes: [fairies], thickness: 0.006, hdr_gain: 1.6, focus: false, keep_on_cut: true}
     render: {blend: add, motion_blur: 0.0, persistence: 0.0, group: glow}
-  boost: [rayos_x, expresion, mascara_terror, aranas, hormigas, ciempies, cucarachas, zarpazo, cicatriz, grietas, balaca_serpientes, corona_serpientes, cachos_rojos, gancho_muerte, esqueletos]
+  boost: [rayos_x, expresion, mascara_terror, aranas, hormigas, ciempies, cucarachas, zarpazo, cicatriz, grietas, balaca_serpientes, corona_serpientes, cachos_rojos, gancho_muerte, esqueletos, marioneta, cuervo, sellos_ojos]
 - id: dia_de_muertos
   title: Día de Muertos
   emoji: "💀"
