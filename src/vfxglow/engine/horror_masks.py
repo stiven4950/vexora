@@ -10,8 +10,8 @@ color, en coordenadas de cara (ojos en x = ±0,5, y hacia el mentón). La forma 
 - Vive con la expresión: la boca se alarga cuando la persona abre la boca (`jawOpen`, el grito) y
   los ojos se achatan al parpadear.
 - Aparece en orden: partículas que llegan a las líneas → el contorno se traza de afuera hacia
-  adentro → ojos, nariz y boca → los huecos se llenan de una luz tenue → pulso. Al final se
-  deshace en guiones y partículas.
+  adentro → ojos, nariz y boca → los huecos se llenan de una luz tenue. Al final las líneas se
+  rompen y de ellas salen volando murciélagos, calabazas, fantasmas y estrellas de colores.
 - Ya armada, la figura queda quieta y la luz corre por dentro de cada línea, como agua por una
   zanja: un tramo brillante recorre cada trazo y suelta chispas por delante.
 - El color es el del dibujo (el degradado de la referencia).
@@ -62,8 +62,8 @@ HORROR_MASKS = _available()
 
 # Se arma en BUILD_S segundos y se deshace en los últimos DISSOLVE_S, dure lo que dure el momento:
 # en cara se queda varios segundos sin que la aparición vaya en cámara lenta.
-BUILD_S = 1.4
-DISSOLVE_S = 0.5
+BUILD_S = 0.8
+DISSOLVE_S = 0.7
 
 
 def _timeline(runtime, event) -> float:
@@ -162,6 +162,38 @@ def _flow(placed: dict, strokes: list[dict], age: int, face, layer, alpha: float
     return out
 
 
+# Al deshacerse, de las líneas salen volando figuras de Halloween (engine/season.py): murciélagos,
+# calabazas, fantasmas y estrellas de colores, una cada tanto a lo largo de cada trazo.
+SCATTER = ("bat", "pumpkin", "ghost", "star", "bat", "star")
+SCATTER_COLORS = ((1.0, 0.5, 0.05), (0.6, 0.2, 1.0), (0.45, 1.0, 0.15), (1.0, 0.25, 0.7))
+SCATTER_EVERY = 6  # un objeto cada tantos puntos del trazo
+
+
+def _scatter(placed: dict, strokes: list[dict], k: float, face, layer, alpha: float, kernels, event) -> list:
+    """Figuras que nacen en las líneas y se alejan del centro de la cara, girando y apagándose."""
+    from vfxglow.engine.season import object_outline
+
+    center = np.mean([pts.mean(axis=0) for pts in placed.values()], axis=0)
+    rng = np.random.default_rng(7 + (event.start_frame if event else 0))
+    out = []
+    count = 0
+    for idx, pts in placed.items():
+        for p in pts[:: SCATTER_EVERY]:
+            count += 1
+            name = SCATTER[count % len(SCATTER)]
+            away = p - center
+            away = away / max(float(np.linalg.norm(away)), 1e-6)
+            drift = away * (0.2 + 1.4 * k) * face.unit + rng.normal(0.0, 0.15, 2) * face.unit * k
+            at = p + drift - np.array([0.0, 0.4 * k * face.unit])  # suben un poco al irse
+            size = (0.06 + 0.1 * np.sin(np.pi * min(k * 1.4, 1.0))) * face.unit
+            tint = np.asarray(SCATTER_COLORS[count % len(SCATTER_COLORS)], np.float32) * (1.0 - 0.6 * k)
+            for curve in object_outline(name, at, size, age=k + count * 0.1, spin=count):
+                out.append((curve, tint))
+            if name == "star":
+                splat(layer, float(at[0]), float(at[1]), size * 0.6, tint * 1.3, alpha * (1.0 - k), kernels)
+    return out
+
+
 def horror_mask(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
     mask_id = shape.removeprefix("terror_")
     try:
@@ -174,7 +206,7 @@ def horror_mask(shape, body, frame, scale, frame_index, runtime, layer, color, a
     anchors = mask["anchors"]
     strokes = mask["strokes"]
     placed = {k: face.place(_warp(s["points"], s["role"], anchors, expressions)) for k, s in enumerate(strokes)}
-    flowing = 0.62 <= u < DISSOLVE  # ya armada: la luz corre por las líneas
+    flowing = u >= 0.62  # ya armada: la luz corre por las líneas, también mientras se deshace
     out: list = []
     rng = np.random.default_rng(len(strokes) + (event.start_frame if event else 0))
     if u < PARTICLES_END:  # las partículas llegan a las líneas
@@ -207,14 +239,10 @@ def horror_mask(shape, body, frame, scale, frame_index, runtime, layer, color, a
             shape_px = face.place(_warp(hole, role, anchors, expressions))
             tint = next((s["color"] for s in strokes if s["role"] == role), np.asarray(color, np.float32))
             fill_polygon(layer, shape_px, tint * 0.5, alpha * 0.22 * glow, 1.0, feather=1.5)
-    if u >= DISSOLVE:  # se deshace en guiones y partículas
+    if u >= DISSOLVE:  # se deshace: las líneas se rompen y de ellas salen volando figuras de Halloween
         keep = 1.0 - _seg(u, DISSOLVE, 1.0)
         broken = []
         for line, tint in out:
             broken += [(piece, tint) for piece in _dashed(line, keep, 0.18 * face.unit)]
-            if keep < 0.7:
-                for p in line[:: max(len(line) // 4, 1)]:
-                    drift = p + rng.normal(0.0, 1.0, 2) * face.unit * 0.3 * (1.0 - keep)
-                    splat(layer, float(drift[0]), float(drift[1]), 0.03 * face.unit + 0.5, tint, alpha * keep, runtime.kernels)
-        out = broken
+        out = broken + _scatter(placed, strokes, 1.0 - keep, face, layer, alpha, runtime.kernels, event)
     return out
