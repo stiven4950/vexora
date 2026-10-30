@@ -324,7 +324,12 @@ class Pipeline:
         preset_hash = sha256_file(preset_path) if self.config.director.provider == "preset" and preset_path.exists() else ""
         catalog_path = catalog_file(self.config_path, self.config.director.catalog)
         if self.config.director.provider == "catalog" and catalog_path.exists():
-            preset_hash = sha256_file(catalog_path)
+            # Todo lo que arma la coreografía: el catálogo, lo que incluye (_baile_compartido.yaml) y la
+            # temporada; cambiar cualquiera rehace el guion.
+            sources = sorted(catalog_path.parent.glob("*.yaml"))
+            if self.config.director.season:
+                sources.append(catalog_path.parent.parent / "seasons.yaml")
+            preset_hash = stage_key("catalog-sources", *(sha256_file(p) for p in sources if p.exists()))
         pins_path = Path(self.config.director.pins) if self.config.director.pins else None
         key = stage_key(
             "direct-1",
