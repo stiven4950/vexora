@@ -99,6 +99,7 @@ EVENT_CATALOG: dict[str, str] = {
     "pucker": "Pone los labios en beso.",
     "head_turn": "Gira la cabeza rápido hacia un lado.",
     "head_tilt": "Inclina la cabeza hacia un hombro.",
+    "paint_stroke": "Un trazo de maquillaje o pintura nueva sobre la cara.",
     "still": "El cuerpo permanece casi quieto.",
     "person_contact": "La muñeca de una persona alcanza el torso o la cabeza de la otra.",
     "strike_windup": "Anticipación fija antes de un contacto entre personas (carga previa al golpe).",

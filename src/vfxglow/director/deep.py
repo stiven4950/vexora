@@ -56,6 +56,7 @@ ACTIONS = {
     "pucker": "pone los labios en beso",
     "head_turn": "gira la cabeza rápido hacia un lado",
     "head_tilt": "inclina la cabeza hacia un hombro",
+    "paint_stroke": "se maquilla o pinta la cara: un trazo nuevo",
     "fist_up": "puño en alto a la altura del hombro (la atención en el puño)",
     "finger_gun": "la mano en forma de revólver (índice al frente, pulgar arriba); el pulgar que baja es el disparo",
     "hands_on_head": "manos sobre o alrededor de la cabeza",

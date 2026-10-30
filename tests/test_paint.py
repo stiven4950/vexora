@@ -146,3 +146,23 @@ def test_mouth_needs_teeth_not_a_smooth_blob() -> None:
     blob = np.full((1280, 720, 3), (0, 110, 240), np.uint8)
     cv2.ellipse(blob, (360, 685), (110, 45), 0, 0, 360, (10, 10, 10), -1)
     assert _mouth(blob, eyes) == []
+
+
+def test_a_makeup_stroke_is_an_event_with_its_figure_and_zone() -> None:
+    from vfxglow.analysis.appearance import Appearance, paint_stroke_events
+    from vfxglow.analysis.schema import FrameRecord, Landmark
+
+    face = [Landmark(name="face_468", x=0.42, y=0.4, c=0.9), Landmark(name="face_473", x=0.58, y=0.4, c=0.9),
+            Landmark(name="face_13", x=0.5, y=0.62, c=0.9), Landmark(name="face_4", x=0.5, y=0.5, c=0.9),
+            Landmark(name="face_10", x=0.5, y=0.2, c=0.9)]
+    triangle = [(0.62 + 0.06 * t, 0.5 + 0.0) for t in (0.0, 0.5, 1.0)] + [(0.65, 0.44), (0.62, 0.5)]
+    appearance = Appearance()
+    for f in range(4, 14):  # diez fotogramas de pintura en la mejilla izquierda
+        appearance.contours[f] = triangle
+    frames = [FrameRecord(frame=f, time_s=f / 30, face=face) for f in range(20)]
+    events = paint_stroke_events(appearance, frames, 400, 400)
+    assert [(e.name, e.kind) for e in events] == [("paint_stroke", "cheek")]
+    assert events[0].detail.startswith("figura=")
+    # Un toque suelto no es un trazo.
+    appearance.contours = {5: triangle, 6: triangle}
+    assert paint_stroke_events(appearance, frames, 400, 400) == []

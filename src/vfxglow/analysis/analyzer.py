@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 
 from vfxglow import telemetry
-from vfxglow.analysis.appearance import analyze_appearance, retag_paint_beats, tip_touch_events
+from vfxglow.analysis.appearance import analyze_appearance, paint_stroke_events, retag_paint_beats, tip_touch_events
 from vfxglow.analysis.beats import segment_beats
 from vfxglow.analysis.events import EventDetector
 from vfxglow.analysis.scene_reader import read_scenes
@@ -144,6 +144,7 @@ def analyze_video(video_path: Path, run_dir: Path, config: AppConfig, device: st
     appearance = analyze_appearance(video_path, frames, meta, cut_frames(beats), config.analysis.paint_tool)
     beats = retag_paint_beats(beats, appearance)
     events.extend(tip_touch_events(appearance))
+    events.extend(paint_stroke_events(appearance, frames, meta.width, meta.height))
     events.sort(key=lambda event: (event.start_frame, event.name))
     from vfxglow.analysis.attention import attention_timeline
 

@@ -189,3 +189,68 @@ def tip_touch_events(appearance: Appearance):
         )
     return events
 
+
+# Un trazo de maquillaje: pintura nueva en fotogramas seguidos (con huecos de hasta STROKE_GAP) durante
+# al menos STROKE_MIN fotogramas. La zona de la cara se decide por cercanía, en distancias entre ojos.
+STROKE_GAP = 6
+STROKE_MIN = 6
+ZONE_NEAR = 0.6
+
+
+def _face_zone(record, point: np.ndarray, width: int, height: int) -> str:
+    """Zona de la cara donde cae un punto (en píxeles): ojo, labios, nariz, frente o mejilla."""
+    named = {}
+    for lm in record.face or []:
+        if lm.name[5:].isdigit():
+            named[int(lm.name[5:])] = np.array([lm.x * width, lm.y * height])
+    eyes = [named[i] for i in (468, 473) if i in named]
+    if len(eyes) < 2:
+        return "face"
+    unit = max(float(np.linalg.norm(eyes[0] - eyes[1])), 1.0)
+    places = {"eye": min(float(np.linalg.norm(point - e)) for e in eyes)}
+    for zone, index in (("lips", 13), ("nose", 4), ("forehead", 10)):
+        if index in named:
+            places[zone] = float(np.linalg.norm(point - named[index]))
+    zone, distance = min(places.items(), key=lambda item: item[1])
+    return zone if distance / unit <= ZONE_NEAR else "cheek"
+
+
+def paint_stroke_events(appearance: Appearance, frames, width: int, height: int):
+    """Trazos de maquillaje: cada tramo de pintura nueva, con la figura que más se le parece
+    (analysis/shapes.py) en `detail` ("figura=triangle") y la zona de la cara en `kind`."""
+    from vfxglow.analysis.schema import MotionEvent
+    from vfxglow.analysis.shapes import fit_shape
+
+    painted = sorted(appearance.contours)
+    if not painted:
+        return []
+    by_frame = {record.frame: record for record in frames}
+    groups: list[list[int]] = [[painted[0]]]
+    for frame in painted[1:]:
+        if frame <= groups[-1][-1] + STROKE_GAP:
+            groups[-1].append(frame)
+        else:
+            groups.append([frame])
+    events = []
+    for group in groups:
+        if len(group) < STROKE_MIN:
+            continue
+        last = group[-1]
+        contour = np.array(appearance.contours[last], dtype=np.float64) * [width, height]
+        figure = fit_shape(contour)
+        center = contour.mean(axis=0)
+        record = by_frame.get(last)
+        zone = _face_zone(record, center, width, height) if record is not None else "face"
+        events.append(
+            MotionEvent(
+                name="paint_stroke",
+                target=record.person_id if record is not None else "person_0",
+                start_frame=group[0],
+                end_frame=last,
+                confidence=0.8,
+                detail=f"figura={figure['kind'] if figure else 'none'}",
+                position=(float(center[0] / width), float(center[1] / height)),
+                kind=zone,
+            )
+        )
+    return events
