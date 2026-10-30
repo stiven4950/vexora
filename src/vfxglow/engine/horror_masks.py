@@ -58,6 +58,31 @@ def _available() -> tuple[str, ...]:
 HORROR_MASKS = _available()
 
 
+# Se arma en BUILD_S segundos y se deshace en los últimos DISSOLVE_S, dure lo que dure el momento:
+# en cara se queda varios segundos sin que la aparición vaya en cámara lenta.
+BUILD_S = 1.4
+DISSOLVE_S = 0.5
+
+
+def _timeline(runtime, event) -> float:
+    """La fracción del momento para las fases: la aparición y la salida a ritmo fijo, lo de en medio
+    sostenido (con el pulso del relleno)."""
+    triggers = runtime.effect.triggers
+    hold = triggers[0].hold if triggers else 20
+    span = (event.end_frame - event.start_frame + 1 + hold) if event is not None else 60
+    fps = getattr(runtime, "fps", 30.0) or 30.0
+    build, dissolve = BUILD_S * fps, DISSOLVE_S * fps
+    age = runtime.active_frames
+    if span <= build + dissolve:  # un momento corto: la escala de siempre
+        return _phase(runtime, event)
+    if age < build:
+        return 0.62 * age / build
+    remaining = span - age
+    if remaining > dissolve:
+        return 0.7
+    return DISSOLVE + (1.0 - DISSOLVE) * float(np.clip(1.0 - remaining / dissolve, 0.0, 1.0))
+
+
 def _warp(points: np.ndarray, role: str, anchors: dict, expressions: dict) -> np.ndarray:
     """Los rasgos con la expresión: la boca se alarga desde su borde de arriba, los ojos se achatan."""
     if role not in ("eye_right", "eye_left") and "mouth_top" in anchors:
@@ -99,7 +124,7 @@ def horror_mask(shape, body, frame, scale, frame_index, runtime, layer, color, a
     except FileNotFoundError:
         return []
     face = Face(body, scale)
-    u = _phase(runtime, event)
+    u = _timeline(runtime, event)
     expressions = getattr(runtime, "expressions", {}) or {}
     anchors = mask["anchors"]
     strokes = mask["strokes"]

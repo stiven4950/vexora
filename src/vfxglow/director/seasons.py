@@ -77,7 +77,7 @@ def suggest(seasons: list[Season], date: dt.date | None = None) -> Season | None
 HEAD_HATS = {"cap", "cowboy_hat", "top_hat", "fedora", "party_hat", "headphones", "crown", "halo"}
 
 
-def moment_effect(season: Season, moment: Moment) -> dict:
+def moment_effect(season: Season, moment: Moment, scale: float = 1.0) -> dict:
     if moment.moment.startswith("terror_"):
         # Un rostro de terror en neón sobre la cara (engine/horror_masks.py), con sus colores.
         return {
@@ -85,14 +85,14 @@ def moment_effect(season: Season, moment: Moment) -> dict:
             "target": {"kind": "joint", "id": "body"},
             "style": {"shapes": [moment.moment], "thickness": 0.008, "hdr_gain": 1.6, "focus": False},
             "render": {"blend": "add", "motion_blur": 0.0, "persistence": 0.0, "group": "glow"},
-            "trigger": {"hold": int(moment.size * 30), "fade_in": 1, "fade_out": 6},
+            "trigger": {"hold": int(moment.size * scale * 30), "fade_in": 1, "fade_out": 6},
         }
     return {
         "type": "season_fx",
         "target": {"kind": "joint", "id": "nose"},
         "style": {"shapes": [moment.moment], "colors": season.palette[:4] or [(1.0, 1.0, 1.0)], "size": moment.size, "thickness": 0.05, "hdr_gain": 1.6},
         "render": {"blend": "add", "motion_blur": 0.0, "persistence": 0.0, "group": "glow"},
-        "trigger": {"hold": int(moment.size * 30), "fade_in": 3, "fade_out": 8},
+        "trigger": {"hold": int(moment.size * scale * 30), "fade_in": 3, "fade_out": 8},
     }
 
 
@@ -139,7 +139,7 @@ def apply_to_catalog(catalog, season: Season):
     for moment in moments:
         if moment.moment:
             # Neutro para los capítulos de elemento (no es fuego ni rayo).
-            option = Option(name=f"temporada_{moment.moment}", weight=moment.weight, effects=[moment_effect(season, moment)], element="", max_uses=moment.max_uses)
+            option = Option(name=f"temporada_{moment.moment}", weight=moment.weight, effects=[moment_effect(season, moment, out.moment_scale)], element="", max_uses=moment.max_uses)
         else:
             option = Option(
                 name="temporada_particulas",

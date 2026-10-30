@@ -161,6 +161,9 @@ class Catalog(_Strict):
     # También abre capítulo de color cada efecto nuevo (un dibujo nuevo, un color nuevo; video_52:
     # el color cambia con cada idea, cada 1,3 s en promedio, sin relación con la cámara ni la música).
     color_per_effect: bool = False
+    # Cuánto duran los momentos de temporada en este estilo (x la duración de seasons.yaml): en cara
+    # los rostros se quedan más; en baile, el momento normal (corto).
+    moment_scale: float = 1.0
     # Ningún tramo sin efecto: un hueco más largo que esto (s) se rellena con un efecto del foco de
     # ese momento (0 = no se rellena). Ver fill_gaps.
     max_gap_s: float = 0.0

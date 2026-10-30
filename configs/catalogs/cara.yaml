@@ -13,10 +13,13 @@ description: 'Para videos de cara: delineado, geometría, malla, cristal, circui
 tags: [cara, rostro, maquillaje, retrato, selfie]
 seed: 17
 # Ningún tramo de más de 1,2 s sin efecto.
-max_gap_s: 1.2
+max_gap_s: 2.0
 chapters: true
 # Un dibujo nuevo, un color nuevo.
 color_per_effect: true
+# Los rostros y dibujos de la cara se quedan: los momentos de temporada (la máscara de Halloween)
+# duran 3 veces lo de seasons.yaml.
+moment_scale: 3.0
 defaults:
   type: adornment
   target: {kind: joint, id: body}
@@ -47,21 +50,21 @@ reactions:
     effects:
     - type: adornment
       style: {shapes: [terror_ghostface], thickness: 0.008, focus: false}
-      trigger: {hold: 50, fade_in: 1, fade_out: 6}
+      trigger: {hold: 150, fade_in: 1, fade_out: 6}
   - name: contorno
     weight: 0.5
     cooldown: 0
     effects:
     - type: adornment
       style: {shapes: [face_oval_trace], thickness: 0.008, focus: false}
-      trigger: {hold: 40, fade_in: 1, fade_out: 6}
+      trigger: {hold: 120, fade_in: 1, fade_out: 6}
   - name: escaner
     weight: 0.5
     cooldown: 0
     effects:
     - type: adornment
       style: {shapes: [face_scan], thickness: 0.008, focus: false}
-      trigger: {hold: 40, fade_in: 1, fade_out: 6}
+      trigger: {hold: 120, fade_in: 1, fade_out: 6}
 # Lo que más se mueve es la cabeza, o la persona está quieta: dibujos sobre el rostro.
 - action: spotlight
   options:
@@ -72,7 +75,7 @@ reactions:
     effects:
     - type: adornment
       style: {shapes: [liner_trace], thickness: 0.008, focus: false}
-      trigger: {hold: 24, fade_in: 1, fade_out: 6}
+      trigger: {hold: 72, fade_in: 1, fade_out: 6}
   - name: geometria
     weight: 0.3
     cooldown: 240
@@ -80,7 +83,7 @@ reactions:
     effects:
     - type: adornment
       style: {shapes: [face_geometry], thickness: 0.008, focus: false}
-      trigger: {hold: 24, fade_in: 1, fade_out: 6}
+      trigger: {hold: 72, fade_in: 1, fade_out: 6}
   - name: malla
     weight: 0.25
     cooldown: 240
@@ -88,7 +91,7 @@ reactions:
     effects:
     - type: adornment
       style: {shapes: [face_mesh_live], thickness: 0.008, focus: false}
-      trigger: {hold: 24, fade_in: 1, fade_out: 6}
+      trigger: {hold: 72, fade_in: 1, fade_out: 6}
   - name: cristal
     weight: 0.2
     cooldown: 240
@@ -96,7 +99,7 @@ reactions:
     effects:
     - type: adornment
       style: {shapes: [face_crystal], thickness: 0.008, focus: false}
-      trigger: {hold: 24, fade_in: 1, fade_out: 6}
+      trigger: {hold: 72, fade_in: 1, fade_out: 6}
   - name: circuito
     weight: 0.25
     cooldown: 240
@@ -104,7 +107,7 @@ reactions:
     effects:
     - type: adornment
       style: {shapes: [face_circuit], thickness: 0.008, focus: false}
-      trigger: {hold: 24, fade_in: 1, fade_out: 6}
+      trigger: {hold: 72, fade_in: 1, fade_out: 6}
   - name: runas
     weight: 0.3
     cooldown: 240
@@ -112,7 +115,7 @@ reactions:
     effects:
     - type: adornment
       style: {shapes: [face_runes], thickness: 0.008, focus: false}
-      trigger: {hold: 24, fade_in: 1, fade_out: 6}
+      trigger: {hold: 72, fade_in: 1, fade_out: 6}
   - name: aro_runas
     weight: 0.2
     cooldown: 240
@@ -120,7 +123,7 @@ reactions:
     effects:
     - type: adornment
       style: {shapes: [rune_orbit], thickness: 0.008, focus: false}
-      trigger: {hold: 24, fade_in: 1, fade_out: 6}
+      trigger: {hold: 72, fade_in: 1, fade_out: 6}
   - name: eco_cabeza
     weight: 0.15
     cooldown: 240
@@ -128,7 +131,7 @@ reactions:
     effects:
     - type: adornment
       style: {shapes: [head_echo], thickness: 0.008, focus: false}
-      trigger: {hold: 24, fade_in: 1, fade_out: 6}
+      trigger: {hold: 72, fade_in: 1, fade_out: 6}
   - name: escaner
     weight: 0.15
     cooldown: 240
@@ -136,7 +139,7 @@ reactions:
     effects:
     - type: adornment
       style: {shapes: [face_scan], thickness: 0.008, focus: false}
-      trigger: {hold: 24, fade_in: 1, fade_out: 6}
+      trigger: {hold: 72, fade_in: 1, fade_out: 6}
   - name: llamas_ojos
     weight: 0.15
     cooldown: 240
@@ -144,7 +147,7 @@ reactions:
     effects:
     - type: adornment
       style: {shapes: [eye_flames], thickness: 0.008, focus: false}
-      trigger: {hold: 24, fade_in: 1, fade_out: 6}
+      trigger: {hold: 72, fade_in: 1, fade_out: 6}
   - name: gafas
     weight: 0.2
     cooldown: 300
@@ -153,7 +156,7 @@ reactions:
     - type: eyewear
       target: {kind: joint, id: nose}
       style: {thickness: 0.07, shapes: [frames, stars, hearts, visor, rings]}
-      trigger: {hold: 20, fade_in: 1, fade_out: 6}
+      trigger: {hold: 60, fade_in: 1, fade_out: 6}
 - action: still
   cooldown: 60
   options:
@@ -165,35 +168,35 @@ reactions:
     effects:
     - type: adornment
       style: {shapes: [terror_ghostface], thickness: 0.008, focus: false}
-      trigger: {hold: 50, fade_in: 1, fade_out: 6}
+      trigger: {hold: 150, fade_in: 1, fade_out: 6}
   - name: runas
     weight: 0.3
     cooldown: 300
     effects:
     - type: adornment
       style: {shapes: [face_runes], thickness: 0.008, focus: false}
-      trigger: {hold: 30, fade_in: 1, fade_out: 6}
+      trigger: {hold: 90, fade_in: 1, fade_out: 6}
   - name: circuito
     weight: 0.25
     cooldown: 300
     effects:
     - type: adornment
       style: {shapes: [face_circuit], thickness: 0.008, focus: false}
-      trigger: {hold: 30, fade_in: 1, fade_out: 6}
+      trigger: {hold: 90, fade_in: 1, fade_out: 6}
   - name: cristal
     weight: 0.25
     cooldown: 300
     effects:
     - type: adornment
       style: {shapes: [face_crystal], thickness: 0.008, focus: false}
-      trigger: {hold: 30, fade_in: 1, fade_out: 6}
+      trigger: {hold: 90, fade_in: 1, fade_out: 6}
   - name: delineado
     weight: 0.3
     cooldown: 300
     effects:
     - type: adornment
       style: {shapes: [liner_trace], thickness: 0.008, focus: false}
-      trigger: {hold: 30, fade_in: 1, fade_out: 6}
+      trigger: {hold: 90, fade_in: 1, fade_out: 6}
 # Boca abierta: carga una esfera de energía que sale en ondas al cerrarla, o un aliento.
 - action: mouth_open
   options:
@@ -205,21 +208,21 @@ reactions:
     effects:
     - type: adornment
       style: {shapes: [terror_ghostface], thickness: 0.008, focus: false}
-      trigger: {hold: 50, fade_in: 1, fade_out: 6}
+      trigger: {hold: 150, fade_in: 1, fade_out: 6}
   - name: carga_boca
     weight: 0.5
     cooldown: 300
     effects:
     - type: adornment
       style: {shapes: [mouth_charge], thickness: 0.008, focus: false}
-      trigger: {hold: 20, fade_in: 1, fade_out: 6}
+      trigger: {hold: 60, fade_in: 1, fade_out: 6}
   - name: aliento
     weight: 0.3
     cooldown: 300
     effects:
     - type: adornment
       style: {shapes: [breath], thickness: 0.008, focus: false}
-      trigger: {hold: 20, fade_in: 1, fade_out: 6}
+      trigger: {hold: 60, fade_in: 1, fade_out: 6}
   - name: nada
     weight: 0.2
     effects: []
@@ -232,7 +235,7 @@ reactions:
     effects:
     - type: adornment
       style: {shapes: [blink_mask], thickness: 0.008, focus: false}
-      trigger: {hold: 8, fade_in: 1, fade_out: 4}
+      trigger: {hold: 45, fade_in: 1, fade_out: 4}
   - name: nada
     weight: 0.65
     effects: []
@@ -246,7 +249,7 @@ reactions:
     - type: eyewear
       target: {kind: joint, id: nose}
       style: {thickness: 0.07, shapes: [glint, stars]}
-      trigger: {hold: 12, fade_in: 1, fade_out: 6}
+      trigger: {hold: 45, fade_in: 1, fade_out: 6}
   - name: nada
     weight: 0.4
     effects: []
@@ -259,14 +262,14 @@ reactions:
     effects:
     - type: adornment
       style: {shapes: [eye_beams], thickness: 0.008, focus: false}
-      trigger: {hold: 14, fade_in: 1, fade_out: 6}
+      trigger: {hold: 45, fade_in: 1, fade_out: 6}
   - name: llamas_ojos
     weight: 0.3
     cooldown: 300
     effects:
     - type: adornment
       style: {shapes: [eye_flames], thickness: 0.008, focus: false}
-      trigger: {hold: 18, fade_in: 1, fade_out: 6}
+      trigger: {hold: 54, fade_in: 1, fade_out: 6}
   - name: nada
     weight: 0.2
     effects: []
@@ -279,14 +282,14 @@ reactions:
     effects:
     - type: adornment
       style: {shapes: [smile_sparks], thickness: 0.008, focus: false}
-      trigger: {hold: 20, fade_in: 1, fade_out: 6}
+      trigger: {hold: 60, fade_in: 1, fade_out: 6}
   - name: mejillas
     weight: 0.3
     cooldown: 240
     effects:
     - type: adornment
       style: {shapes: [cheek_glow], thickness: 0.008, focus: false}
-      trigger: {hold: 20, fade_in: 1, fade_out: 6}
+      trigger: {hold: 60, fade_in: 1, fade_out: 6}
   - name: nada
     weight: 0.2
     effects: []
@@ -299,14 +302,14 @@ reactions:
     effects:
     - type: adornment
       style: {shapes: [brow_lines], thickness: 0.008, focus: false}
-      trigger: {hold: 14, fade_in: 1, fade_out: 6}
+      trigger: {hold: 45, fade_in: 1, fade_out: 6}
   - name: signo
     weight: 0.2
     cooldown: 300
     effects:
     - type: face_toon
       style: {shapes: [exclaim, question], thickness: 0.012}
-      trigger: {hold: 14, fade_in: 1, fade_out: 6}
+      trigger: {hold: 45, fade_in: 1, fade_out: 6}
   - name: nada
     weight: 0.3
     effects: []
@@ -319,7 +322,7 @@ reactions:
     effects:
     - type: adornment
       style: {shapes: [cheek_glow], thickness: 0.008, focus: false}
-      trigger: {hold: 20, fade_in: 1, fade_out: 6}
+      trigger: {hold: 60, fade_in: 1, fade_out: 6}
   - name: nada
     weight: 0.2
     effects: []
@@ -332,7 +335,7 @@ reactions:
     effects:
     - type: face_toon
       style: {shapes: [kiss], thickness: 0.012}
-      trigger: {hold: 16, fade_in: 1, fade_out: 6}
+      trigger: {hold: 48, fade_in: 1, fade_out: 6}
   - name: nada
     weight: 0.3
     effects: []
@@ -345,14 +348,14 @@ reactions:
     effects:
     - type: adornment
       style: {shapes: [head_echo], thickness: 0.008, focus: false}
-      trigger: {hold: 14, fade_in: 1, fade_out: 6}
+      trigger: {hold: 45, fade_in: 1, fade_out: 6}
   - name: aro_runas
     weight: 0.3
     cooldown: 300
     effects:
     - type: adornment
       style: {shapes: [rune_orbit], thickness: 0.008, focus: false}
-      trigger: {hold: 24, fade_in: 1, fade_out: 6}
+      trigger: {hold: 72, fade_in: 1, fade_out: 6}
   - name: nada
     weight: 0.3
     effects: []
@@ -365,14 +368,14 @@ reactions:
     effects:
     - type: adornment
       style: {shapes: [rune_orbit], thickness: 0.008, focus: false}
-      trigger: {hold: 24, fade_in: 1, fade_out: 6}
+      trigger: {hold: 72, fade_in: 1, fade_out: 6}
   - name: geometria
     weight: 0.3
     cooldown: 300
     effects:
     - type: adornment
       style: {shapes: [face_geometry], thickness: 0.008, focus: false}
-      trigger: {hold: 24, fade_in: 1, fade_out: 6}
+      trigger: {hold: 72, fade_in: 1, fade_out: 6}
   - name: nada
     weight: 0.3
     effects: []
@@ -385,14 +388,14 @@ reactions:
     effects:
     - type: adornment
       style: {shapes: [makeup_figure], thickness: 0.008, focus: false}
-      trigger: {hold: 36, fade_in: 1, fade_out: 6}
+      trigger: {hold: 108, fade_in: 1, fade_out: 6}
   - name: delineado
     weight: 0.3
     cooldown: 120
     effects:
     - type: adornment
       style: {shapes: [liner_trace], thickness: 0.008, focus: false}
-      trigger: {hold: 24, fade_in: 1, fade_out: 6}
+      trigger: {hold: 72, fade_in: 1, fade_out: 6}
 # La punta del pincel deja pigmento: llama en la punta (lo de face_neon).
 - action: tool_touch
   options:
@@ -404,7 +407,7 @@ reactions:
       target: {kind: event_point, id: tool_touch}
       style: {thickness: 0.02, hdr_gain: 1.6}
       render: {persistence: 0.35, glow_layers: 2}
-      trigger: {hold: 10, fade_in: 1, fade_out: 6}
+      trigger: {hold: 45, fade_in: 1, fade_out: 6}
   - name: nada
     weight: 0.4
     effects: []
@@ -417,14 +420,14 @@ reactions:
     effects:
     - type: face_toon
       style: {shapes: [kiss], thickness: 0.012}
-      trigger: {hold: 10, fade_in: 1, fade_out: 6}
+      trigger: {hold: 45, fade_in: 1, fade_out: 6}
   - name: asombro
     weight: 0.3
     cooldown: 300
     effects:
     - type: face_toon
       style: {shapes: [shock], thickness: 0.012}
-      trigger: {hold: 20, fade_in: 1, fade_out: 6}
+      trigger: {hold: 60, fade_in: 1, fade_out: 6}
   - name: nada
     weight: 0.2
     effects: []
@@ -438,14 +441,14 @@ reactions:
     - type: eyewear
       target: {kind: joint, id: nose}
       style: {thickness: 0.07, shapes: [mask, band]}
-      trigger: {hold: 10, fade_in: 1, fade_out: 6}
+      trigger: {hold: 45, fade_in: 1, fade_out: 6}
   - name: burla
     weight: 0.3
     cooldown: 300
     effects:
     - type: face_toon
       style: {shapes: [prank], thickness: 0.012}
-      trigger: {hold: 20, fade_in: 1, fade_out: 6}
+      trigger: {hold: 60, fade_in: 1, fade_out: 6}
   - name: nada
     weight: 0.2
     effects: []
@@ -458,14 +461,14 @@ reactions:
     effects:
     - type: face_toon
       style: {shapes: [skull], thickness: 0.012}
-      trigger: {hold: 20, fade_in: 1, fade_out: 6}
+      trigger: {hold: 60, fade_in: 1, fade_out: 6}
   - name: aro_runas
     weight: 0.4
     cooldown: 300
     effects:
     - type: adornment
       style: {shapes: [rune_orbit], thickness: 0.008, focus: false}
-      trigger: {hold: 24, fade_in: 1, fade_out: 6}
+      trigger: {hold: 72, fade_in: 1, fade_out: 6}
   - name: nada
     weight: 0.2
     effects: []
@@ -478,21 +481,21 @@ reactions:
     effects:
     - type: adornment
       style: {shapes: [cigarette], thickness: 0.008, focus: false}
-      trigger: {hold: 30, fade_in: 1, fade_out: 6}
+      trigger: {hold: 90, fade_in: 1, fade_out: 6}
   - name: vapeador
     weight: 0.2
     cooldown: 600
     effects:
     - type: adornment
       style: {shapes: [vape], thickness: 0.008, focus: false}
-      trigger: {hold: 30, fade_in: 1, fade_out: 6}
+      trigger: {hold: 90, fade_in: 1, fade_out: 6}
   - name: botella
     weight: 0.2
     cooldown: 600
     effects:
     - type: adornment
       style: {shapes: [water_bottle], thickness: 0.008, focus: false}
-      trigger: {hold: 30, fade_in: 1, fade_out: 6}
+      trigger: {hold: 90, fade_in: 1, fade_out: 6}
   - name: nada
     weight: 0.3
     effects: []
