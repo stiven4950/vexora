@@ -254,11 +254,37 @@ def load_catalog(path: Path) -> Catalog:
     return Catalog.model_validate(raw)
 
 
+# Los catálogos cuentan duraciones en fotogramas de un video de 30 fps.
+CATALOG_FPS = 30.0
+
+
+def at_fps(catalog: Catalog, fps: float) -> Catalog:
+    """El catálogo con sus duraciones llevadas a este video: a 15 fps un efecto de 90 fotogramas
+    duraba 6 s en vez de 3 (expressions_1)."""
+    ratio = fps / CATALOG_FPS
+    if abs(ratio - 1.0) < 0.05:
+        return catalog
+    out = catalog.model_copy(deep=True)
+    for reaction in out.reactions:
+        reaction.cooldown = int(round(reaction.cooldown * ratio))
+        for option in reaction.options:
+            option.cooldown = int(round(option.cooldown * ratio))
+            for effect in option.effects:
+                trigger = effect.get("trigger")
+                if trigger and "hold" in trigger:
+                    trigger["hold"] = max(int(round(trigger["hold"] * ratio)), 1)
+                    for key in ("fade_in", "fade_out"):
+                        if key in trigger:
+                            trigger[key] = max(int(round(trigger[key] * ratio)), 1)
+    return out
+
+
 def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, pins=None) -> tuple[EffectScript, Choreography]:
     """`pins` (director/pins.py, PinFile): momentos fijados a mano que van antes que todo y no
     ceden ante ninguna regla; con `solo_estos`, no hay sorteo."""
     seed = catalog.seed if seed is None else seed
     fps = brief.video.fps or 30.0
+    catalog = at_fps(catalog, fps)
     chosen: dict[tuple[str, str], list[tuple[int, str]]] = {}
     decisions: list[Decision] = []
     events = list(brief.events)
