@@ -522,7 +522,7 @@ def _samurai(body, frame, scale, runtime, layer, alpha, event) -> list[np.ndarra
             # La dirección del brazo, suavizada: los puntos de la mano tiemblan y la hoja los amplifica.
             aim = _unit(grip - elbow)
             prev = st.get(f"{side}_aim")
-            aim = _unit(prev * 0.6 + aim * 0.4) if prev is not None else aim
+            aim = _unit(prev * 0.3 + aim * 0.7) if prev is not None else aim  # poco: más, y la hoja va detrás del brazo
             st[f"{side}_aim"] = aim
             # Al sacarla, la hoja sale de la espalda: apunta hacia abajo por detrás del hombro y gira
             # hasta quedar en la dirección del brazo, descubriéndose.

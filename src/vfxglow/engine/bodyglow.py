@@ -657,7 +657,8 @@ def draw_adornment(runtime, track, points, frame_index: int, height: int, envelo
     key = event.start_frame if event is not None else frame_index // max(style.palette_every, 1)
     seed = zlib.crc32(f"{style.seed_offset}:adorn:{key}".encode()) & 0xFFFFFFFF
     shape = names[int(np.random.default_rng(seed).integers(0, len(names)))]
-    grow = float(np.clip(runtime.active_frames / 5.0, 0.0, 1.0))
+    # Entra casi de golpe (2 cuadros): con 5 los adornos se veían llegar tarde (video_52).
+    grow = float(np.clip(runtime.active_frames / 2.0, 0.0, 1.0))
     from vfxglow.engine.fire_creatures import FIRE_CREATURES
     from vfxglow.engine.firebend import FIREBEND
     from vfxglow.engine.airbend import AIRBEND
