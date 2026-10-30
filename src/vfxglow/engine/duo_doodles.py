@@ -55,7 +55,7 @@ from vfxglow.engine.counting import COUNTING, finger_number
 from vfxglow.engine.solo_fx import SOLO_FX, solo_fx
 from vfxglow.engine.arm_fx import ARM_FX, arm_fx
 from vfxglow.engine.morph_fx import MORPH_FX, morph_fx
-from vfxglow.engine.face_glow import FACE_GLOW, face_glow
+from vfxglow.engine.face_glow import FACE_GLOW, face_glow, paced
 from vfxglow.engine.face_creatures import CREATURES, face_creature
 from vfxglow.engine.face_moods import MOODS, face_mood
 from vfxglow.engine.face_wounds import WOUNDS, face_wound
@@ -77,6 +77,7 @@ DOODLES = (
     "foot_ring", "foot_bolts",
 ) + DUO_FX + COSTUMES + SHOES + DRESSES + CRITTERS + STORIES + GUNS + FISTS + HAND_PROPS + ENERGY_PASS + COUNTING + SOLO_FX + ARM_FX + MORPH_FX + FACE_GLOW + HORROR_MASKS + CREATURES + WOUNDS + MOODS + BEASTS + LIVING + FIREBEND + FIRE_CREATURES + WATERBEND + AIRBEND + EARTHBEND + CHARACTERS
 WHITE = np.array([1.0, 1.0, 1.0], np.float32)
+PACED = frozenset(FACE_GLOW + HORROR_MASKS + CREATURES + WOUNDS + MOODS + BEASTS + LIVING)
 
 
 def _ellipse(center, rx, ry, across, up, a0=0.0, a1=TAU, n=40) -> np.ndarray:
@@ -190,6 +191,9 @@ def doodle(shape, body, frame, scale, frame_index, seed, runtime, layer, color, 
         return arm_fx(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape in MORPH_FX:
         return morph_fx(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape in PACED:
+        # Estos animan por fotograma a 30 fps: con otro video, el mismo movimiento en el mismo tiempo.
+        frame_index = paced(frame_index, runtime)
     if shape in FACE_GLOW:
         return face_glow(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape in HORROR_MASKS:

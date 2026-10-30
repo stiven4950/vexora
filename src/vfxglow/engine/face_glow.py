@@ -618,12 +618,22 @@ def _makeup_figure(face: Face, u: float, frame_index: int, runtime, layer, color
 # ----- partículas -----
 
 
+def paced(frame_index: int, runtime) -> int:
+    """El fotograma contado como si el video fuera de 30 fps."""
+    return int(round(frame_index * 30.0 / (getattr(runtime, "fps", 30.0) or 30.0)))
+
+
+def steps(runtime) -> int:
+    """Pasos de 30 fps que entran en un fotograma de este video (lo que simula paso a paso)."""
+    return max(int(round(30.0 / (getattr(runtime, "fps", 30.0) or 30.0))), 1)
+
+
 def _clock(runtime) -> float:
     """Un reloj que corre más rápido cuando la cabeza se mueve: las partículas siguen su energía."""
     st = runtime.swoosh.setdefault("_clock", {"t": 0.0, "frame": -1})
     if st["frame"] != runtime.active_frames:
         st["frame"] = runtime.active_frames
-        st["t"] += 1.0 + 2.5 * float(getattr(runtime, "energy", 0.0))
+        st["t"] += (1.0 + 2.5 * float(getattr(runtime, "energy", 0.0))) * steps(runtime)
     return st["t"]
 
 

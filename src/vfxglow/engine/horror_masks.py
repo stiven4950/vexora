@@ -205,7 +205,7 @@ def horror_mask(shape, body, frame, scale, frame_index, runtime, layer, color, a
         if part > 0:
             out.append((_trim(placed[k], _ease(part)), stroke["color"]))
     if flowing:
-        out = [(line, tint * FLOW_BASE) for line, tint in out] + _flow(placed, strokes, runtime.active_frames, face, layer, alpha, runtime.kernels)
+        out = [(line, tint * FLOW_BASE) for line, tint in out] + _flow(placed, strokes, frame_index, face, layer, alpha, runtime.kernels)
     if u >= FILL_AT:  # los huecos se llenan de una luz tenue, con un pulso
         glow = _seg(u, FILL_AT, FILL_AT + 0.08) * (0.75 + 0.25 * np.sin(frame_index * 0.3))
         for role in FEATURE_ROLES:

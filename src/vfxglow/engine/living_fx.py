@@ -24,7 +24,7 @@ from vfxglow.analysis.expressions import gaze_vector
 from vfxglow.engine.critters import _ease, _phase, _seg
 from vfxglow.engine.dissolve import disintegrate, fine, melt
 from vfxglow.engine.duo_fx import body_mask
-from vfxglow.engine.face_glow import _RUNES, WHITE, Face, _seed
+from vfxglow.engine.face_glow import _RUNES, WHITE, Face, _seed, steps
 from vfxglow.engine.firebend import cel, living_ribbon, teardrop
 from vfxglow.engine.raster import splat
 
@@ -42,6 +42,7 @@ THREAD = np.array([0.85, 0.95, 1.0], np.float32)
 JAW_FULL = 0.45
 FLAME_MIN = 0.3
 FLAME_LENGTH = 3.4
+FLAME_TURN = 0.7
 # Ondas de voz: cuadros entre una y otra, y cuánto debe subir el volumen para soltar una nueva.
 PULSE_GAP = 4
 PULSE_RISE = 0.05
@@ -68,7 +69,8 @@ def _smooth(runtime, key: str, value: float, rise: float = 0.35, fall: float = 0
     """Un valor que sube rápido y baja lento: la señal cruda tiembla."""
     st = runtime.swoosh.setdefault("_living", {})
     old = st.get(key, 0.0)
-    st[key] = old + (value - old) * (rise if value > old else fall)
+    rate = 1.0 - (1.0 - (rise if value > old else fall)) ** steps(runtime)
+    st[key] = old + (value - old) * rate
     return st[key]
 
 
@@ -89,8 +91,13 @@ def _dragon(face: Face, u: float, frame_index: int, runtime, layer, alpha: float
     yaw = (getattr(runtime, "head_pose", None) or (0.0,))[0]
     gaze = gaze_vector(e)[0]
     lean = float(np.clip(yaw / 25.0 + gaze, -1.0, 1.0))
-    if abs(lean) < 0.25:  # de frente: hacia el lado que le toca, para no taparse la cara
-        lean = 0.6 if rng.uniform() < 0.5 else -0.6
+    # Se queda de un lado (de frente, el que le toca) y solo cambia con un giro claro de la cabeza: con
+    # la mirada de cada cuadro saltaba de un lado a otro cruzando la cara (expressions_1).
+    if "side" not in st:
+        st["side"] = float(np.sign(lean)) if abs(lean) >= FLAME_TURN else (1.0 if rng.uniform() < 0.5 else -1.0)
+    elif abs(lean) >= FLAME_TURN:
+        st["side"] = float(np.sign(lean))
+    lean = st["side"] * max(abs(lean), 0.6)
     across, down = face.ux / face.unit, face.uy / face.unit
     aim = across * np.sign(lean) * (0.65 + 0.35 * abs(lean)) + down * 0.55
     old = st.get("aim")
@@ -248,16 +255,18 @@ def _raven(face: Face, body, scale: float, u: float, frame_index: int, runtime, 
     size = RAVEN_SIZE * face.unit
     if st["frame"] != frame_index:
         st["frame"] = frame_index
-        st["calm"] = st["calm"] + 1 if energy < RAVEN_CALM else 0
+        st["calm"] = st["calm"] + steps(runtime) if energy < RAVEN_CALM else 0
         st["perched"] = bool(shoulders) and 0.2 < u < RAVEN_LEAVE and st["calm"] >= RAVEN_PERCH_AFTER
-        st["angle"] += 0.05 + 0.22 * energy
+        n = steps(runtime)
+        st["angle"] += (0.05 + 0.22 * energy) * n
         if st["perched"]:
             perch = min(shoulders, key=lambda p: float(np.linalg.norm(p - st["pos"])))
             target = perch - np.array([0.0, size * 0.42])
         else:
             target = center + np.array([np.cos(st["angle"]) * 2.2, np.sin(st["angle"]) * 2.6 + 0.5]) * face.unit  # por delante, a la altura del pecho
-        st["vel"] = (st["vel"] + (target - st["pos"]) * RAVEN_SPRING) * RAVEN_DRAG
-        st["pos"] = st["pos"] + st["vel"]
+        for _ in range(n):
+            st["vel"] = (st["vel"] + (target - st["pos"]) * RAVEN_SPRING) * RAVEN_DRAG
+            st["pos"] = st["pos"] + st["vel"]
     pos = st["pos"]
     near = st["perched"] and float(np.linalg.norm(st["vel"])) < 0.05 * face.unit
     facing = 1.0 if (st["vel"][0] if not near else center[0] - pos[0]) >= 0 else -1.0

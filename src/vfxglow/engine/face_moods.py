@@ -17,13 +17,15 @@ import numpy as np
 from vfxglow.analysis.expressions import gaze_vector
 from vfxglow.engine.critters import _ease, _phase, _seg
 from vfxglow.engine.dissolve import melt
-from vfxglow.engine.face_glow import WHITE, Face, _palette, _seed
+from vfxglow.engine.face_glow import WHITE, Face, _palette, _seed, steps
 from vfxglow.engine.raster import fill_polygon, splat
 from vfxglow.engine.season import _heart, _star
 
 TAU = 2.0 * np.pi
 MOODS = ("kiss_blow", "shock_face", "shock_burst", "gaze_burst")
 HEARTS = 9
+# Ojos abiertos que ya cuentan como máximo: en caras reales el valor casi nunca pasa de 0,3.
+WIDE_FULL = 0.25
 KISS_RED = np.array([1.0, 0.12, 0.42], np.float32)
 KISS_PINK = np.array([1.0, 0.45, 0.72], np.float32)
 # Ráfaga de la mirada: cuadros que disparan, partículas por ojo y cuadro, velocidad (unidades de cara
@@ -94,7 +96,7 @@ def _kiss(face: Face, u: float, frame_index: int, layer, alpha: float, kernels, 
 
 
 def _shock_face(face: Face, u: float, frame_index: int, expressions: dict, layer, color, alpha: float, kernels) -> list:
-    wide = max(float(expressions.get("eyeWideLeft", 0.0)), float(expressions.get("eyeWideRight", 0.0)))
+    wide = min(max(float(expressions.get("eyeWideLeft", 0.0)), float(expressions.get("eyeWideRight", 0.0))) / WIDE_FULL, 1.0)
     jaw = float(expressions.get("jawOpen", 0.0))
     pop = 1.0 + 0.5 * np.exp(-u * 16.0) * np.cos(u * 40.0)  # entra con un rebote
     tint = np.asarray(color, np.float32)
@@ -105,7 +107,7 @@ def _shock_face(face: Face, u: float, frame_index: int, expressions: dict, layer
         if not face.visible(side):
             continue
         eye = face.at(f"{side}_iris", (0.5 * sign, 0.0))
-        radius = (0.2 + 0.14 * wide) * pop * face.unit
+        radius = (0.17 + 0.1 * wide) * pop * face.unit
         out.append((eye + circle * radius * 1.25, tint))
         for k in range(2):  # anillos que laten hacia afuera; el ojo queda a la vista
             g = (u * 2.5 + k / 2.0) % 1.0
@@ -176,22 +178,24 @@ def _gaze(face: Face, frame_index: int, runtime, expressions: dict, layer, color
     rng = np.random.default_rng((seed + frame_index) & 0xFFFFFFFF)
     if st["frame"] != frame_index:
         st["frame"] = frame_index
+        substeps = steps(runtime)
         kept = []
         for grain in st["grains"]:
-            grain["at"] = grain["at"] + grain["v"]
-            grain["v"] = grain["v"] * GAZE_DRAG
-            grain["age"] += 1
+            for _ in range(substeps):
+                grain["at"] = grain["at"] + grain["v"]
+                grain["v"] = grain["v"] * GAZE_DRAG
+            grain["age"] += substeps
             if grain["age"] < grain["life"]:
                 kept.append(grain)
         st["grains"] = kept
-        if runtime.active_frames <= GAZE_FRAMES:
+        if runtime.active_frames * substeps <= GAZE_FRAMES:
             d = _look(face, expressions, event.kind if event else "")
             n = np.array([-d[1], d[0]])
             for side, sign in (("right", -1.0), ("left", 1.0)):
                 if not face.visible(side):
                     continue
                 eye = face.at(f"{side}_iris", (0.5 * sign, 0.0))
-                for _ in range(GAZE_GRAINS):
+                for _ in range(GAZE_GRAINS * substeps):
                     speed = rng.uniform(*GAZE_SPEED) * face.unit
                     st["grains"].append({"at": eye + rng.normal(0.0, 0.02, 2) * face.unit, "v": (d + n * rng.normal(0.0, 0.22)) * speed, "age": 0,
                                          "life": int(rng.integers(*GAZE_LIFE)), "tint": colors[int(rng.integers(len(colors)))]})
