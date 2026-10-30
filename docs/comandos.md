@@ -16,7 +16,7 @@ Cada corrida se guarda en `runs/<video>-<hash8>/`. Los runs actuales:
 | Run | Video | Preset principal |
 | --- | --- | --- |
 | `runs/video_1-34f2d20d` | Pelea, 834 fotogramas | `fight_comic` |
-| `runs/video_2-e27a6ae3` | Maquillaje y calabaza, 350 | `face_neon`, `paint_reveal` |
+| `runs/video_2-e27a6ae3` | Maquillaje y calabaza, 350 | `cara`, `paint_reveal` |
 | `runs/video_27-6dc78c0f` | Baile, 570 | `doodle_dance` |
 
 ## 1. Configuración inicial
@@ -43,7 +43,7 @@ Pipeline completo con un preset:
 
 ```bash
 vfxglow run --video ../glowing/data/original/video_1.mp4 --preset fight_comic
-vfxglow run --video ../glowing/data/original/video_2.mp4 --preset face_neon
+vfxglow run --video ../glowing/data/original/video_2.mp4 --catalog cara
 vfxglow run --video ../glowing/data/original/video_2.mp4 --preset paint_reveal
 vfxglow run --video ../glowing/data/original/video_27.mp4 --preset doodle_dance
 ```
@@ -130,8 +130,8 @@ Huella dorada de un preset (hash de cada capa cada 10 fotogramas sobre una copia
 análisis). Se captura una vez y luego se comprueba después de tocar el motor:
 
 ```bash
-python tools/snapshot.py --run runs/video_2-e27a6ae3 --preset face_neon          # capturar
-python tools/snapshot.py --run runs/video_2-e27a6ae3 --preset face_neon --check  # comprobar
+python tools/snapshot.py --run runs/video_2-e27a6ae3 --preset paint_reveal          # capturar
+python tools/snapshot.py --run runs/video_2-e27a6ae3 --preset paint_reveal --check  # comprobar
 ```
 
 `--check` devuelve 0 si es idéntico y lista los fotogramas y efectos que cambiaron si no. Tras

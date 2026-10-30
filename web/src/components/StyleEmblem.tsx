@@ -375,34 +375,6 @@ function faceNeon(r: Ref): ReactNode {
   );
 }
 
-function faceRunes(r: Ref): ReactNode {
-  const glow = r("glow");
-  const runes = ["M0 -10 v20 M0 -10 l8 8 M0 0 l8 8", "M-6 -10 l12 20 M6 -10 l-12 20", "M0 -10 v20 M-8 -4 h16", "M-6 10 v-20 l12 10 l-12 10", "M-8 -10 l8 20 l8 -20"];
-  const ring = runes.map((d, i) => {
-    const a = (i / runes.length) * Math.PI * 2 - Math.PI / 2;
-    return { d, x: 150 + Math.cos(a) * 82, y: 104 + Math.sin(a) * 62 };
-  });
-  return (
-    <>
-      <defs>
-        <Glow r={r} blur={6} />
-      </defs>
-      <Backdrop r={r} colors={["#2b2410", "#100e0a"]} cy={50} />
-      <ellipse cx="150" cy="104" rx="40" ry="52" fill="#0f0d09" stroke="#fbbf24" strokeWidth="2" opacity="0.8" />
-      <path d="M134 96 h10 M156 96 h10 M150 104 v14 M140 128 h20" stroke="#fde68a" strokeWidth="2.4" strokeLinecap="round" />
-      <g className={styles.spin}>
-        <ellipse cx="150" cy="104" rx="82" ry="62" fill="none" stroke="#fbbf24" strokeWidth="1.2" strokeDasharray="3 7" opacity="0.6" />
-        {ring.map(({ d, x, y }) => (
-          <g key={d} transform={`translate(${x} ${y})`} fill="none" strokeLinecap="round">
-            <path d={d} stroke="#f59e0b" strokeWidth="8" opacity="0.55" filter={glow.url} />
-            <path d={d} stroke="#fef3c7" strokeWidth="2.6" />
-          </g>
-        ))}
-      </g>
-    </>
-  );
-}
-
 function fightComic(r: Ref): ReactNode {
   const spikes = Array.from({ length: 14 }, (_, i) => {
     const a = (i / 14) * Math.PI * 2;
@@ -487,13 +459,12 @@ const EMBLEMS: Record<string, (r: Ref) => ReactNode> = {
   viento,
   baile,
   pelea,
+  cara: faceNeon,
   espadas_neon: (r) => blades(r, ["#33ffd9", "#d9ff26"], ["#e6fffb", "#fbffe0"], ["#0d2a2c", "#081418"], false),
   espadas_fuego: (r) => blades(r, ["#ff6a00", "#ffb000"], ["#fff1d6", "#fff7e0"], ["#3a1406", "#150b0c"], true),
   // Presets fijos (configs/presets/).
   body_aura: bodyAura,
   doodle_dance: doodleDance,
-  face_neon: faceNeon,
-  face_runes: faceRunes,
   fight_comic: fightComic,
   neon_joints: neonJoints,
   paint_reveal: paintReveal,

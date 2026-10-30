@@ -19,7 +19,7 @@ PRESETS = ROOT / "configs" / "presets"
 
 def test_all_presets_validate() -> None:
     names = list_presets(PRESETS)
-    assert {"avatar_fire", "neon_joints", "body_aura", "face_runes", "avatar_storm", "fight_comic", "doodle_dance", "paint_reveal"} <= set(names)
+    assert {"avatar_fire", "neon_joints", "body_aura", "avatar_storm", "fight_comic", "doodle_dance", "paint_reveal"} <= set(names)
     for name in names:
         script = load_preset(PRESETS / f"{name}.yaml", frame_count=120)
         assert script.effects

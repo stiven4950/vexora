@@ -40,14 +40,16 @@ La primera pasada de análisis descarga los modelos de MediaPipe en `models/`.
 vfxglow run --video clip.mp4 --config configs/default.yaml --preset avatar_storm
 ```
 
-Presets incluidos: `avatar_fire`, `neon_joints`, `body_aura`, `face_runes`, `avatar_storm`, `fight_comic`, `doodle_dance`, `paint_reveal`, `face_neon`.
+Presets incluidos: `avatar_fire`, `neon_joints`, `body_aura`, `avatar_storm`, `fight_comic`, `doodle_dance`, `paint_reveal`.
+
+La cara es el catálogo `cara` (`--catalog cara`); `face_neon` y `face_runes` quedan como alias suyos.
 
 Catálogos de un solo elemento (`--catalog fuego|agua|rayo|tierra|viento`): salen de `avatar.yaml` con
 `extends` y `only_element` (y `keep` para conservar opciones neutras por nombre); el catálogo `avatar`
 sigue mezclando los cinco elementos en capítulos. Rayo y tierra son más sobrios porque la base tiene
 pocas opciones de esos elementos (5 y 16).
 
-`face_neon` usa la malla facial: delineado de cejas, ojos, labios, nariz y óvalo que se traza poco a poco y se queda, anillos que giran sobre cada iris y cambian de color, y la llama en la punta del pincel.
+`cara` usa la malla facial: delineado de cejas, ojos, labios, nariz y óvalo que se traza poco a poco y se queda, anillos que giran sobre cada iris y cambian de color, y la llama en la punta del pincel.
 
 Director artista (gpt-5, una llamada por video, unos centavos):
 
@@ -83,7 +85,7 @@ scripts/effect_script.json    # último guion dirigido
 scripts/<tema>.json           # guion de cada preset
 layers/index.json
 layers/<efecto>/f000000.npy
-output/<tema>.mp4             # p. ej. output/face_neon.mp4
+output/<tema>.mp4             # p. ej. output/cara.mp4
 golden/                       # huellas de tools/snapshot.py y copia congelada del análisis
 ```
 
@@ -304,8 +306,8 @@ porcentaje de coincidencia.
 ## Gate de regresión
 
 ```bash
-python tools/snapshot.py --run runs/video_2-e27a6ae3 --preset face_neon          # captura
-python tools/snapshot.py --run runs/video_2-e27a6ae3 --preset face_neon --check  # compara
+python tools/snapshot.py --run runs/video_2-e27a6ae3 --preset paint_reveal          # captura
+python tools/snapshot.py --run runs/video_2-e27a6ae3 --preset paint_reveal --check  # compara
 ```
 
 Renderiza en memoria y compara un hash por efecto cada 10 fotogramas. Un cambio del motor que no debía alterar un preset se detecta sin mirar el video.

@@ -83,7 +83,7 @@ def _wait(client: TestClient, job_id: str) -> dict:
 def test_styles_list_catalogs_and_presets(client: TestClient) -> None:
     styles = client.get("/api/styles").json()
     names = {(s["kind"], s["name"]) for s in styles}
-    assert ("catalog", "pelea") in names and ("preset", "face_neon") in names
+    assert ("catalog", "pelea") in names and ("catalog", "cara") in names
     pelea = next(s for s in styles if s["name"] == "pelea")
     assert pelea["description"] and len(pelea["palette"]) >= 2 and "fast_swing" in pelea["actions"]
 
