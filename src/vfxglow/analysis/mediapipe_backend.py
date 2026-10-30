@@ -138,6 +138,8 @@ class MediaPipeDetector:
                     base_options=BaseOptions(model_asset_path=str(face_path), delegate=BaseOptions.Delegate.CPU),
                     running_mode=RunningMode.VIDEO,
                     num_faces=1,
+                    output_face_blendshapes=True,
+                    output_facial_transformation_matrixes=True,
                     min_face_detection_confidence=cfg.detection_confidence,
                     min_face_presence_confidence=cfg.detection_confidence,
                     min_tracking_confidence=cfg.tracking_confidence,
@@ -149,10 +151,13 @@ class MediaPipeDetector:
                     base_options=BaseOptions(model_asset_path=str(face_path), delegate=BaseOptions.Delegate.CPU),
                     running_mode=RunningMode.IMAGE,
                     num_faces=1,
+                    output_face_blendshapes=True,
+                    output_facial_transformation_matrixes=True,
                     min_face_detection_confidence=0.05,
                     min_face_presence_confidence=0.05,
                 )
             )
+        self._crop_extras: tuple[dict[str, float], tuple[float, float, float] | None] = ({}, None)
         self._last_face_box: tuple[float, float, float, float] | None = None
         self._last_face_frame = -(10**9)
         self._last_ts = -1
@@ -206,10 +211,15 @@ class MediaPipeDetector:
             person.left_hand = assigned["left"]
             person.right_hand = assigned["right"]
         face = None
+        expressions: dict[str, float] = {}
+        head_pose: tuple[float, float, float] | None = None
         if self._face is not None:
-            face = self._read_face(self._face.detect_for_video(image, ts))
+            face_result = self._face.detect_for_video(image, ts)
+            face = self._read_face(face_result)
+            expressions, head_pose = _face_extras(face_result)
             if face is None:
                 face = self._face_in_crop(rgb, index, people[0].pose if people else [])
+                expressions, head_pose = self._crop_extras
             if face is not None:
                 xs = [lm.x for lm in face]
                 ys = [lm.y for lm in face]
@@ -224,6 +234,8 @@ class MediaPipeDetector:
             left_hand=primary.left_hand,
             right_hand=primary.right_hand,
             face=face,
+            expressions=expressions,
+            head_pose=head_pose,
             box=primary.box,
             people=people,
         )
@@ -318,6 +330,7 @@ class MediaPipeDetector:
     def _face_in_crop(self, rgb: np.ndarray, index: int, pose: list[Landmark]) -> list[Landmark] | None:
         import mediapipe as mp
 
+        self._crop_extras: tuple[dict[str, float], tuple[float, float, float] | None] = ({}, None)
         if self._face_still is None:
             return None
         height, width = rgb.shape[:2]
@@ -345,9 +358,11 @@ class MediaPipeDetector:
         if x1 - x0 < 48 or y1 - y0 < 48:
             return None
         crop = np.ascontiguousarray(rgb[y0:y1, x0:x1])
-        found = self._read_face(self._face_still.detect(mp.Image(image_format=mp.ImageFormat.SRGB, data=crop)))
+        result = self._face_still.detect(mp.Image(image_format=mp.ImageFormat.SRGB, data=crop))
+        found = self._read_face(result)
         if found is None:
             return None
+        self._crop_extras = _face_extras(result)
         cw, ch = (x1 - x0) / width, (y1 - y0) / height
         placed = [lm.model_copy(update={"x": x0 / width + lm.x * cw, "y": y0 / height + lm.y * ch, "c": min(lm.c, 0.6)}) for lm in found]
         xs = [lm.x for lm in placed]
@@ -415,6 +430,31 @@ class MediaPipeDetector:
 SMALL_HAND_PX = 18.0
 HAND_ZOOM_PX = 320
 HAND_WRIST_MAX = 0.35
+
+
+# Expresiones de la cara que usan los efectos (analysis/expressions.py): de las 52 de MediaPipe.
+EXPRESSIONS = (
+    "jawOpen", "eyeBlinkLeft", "eyeBlinkRight", "eyeWideLeft", "eyeWideRight", "mouthSmileLeft",
+    "mouthSmileRight", "browInnerUp", "browOuterUpLeft", "browOuterUpRight", "cheekPuff", "mouthPucker",
+    "mouthFunnel",
+)
+
+
+def _face_extras(result: object) -> tuple[dict[str, float], tuple[float, float, float] | None]:
+    """(expresiones, orientación de la cabeza en grados: giro, cabeceo, inclinación) de una cara."""
+    expressions: dict[str, float] = {}
+    shapes = getattr(result, "face_blendshapes", None) or []
+    if shapes:
+        expressions = {c.category_name: round(float(c.score), 3) for c in shapes[0] if c.category_name in EXPRESSIONS}
+    head = None
+    matrices = getattr(result, "facial_transformation_matrixes", None)
+    if matrices is not None and len(matrices):
+        r = np.asarray(matrices[0], dtype=np.float64)[:3, :3]
+        yaw = float(np.degrees(np.arctan2(r[0, 2], r[2, 2])))
+        pitch = float(np.degrees(np.arcsin(np.clip(-r[1, 2], -1.0, 1.0))))
+        roll = float(np.degrees(np.arctan2(r[1, 0], r[1, 1])))
+        head = (round(yaw, 2), round(pitch, 2), round(roll, 2))
+    return expressions, head
 
 
 def _hand_px(hand: HandFrame, width: int, height: int) -> float:

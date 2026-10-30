@@ -878,6 +878,13 @@ def finger_count_events(frames, fps, width, height):
     return out
 
 
+def face_expression_events(frames, fps, width, height):
+    """Las expresiones de la cara (analysis/expressions.py), con la firma de los demás detectores."""
+    from vfxglow.analysis.expressions import expression_events
+
+    return expression_events(frames, fps)
+
+
 GESTURE_DETECTORS = (
     throw_events,
     neck_slash_events,
@@ -901,5 +908,7 @@ GESTURE_DETECTORS = (
     hand_mouth_events,
     finger_count_events,
     walk_events,
+    face_expression_events,
 )
-GESTURE_NAMES = {"walk", "finger_count", "hand_mouth", "hand_chin", "fist_up", "finger_gun", "rock_hands", "hands_on_head", "arms_x", "lunge", "throw", "neck_slash", "stomp", "frenzy", "heart_hands", "arms_up", "arms_open", "point", "hand_ear", "cover_eyes", "spin_body", "step"}
+EXPRESSION_NAMES = {"mouth_open", "blink", "wink", "eyes_wide", "smile", "brows_up", "cheeks_puff", "pucker", "head_turn", "head_tilt"}
+GESTURE_NAMES = EXPRESSION_NAMES | {"walk", "finger_count", "hand_mouth", "hand_chin", "fist_up", "finger_gun", "rock_hands", "hands_on_head", "arms_x", "lunge", "throw", "neck_slash", "stomp", "frenzy", "heart_hands", "arms_up", "arms_open", "point", "hand_ear", "cover_eyes", "spin_body", "step"}

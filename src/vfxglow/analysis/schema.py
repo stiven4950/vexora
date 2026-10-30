@@ -123,6 +123,10 @@ class FrameRecord(_Strict):
     # Contornos de todas las siluetas grandes (una por persona separada; la pareja de video_34).
     body_contours: list[list[tuple[float, float]]] = Field(default_factory=list)
     prop: Prop | None = None
+    # Expresiones de la cara (blendshapes de MediaPipe, 0-1; solo las que usan los efectos) y la
+    # orientación de la cabeza en grados (giro, cabeceo, inclinación). Vacías en análisis viejos.
+    expressions: dict[str, float] = Field(default_factory=dict)
+    head_pose: tuple[float, float, float] | None = None
 
 
 class VideoMeta(_Strict):
