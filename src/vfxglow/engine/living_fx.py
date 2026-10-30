@@ -10,8 +10,7 @@ dónde mira, y cambian con eso: si la persona hace más, el efecto hace más.
 - puppet_strings: hilos que bajan de una cruceta y sostienen la cabeza, los hombros y las muñecas.
   Vibran con la velocidad de cada punto y la cruceta sigue a la cabeza con retraso. Al final se
   rompen uno por uno.
-- raven: un cuervo se forma de polvo, vuela alrededor de la cabeza (más rápido si la cabeza se mueve),
-  se posa en el hombro si la persona se queda quieta y levanta vuelo si se mueve. Termina en plumas.
+- raven: el cuervo que aterriza en el hombro (engine/raven.py).
 - eye_curse: sellos diminutos alrededor de los ojos que se corren con la mirada, se apagan al cerrar
   los ojos y sueltan una onda al abrirlos.
 """
@@ -23,10 +22,10 @@ import numpy as np
 from vfxglow.analysis.expressions import gaze_vector
 from vfxglow.engine.critters import _ease, _phase, _seg
 from vfxglow.engine.dissolve import disintegrate, fine, melt
-from vfxglow.engine.duo_fx import body_mask
 from vfxglow.engine.face_glow import _RUNES, WHITE, Face, _seed, steps
 from vfxglow.engine.firebend import cel, living_ribbon, teardrop
 from vfxglow.engine.raster import splat
+from vfxglow.engine.raven import raven
 
 TAU = 2.0 * np.pi
 LIVING = ("dragon_breath", "sonic_pulse", "puppet_strings", "raven", "eye_curse")
@@ -35,8 +34,6 @@ FIRE = np.array([1.0, 0.45, 0.1], np.float32)
 FLAME_HOT = np.array([1.0, 0.8, 0.2], np.float32)
 FLAME_COOL = np.array([1.0, 0.12, 0.03], np.float32)
 PUFFS = 64
-RAVEN = np.array([0.55, 0.4, 1.0], np.float32)
-EYE_RED = np.array([1.0, 0.1, 0.15], np.float32)
 THREAD = np.array([0.85, 0.95, 1.0], np.float32)
 # Llamarada: boca abierta que ya cuenta como máxima, lo mínimo que sale y su largo (unidades de cara).
 JAW_FULL = 0.45
@@ -49,14 +46,6 @@ PULSE_RISE = 0.05
 PULSE_LOUD = 0.6
 PULSE_LIFE = (14, 32)
 BARS = 6
-# Cuervo: cuerda hacia su objetivo, roce y cuadros quieto antes de posarse.
-RAVEN_SPRING = 0.035
-RAVEN_DRAG = 0.86
-RAVEN_CALM = 0.2
-RAVEN_PERCH_AFTER = 18
-RAVEN_FORM = 0.1
-RAVEN_LEAVE = 0.86
-RAVEN_SIZE = 0.62
 # Hilos: empieza a romperlos en esta fracción, y cuánto vibran por píxel que se mueve el punto.
 SNAP_AT = 0.8
 STRING_SHAKE = 0.5
@@ -217,75 +206,6 @@ def _puppet(face: Face, body, u: float, frame_index: int, runtime, layer, color,
             splat(layer, float(at[0]), float(at[1]), 0.05 * face.unit + 0.5, tint, alpha * 0.8, runtime.kernels)
 
 
-def _raven_shape(at: np.ndarray, size: float, facing: float, flap: float, perched: bool) -> list[np.ndarray]:
-    """Un cuervo de perfil mirando hacia `facing`; `flap` (-1 a 1) sube o baja el ala."""
-    def p(points) -> np.ndarray:
-        return at + np.asarray(points, dtype=np.float64) * [facing * size, size]
-
-    t = np.linspace(0, TAU, 20)
-    body = p(np.stack([-0.05 + np.cos(t) * 0.42, 0.05 + np.sin(t) * 0.2], axis=1))
-    head = p(np.stack([0.42 + np.cos(t) * 0.15, -0.12 + np.sin(t) * 0.14], axis=1))
-    beak = p([[0.55, -0.18], [0.82, -0.09], [0.55, -0.04]])
-    tail = p([[-0.42, 0.02], [-0.92, 0.0], [-0.88, 0.14], [-0.42, 0.14]])
-    if perched:
-        wing = p([[0.25, -0.05], [-0.15, -0.1], [-0.68, 0.1], [-0.2, 0.2], [0.2, 0.08]])
-        legs = [p([[0.05, 0.22], [0.08, 0.42]]), p([[-0.12, 0.22], [-0.1, 0.42]])]
-        return [body, head, beak, tail, wing, *legs]
-    lift = -0.75 * flap
-    wing = p([[0.22, -0.05], [0.02, -0.05 + lift * 0.6], [-0.3, -0.05 + lift * 1.25], [-0.42, -0.02 + lift * 0.7], [-0.22, 0.03]])
-    near = p([[0.12, -0.05], [-0.1, -0.05 + lift * 0.45], [-0.38, -0.05 + lift * 0.9]])
-    return [body, head, beak, tail, wing, near]
-
-
-def _feather(center: np.ndarray, size: float, spin: float) -> list[np.ndarray]:
-    d = np.array([np.cos(spin), np.sin(spin)])
-    n = np.array([-d[1], d[0]])
-    q = np.linspace(-1.0, 1.0, 9)
-    rim = np.sqrt(1.0 - q**2) * 0.32
-    return [center + np.outer(q, d) * size * 1.4 + np.outer(rim, n) * size * 1.4, center + np.outer(q[::-1], d) * size * 1.4 - np.outer(rim[::-1], n) * size * 1.4, np.array([center - d * size * 1.9, center + d * size * 1.4])]
-
-
-def _raven(face: Face, body, scale: float, u: float, frame_index: int, runtime, layer, alpha: float, seed: int) -> list:
-    st = runtime.swoosh.setdefault("_raven", {"pos": None, "vel": np.zeros(2), "angle": 0.0, "calm": 0, "perched": False, "frame": -1})
-    center = face.place([(0.0, 0.2)])[0]
-    energy = float(getattr(runtime, "energy", 0.0))
-    if st["pos"] is None:
-        st["pos"] = center + np.array([1.8, -0.8]) * face.unit
-    shoulders = [p for p in (body.get("left_shoulder"), body.get("right_shoulder")) if p is not None and 0 <= p[0] < layer.shape[1] and 0 <= p[1] < layer.shape[0]]
-    size = RAVEN_SIZE * face.unit
-    if st["frame"] != frame_index:
-        st["frame"] = frame_index
-        st["calm"] = st["calm"] + steps(runtime) if energy < RAVEN_CALM else 0
-        st["perched"] = bool(shoulders) and 0.2 < u < RAVEN_LEAVE and st["calm"] >= RAVEN_PERCH_AFTER
-        n = steps(runtime)
-        st["angle"] += (0.05 + 0.22 * energy) * n
-        if st["perched"]:
-            perch = min(shoulders, key=lambda p: float(np.linalg.norm(p - st["pos"])))
-            target = perch - np.array([0.0, size * 0.42])
-        else:
-            target = center + np.array([np.cos(st["angle"]) * 2.2, np.sin(st["angle"]) * 2.6 + 0.5]) * face.unit  # por delante, a la altura del pecho
-        for _ in range(n):
-            st["vel"] = (st["vel"] + (target - st["pos"]) * RAVEN_SPRING) * RAVEN_DRAG
-            st["pos"] = st["pos"] + st["vel"]
-    pos = st["pos"]
-    near = st["perched"] and float(np.linalg.norm(st["vel"])) < 0.05 * face.unit
-    facing = 1.0 if (st["vel"][0] if not near else center[0] - pos[0]) >= 0 else -1.0
-    if not near and np.sin(st["angle"]) < 0:  # detrás de la cabeza
-        mask = body_mask(body, layer.shape[:2], scale)
-        x, y = int(np.clip(pos[0], 0, layer.shape[1] - 1)), int(np.clip(pos[1], 0, layer.shape[0] - 1))
-        if mask is not None and mask[y, x]:
-            return []
-    curves = _raven_shape(pos, size, facing, float(np.sin(frame_index * (0.45 + 0.5 * energy))), near)
-    eye = pos + np.array([0.46 * facing, -0.15]) * size
-    pairs = [(c, RAVEN) for c in curves]
-    if u < RAVEN_FORM:  # se forma de polvo: la desintegración al revés
-        return disintegrate(pairs, 1.0 - u / RAVEN_FORM, face.unit, layer, alpha, runtime.kernels, seed, figure=_feather)
-    if u >= RAVEN_LEAVE:
-        return disintegrate(pairs, _seg(u, RAVEN_LEAVE, 1.0), face.unit, layer, alpha, runtime.kernels, seed, figure=_feather)
-    splat(layer, float(eye[0]), float(eye[1]), max(0.035 * face.unit, 0.8), EYE_RED, alpha, runtime.kernels)
-    return pairs
-
-
 def _eye_curse(face: Face, u: float, frame_index: int, runtime, layer, color, alpha: float, seed: int) -> list:
     e = getattr(runtime, "expressions", {}) or {}
     tint = np.asarray(color, np.float32)
@@ -327,7 +247,7 @@ def living_fx(shape, body, frame, scale, frame_index, runtime, layer, color, alp
         _puppet(face, body, u, frame_index, runtime, layer, color, alpha, seed)
         return []
     if shape == "raven":
-        return _raven(face, body, scale, u, frame_index, runtime, layer, alpha, seed)
+        return raven(face, body, scale, u, frame_index, runtime, layer, alpha, seed)
     if shape == "sonic_pulse":
         return _sonic(face, frame_index, runtime, layer, color, alpha, event)
     return melt(_eye_curse(face, u, frame_index, runtime, layer, color, alpha, seed), u, face, layer, color, alpha, runtime.kernels, seed)
