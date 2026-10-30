@@ -61,13 +61,23 @@ def performers(record: FrameRecord, typical: float = 0.0) -> list[PersonPose]:
     return [p for p in people if _height(p) >= PERFORMER_SIZE * tallest and _height(p) >= VIDEO_SIZE * typical]
 
 
+def _face_inside(face, box) -> bool:
+    if not face or box is None:
+        return False
+    x = sum(lm.x for lm in face) / len(face)
+    y = sum(lm.y for lm in face) / len(face)
+    return box[0] <= x <= box[2] and box[1] <= y <= box[3]
+
+
 def _set_main(record: FrameRecord, person: PersonPose | None) -> None:
     """Los campos planos del registro son los de person_0."""
     record.person_id = "person_0"
     record.pose = person.pose if person else []
     record.left_hand = person.left_hand if person else None
     record.right_hand = person.right_hand if person else None
-    record.face = person.face if person else None
+    # La malla se detecta por fotograma, no por persona: se queda si cae dentro de quien protagoniza.
+    if person is None or not _face_inside(record.face, person.box):
+        record.face = person.face if person else None
     record.box = person.box if person else None
 
 
