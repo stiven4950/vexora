@@ -110,3 +110,14 @@ def test_the_choreography_rejects_face_effects_during_a_special_face() -> None:
         assert during and all(d.choice.startswith("nada") for d in during), during
         return
     pytest.fail("la máscara no salió en ninguna semilla")
+
+
+def test_each_appearance_can_have_another_color_and_the_mask_stays_intact() -> None:
+    from vfxglow.engine.horror_masks import MASK_PALETTES, _colored
+
+    mask = load_mask("pennywise")
+    before = mask["strokes"][0]["color"].copy()
+    seen = {tuple(np.round(_colored(mask, seed)[0]["color"], 2).tolist()) for seed in range(60)}
+    assert len(seen) >= len(MASK_PALETTES) - 1
+    assert np.array_equal(mask["strokes"][0]["color"], before)
+

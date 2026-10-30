@@ -14,11 +14,13 @@ color, en coordenadas de cara (ojos en x = ±0,5, y hacia el mentón). La forma 
   de luz y figuritas (engine/dissolve.py) que se expanden lejos de la cara.
 - Ya armada, la figura queda quieta y la luz corre por dentro de cada línea, como agua por una
   zanja: un tramo brillante recorre cada trazo y suelta chispas por delante.
-- El color es el del dibujo (el degradado de la referencia).
+- El color se sortea en cada aparición entre varias paletas (MASK_PALETTES), con un degradado de lado a
+  lado y un acento en ojos y boca; una de ellas es la del dibujo original.
 """
 
 from __future__ import annotations
 
+import zlib
 from functools import lru_cache
 from pathlib import Path
 
@@ -43,6 +45,17 @@ DISSOLVE = 0.88
 MOUTH_CLOSED = 0.8
 MOUTH_OPEN_GAIN = 0.7
 FIT_MIN, FIT_MAX = 0.8, 1.3
+# Paletas de la máscara: (izquierda, derecha, acento de ojos y boca). None: los colores del dibujo.
+MASK_PALETTES = (
+    None,
+    ((1.0, 0.25, 0.05), (1.0, 0.75, 0.1), (1.0, 0.95, 0.5)),  # fuego
+    ((0.2, 1.0, 0.3), (0.8, 1.0, 0.15), (1.0, 0.2, 0.75)),  # tóxico
+    ((1.0, 0.05, 0.12), (0.75, 0.05, 0.5), (1.0, 0.8, 0.8)),  # sangre
+    ((1.0, 0.72, 0.15), (1.0, 0.45, 0.25), (1.0, 0.1, 0.1)),  # oro
+    ((0.65, 0.2, 1.0), (1.0, 0.25, 0.7), (0.3, 1.0, 0.85)),  # veneno
+    ((1.0, 0.4, 0.0), (0.55, 0.15, 1.0), (0.4, 1.0, 0.2)),  # Halloween
+    ((0.8, 0.95, 1.0), (0.3, 0.7, 1.0), (1.0, 0.15, 0.2)),  # hielo
+)
 FEATURE_ROLES = ("eye_right", "eye_left", "nose", "mouth")
 
 
@@ -86,6 +99,22 @@ def _timeline(runtime, event) -> float:
     if remaining > dissolve:
         return 0.7
     return DISSOLVE + (1.0 - DISSOLVE) * float(np.clip(1.0 - remaining / dissolve, 0.0, 1.0))
+
+
+def _colored(mask: dict, seed: int) -> list[dict]:
+    """Los trazos con la paleta de esta aparición (la máscara cargada no se toca)."""
+    palette = MASK_PALETTES[np.random.default_rng(seed).integers(len(MASK_PALETTES))]
+    strokes = mask["strokes"]
+    if palette is None:
+        return strokes
+    left, right, accent = (np.asarray(c, np.float32) for c in palette)
+    xs = np.array([float(s["points"][:, 0].mean()) for s in strokes])
+    lo, hi = float(xs.min()), max(float(xs.max()), float(xs.min()) + 1e-6)
+    out = []
+    for s, x in zip(strokes, xs):
+        color = accent if s["role"] in ("eye_right", "eye_left", "mouth") else left + (right - left) * float((x - lo) / (hi - lo))
+        out.append(dict(s, color=color))
+    return out
 
 
 def _fit(face, anchors: dict) -> np.ndarray:
@@ -179,7 +208,7 @@ def horror_mask(shape, body, frame, scale, frame_index, runtime, layer, color, a
     u = _timeline(runtime, event)
     expressions = getattr(runtime, "expressions", {}) or {}
     anchors = mask["anchors"]
-    strokes = mask["strokes"]
+    strokes = _colored(mask, zlib.crc32(f"{mask_id}:{event.start_frame if event else 0}".encode()))
     fit = _fit(face, anchors)
     placed = {k: face.place(_warp(s["points"], s["role"], anchors, expressions) * fit) for k, s in enumerate(strokes)}
     flowing = u >= 0.62  # ya armada: la luz corre por las líneas, también mientras se deshace
