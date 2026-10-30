@@ -60,7 +60,14 @@ class EffectEngine:
             runtime.steps = steps
             runtime.relay = relay
         # El cierre va último: necesita ver lo que dibujaron los demás en el fotograma.
-        order = sorted(range(len(self.runtimes)), key=lambda i: script.effects[i].type == "closing_stars")
+        # Los rostros especiales primero: si uno está encendido, los demás efectos de cara se apagan en
+        # ese cuadro (engine/face_zone.py). El cierre va último.
+        from vfxglow.engine.face_zone import is_special, on_face
+
+        order = sorted(range(len(self.runtimes)), key=lambda i: (script.effects[i].type == "closing_stars", not is_special(script.effects[i])))
+        self._special = {effect.id for effect in script.effects if is_special(effect)}
+        self._on_face = {effect.id for effect in script.effects if on_face(effect)}
+        self._mask_frame = -1
         self.runtimes = [self.runtimes[i] for i in order]
         self.timelines = [self.timelines[i] for i in order]
         self.chapter_starts = [chapter.start_frame for chapter in script.chapters]
@@ -143,6 +150,8 @@ class EffectEngine:
             if self.script.attention and effect.style.focus and gain > 0:
                 gain *= focus_gain(runtime, effect, event, focus_at(self.script.attention, frame_index))
             gain *= gain_for(effect, state, points, self.config.min_point_confidence)
+            if effect.id in self._on_face and self._mask_frame == frame_index:
+                gain = 0.0  # hay un rostro especial puesto: nada más sobre la cara
             # Un efecto disparado no sobrevive a un corte de toma: lo que empezó en la toma anterior
             # (la tierra que se partió, la bestia que vuela) no sigue dibujándose en la nueva.
             keep = effect.style.keep_on_cut
@@ -156,6 +165,8 @@ class EffectEngine:
                 runtime.active_frames = 0
             if gain > 0:
                 runtime.active_frames += 1
+                if effect.id in self._special:
+                    self._mask_frame = frame_index
             if event is not None and event.position is not None:
                 runtime.anchor_point = np.array(
                     [event.position[0] * width, event.position[1] * height],

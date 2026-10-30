@@ -59,3 +59,54 @@ def test_every_mask_draws_on_the_face(shape: str) -> None:
     assert sizes[1] > sizes[0]
     centers = np.vstack([c for c, _ in items])
     assert abs(float(np.median(centers[:, 0])) - 200.0) < 40  # sobre la cara
+
+
+def test_nothing_else_goes_on_the_face_while_a_special_face_is_on() -> None:
+    from vfxglow.analysis.schema import FrameRecord, Landmark, PersonPose
+    from vfxglow.config import EngineConfig
+    from vfxglow.director.schema import EffectScript
+    from vfxglow.engine.engine import EffectEngine
+
+    def effect(eid: str, shape: str, event: str) -> Effect:
+        return Effect(id=eid, type="adornment", target=EffectTarget(kind="joint", id="body"), style=EffectStyle(shapes=[shape], focus=False),
+                      triggers=[{"event": event, "hold": 30, "fade_in": 0, "fade_out": 0}])
+
+    pose = [Landmark(name=n, x=x, y=y, c=0.95) for n, (x, y) in {"nose": (0.5, 0.33), "left_eye": (0.53, 0.31), "right_eye": (0.47, 0.31),
+            "left_shoulder": (0.6, 0.45), "right_shoulder": (0.4, 0.45), "left_hip": (0.58, 0.8), "right_hip": (0.42, 0.8)}.items()]
+    events = [MotionEvent(name="smile", target="person_0", start_frame=0, end_frame=40, confidence=1.0),
+              MotionEvent(name="still", target="person_0", start_frame=10, end_frame=40, confidence=1.0)]
+    script = EffectScript(title="t", theme="t", effects=[effect("sonrisa", "cheek_glow", "smile"), effect("mascara", "terror_ghostface", "still")])
+    engine = EffectEngine(script, EngineConfig(), events=events)
+    drawn: dict[str, list[float]] = {"sonrisa": [], "mascara": []}
+    for i in range(30):
+        record = FrameRecord(frame=i, time_s=i / 30, pose=pose, people=[PersonPose(person_id="person_0", pose=pose)])
+        for eid, _, layer in engine.render_frame(record, i, 400, 600, 60):
+            drawn[eid].append(float(layer[..., 3].max()))
+    assert max(drawn["sonrisa"][:9]) > 0.2  # antes de la máscara, la sonrisa se ve
+    assert max(drawn["mascara"][15:]) > 0.2
+    assert max(drawn["sonrisa"][12:]) == 0.0  # con la máscara puesta, nada más sobre la cara
+
+
+def test_the_choreography_rejects_face_effects_during_a_special_face() -> None:
+    from vfxglow.analysis.schema import MotionBrief, VideoMeta
+    from vfxglow.director.choreography import choreograph, load_catalog
+    from vfxglow.director.seasons import apply_to_catalog, load_seasons
+
+    catalog = load_catalog(ROOT / "configs/catalogs/cara.yaml")
+    halloween = next(s for s in load_seasons(ROOT / "configs/seasons.yaml") if s.id == "halloween")
+    catalog = apply_to_catalog(catalog, halloween)
+    n = 300
+    events = [MotionEvent(name="entrance", target="person_0", start_frame=0, end_frame=5, confidence=1.0)]
+    events += [MotionEvent(name="smile", target="person_0", start_frame=f, end_frame=f + 20, confidence=1.0) for f in range(15, 90, 25)]
+    meta = VideoMeta(path="x", fps=30.0, width=400, height=600, frame_count=n, duration_s=n / 30)
+    brief = MotionBrief(video=meta, person_id="person_0", anchors=[], limbs=[], events=events, summary="", people=["person_0"])
+    for seed in range(6):
+        _, choreo = choreograph(catalog, brief, seed)
+        masks = [d for d in choreo.decisions if "terror" in d.choice]
+        if not masks:
+            continue
+        mask = masks[0]
+        during = [d for d in choreo.decisions if d.action == "smile" and mask.frame <= d.frame <= mask.until]
+        assert during and all(d.choice.startswith("nada") for d in during), during
+        return
+    pytest.fail("la máscara no salió en ninguna semilla")

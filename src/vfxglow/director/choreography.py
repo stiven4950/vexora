@@ -279,6 +279,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
     state = {id(reaction): {"last": -10_000, "used": {}} for reaction in catalog.reactions}
     key_windows: list[tuple[int, int]] = []
     face_windows: list[tuple[int, int]] = []
+    # Rostros especiales (máscaras de terror): mientras duran, nada más sobre la cara.
+    mask_windows: list[tuple[int, int]] = []
     # Ventanas encendidas que no son momentos clave ni ambiente. Un efecto nuevo cuenta estas
     # (al empezar) y los momentos clave que se crucen con su ventana: como mucho MAX_TOGETHER.
     lit: list[tuple[int, int]] = []
@@ -360,6 +362,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                     key_windows.append((start, until_cut(start, end, cuts)))
                 if reaction.action in FACE_ACTIONS:
                     face_windows.append((start, until_cut(start, end, cuts)))
+                if _special(option):
+                    mask_windows.append((start, end))  # sobrevive a los cortes: toda su ventana
                 if reaction.action not in AMBIENT_ACTIONS and reaction.action not in KEY_ACTIONS and weight_class(option) != "ligero":
                     lit.append((start, until_cut(start, end, cuts)))  # lo ligero no ocupa lugar de foco; el corte lo apaga
                 whole_scene = all(raw.get("type") in SCENE_TYPES for raw in option.effects)
@@ -408,6 +412,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 and any(fs <= end and start <= fe for fs, fe in face_windows)
             ):
                 option = Option(name="nada (cede a la cara)")
+            if option.effects and not _special(option) and _touches_face(option) and any(ms <= end and start <= me for ms, me in mask_windows):
+                option = Option(name="nada (cede al rostro especial)")
             person = _person(event) if duet else None
             span = duet_at(duet, event.start_frame) if person else None
             group = "motion" if reaction.action in TURN_ACTIONS else reaction.action
@@ -457,6 +463,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                     key_windows.append((start, until_cut(start, end, cuts)))
                 if reaction.action in FACE_ACTIONS:
                     face_windows.append((start, until_cut(start, end, cuts)))
+                if _special(option):
+                    mask_windows.append((start, end))
                 if reaction.action not in AMBIENT_ACTIONS and reaction.action not in KEY_ACTIONS and weight_class(option) != "ligero":
                     lit.append((start, until_cut(start, end, cuts)))  # lo ligero no ocupa lugar de foco; el corte lo apaga
                 partner = _partner(person, span, brief)
@@ -1215,6 +1223,18 @@ def _wears(brief: MotionBrief | None, event: MotionEvent, kinds: list[str]) -> b
         a.kind in kinds and a.start_frame <= event.start_frame <= a.end_frame and (person is None or a.person == person)
         for a in brief.accessories
     )
+
+
+def _special(option: Option) -> bool:
+    from vfxglow.engine.face_zone import is_special
+
+    return any(is_special(raw) for raw in option.effects)
+
+
+def _touches_face(option: Option) -> bool:
+    from vfxglow.engine.face_zone import on_face
+
+    return any(on_face(raw) for raw in option.effects)
 
 
 # Momentos de cara: mientras duran, piernas y torso no se encienden (nada compite con la cara).
