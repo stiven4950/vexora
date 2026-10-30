@@ -595,6 +595,9 @@ def biceps_lines(body: Body, side: str, frame_index: int = 0) -> list[np.ndarray
 # Avatar): van con poco
 # halo de neón.
 FACE_SHAPES = ("hero_mask", "masquerade", "bat_mask", "cat_mask", "fox_mask", "mustache", "pirate_patch", "heart_eyes", "glow_eyes", "lion_roar", "avatar_mark")
+from vfxglow.engine.face_glow import ON_FACE as _FACE_GLOW_ON_FACE  # noqa: E402
+
+FACE_SHAPES += _FACE_GLOW_ON_FACE
 
 
 # Continuidad entre dibujos (pedido del usuario, video_52): en cerca de CONTINUITY de los cambios de
@@ -673,6 +676,9 @@ def draw_adornment(runtime, track, points, frame_index: int, height: int, envelo
     # La silueta real (segmentador) en píxeles: el fuego ilumina el borde del cuerpo cercano.
     outlines = (track.body_contours or ([track.body_contour] if track.body_contour else [])) if track is not None else []
     runtime.silhouettes = [np.array(o, dtype=np.float64) * [layer.shape[1], height] for o in outlines if len(o) >= 3]
+    # Para los efectos de la cara (engine/face_glow.py): las expresiones del cuadro y su tamaño.
+    runtime.expressions = track.expressions if track is not None else {}
+    runtime.frame_shape = (height, layer.shape[1])
     for person in _people(track, event, style):
         body = Body(points, person)
         scale = body.scale
