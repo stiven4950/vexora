@@ -7,6 +7,7 @@ anchors:
   mouth: [-0.0033, 1.8213]
   nose: [-0.0048, 0.5795]
   mouth_top: [-0.0033, 1.0396]
+  jaw_rest: 0.8
 holes:
   eye_right:
   - [-0.2291, -0.5553]

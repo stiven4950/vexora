@@ -8,10 +8,10 @@ polilíneas en coordenadas de cara, para ponerlas sobre la persona (engine/horro
 2. Lo brillante es línea: umbral sobre el brillo y adelgazamiento al eje de cada línea (esqueleto).
 3. El esqueleto se recorre en caminos ordenados y los caminos cuyas puntas se tocan se unen: una
    polilínea por línea del dibujo; los tramos de pocos píxeles (el halo) se descartan.
-4. Los huecos oscuros encerrados por las líneas dan los rasgos: los dos grandes de arriba son los
-   ojos, el de abajo la boca y el chico del medio la nariz. Cada trazo toma el rol del hueco que
-   bordea (`eye_right`, `eye_left`, `mouth`, `nose`) o `line`; un trazo que pasa de un rasgo a otro
-   se corta donde cambia.
+4. Los rasgos salen de las marcas de la celda (`marks` en el índice) o, sin ellas, de los huecos
+   oscuros encerrados por las líneas: los dos grandes de arriba son los ojos, el de abajo la boca y
+   el chico del medio la nariz. Cada trazo toma el rol del rasgo que bordea (`eye_right`, `eye_left`,
+   `mouth`, `nose`) o `line`; un trazo que pasa de un rasgo a otro se corta donde cambia.
 5. Coordenadas de cara (engine/anchors.local_frame): el punto medio entre los centros de los ojos es
    el origen, la distancia entre ellos es 1 (ojos en x = ±0,5) y y crece hacia el mentón.
 6. Cada trazo guarda el color que tiene en el dibujo (el degradado de la referencia).
@@ -41,6 +41,12 @@ SIMPLIFY = 0.8
 HOLE_NEAR = 7.0
 # Dos tramos cuyas puntas quedan a menos de esto (píxeles) son la misma línea cortada en un cruce.
 JOIN_PX = 3.5
+# Las marcas rodean el rasgo; lo que cae a esta escala de su óvalo es parte de él.
+MARK_GROW = 1.2
+# La boca de reposo del grito largo (Ghostface): si queda muy abajo se encoge hasta que la persona
+# abre la boca; en las caras de proporción humana queda en su lugar.
+LONG_MOUTH = 1.4
+LONG_MOUTH_REST = 0.8
 # Ramitas del esqueleto más cortas que esto (píxeles) se podan.
 SPUR_PX = 6
 _OFFSETS = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
@@ -57,7 +63,11 @@ def cell_image(number: int, grid: Path = GRID) -> np.ndarray:
     cols, rows = index["columns"], index["rows"]
     w, h = image.shape[1] // cols, image.shape[0] // rows
     r, c = divmod(number - 1, cols)
-    return image[r * h : (r + 1) * h - index["label_px"], c * w : (c + 1) * w]
+    top, bottom = index.get("rows_y", [[0, h - index["label_px"]]] * rows)[r]
+    cell = image[r * h : (r + 1) * h - index["label_px"], c * w : (c + 1) * w].copy()
+    cell[:top] = 0  # el nombre de la fila de arriba
+    cell[bottom:] = 0
+    return cell
 
 
 def _smooth(path: np.ndarray, window: int = 5) -> np.ndarray:
@@ -233,6 +243,15 @@ def features(holes: list[np.ndarray]) -> dict[str, np.ndarray]:
     return out
 
 
+def marked(marks: dict[str, list[float]]) -> dict[str, np.ndarray]:
+    """Los rasgos de las marcas como óvalos (un poco más grandes: el trazo los rodea)."""
+    t = np.linspace(0, 2 * np.pi, 28, endpoint=False)
+    out = {}
+    for role, (cx, cy, rx, ry) in marks.items():
+        out[role] = np.stack([cx + max(rx, 0.5) * MARK_GROW * np.cos(t), cy + max(ry, 0.5) * MARK_GROW * np.sin(t)], axis=1)
+    return out
+
+
 def _roles(stroke: np.ndarray, parts: dict[str, np.ndarray]) -> list[tuple[str, np.ndarray]]:
     """El trazo cortado por rasgo: cada punto toma el rol del hueco que bordea (a menos de
     HOLE_NEAR) o `line`; las rachas cortas se pegan a la anterior para no partirlo en migas."""
@@ -277,7 +296,8 @@ def extract(number: int, grid: Path = GRID) -> dict:
     index = load_index()
     entry = next(e for e in index["faces"] if e["n"] == number)
     cell = cell_image(number, grid)
-    parts = features(holes_of(cell))
+    marks = entry.get("marks")
+    parts = marked(marks) if marks else features(holes_of(cell))
     centers = {k: v.mean(axis=0) for k, v in parts.items()}
     origin = (centers["eye_right"] + centers["eye_left"]) / 2
     unit = float(np.linalg.norm(centers["eye_left"] - centers["eye_right"]))
@@ -294,6 +314,7 @@ def extract(number: int, grid: Path = GRID) -> dict:
     if "mouth" in parts:
         top = parts["mouth"][:, 1].min()
         anchors["mouth_top"] = [anchors["mouth"][0], round(float((top - origin[1]) / unit), 4)]
+        anchors["jaw_rest"] = LONG_MOUTH_REST if anchors["mouth"][1] > LONG_MOUTH else 1.0
     return {"id": entry["id"], "name": entry["name"], "source": f"halloween_grid celda {number}", "anchors": anchors, "holes": holes, "strokes": strokes}
 
 

@@ -1,30 +1,35 @@
 # Cuadrícula de rostros de terror en neón (halloween_grid.png): 6 columnas x 4 filas de 256 px, con
 # el nombre en una franja abajo de cada celda. tools/mask_from_grid.py saca de cada una sus trazos.
+# Los nombres caen en lugares distintos según la fila: `rows_y` es la franja útil (y0, y1) de cada una.
+# `marks`: dónde están los rasgos en la celda, leídos a mano de la imagen (cx, cy, rx, ry en píxeles);
+# los ojos de neón son líneas finas que el detector de huecos no separa. Sin marcas se usan los huecos.
+# Un rasgo con radio 0 no existe en el dibujo (el Alien no tiene ojos): solo sirve para ajustar a la cara.
 columns: 6
 rows: 4
 label_px: 22
+rows_y: [[0, 234], [8, 234], [0, 234], [0, 226]]
 faces:
 - {n: 1, id: ghostface, name: Ghostface}
-- {n: 2, id: michael_myers, name: Michael Myers}
-- {n: 3, id: jason_voorhees, name: Jason Voorhees}
-- {n: 4, id: pennywise, name: Pennywise}
-- {n: 5, id: chucky, name: Chucky}
-- {n: 6, id: billy_saw, name: Billy (Saw)}
-- {n: 7, id: freddy_krueger, name: Freddy Krueger}
-- {n: 8, id: nosferatu, name: Nosferatu}
-- {n: 9, id: demonio, name: Demonio}
-- {n: 10, id: vampiro, name: Vampiro}
-- {n: 11, id: frankenstein, name: Frankenstein}
-- {n: 12, id: dracula, name: Drácula}
-- {n: 13, id: novia_frankenstein, name: La novia de Frankenstein}
-- {n: 14, id: hannibal_lecter, name: Hannibal Lecter}
-- {n: 15, id: payaso_maldito, name: Payaso maldito}
-- {n: 16, id: espantapajaros, name: Espantapájaros}
-- {n: 17, id: alien, name: Alien}
-- {n: 18, id: predator, name: Predator}
-- {n: 19, id: momia, name: La momia}
-- {n: 20, id: hombre_lobo, name: Hombre lobo}
-- {n: 21, id: chica_poseida, name: Chica poseída}
-- {n: 22, id: espectro, name: Espectro}
-- {n: 23, id: calabaza, name: Calabaza (Jack O' Lantern)}
-- {n: 24, id: rey_infierno, name: Rey del infierno}
+- {n: 2, id: michael_myers, name: Michael Myers, marks: {eye_right: [100, 135, 17, 12], eye_left: [155, 135, 17, 12], nose: [129, 163, 14, 7], mouth: [127, 190, 25, 10]}}
+- {n: 3, id: jason_voorhees, name: Jason Voorhees, marks: {eye_right: [99, 131, 16, 16], eye_left: [162, 131, 16, 16], nose: [130, 170, 14, 8], mouth: [130, 200, 40, 22]}}
+- {n: 4, id: pennywise, name: Pennywise, marks: {eye_right: [102, 163, 14, 8], eye_left: [151, 163, 14, 8], nose: [127, 189, 14, 7], mouth: [127, 208, 28, 12]}}
+- {n: 5, id: chucky, name: Chucky, marks: {eye_right: [99, 160, 16, 9], eye_left: [158, 160, 16, 9], nose: [128, 180, 13, 7], mouth: [128, 202, 20, 8]}}
+- {n: 6, id: billy_saw, name: Billy (Saw), marks: {eye_right: [99, 122, 15, 13], eye_left: [157, 122, 15, 13], nose: [127, 163, 20, 15], mouth: [127, 185, 25, 12]}}
+- {n: 7, id: freddy_krueger, name: Freddy Krueger, marks: {eye_right: [97, 149, 17, 9], eye_left: [148, 149, 17, 9], nose: [120, 174, 12, 8], mouth: [122, 199, 24, 12]}}
+- {n: 8, id: nosferatu, name: Nosferatu, marks: {eye_right: [100, 134, 15, 8], eye_left: [155, 134, 15, 8], nose: [127, 167, 14, 8], mouth: [127, 192, 22, 10]}}
+- {n: 9, id: demonio, name: Demonio, marks: {eye_right: [101, 143, 15, 8], eye_left: [155, 143, 15, 8], nose: [128, 173, 16, 8], mouth: [128, 197, 28, 15]}}
+- {n: 10, id: vampiro, name: Vampiro, marks: {eye_right: [101, 143, 15, 7], eye_left: [156, 143, 15, 7], nose: [127, 175, 14, 9], mouth: [127, 200, 23, 10]}}
+- {n: 11, id: frankenstein, name: Frankenstein, marks: {eye_right: [100, 139, 17, 9], eye_left: [155, 139, 17, 9], nose: [127, 164, 16, 8], mouth: [125, 190, 24, 7]}}
+- {n: 12, id: dracula, name: Drácula, marks: {eye_right: [101, 143, 15, 7], eye_left: [152, 143, 15, 7], nose: [126, 176, 14, 8], mouth: [126, 196, 22, 10]}}
+- {n: 13, id: novia_frankenstein, name: La novia de Frankenstein, marks: {eye_right: [100, 148, 15, 8], eye_left: [150, 148, 15, 8], nose: [127, 175, 13, 7], mouth: [126, 197, 17, 8]}}
+- {n: 14, id: hannibal_lecter, name: Hannibal Lecter, marks: {eye_right: [100, 127, 14, 7], eye_left: [153, 127, 14, 7], nose: [127, 162, 13, 5], mouth: [127, 180, 19, 11]}}
+- {n: 15, id: payaso_maldito, name: Payaso maldito, marks: {eye_right: [105, 144, 14, 7], eye_left: [150, 144, 14, 7], nose: [128, 169, 12, 8], mouth: [128, 189, 25, 10]}}
+- {n: 16, id: espantapajaros, name: Espantapájaros, marks: {eye_right: [99, 129, 14, 9], eye_left: [151, 129, 14, 9], mouth: [127, 183, 33, 8]}}
+- {n: 17, id: alien, name: Alien, marks: {eye_right: [101, 128, 0, 0], eye_left: [155, 128, 0, 0], mouth: [128, 190, 26, 22]}}
+- {n: 18, id: predator, name: Predator, marks: {eye_right: [97, 132, 15, 7], eye_left: [152, 132, 15, 7], mouth: [126, 180, 20, 18]}}
+- {n: 19, id: momia, name: La momia, marks: {eye_right: [98, 116, 14, 8], eye_left: [153, 116, 14, 8], nose: [125, 144, 12, 5], mouth: [128, 171, 22, 9]}}
+- {n: 20, id: hombre_lobo, name: Hombre lobo, marks: {eye_right: [102, 116, 13, 8], eye_left: [149, 116, 13, 8], nose: [127, 149, 14, 12], mouth: [127, 186, 28, 20]}}
+- {n: 21, id: chica_poseida, name: Chica poseída, marks: {eye_right: [101, 122, 15, 9], eye_left: [154, 122, 15, 9], nose: [128, 154, 14, 6], mouth: [128, 177, 20, 9]}}
+- {n: 22, id: espectro, name: Espectro, marks: {eye_right: [100, 90, 19, 22], eye_left: [149, 90, 19, 22], nose: [126, 111, 9, 9], mouth: [124, 170, 19, 42]}}
+- {n: 23, id: calabaza, name: Calabaza (Jack O' Lantern), marks: {eye_right: [92, 113, 22, 17], eye_left: [162, 113, 22, 17], nose: [127, 141, 10, 8], mouth: [127, 163, 62, 22]}}
+- {n: 24, id: rey_infierno, name: Rey del infierno, marks: {eye_right: [97, 119, 15, 7], eye_left: [152, 119, 15, 7], nose: [125, 149, 13, 7], mouth: [125, 174, 20, 8]}}
