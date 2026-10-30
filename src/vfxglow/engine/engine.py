@@ -145,13 +145,14 @@ class EffectEngine:
             gain *= gain_for(effect, state, points, self.config.min_point_confidence)
             # Un efecto disparado no sobrevive a un corte de toma: lo que empezó en la toma anterior
             # (la tierra que se partió, la bestia que vuela) no sigue dibujándose en la nueva.
-            if cut and runtime.active_frames > 0 and effect.triggers and event is not None:
+            keep = effect.style.keep_on_cut
+            if cut and not keep and runtime.active_frames > 0 and effect.triggers and event is not None:
                 runtime.cut_event = event.start_frame
             if effect.triggers and event is not None and getattr(runtime, "cut_event", None) == event.start_frame:
                 gain = 0.0
-            if cut:
+            if cut and not keep:
                 runtime.swoosh.clear()
-            if cut or gain <= 0:
+            if (cut and not keep) or gain <= 0:
                 runtime.active_frames = 0
             if gain > 0:
                 runtime.active_frames += 1

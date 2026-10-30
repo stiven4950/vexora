@@ -41,9 +41,10 @@ seasons:
   # Rostros de terror en neón sobre la cara (assets/masks, engine/horror_masks.py): al empezar, en
   # una pausa o al abrir la boca (el grito).
   # Cortos (baile); el catálogo cara los alarga con su `moment_scale`.
-  - {action: entrance, moment: terror_ghostface, weight: 0.8, size: 1.2, max_uses: 1}
-  - {action: still, moment: terror_ghostface, weight: 0.6, size: 1.2, max_uses: 2}
-  - {action: mouth_open, moment: terror_ghostface, weight: 0.8, size: 1.0, max_uses: 2}
+  # Al empezar casi siempre sale el rostro: es lo que define el modo Halloween.
+  - {action: entrance, moment: terror_ghostface, weight: 4.0, size: 1.2, max_uses: 1}
+  - {action: still, moment: terror_ghostface, weight: 1.5, size: 1.2, max_uses: 2}
+  - {action: mouth_open, moment: terror_ghostface, weight: 1.5, size: 1.0, max_uses: 2}
   - {action: blink, moment: terror_ghostface, weight: 0.3, size: 0.8, max_uses: 1}
   boost: [rayos_x, expresion, mascara_terror]
 - id: dia_de_muertos

@@ -27,6 +27,8 @@ defaults:
   style:
     thickness: 0.008
     hdr_gain: 1.5
+    # Lo que se pega a la cara sigue en la toma siguiente (facil_1 tiene cortes cada 1-2 s).
+    keep_on_cut: true
     palette:
     - [0.2, 1.0, 0.9]
     - [1.0, 0.3, 0.8]

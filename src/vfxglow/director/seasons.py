@@ -83,7 +83,7 @@ def moment_effect(season: Season, moment: Moment, scale: float = 1.0) -> dict:
         return {
             "type": "adornment",
             "target": {"kind": "joint", "id": "body"},
-            "style": {"shapes": [moment.moment], "thickness": 0.008, "hdr_gain": 1.6, "focus": False},
+            "style": {"shapes": [moment.moment], "thickness": 0.008, "hdr_gain": 1.6, "focus": False, "keep_on_cut": True},
             "render": {"blend": "add", "motion_blur": 0.0, "persistence": 0.0, "group": "glow"},
             "trigger": {"hold": int(moment.size * scale * 30), "fade_in": 1, "fade_out": 6},
         }

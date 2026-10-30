@@ -286,6 +286,9 @@ class EffectStyle(_Strict):
     # Con línea de atención en el guion, el efecto se apaga si su región no es protagonista
     # (engine/focus.py). False = siempre visible (cierres, efectos de toda la escena).
     focus: bool = True
+    # Sigue encendido después de un corte de toma (lo que se pega a la cara, que sigue en la toma
+    # nueva: los rostros del catálogo cara). Por omisión, un corte apaga lo disparado.
+    keep_on_cut: bool = False
     # Impactos: cantidad de chispas diminutas que salen disparadas del golpe (0 = ninguna).
     micro_sparks: int = 0
     # body_glow: opacidad del tinte de color que rellena la parte del cuerpo (0 = solo contorno).
