@@ -44,6 +44,8 @@ def test_every_adornment_draws(shape: str) -> None:
         pytest.skip("necesitan la velocidad o la trayectoria de la mano (se prueban con video)")
     if shape in ("fire_wall", "fire_light", "fire_carpet_end"):
         pytest.skip("se encienden solas (el cierre, o la luz del fuego de los demás efectos): se prueban con video")
+    if shape in ("face_spiders", "face_ants", "face_centipede", "face_roaches", "face_claws", "face_cracks", "snake_crown"):
+        pytest.skip("entran caminando o crecen desde cero: se prueban a lo largo de su duración en test_face_fx")
     if shape in ("fire_phoenix", "fire_dragon_launch"):
         pytest.skip("nacen al lanzar (crecen en los primeros cuadros del gesto): se prueban en test_elements")
     if shape in ("water_ribbon", "water_stream", "water_ring", "water_splash", "water_refract", "air_slash", "air_dash", "air_vortex", "air_burst", "air_refract", "earth_fist", "earth_orbit", "earth_slam", "earth_crystals"):

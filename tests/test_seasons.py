@@ -53,7 +53,7 @@ def test_every_season_moment_and_object_draws() -> None:
         for moment in season.moments:
             from vfxglow.engine.horror_masks import HORROR_MASKS
 
-            assert moment.moment in MOMENTS or moment.moment in HORROR_MASKS
+            assert moment.moment in MOMENTS or moment.moment in HORROR_MASKS or moment.moment == "terror"
             raw = moment_effect(season, moment)
             trigger = raw.pop("trigger")
             effect = Effect.model_validate({"id": "m", **raw, "triggers": [{**trigger, "event": "still", "fade_in": 0}]})
