@@ -1,0 +1,30 @@
+# Cuadrícula de rostros de terror en neón (halloween_grid.png): 6 columnas x 4 filas de 256 px, con
+# el nombre en una franja abajo de cada celda. tools/mask_from_grid.py saca de cada una sus trazos.
+columns: 6
+rows: 4
+label_px: 22
+faces:
+- {n: 1, id: ghostface, name: Ghostface}
+- {n: 2, id: michael_myers, name: Michael Myers}
+- {n: 3, id: jason_voorhees, name: Jason Voorhees}
+- {n: 4, id: pennywise, name: Pennywise}
+- {n: 5, id: chucky, name: Chucky}
+- {n: 6, id: billy_saw, name: Billy (Saw)}
+- {n: 7, id: freddy_krueger, name: Freddy Krueger}
+- {n: 8, id: nosferatu, name: Nosferatu}
+- {n: 9, id: demonio, name: Demonio}
+- {n: 10, id: vampiro, name: Vampiro}
+- {n: 11, id: frankenstein, name: Frankenstein}
+- {n: 12, id: dracula, name: Drácula}
+- {n: 13, id: novia_frankenstein, name: La novia de Frankenstein}
+- {n: 14, id: hannibal_lecter, name: Hannibal Lecter}
+- {n: 15, id: payaso_maldito, name: Payaso maldito}
+- {n: 16, id: espantapajaros, name: Espantapájaros}
+- {n: 17, id: alien, name: Alien}
+- {n: 18, id: predator, name: Predator}
+- {n: 19, id: momia, name: La momia}
+- {n: 20, id: hombre_lobo, name: Hombre lobo}
+- {n: 21, id: chica_poseida, name: Chica poseída}
+- {n: 22, id: espectro, name: Espectro}
+- {n: 23, id: calabaza, name: Calabaza (Jack O' Lantern)}
+- {n: 24, id: rey_infierno, name: Rey del infierno}
