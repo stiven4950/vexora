@@ -7,6 +7,7 @@ una versión, los fotogramas que se copian del video anterior ya la traen y no s
 
 from __future__ import annotations
 
+import threading
 from functools import lru_cache
 from pathlib import Path
 
@@ -17,6 +18,8 @@ MARK_SVG = Path(__file__).with_name("vexora-mark.svg")  # copia de web/public/ve
 HEIGHT_SHARE = 0.045
 MARGIN_SHARE = 0.035
 OPACITY = 0.72
+# La composición en paralelo llama a apply desde varios hilos: la marca se dibuja con skia una sola vez.
+_LOCK = threading.Lock()
 
 
 @lru_cache(maxsize=8)
@@ -56,7 +59,8 @@ def stamp(width: int, height: int) -> tuple[np.ndarray, int, int]:
 def apply(rgb: np.ndarray) -> np.ndarray:
     """Pinta la marca sobre un fotograma RGB uint8 (en sitio) y lo devuelve."""
     height, width = rgb.shape[:2]
-    mark, x, y = stamp(width, height)
+    with _LOCK:
+        mark, x, y = stamp(width, height)
     h, w = min(mark.shape[0], height - y), min(mark.shape[1], width - x)
     region = rgb[y : y + h, x : x + w].astype(np.float32)
     alpha = mark[:h, :w, 3:4]

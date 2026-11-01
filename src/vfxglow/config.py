@@ -247,6 +247,8 @@ class CompositeConfig(_Strict):
     soft_knee: float = 0.85
     # Marca de agua de Vexora (composite/watermark.py): la llevan los planes que la piden (configs/plans.yaml).
     watermark: bool = False
+    # Hilos que componen fotogramas en paralelo (el motor sigue en el principal); 1 = como siempre.
+    threads: int = Field(default=1, ge=1)
     groups: dict[str, bool] = Field(default_factory=lambda: {name: True for name in LAYER_GROUPS})
 
     def enabled_groups(self) -> set[str]:

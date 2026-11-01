@@ -701,6 +701,7 @@ class Pipeline:
         from vfxglow.composite import watermark
         from vfxglow.composite.composite import composite_frame
         from vfxglow.composite.encode import FrameEncoder
+        from vfxglow.composite.parallel import OrderedFrames
         from vfxglow.director.edits import WARMUP_S
 
         meta = self._meta()
@@ -728,8 +729,23 @@ class Pipeline:
             frames=(window[1] - window[0] + 1) if only_window else meta.frame_count,
         )
         log.info("Componiendo sobre el plano original")
+        enabled_groups = self.config.composite.enabled_groups()
+
+        def compose(frame, layers):
+            done = composite_frame(frame, layers, script.grade, enabled_groups=enabled_groups)
+            if done.shape[1] != out_w or done.shape[0] != out_h:
+                done = cv2.resize(done, (out_w, out_h), interpolation=cv2.INTER_AREA)
+            if self.config.composite.watermark:
+                # Solo en lo que se compone: lo que se copia del video anterior ya la trae.
+                watermark.apply(done)
+            return done
+
         try:
-            with VideoReader(self.video) as reader, (VideoReader(base_output) if base_output else nullcontext()) as previous:
+            with (
+                VideoReader(self.video) as reader,
+                (VideoReader(base_output) if base_output else nullcontext()) as previous,
+                OrderedFrames(self.config.composite.threads, encoder.write) as ordered,
+            ):
                 source = reader.frames(draw_from, window[1]) if only_window else reader
                 frames = zip(source, previous) if previous is not None else ((item, None) for item in source)
                 for (index, frame), old in frames:
@@ -748,20 +764,15 @@ class Pipeline:
                             if path.exists():
                                 layers.append((effect, load_layer(path)))
                     if inside:
-                        done = composite_frame(frame, layers, script.grade, enabled_groups=self.config.composite.enabled_groups())
-                        if done.shape[1] != out_w or done.shape[0] != out_h:
-                            done = cv2.resize(done, (out_w, out_h), interpolation=cv2.INTER_AREA)
-                        if self.config.composite.watermark:
-                            # Solo en lo que se compone: lo que se copia del video anterior ya la trae.
-                            watermark.apply(done)
-                        encoder.write(done)
+                        ordered.submit(compose, frame, layers)
                     elif not only_window:
                         # El video anterior se lee en BGR (OpenCV); el codificador espera RGB.
-                        encoder.write(cv2.cvtColor(old[1], cv2.COLOR_BGR2RGB))
+                        ordered.submit(cv2.cvtColor, old[1], cv2.COLOR_BGR2RGB)
                     if (index + 1) % 10 == 0:
                         telemetry.checkpoint()  # la persona pudo cancelar el trabajo
                     if (index + 1) % 50 == 0:
                         log.info("Compuestos %d/%d fotogramas", index + 1, meta.frame_count)
+                ordered.drain()
         except BaseException:
             encoder.abort()
             raise
