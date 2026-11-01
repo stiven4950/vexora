@@ -20,7 +20,7 @@ from vfxglow.analysis.appearance import Appearance
 from vfxglow.engine.anchors import PointSet, collect_points, joint_velocity
 from vfxglow.engine.constraints import FrameState, gain_for
 from vfxglow.engine.effects import EffectRuntime, render_effect
-from vfxglow.engine.raster import directional_blur, soften_alpha
+from vfxglow.engine.raster import directional_blur, empty_layer, soften_alpha
 from vfxglow.engine.swoosh import set_resolution
 from vfxglow.engine.timeline import ActivationTimeline
 from vfxglow.io.store import read_jsonl
@@ -77,6 +77,9 @@ class EffectEngine:
         self._appearance_dir: Path | None = None
         self._face_last: dict[str, np.ndarray] = {}
         self._face_age = 0
+        # Capa vacía compartida (solo lectura) y búfer de trabajo para los efectos que no dibujan nada.
+        self.blank: np.ndarray | None = None
+        self._scratch: np.ndarray | None = None
 
     def _chapter_colors(self, frame_index: int) -> list | None:
         if not self.chapter_starts:
@@ -112,6 +115,10 @@ class EffectEngine:
         run_dir: Path | None = None,
     ) -> list[tuple[str, str, np.ndarray]]:
         set_resolution(width)
+        if self.blank is None or self.blank.shape != (height, width, 4):
+            self.blank = empty_layer(height, width)
+            self.blank.flags.writeable = False
+            self._scratch = empty_layer(height, width)
         points = collect_points(track, width, height)
         cut = frame_index in self.cuts
         if cut:
@@ -195,6 +202,10 @@ class EffectEngine:
             if effect.target.kind == "contour" and effect.target.id == "head":
                 # Contorno de cabeza del segmentador, solo donde faltó la malla facial.
                 runtime.contour_px = head_px
+            # Un búfer a tamaño completo por cada efecto que no dibuja nada era casi todo el coste del
+            # motor. El renderizador corre igual (con ganancia 0 envejece partículas y estelas), pero
+            # sobre un búfer reutilizado; si no dejó nada, la capa es la vacía compartida.
+            idle = gain <= 0 and effect.render.persistence <= 0
             layer = render_effect(
                 runtime,
                 track,
@@ -206,7 +217,16 @@ class EffectEngine:
                 mask,
                 self.config.max_particles,
                 event,
+                scratch=self._scratch if idle else None,
             )
+            if idle:
+                if layer is self._scratch:
+                    if not layer.any():
+                        layers.append((effect.id, effect_group(effect), self.blank))
+                        continue
+                    self._scratch = empty_layer(height, width)  # dibujó con gain 0: ese búfer ya es la capa
+                else:
+                    self._scratch = empty_layer(height, width)  # pudo ensuciar el búfer antes de cambiar de capa
             if (effect.style.tint is not None or effect.style.scale != 1.0) and gain > 0:
                 layer = self._edited(layer, runtime, points, width, height)
             decay = effect.render.persistence

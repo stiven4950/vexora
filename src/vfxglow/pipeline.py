@@ -757,7 +757,8 @@ class Pipeline:
                         frame = cv2.resize(frame, (out_w, out_h), interpolation=cv2.INTER_AREA)
                     if engine is not None and (window is None or draw_from <= index <= window[1]):
                         rendered = engine.render_frame(tracks.get(index), index, frame.shape[1], frame.shape[0], meta.frame_count, self.run_dir)
-                        layers = [(by_id[effect_id], layer) for effect_id, _group, layer in rendered]
+                        # Las capas vacías (engine.blank) no aportan nada: se evita el recorrido de cada una.
+                        layers = [(by_id[effect_id], layer) for effect_id, _group, layer in rendered if layer is not engine.blank]
                     elif engine is None:
                         for effect in script.effects:
                             path = self.run_dir / "layers" / effect.id / f"f{index:06d}.npy"

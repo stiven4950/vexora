@@ -15,6 +15,7 @@ from vfxglow.analysis.schema import FrameRecord, Landmark
 from vfxglow.composite.parallel import OrderedFrames
 from vfxglow.config import AppConfig, CompositeConfig, EngineConfig
 from vfxglow.director.schema import Effect, EffectScript, EffectStyle, EffectTarget, EffectTime
+from vfxglow.engine.effects import EffectRuntime, render_effect
 from vfxglow.engine.engine import EffectEngine
 
 
@@ -127,6 +128,32 @@ def _effect(id_: str, start: int, end: int) -> Effect:
 
 def _script() -> EffectScript:
     return EffectScript(title="t", theme="t", seed=5, effects=[_effect("live", 0, 20), _effect("later", 15, 20)])
+
+
+def test_engine_shares_a_read_only_blank_layer_for_idle_effects() -> None:
+    engine = EffectEngine(_script(), EngineConfig(history=8, max_particles=40))
+    layers = {effect_id: layer for effect_id, _group, layer in engine.render_frame(_track(2), 2, W, H, 20)}
+    assert layers["later"] is engine.blank
+    assert not engine.blank.flags.writeable and not engine.blank.any()
+    assert layers["live"] is not engine.blank and layers["live"].flags.writeable and layers["live"].any()
+    # Un cambio de tamaño rehace la capa vacía.
+    engine.render_frame(_track(3), 3, W // 2, H // 2, 20)
+    assert engine.blank.shape == (H // 2, W // 2, 4)
+
+
+def test_scratch_buffer_gives_the_same_layer_as_a_fresh_one() -> None:
+    script = _script()
+    plain = [EffectRuntime(effect, script.seed, 8) for effect in script.effects]
+    with_scratch = [EffectRuntime(effect, script.seed, 8) for effect in script.effects]
+    scratch = np.zeros((H, W, 4), dtype=np.float32)
+    for i in range(5):
+        for a, b in zip(plain, with_scratch, strict=True):
+            kwargs = dict(frame_index=i, width=W, height=H, envelope=1.0, mask=None, particle_limit=40)
+            expected = render_effect(a, _track(i), {"right_wrist": np.array([60.0, 30.0])}, **kwargs)
+            got = render_effect(b, _track(i), {"right_wrist": np.array([60.0, 30.0])}, scratch=scratch, **kwargs)
+            assert got is scratch
+            assert np.array_equal(expected, got)
+            scratch[...] = 0.0
 
 
 def test_pipeline_output_is_identical_with_several_threads(tmp_path: Path) -> None:

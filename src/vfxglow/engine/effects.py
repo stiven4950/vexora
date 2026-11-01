@@ -73,6 +73,7 @@ def render_effect(
     mask: np.ndarray | None,
     particle_limit: int,
     event: MotionEvent | None = None,
+    scratch: np.ndarray | None = None,
 ) -> np.ndarray:
     effect = runtime.effect
     if effect.style.palette:
@@ -84,7 +85,7 @@ def render_effect(
     if runtime.anchor_point is not None:
         points = dict(points)
         points["event_point"] = runtime.anchor_point
-    layer = empty_layer(height, width)
+    layer = empty_layer(height, width) if scratch is None else scratch
     kind = effect.type
     if kind == "particles":
         _particles(runtime, track, points, envelope, particle_limit, layer)
