@@ -221,7 +221,7 @@ class EffectEngine:
             )
             if idle:
                 if layer is self._scratch:
-                    if not layer.any():
+                    if not cv2.hasNonZero(layer.reshape(height, width * 4)):
                         layers.append((effect.id, effect_group(effect), self.blank))
                         continue
                     self._scratch = empty_layer(height, width)  # dibujó con gain 0: ese búfer ya es la capa

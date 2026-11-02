@@ -50,6 +50,14 @@ CORE = np.array([1.0, 0.97, 0.78], np.float32)
 _WARM: dict[int, np.ndarray] = {}
 
 
+def _light_over(dst: np.ndarray, add: np.ndarray, weight: np.ndarray) -> None:
+    """Suma `add` (RGBA con A a 0) a `dst` y cubre su alfa con `weight`. Da lo mismo que operar con
+    `dst[..., :3] += ...`, pero recorrer los canales intercalados con NumPy cuesta unas 4 veces más,
+    y el fuego lo hace sobre casi todo el cuadro."""
+    cv2.add(dst, add, dst=dst)
+    cv2.mixChannels([1.0 - (1.0 - cv2.extractChannel(dst, 3)) * (1.0 - weight)], [dst], [0, 3])
+
+
 def warm(layer, center: np.ndarray, radius: float, color: np.ndarray, alpha: float) -> None:
     """Resplandor radial que llega a cero en el borde (el de `splat` corta en ~8% y, grande, se
     veía como un recuadro naranja)."""
@@ -71,8 +79,8 @@ def warm(layer, center: np.ndarray, radius: float, color: np.ndarray, alpha: flo
         return
     dst = layer[y0 + sy0 : y0 + sy1, x0 + sx0 : x0 + sx1]
     weight = kernel[sy0:sy1, sx0:sx1] * np.float32(alpha)
-    dst[..., :3] += np.asarray(color, np.float32) * weight[..., None]
-    dst[..., 3] = 1.0 - (1.0 - dst[..., 3]) * (1.0 - weight)
+    red, green, blue = np.asarray(color, np.float32)
+    _light_over(dst, cv2.merge((weight * red, weight * green, weight * blue, np.zeros_like(weight))), weight)
 
 
 # ----- cómo se pinta el fuego -----
@@ -175,18 +183,20 @@ def cel(layer, make, color, alpha: float, runtime=None, heat: float = 1.0, core:
     poly = make(1.0)
     if poly is None or len(poly) < 3:
         return
-    pts = [np.round(poly).astype(np.int32)]
-    if mass:
-        if entry["field"] is None:
-            entry["field"] = np.zeros((height, width), np.float32)
-        blob = np.zeros((height, width), np.uint8)
-        cv2.fillPoly(blob, pts, 255, lineType=cv2.LINE_AA)
-        entry["field"] += blob.astype(np.float32) * np.float32(min(alpha, 1.0) / 255.0)
-    else:
-        shape = np.zeros((height, width), np.uint8)
-        cv2.fillPoly(shape, pts, 255, lineType=cv2.LINE_AA)
-        # Lo que se apaga se adelgaza (no se vuelve transparente): solo cuenta lo que pasa el umbral.
-        np.maximum(entry["mask"], np.clip((shape.astype(np.float32) / 255.0) * (0.4 + 0.6 * min(alpha, 1.0)), 0, 1), out=entry["mask"])
+    pts = np.round(poly).astype(np.int32)
+    if mass and entry["field"] is None:
+        entry["field"] = np.zeros((height, width), np.float32)
+    # La llama ocupa una parte del cuadro: se rasteriza solo su recuadro (más el borde suavizado).
+    (x0, y0), (x1, y1) = np.maximum(pts.min(axis=0) - 2, 0), np.minimum(pts.max(axis=0) + 3, (width, height))
+    if x0 < x1 and y0 < y1:
+        shape = np.zeros((y1 - y0, x1 - x0), np.uint8)
+        cv2.fillPoly(shape, [pts], 255, lineType=cv2.LINE_AA, offset=(-int(x0), -int(y0)))
+        if mass:
+            entry["field"][y0:y1, x0:x1] += shape.astype(np.float32) * np.float32(min(alpha, 1.0) / 255.0)
+        else:
+            # Lo que se apaga se adelgaza (no se vuelve transparente): solo cuenta lo que pasa el umbral.
+            box = entry["mask"][y0:y1, x0:x1]
+            np.maximum(box, np.clip((shape.astype(np.float32) / 255.0) * (0.4 + 0.6 * min(alpha, 1.0)), 0, 1), out=box)
     if runtime is not None and heat > 0:
         lo, hi = poly.min(axis=0), poly.max(axis=0)
         size = float(np.linalg.norm(hi - lo))
@@ -411,18 +421,24 @@ def flush_fire(layer, frame_index: int, u: float | None = None, st: dict | None 
     a = np.float32(min(entry["alpha"], 1.0) * FIRE_INTENSITY)
     look = entry.get("look", "hot")
     pal = {k: np.asarray(v, np.float32) for k, v in palette(entry.get("palette")).items() if k != "embers"}
-    if look == "hot":
-        rgb = pal["body"] * m[..., None] + pal["rim"] * band[..., None] + pal["near"] * (near * 0.375)[..., None] + pal["far"] * (far * 0.3)[..., None]
+    if look == "hot" and m.dtype == np.float32:  # lo común; lo que llega en float64 va por la vía general
+        near_glow, far_glow = near * 0.375, far * 0.3
+        rgb = [(pal["body"][c] * m + pal["rim"][c] * band + pal["near"][c] * near_glow + pal["far"][c] * far_glow) * a for c in range(3)]
         cover = np.clip(m + band + near * 0.3 + far * 0.2, 0.0, 1.0)
+        _light_over(layer[y0:y1, x0:x1], cv2.merge((*rgb, np.zeros_like(m))), cover * a)
     else:
-        m, body = _cel_body(m, look, frame_index, (x0, y0, x1, y1), (height, width), pal)
-        a = np.float32(min(entry["alpha"], 1.0))  # el plano no se atenúa: es opaco
-        glow = 0.12 if look == "cel" else 0.3  # el cel casi no irradia: el brillo lo pone el tinte del cuadro
-        rgb = body * m[..., None] + pal["near"] * (near * glow)[..., None] + pal["far"] * (far * glow * 0.8)[..., None]
-        cover = np.clip(m + near * glow * 0.8 + far * glow * 0.5, 0.0, 1.0)
-    dst = layer[y0:y1, x0:x1]
-    dst[..., :3] += rgb * a
-    dst[..., 3] = 1.0 - (1.0 - dst[..., 3]) * (1.0 - cover * a)
+        if look == "hot":
+            rgb = pal["body"] * m[..., None] + pal["rim"] * band[..., None] + pal["near"] * (near * 0.375)[..., None] + pal["far"] * (far * 0.3)[..., None]
+            cover = np.clip(m + band + near * 0.3 + far * 0.2, 0.0, 1.0)
+        else:
+            m, body = _cel_body(m, look, frame_index, (x0, y0, x1, y1), (height, width), pal)
+            a = np.float32(min(entry["alpha"], 1.0))  # el plano no se atenúa: es opaco
+            glow = 0.12 if look == "cel" else 0.3  # el cel casi no irradia: el brillo lo pone el tinte del cuadro
+            rgb = body * m[..., None] + pal["near"] * (near * glow)[..., None] + pal["far"] * (far * glow * 0.8)[..., None]
+            cover = np.clip(m + near * glow * 0.8 + far * glow * 0.5, 0.0, 1.0)
+        dst = layer[y0:y1, x0:x1]
+        dst[..., :3] += rgb * a
+        dst[..., 3] = 1.0 - (1.0 - dst[..., 3]) * (1.0 - cover * a)
     if embers is not None:
         # Heredan la mitad del movimiento del fuego que las suelta (el centro de la llama).
         ys_, xs_ = np.nonzero(m > 0.5)
@@ -2091,15 +2107,15 @@ def _fire_light(runtime, layer, frame_index: int, alpha: float) -> list:
         amount += size * a
     light = cv2.resize(np.clip(light, 0.0, 1.0), (width, height), interpolation=cv2.INTER_LINEAR)
     cover = np.float32(min(amount / (0.5 * height), 1.0) * 0.45 * alpha)
-    straight = LIGHT_DARK * (1.0 - light)[..., None] + palette()["light"].astype(np.float32) * light[..., None]
+    # Por canal y sin intercalar: cubre todo el cuadro y así cuesta unas 6 veces menos.
+    dark, tint = LIGHT_DARK * (1.0 - light), palette()["light"].astype(np.float32)
+    straight = [dark + tint[c] * light for c in range(3)]
     if chapter is None:
-        layer[..., :3] = straight * cover
-        layer[..., 3] = cover
+        cv2.merge((*[s * cover for s in straight], np.full(light.shape, cover, np.float32)), dst=layer)
         return []
     # Con tinte de capítulo la capa cubre todo: luz local (mezclada según su cobertura) por el tinte.
     a = np.float32(alpha)
-    layer[..., :3] = (1.0 + (straight - 1.0) * cover) * chapter * a
-    layer[..., 3] = a
+    cv2.merge((*[(1.0 + (straight[c] - 1.0) * cover) * chapter[c] * a for c in range(3)], np.full(light.shape, a, np.float32)), dst=layer)
     return []
 
 
