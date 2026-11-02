@@ -5,6 +5,9 @@ cara (engine/face_signals.py).
 
 - eye_butterflies: mariposas pequeñas que salen de los párpados, se alejan hasta una órbita alrededor
   de la cabeza y aletean ahí. Cada parpadeo suelta una nueva; la órbita se corre hacia donde mira.
+- medusa_snakes: serpientes de neón que nacen del nacimiento del pelo, se mecen en curvas y enroscan la
+  punta hacia afuera (nunca sobre la cara); el cuerpo pasa de rosa a azul con escamas naranjas. Con la
+  boca abierta se yerguen y sacan la lengua; al girar la cabeza se mecen más rápido.
 - holo_snake: una serpiente holográfica que se desliza alrededor de la cabeza, por fuera del contorno
   de la cara. Gira más rápido y hacia el lado al que gira la cabeza; con la boca abierta, su cabeza se
   acerca a la cara (sin entrar) y, sin malla facial (la cara perdida), se repliega.
@@ -24,9 +27,10 @@ from vfxglow.engine.raster import fill_polygon, splat
 from vfxglow.geom import catmull_rom
 
 TAU = 2.0 * np.pi
-COMPANIONS = ("eye_butterflies", "holo_snake")
+COMPANIONS = ("eye_butterflies", "holo_snake", "medusa_snakes")
 BUTTERFLY_COLORS = ((1.0, 0.45, 0.85), (0.5, 0.85, 1.0), (1.0, 0.85, 0.35))
 HOLO = (0.3, 1.0, 0.85)
+RUBY_TONGUE = np.array([1.0, 0.15, 0.3], np.float32)
 # Centro de la cabeza (unidades de cara) alrededor del que giran.
 HEAD_CENTER = (0.0, -0.15)
 # Mariposas: cuántas salen al entrar (por densidad 1), tope, órbita (radio en unidades de cara),
@@ -148,7 +152,87 @@ def _holo_snake(face: Face, ctx: dict) -> list:
     return pairs
 
 
-DRAW = {"eye_butterflies": _butterflies, "holo_snake": _holo_snake}
+# Medusa: raíces (unidades de cara, en el nacimiento del pelo), largo, ancho, cuánto se mecen y cuánto
+# enroscan la punta; colores de la cabeza a la cola y de las escamas.
+MEDUSA_ROOTS = ((-1.0, -0.3), (-0.85, -0.9), (-0.35, -1.25), (0.35, -1.25), (0.85, -0.9), (1.0, -0.3))
+MEDUSA_LENGTH = 1.7
+MEDUSA_WIDTH = 0.16
+MEDUSA_SWAY = 2.6
+MEDUSA_CURL = 7.0
+MEDUSA_HEAD = np.array([1.0, 0.35, 0.8], np.float32)
+MEDUSA_TAIL = np.array([0.3, 0.5, 1.0], np.float32)
+MEDUSA_SCALES = np.array([1.0, 0.6, 0.2], np.float32)
+
+
+def _medusa_spine(face: Face, root: np.ndarray, out: np.ndarray, length: float, phase_: float, curl: float) -> np.ndarray:
+    """El cuerpo, de la raíz a la cabeza: se mece en curvas y la punta se enrosca hacia afuera."""
+    steps_ = 36
+    heading = float(np.arctan2(out[1], out[0]))
+    side = 1.0 if out[0] >= 0 else -1.0  # se enrosca hacia afuera de la cara
+    pts = [root]
+    ds = length / steps_
+    for i in range(steps_):
+        q = i / steps_
+        bend = MEDUSA_SWAY * np.sin(TAU * q * 0.75 - phase_) * (0.6 + 0.4 * q)
+        if q > 0.5:  # la punta se enrosca en espiral: la curva se cierra cada vez más
+            bend += side * curl * ((q - 0.5) / 0.5) * (1.0 + 2.5 * ((q - 0.5) / 0.5) ** 2)
+        heading += bend * ds
+        pts.append(pts[-1] + np.array([np.cos(heading), np.sin(heading)]) * ds)
+    local = np.array(pts)
+    return face.place(local)
+
+
+def _medusa(face: Face, ctx: dict) -> list:
+    sig, frame_index, knobs, layer, alpha, kernels = ctx["sig"], ctx["frame_index"], ctx["knobs"], ctx["layer"], ctx["alpha"], ctx["runtime"].kernels
+    grow = _ease(_seg(ctx["u"], 0.0, ENTRY_END * 2.5))
+    rear = float(np.clip(sig.jaw / JAW_FULL, 0.0, 1.0))
+    speed = (0.08 + 0.1 * min(abs(sig.yaw_rate) / 90.0, 1.0)) * float(knobs["speed"])
+    center = np.array(HEAD_CENTER)
+    out_lines: list = []
+    for k, root in enumerate(np.asarray(MEDUSA_ROOTS)):
+        direction = (root - center) / np.linalg.norm(root - center)
+        direction = direction * np.array([1.4, 1.0]) + np.array([0.0, -0.15])  # hacia los costados, rodeando la cabeza
+        length = MEDUSA_LENGTH * grow * (1.0 + 0.25 * rear) * (0.85 + 0.15 * ((k * 5) % 3))
+        spine = _medusa_spine(face, root, direction, length, frame_index * speed + k * GOLDEN, MEDUSA_CURL * (1.0 - 0.5 * rear))
+        if len(spine) < 4:
+            continue
+        n = np.gradient(spine, axis=0)
+        n = np.stack([-n[:, 1], n[:, 0]], axis=1) / np.maximum(np.linalg.norm(n, axis=1, keepdims=True), 1e-6)
+        q = np.linspace(0.0, 1.0, len(spine))
+        half = (MEDUSA_WIDTH * face.unit * (1.0 - 0.45 * q) * (0.6 + 0.4 * np.minimum(q * 6.0, 1.0)))[:, None]
+        left, right = spine + n * half, spine - n * half
+        emerge = np.clip(q / 0.15, 0.0, 1.0)  # la raíz sale del pelo: aparece de a poco
+        for i in range(len(spine) - 1):  # el cuerpo en tramos, de azul (raíz) a rosa (cabeza)
+            tint = MEDUSA_TAIL + (MEDUSA_HEAD - MEDUSA_TAIL) * q[i]
+            fill_polygon(layer, np.array([left[i], left[i + 1], right[i + 1], right[i]]), tint, alpha * 0.32 * emerge[i], 1.0, feather=0.8)
+        # Escamas en retícula: dos familias de diagonales cortas que se cruzan en rombos.
+        lattice = []
+        for i in range(2, len(spine) - 3, 2):
+            for sign in (-1.0, 1.0):
+                a_, b_ = spine[i] - n[i] * half[i, 0] * 0.8 * sign, spine[i + 2] + n[i + 2] * half[i + 2, 0] * 0.8 * sign
+                lattice.append(np.array([a_, b_]))
+        fine(lattice, MEDUSA_SCALES, alpha * 0.45, layer, width=1.0)
+        mid = len(spine) // 2
+        rim = MEDUSA_HEAD * 0.4 + 0.6  # el borde iluminado, casi blanco
+        out_lines += [(left[3:mid], MEDUSA_TAIL), (left[mid - 1 :], MEDUSA_HEAD), (right[3:mid], MEDUSA_TAIL), (right[mid - 1 :], rim)]
+        tip, d = spine[-1], spine[-1] - spine[-3]
+        d = d / max(float(np.linalg.norm(d)), 1e-6)
+        s_ = np.array([-d[1], d[0]])
+        w = MEDUSA_WIDTH * face.unit * 0.9
+        head = catmull_rom(np.array([tip - s_ * w * 0.8, tip + d * w * 1.1 - s_ * w * 0.7, tip + d * w * 2.2, tip + d * w * 1.1 + s_ * w * 0.7, tip + s_ * w * 0.8]), 5)
+        fill_polygon(layer, head, MEDUSA_HEAD, alpha * 0.5, 1.0, feather=1.0)
+        out_lines.append((head, MEDUSA_HEAD))
+        for sign in (-1.0, 1.0):
+            eye = tip + d * w * 1.2 + s_ * sign * w * 0.4
+            splat(layer, float(eye[0]), float(eye[1]), w * 0.14 + 0.4, MEDUSA_SCALES, alpha, kernels)
+        if rear > 0.3 or (frame_index // 7 + k) % 4 == 0:  # la lengua
+            mouth = tip + d * w * 2.2
+            fork = mouth + d * w * 0.9
+            out_lines += [(np.array([mouth, fork]), RUBY_TONGUE)] + [(np.array([fork, fork + (d + s_ * sign * 0.6) * w * 0.45]), RUBY_TONGUE) for sign in (-1.0, 1.0)]
+    return out_lines
+
+
+DRAW = {"eye_butterflies": _butterflies, "holo_snake": _holo_snake, "medusa_snakes": _medusa}
 
 
 def head_companion(shape: str, body, frame, scale, frame_index: int, runtime, layer, color, alpha: float, event) -> list:
@@ -165,6 +249,9 @@ def head_companion(shape: str, body, frame, scale, frame_index: int, runtime, la
         "main": main, "alpha": power * (1.0 - _ease(t) if stage == "exit" else 1.0),
     }
     items = melt(DRAW[shape](face, ctx), u, face, layer, main, power, runtime.kernels, ctx["seed"], start=EXIT_AT)
-    for curve, tint in items:  # línea fina con poco halo: con neón grueso eran manchas y un tubo pesado
-        fine([curve], tint, ctx["alpha"] if stage != "exit" else power, layer, width=max(1.0, 0.006 * face.unit))
+    # Línea fina con poco halo (con neón grueso eran manchas y un tubo pesado); las serpientes de Medusa
+    # son grandes y llevan un borde más marcado.
+    width = max(1.5, 0.012 * face.unit) if shape == "medusa_snakes" else max(1.0, 0.006 * face.unit)
+    for curve, tint in items:
+        fine([curve], tint, ctx["alpha"] if stage != "exit" else power, layer, width=width)
     return []

@@ -8,6 +8,7 @@ import pytest
 
 from test_eye_family import _frame, _ink, _runtime
 from test_face_glow import _body
+from vfxglow.engine.face_makeup import MAKEUP
 from vfxglow.engine.face_symbols import SYMBOLS
 from vfxglow.engine.face_zone import coverage
 from vfxglow.engine.head_companions import COMPANIONS
@@ -115,3 +116,69 @@ def test_symbols_and_companions_have_their_coverage() -> None:
     assert cov("third_eye") == "low"
     assert cov("rune_shift") == "medium"
     assert {cov(s) for s in ("light_crown", "eye_butterflies", "holo_snake")} == {"peripheral"}
+
+
+@pytest.mark.parametrize("shape", MAKEUP)
+def test_every_makeup_draws_with_and_without_the_mesh(shape: str) -> None:
+    for body in (_body(), _body(mesh=False)):
+        runtime = _runtime(shape)
+        assert max(_ink(*_frame(shape, runtime, f, body=body)) for f in range(0, 30, 3)) > 1.0
+
+
+def test_the_butterfly_wings_fold_when_the_eyes_close() -> None:
+    opened, closed = _runtime("butterfly_wings"), _runtime("butterfly_wings")
+    for f in range(25):
+        a = _frame("butterfly_wings", opened, f)
+        b = _frame("butterfly_wings", closed, f, {"eyeBlinkLeft": 0.95, "eyeBlinkRight": 0.95})
+    assert _ink(*b) < _ink(*a)
+
+
+def test_the_pharaoh_mark_goes_on_the_forehead_and_under_the_eyes() -> None:
+    body = _body()
+    runtime = _runtime("pharaoh_mark")
+    for f in range(30):
+        layer, _ = _frame("pharaoh_mark", runtime, f, body=body)
+    eyes_y = int(body.points["left_iris"][1])
+    assert _lit(layer, (0, 0, 400, eyes_y - 15)) > 0 and _lit(layer, (0, eyes_y + 5, 400, eyes_y + 60)) > 0
+
+
+def test_the_neon_pulse_runs_faster_with_a_smile() -> None:
+    calm, smiling = _runtime("neon_veins"), _runtime("neon_veins")
+    for f in range(30):
+        _frame("neon_veins", calm, f)
+        _frame("neon_veins", smiling, f, {"mouthSmileLeft": 0.9, "mouthSmileRight": 0.9})
+    key = "_makeup:neon_veins:0:" + _body().prefix
+    assert smiling.swoosh[key]["pulse"] > calm.swoosh[key]["pulse"]
+
+
+def test_the_dissolve_wind_blows_harder_when_the_head_turns() -> None:
+    still, turning = _runtime("face_dissolve"), _runtime("face_dissolve")
+    for f in range(20):
+        still.head_pose = (0.0, 0.0, 0.0)
+        _frame("face_dissolve", still, f)
+        turning.head_pose = (float(f * 4), 0.0, 0.0)
+        _frame("face_dissolve", turning, f)
+    key = "_makeup:face_dissolve:0:" + _body().prefix
+    assert turning.swoosh[key]["time"] > still.swoosh[key]["time"]
+
+
+def test_the_medusa_snakes_rise_with_the_mouth_open_and_stay_off_the_face() -> None:
+    body = _body()
+    center = (body.points["left_iris"] + body.points["right_iris"]) / 2
+    unit = float(np.linalg.norm(body.points["left_iris"] - body.points["right_iris"]))
+    shut, wide = _runtime("medusa_snakes"), _runtime("medusa_snakes")
+    for f in range(30):
+        a = _frame("medusa_snakes", shut, f)
+        b = _frame("medusa_snakes", wide, f, {"jawOpen": 0.8})
+    assert _ink(*b) > _ink(*a)
+    ys, xs = np.nonzero(a[0][..., 3] > 0.2)
+    below_eyes = ys > center[1]
+    assert np.all(np.abs(xs[below_eyes] - center[0]) > 0.8 * unit)  # por debajo de los ojos, solo a los costados
+
+
+def test_makeup_and_medusa_coverage() -> None:
+    def cov(shape: str) -> str:
+        return coverage({"type": "adornment", "style": {"shapes": [shape]}})
+
+    assert {cov(s) for s in MAKEUP} == {"medium"}
+    assert cov("medusa_snakes") == "peripheral"

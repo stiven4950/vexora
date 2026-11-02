@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from vfxglow.engine.costumes import FACE, HEAD
 from vfxglow.engine.eye_family import EYES
+from vfxglow.engine.face_makeup import MAKEUP
 from vfxglow.engine.face_symbols import SYMBOLS
 from vfxglow.engine.face_creatures import CREATURES
 from vfxglow.engine.face_glow import FACE_GLOW
@@ -30,7 +31,7 @@ FACE_SHAPES = (
     frozenset(FACE_GLOW) - {"rune_orbit"}
     | set(FACE) | set(HEAD)
     | {"venom", "iron_man", "devil_eyes", "heart_eyes", "glow_eyes", "lion_roar", "avatar_mark", "finger_number"}
-    | set(DRINKS) | set(SMOKES) | set(CREATURES) | set(WOUNDS) | set(MOODS) | set(HEAD_BEASTS) | set(ON_THE_FACE) | set(EYES) | set(SYMBOLS)
+    | set(DRINKS) | set(SMOKES) | set(CREATURES) | set(WOUNDS) | set(MOODS) | set(HEAD_BEASTS) | set(ON_THE_FACE) | set(EYES) | set(SYMBOLS) | set(MAKEUP)
 )
 
 
@@ -38,7 +39,7 @@ FACE_SHAPES = (
 # convivir uno periférico (lo que rodea la cabeza sin tapar ojos ni boca). Lo que cubre toda la cara
 # (alta) no admite nada al lado. Lo que no está en ninguna lista cuenta como "medium" (principal).
 PERIPHERAL = frozenset(
-    {"face_emanate", "head_echo", "light_crown", "eye_butterflies", "holo_snake", "emotion_burst", "shock_burst", "skeleton_dance", "raven", "fairies"}
+    {"face_emanate", "head_echo", "light_crown", "eye_butterflies", "holo_snake", "medusa_snakes", "emotion_burst", "shock_burst", "skeleton_dance", "raven", "fairies"}
 )
 # Pasan por encima de los rasgos, así que son principales: la lluvia de destellos cae sobre la cara
 # (facil_1, fotograma 600: tapaba el ojo junto a Cleopatra) y el remolino cruza por delante de ojos y
