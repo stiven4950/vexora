@@ -62,10 +62,12 @@ KNOBS: dict[str, tuple] = {
     "speed": (0.6, 0.85, 1.0, 1.3),
     "density": (0.6, 1.0, 1.5),
     "trail": (0.0, 0.5, 1.0),
-    "stroke": (1.0, 1.6),
+    "stroke": (1.0, 1.3),
     "motion": (0, 1, 2),
     "palette": ("theme", "theme", "chapter"),
 }
+# La pupila felina ocupa a lo sumo esta fracción del alto del ojo abierto.
+PUPIL_FIT = 0.7
 # Constelación de la galaxia, junto al ojo (x hacia afuera, y hacia abajo, unidades de cara).
 CONSTELLATION = ((0.36, -0.26), (0.47, -0.34), (0.59, -0.37), (0.69, -0.32), (0.73, -0.21), (0.62, -0.17))
 # Estela: la cabeza debe girar al menos esto (grados por segundo) y cuántas copias deja como máximo.
@@ -131,7 +133,7 @@ class Ctx:
 
     @property
     def width(self) -> float:
-        return max(1.0, 0.008 * self.face.unit) * float(self.knobs["stroke"])
+        return max(1.0, 0.006 * self.face.unit) * float(self.knobs["stroke"])
 
     def dot(self, at: np.ndarray, size: float, tint, alpha: float) -> None:
         if alpha > 0.0:
@@ -323,8 +325,11 @@ def _feline(ctx: Ctx, eye: Eye, mods: Mods) -> None:
     if eye.lid is not None and len(eye.lid) > 4:
         ctx.lids.append((np.vstack([eye.lid, eye.lid[:1]]), ctx.main * mods.glow))
     # La pupila: una lente de puntas afiladas (dos arcos), no una elipse, que de lejos parecía un rombo.
-    tall = eye.radius * 1.2 * mods.size
-    narrow = 0.3 - 0.2 * float(np.clip(ctx.sig.wide / 0.25, 0.0, 1.0))
+    # Cabe dentro del contorno del ojo, con margen: más alta que el ojo abierto parecía otra figura.
+    tall = eye.radius * 0.8 * mods.size
+    if eye.lid is not None and len(eye.lid) > 4:
+        tall = min(tall, float(np.ptp(eye.lid @ eye.down)) * PUPIL_FIT / 2.0)
+    narrow = 0.22 - 0.14 * float(np.clip(ctx.sig.wide / 0.25, 0.0, 1.0))
     center = eye.center + mods.aim * 0.4 * eye.radius
     t = np.linspace(-1.0, 1.0, 25)
     half = (1.0 - t**2) * narrow * eye.radius

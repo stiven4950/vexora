@@ -603,6 +603,8 @@ from vfxglow.engine.face_wounds import WOUNDS as _WOUNDS  # noqa: E402
 from vfxglow.engine.head_beasts import SNAKES as _SNAKES  # noqa: E402
 
 FACE_SHAPES += _FACE_GLOW_ON_FACE + _CREATURES + _WOUNDS + _SNAKES + ("shock_face", "shock_burst", "eye_curse", "sonic_pulse") + _EYES
+# Grosor del trazo de la familia de ojos frente al de los demás adornos.
+EYE_LINE = 0.6
 
 
 # Velocidad de la cabeza que ya cuenta como energía máxima (facil_1: mediana 0,01; percentil 99, 0,19).
@@ -703,6 +705,8 @@ def draw_adornment(runtime, track, points, frame_index: int, height: int, envelo
             continue
         color = _color(style, person)
         line = max(1.4, style.thickness * scale)
+        if shape in _EYES:
+            line = max(1.0, line * EYE_LINE)  # la familia de ojos: trazo más fino, el ojo se sigue viendo
         halo = FACE_HALO if shape in FACE_SHAPES else 1.0  # sobre la cara, poco halo (no la lava de luz)
         if _handed_off(runtime, person, frame_index):
             continue  # su dibujo ya se convirtió en el del efecto siguiente
