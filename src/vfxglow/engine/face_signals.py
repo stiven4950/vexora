@@ -37,10 +37,11 @@ RELAXED_S = 1.0
 GAZE_BLINK = 0.4
 
 
-def smooth(runtime, key: str, value: float, rise: float = 0.35, fall: float = 0.12, store: str = "_living") -> float:
-    """Un valor que sube rápido y baja lento: la señal cruda tiembla."""
+def smooth(runtime, key: str, value: float, rise: float = 0.35, fall: float = 0.12, store: str = "_living", warm: bool = False) -> float:
+    """Un valor que sube rápido y baja lento: la señal cruda tiembla. Con `warm`, arranca en el primer
+    valor y no en 0 (si no, todo parece subir de golpe al encenderse el efecto)."""
     st = runtime.swoosh.setdefault(store, {})
-    old = st.get(key, 0.0)
+    old = st.get(key, value if warm else 0.0)
     rate = 1.0 - (1.0 - (rise if value > old else fall)) ** steps(runtime)
     st[key] = old + (value - old) * rate
     return st[key]
@@ -81,19 +82,23 @@ def signals(runtime, frame_index: int, person: str = "") -> FaceSignals:
     e = getattr(runtime, "expressions", {}) or {}
     get = lambda name: float(e.get(name, 0.0))  # noqa: E731
     store = f"_signals_level:{person}"
+
+    def level(key: str, value: float, rise: float = 0.35, fall: float = 0.12) -> float:
+        return smooth(runtime, key, value, rise, fall, store, warm=True)
+
     raw_l, raw_r = get("eyeBlinkLeft"), get("eyeBlinkRight")
     raw_blink, raw_jaw = max(raw_l, raw_r), get("jawOpen")
     out = FaceSignals(
-        blink=smooth(runtime, "blink", raw_blink, 0.7, 0.4, store),
-        blink_l=smooth(runtime, "blink_l", raw_l, 0.7, 0.4, store),
-        blink_r=smooth(runtime, "blink_r", raw_r, 0.7, 0.4, store),
-        wide=smooth(runtime, "wide", (get("eyeWideLeft") + get("eyeWideRight")) / 2, store=store),
-        jaw=smooth(runtime, "jaw", raw_jaw, store=store),
-        smile=smooth(runtime, "smile", (get("mouthSmileLeft") + get("mouthSmileRight")) / 2, store=store),
-        frown=smooth(runtime, "frown", max(get("browDownLeft"), get("browDownRight")), store=store),
-        brows=smooth(runtime, "brows", max(get("browInnerUp"), (get("browOuterUpLeft") + get("browOuterUpRight")) / 2), store=store),
-        voice=smooth(runtime, "voice", float(getattr(runtime, "voice", 0.0) or 0.0), 0.6, 0.2, store),
-        energy=smooth(runtime, "energy", float(getattr(runtime, "energy", 0.0) or 0.0), store=store),
+        blink=level("blink", raw_blink, 0.7, 0.4),
+        blink_l=level("blink_l", raw_l, 0.7, 0.4),
+        blink_r=level("blink_r", raw_r, 0.7, 0.4),
+        wide=level("wide", (get("eyeWideLeft") + get("eyeWideRight")) / 2),
+        jaw=level("jaw", raw_jaw),
+        smile=level("smile", (get("mouthSmileLeft") + get("mouthSmileRight")) / 2),
+        frown=level("frown", max(get("browDownLeft"), get("browDownRight"))),
+        brows=level("brows", max(get("browInnerUp"), (get("browOuterUpLeft") + get("browOuterUpRight")) / 2)),
+        voice=level("voice", float(getattr(runtime, "voice", 0.0) or 0.0), 0.6, 0.2),
+        energy=level("energy", float(getattr(runtime, "energy", 0.0) or 0.0)),
     )
     # Flancos: contra el cuadro anterior, con los umbrales del análisis. Los ojos se abren en varios
     # cuadros: "cerrados" dura hasta que el más cerrado de los dos baja de WINK_OPEN.
@@ -110,7 +115,7 @@ def signals(runtime, frame_index: int, person: str = "") -> FaceSignals:
     previous_gaze = st.get("gaze_raw", gaze)
     st["gaze_raw"] = gaze
     out.gaze_raw = gaze
-    out.gaze = np.array([smooth(runtime, "gaze_x", gaze[0], 0.5, 0.5, store), smooth(runtime, "gaze_y", gaze[1], 0.5, 0.5, store)])
+    out.gaze = np.array([level("gaze_x", gaze[0], 0.5, 0.5), level("gaze_y", gaze[1], 0.5, 0.5)])
     # La cabeza: grados por segundo de giro e inclinación.
     pose = getattr(runtime, "head_pose", None)
     fps = float(getattr(runtime, "fps", 30.0) or 30.0)
@@ -119,7 +124,7 @@ def signals(runtime, frame_index: int, person: str = "") -> FaceSignals:
         yaw, pitch, roll = (float(v) for v in pose)
         last = st.get("pose", (yaw, pitch, roll))
         turn = float(np.hypot(yaw - last[0], pitch - last[1]))
-        out.yaw_rate = smooth(runtime, "yaw_rate", (yaw - last[0]) * fps, 0.5, 0.5, store)
+        out.yaw_rate = level("yaw_rate", (yaw - last[0]) * fps, 0.5, 0.5)
         out.roll = roll
         st["pose"] = (yaw, pitch, roll)
     # Mirada fija: ojos y cabeza quietos, sin parpadear.

@@ -64,6 +64,8 @@ from vfxglow.engine.head_beasts import BEASTS, head_beast
 from vfxglow.engine.horror_masks import HORROR_MASKS, horror_mask
 from vfxglow.engine.living_fx import LIVING, living_fx
 from vfxglow.engine.eye_family import EYES, eye_family
+from vfxglow.engine.face_symbols import SYMBOLS, face_symbol
+from vfxglow.engine.head_companions import COMPANIONS, head_companion
 from vfxglow.engine.stories import STORIES, story
 from vfxglow.engine.dresses import DRESSES, dress
 from vfxglow.engine.shoes import SHOES, shoe
@@ -77,9 +79,9 @@ DOODLES = (
     "shoulder_bolts", "head_bolts", "hand_ring", "moon", "chest_burst", "body_bolts", "foot_spark",
     "floor_arc", "leg_line", "leg_string", "side_edges", "shoulder_arcs", "heart_eyes", "spin_arcs", "glow_eyes",
     "foot_ring", "foot_bolts",
-) + DUO_FX + COSTUMES + SHOES + DRESSES + CRITTERS + STORIES + GUNS + FISTS + HAND_PROPS + ENERGY_PASS + COUNTING + SOLO_FX + ARM_FX + MORPH_FX + FACE_GLOW + HORROR_MASKS + CREATURES + WOUNDS + MOODS + BEASTS + LIVING + EYES + AMBIENT + FIREBEND + FIRE_CREATURES + WATERBEND + AIRBEND + EARTHBEND + CHARACTERS
+) + DUO_FX + COSTUMES + SHOES + DRESSES + CRITTERS + STORIES + GUNS + FISTS + HAND_PROPS + ENERGY_PASS + COUNTING + SOLO_FX + ARM_FX + MORPH_FX + FACE_GLOW + HORROR_MASKS + CREATURES + WOUNDS + MOODS + BEASTS + LIVING + EYES + SYMBOLS + COMPANIONS + AMBIENT + FIREBEND + FIRE_CREATURES + WATERBEND + AIRBEND + EARTHBEND + CHARACTERS
 WHITE = np.array([1.0, 1.0, 1.0], np.float32)
-PACED = frozenset(FACE_GLOW + HORROR_MASKS + CREATURES + WOUNDS + MOODS + BEASTS + LIVING + EYES + AMBIENT)
+PACED = frozenset(FACE_GLOW + HORROR_MASKS + CREATURES + WOUNDS + MOODS + BEASTS + LIVING + EYES + SYMBOLS + COMPANIONS + AMBIENT)
 
 
 def _ellipse(center, rx, ry, across, up, a0=0.0, a1=TAU, n=40) -> np.ndarray:
@@ -210,6 +212,10 @@ def doodle(shape, body, frame, scale, frame_index, seed, runtime, layer, color, 
         return living_fx(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape in EYES:
         return eye_family(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape in SYMBOLS:
+        return face_symbol(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape in COMPANIONS:
+        return head_companion(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape in AMBIENT:
         return ambient_fx(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape in BEASTS:

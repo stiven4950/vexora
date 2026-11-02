@@ -597,13 +597,14 @@ def biceps_lines(body: Body, side: str, frame_index: int = 0) -> list[np.ndarray
 # halo de neón.
 FACE_SHAPES = ("hero_mask", "masquerade", "bat_mask", "cat_mask", "fox_mask", "mustache", "pirate_patch", "heart_eyes", "glow_eyes", "lion_roar", "avatar_mark")
 from vfxglow.engine.eye_family import EYES as _EYES  # noqa: E402
+from vfxglow.engine.face_symbols import SYMBOLS as _SYMBOLS  # noqa: E402
 from vfxglow.engine.face_creatures import CREATURES as _CREATURES  # noqa: E402
 from vfxglow.engine.face_glow import ON_FACE as _FACE_GLOW_ON_FACE  # noqa: E402
 from vfxglow.engine.face_wounds import WOUNDS as _WOUNDS  # noqa: E402
 from vfxglow.engine.head_beasts import SNAKES as _SNAKES  # noqa: E402
 
-FACE_SHAPES += _FACE_GLOW_ON_FACE + _CREATURES + _WOUNDS + _SNAKES + ("shock_face", "shock_burst", "eye_curse", "sonic_pulse") + _EYES
-# Grosor del trazo de la familia de ojos frente al de los demás adornos.
+FACE_SHAPES += _FACE_GLOW_ON_FACE + _CREATURES + _WOUNDS + _SNAKES + ("shock_face", "shock_burst", "eye_curse", "sonic_pulse") + _EYES + _SYMBOLS
+# Grosor del trazo de la familia de ojos y de los símbolos de la cara frente al de los demás adornos.
 EYE_LINE = 0.6
 
 
@@ -705,8 +706,8 @@ def draw_adornment(runtime, track, points, frame_index: int, height: int, envelo
             continue
         color = _color(style, person)
         line = max(1.4, style.thickness * scale)
-        if shape in _EYES:
-            line = max(1.0, line * EYE_LINE)  # la familia de ojos: trazo más fino, el ojo se sigue viendo
+        if shape in _EYES or shape in _SYMBOLS:
+            line = max(1.0, line * EYE_LINE)  # ojos y símbolos de la cara: trazo más fino, el rostro se sigue viendo
         halo = FACE_HALO if shape in FACE_SHAPES else 1.0  # sobre la cara, poco halo (no la lava de luz)
         if _handed_off(runtime, person, frame_index):
             continue  # su dibujo ya se convirtió en el del efecto siguiente
