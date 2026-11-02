@@ -247,8 +247,6 @@ def face_symbol(shape: str, body, frame, scale, frame_index: int, runtime, layer
     lines: list = []
     DRAW[shape](face, ctx, lines)
     left = melt(lines, u, face, layer, main, power, runtime.kernels, ctx["seed"], start=EXIT_AT)
-    if shape == "rune_shift":
-        return left  # las runas las pinta el motor: así la continuidad las transforma
-    for curve, tint in left:  # joyería: línea fina y nítida, con poco halo
+    for curve, tint in left:  # línea fina y nítida, con poco halo: con el neón del motor, las runas eran manchas
         fine([curve], tint, ctx["alpha"] if stage != "exit" else power, layer, width=ctx["width"])
     return []
