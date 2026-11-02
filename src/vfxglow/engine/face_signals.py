@@ -63,6 +63,7 @@ class FaceSignals:
     wink: str | None = None  # "left" o "right": el ojo que se cerró
     jaw_open_start: bool = False
     gaze: np.ndarray = field(default_factory=lambda: np.zeros(2))  # x hacia la izquierda de la persona, y hacia arriba
+    gaze_raw: np.ndarray = field(default_factory=lambda: np.zeros(2))  # la del cuadro, sin suavizar
     yaw_rate: float = 0.0  # grados por segundo, con signo
     roll: float = 0.0
     stare: float = 0.0
@@ -108,6 +109,7 @@ def signals(runtime, frame_index: int, person: str = "") -> FaceSignals:
     gaze = np.asarray(gaze_vector(e), dtype=np.float64) if raw_blink < GAZE_BLINK else st.get("gaze_raw", np.zeros(2))
     previous_gaze = st.get("gaze_raw", gaze)
     st["gaze_raw"] = gaze
+    out.gaze_raw = gaze
     out.gaze = np.array([smooth(runtime, "gaze_x", gaze[0], 0.5, 0.5, store), smooth(runtime, "gaze_y", gaze[1], 0.5, 0.5, store)])
     # La cabeza: grados por segundo de giro e inclinación.
     pose = getattr(runtime, "head_pose", None)

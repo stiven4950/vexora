@@ -306,6 +306,9 @@ class EffectStyle(_Strict):
     # y cuánto se escala alrededor de su ancla. Valen para cualquier tipo de efecto.
     tint: tuple[float, float, float] | None = None
     scale: float = 1.0
+    # Familias de efectos (engine/eye_family.py): los valores permitidos de cada perilla (intensity,
+    # speed, density, trail, stroke, motion, palette); cada aparición sortea uno. Vacío = todos.
+    variants: dict[str, list[float | str]] = Field(default_factory=dict)
 
 
 class EffectRender(_Strict):

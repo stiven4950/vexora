@@ -596,12 +596,13 @@ def biceps_lines(body: Body, side: str, frame_index: int = 0) -> list[np.ndarray
 # Avatar): van con poco
 # halo de neón.
 FACE_SHAPES = ("hero_mask", "masquerade", "bat_mask", "cat_mask", "fox_mask", "mustache", "pirate_patch", "heart_eyes", "glow_eyes", "lion_roar", "avatar_mark")
+from vfxglow.engine.eye_family import EYES as _EYES  # noqa: E402
 from vfxglow.engine.face_creatures import CREATURES as _CREATURES  # noqa: E402
 from vfxglow.engine.face_glow import ON_FACE as _FACE_GLOW_ON_FACE  # noqa: E402
 from vfxglow.engine.face_wounds import WOUNDS as _WOUNDS  # noqa: E402
 from vfxglow.engine.head_beasts import SNAKES as _SNAKES  # noqa: E402
 
-FACE_SHAPES += _FACE_GLOW_ON_FACE + _CREATURES + _WOUNDS + _SNAKES + ("shock_face", "shock_burst", "eye_curse", "sonic_pulse")
+FACE_SHAPES += _FACE_GLOW_ON_FACE + _CREATURES + _WOUNDS + _SNAKES + ("shock_face", "shock_burst", "eye_curse", "sonic_pulse") + _EYES
 
 
 # Velocidad de la cabeza que ya cuenta como energía máxima (facil_1: mediana 0,01; percentil 99, 0,19).
