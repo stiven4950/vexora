@@ -29,6 +29,7 @@ from vfxglow.engine.cleopatra import cleopatra
 from vfxglow.engine.critters import _ease, _phase, _seg
 from vfxglow.engine.dissolve import disintegrate, fine, melt
 from vfxglow.engine.face_glow import _RUNES, WHITE, Face, _seed
+from vfxglow.engine.face_signals import signals
 from vfxglow.engine.face_signals import smooth as _smooth
 from vfxglow.engine.firebend import cel, living_ribbon, teardrop
 from vfxglow.engine.hologram import mini_me
@@ -267,14 +268,13 @@ def _edge_hit(start: np.ndarray, aim: np.ndarray, width: int, height: int) -> np
 
 
 def _eye_curse(face: Face, u: float, frame_index: int, runtime, layer, color, alpha: float, seed: int) -> list:
-    e = getattr(runtime, "expressions", {}) or {}
+    sig = signals(runtime, frame_index)
     tint = np.asarray(color, np.float32)
-    gx, gy = gaze_vector(e)
-    st = runtime.swoosh.setdefault("_curse", {"shut": 0.0, "waves": []})
-    blink = max(float(e.get("eyeBlinkLeft", 0.0)), float(e.get("eyeBlinkRight", 0.0)))
-    if st["shut"] > 0.5 and blink < 0.35:  # abrió los ojos: suelta la onda
+    gx, gy = gaze_vector(getattr(runtime, "expressions", {}) or {})
+    st = runtime.swoosh.setdefault("_curse", {"waves": []})
+    blink = sig.blink
+    if sig.eyes_opened:  # abrió los ojos: suelta la onda
         st["waves"].append(frame_index)
-    st["shut"] = blink
     lit = 1.0 - min(blink * 1.4, 1.0)
     t = np.linspace(0, TAU, 28)
     circle = np.stack([np.cos(t), np.sin(t)], axis=1)

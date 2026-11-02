@@ -104,3 +104,12 @@ def test_the_same_seed_draws_the_same_and_knobs_vary_between_moments() -> None:
 
 def test_the_catalog_can_limit_the_knobs() -> None:
     assert {pick_knobs("eyes_fire", "p0", s, {"intensity": [1.3]})["intensity"] for s in range(200)} == {1.3}
+
+
+def test_the_eye_curse_releases_a_wave_when_the_eyes_open() -> None:
+    """Los sellos de los ojos (living_fx) usan el flanco común de engine/face_signals.py."""
+    runtime = _runtime("eye_curse")
+    shut = {"eyeBlinkLeft": 0.9, "eyeBlinkRight": 0.9}
+    for f, expressions in enumerate([{}, shut, shut, {}, {}]):
+        _frame("eye_curse", runtime, f, expressions)
+    assert len(runtime.swoosh["_curse"]["waves"]) == 1

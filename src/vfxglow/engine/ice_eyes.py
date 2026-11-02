@@ -13,6 +13,7 @@ import numpy as np
 from vfxglow.engine.critters import _ease, _seg
 from vfxglow.engine.dissolve import fine, melt
 from vfxglow.engine.face_glow import Face, _trim
+from vfxglow.engine.face_signals import signals
 from vfxglow.engine.raster import fill_polygon, splat
 
 TAU = 2.0 * np.pi
@@ -58,12 +59,10 @@ def _shard(center: np.ndarray, size: float, turn: float) -> np.ndarray:
 
 
 def ice_eyes(face: Face, u: float, frame_index: int, runtime, layer, alpha: float, seed: int, event) -> list:
-    e = getattr(runtime, "expressions", {}) or {}
+    sig = signals(runtime, frame_index)
     across, down = face.ux / face.unit, face.uy / face.unit
-    st = runtime.swoosh.setdefault(f"_ice:{event.start_frame if event else 0}", {"shut": 0.0, "shards": []})
-    blink = max(float(e.get("eyeBlinkLeft", 0.0)), float(e.get("eyeBlinkRight", 0.0)))
-    opened = st["shut"] > 0.5 and blink < 0.35
-    st["shut"] = blink
+    st = runtime.swoosh.setdefault(f"_ice:{event.start_frame if event else 0}", {"shards": []})
+    blink, opened = sig.blink, sig.eyes_opened
     tint = _ease(_seg(u, 0.0, IRIS_END))
     grow = _ease(_seg(u, IRIS_END * 0.5, CRACKS_END))
     lit = 1.0 - min(blink * 1.4, 1.0)
