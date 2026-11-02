@@ -15,8 +15,10 @@ serpientes, cachos, guadaña, esqueletos y hadas.
 
 - Solo efectos glowing: luz sobre la persona real; nada de deformar la cara, filtros de belleza ni
   caricaturas de cuerpo entero.
-- En `cara`, **un solo efecto a la vez sobre el rostro** (`one_at_a_time: true` en el catálogo). La
-  capa de ambiente va fuera de la cara y puede coincidir con él (acción `ambient`).
+- En `cara`, **un solo efecto principal a la vez sobre el rostro** (`one_at_a_time: true` en el
+  catálogo). Con él puede ir **uno periférico** (alrededor de la cabeza, sin tapar ojos ni boca); con
+  un efecto que cubre toda la cara, nada (`coverage` en `engine/face_zone.py`, decidido el
+  2026-11-02). La capa de ambiente va fuera de la cara y puede coincidir con él (acción `ambient`).
 - No buscar figuras sueltas en ropa u objetos para colorearlas: da formas al azar. Se trabaja con zonas
   completas (ropa, pelo, fondo).
 - La ropa se ilumina de paso, sin rellenarla de color plano: la onda conserva el tejido.
@@ -66,6 +68,9 @@ serpientes, cachos, guadaña, esqueletos y hadas.
 | Mini yo: copia diminuta de la malla facial que repite los gestos | `engine/hologram.py` |
 | Ojos láser con carga: `laser_eyes` y el evento `frown` | `engine/living_fx.py`, `analysis/expressions.py` |
 | Símbolos por emoción alrededor de la cabeza (corazones, estrellas, rayos): `emotion_burst` | `engine/face_moods.py` |
+| Señales de la cara comunes: niveles suavizados, flancos (parpadeo, abrir los ojos, guiño, boca), mirada, giro de la cabeza, mirada fija y cara relajada | `engine/face_signals.py` |
+| Familia de ojos: base común (iris, párpado, cuatro fases, reacciones por señal) y seis variantes con personalidad (`eyes_fire`, `eyes_galaxy`, `eyes_storm`, `eyes_void`, `eyes_feline`, `eyes_scanner`); perillas de variación por aparición con semilla (`style.variants`) | `engine/eye_family.py` |
+| Cobertura de la cara (peripheral, low, medium, high) y quién convive con quién | `engine/face_zone.py`, `director/choreography.py` |
 | Opciones de motor nuevas: `keep_on_cut` (sigue tras un corte de toma), `one_at_a_time` y `moment_scale` en el catálogo | `director/schema.py`, `director/choreography.py`, `engine/engine.py` |
 
 Video de prueba: `api_data/uploads/3c00dd033c/facil_1.mp4` (la API que corre el usuario mueve las
@@ -75,6 +80,20 @@ subidas; si no está, buscar `facil_1.mp4` en `api_data/uploads/`). Resultado:
     vfxglow run --video api_data/uploads/3c00dd033c/facil_1.mp4 --catalog cara --season halloween
 
 ## Siguiente paso (plan)
+
+Las mejoras de cara neón propuestas el 2026-11-02 van por entregas. La 1 (señales comunes, familia de
+ojos, variaciones y cobertura) está hecha. Las siguientes, en orden:
+
+- Entrega 2: pasar `ice_eyes`, `eye_flames`, `laser_eyes`, `eye_curse` y `cleopatra_eyes` a
+  `face_signals` y a la familia (con visto bueno visual, porque cambian sus cuadros). Familias nuevas:
+  símbolos (tercer ojo con las cejas, runas que se reorganizan, corona) y criaturas periféricas
+  (mariposas desde los párpados, serpiente holográfica que orbita y se acerca con la boca abierta).
+- Entrega 3: transformaciones reales: emparejar líneas por rol en `morph.morph_lines`, transición
+  temática entre variantes (fuego que se enfría a hielo) y reensamblar desde el polvo.
+- Entrega 4: porcelana fracturada (variante de `face_cracks`) y desintegración facial. La "faraona"
+  ya existe como `cleopatra_eyes`.
+
+Además:
 
 1. Que el usuario vea el render y diga qué ajustar.
 2. Cuando llegue un video de referencia de cara con efectos glowing: analizarlo como los de baile

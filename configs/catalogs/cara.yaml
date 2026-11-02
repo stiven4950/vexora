@@ -94,6 +94,14 @@ reactions:
 # cortos no les dejaban espacio. Se quedan también en las pausas y gestos, si hay lugar.
 - action: look
   options:
+  # Familia de ojos (engine/eye_family.py): una variante por aparición, cada una con su personalidad.
+  - name: ojos_familia
+    weight: 1.2
+    cooldown: 0
+    effects:
+    - type: adornment
+      style: {shapes: [eyes_fire, eyes_galaxy, eyes_storm, eyes_void, eyes_feline, eyes_scanner], thickness: 0.008, focus: false}
+      trigger: {hold: 120, fade_in: 1, fade_out: 3}
   - name: ojos_cleopatra
     weight: 1.0
     cooldown: 0
@@ -169,6 +177,14 @@ reactions:
 # Lo que más se mueve es la cabeza, o la persona está quieta: dibujos sobre el rostro.
 - action: spotlight
   options:
+  # Familia de ojos: una variante por aparición.
+  - name: ojos_familia
+    weight: 0.5
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [eyes_fire, eyes_galaxy, eyes_storm, eyes_void, eyes_feline, eyes_scanner], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 3}
   # Asoma detrás del hombro; si la persona gira hacia él, reaparece del otro lado (engine/ambient_fx.py).
   - name: fantasma
     weight: 0.6
@@ -435,6 +451,14 @@ reactions:
 - action: still
   cooldown: 60
   options:
+  # Quieta: las variantes que se encienden con la mirada fija.
+  - name: ojos_mirada
+    weight: 0.6
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [eyes_fire, eyes_galaxy, eyes_scanner], thickness: 0.008, focus: false}
+      trigger: {hold: 105, fade_in: 1, fade_out: 3}
   # Asoma detrás del hombro; si la persona gira hacia él, reaparece del otro lado (engine/ambient_fx.py).
   - name: fantasma
     weight: 0.8
@@ -742,6 +766,14 @@ reactions:
 # Ceño o ojos entrecerrados: carga y dispara, o suelta rayos alrededor de la cabeza.
 - action: frown
   options:
+  # Tormenta en los ojos: con el ceño, más brillo y arcos más largos.
+  - name: ojos_tormenta
+    weight: 0.7
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [eyes_storm], thickness: 0.008, focus: false}
+      trigger: {hold: 75, fade_in: 1, fade_out: 3}
   # Los ojos se cargan y disparan (engine/living_fx.py).
   - name: ojos_laser
     weight: 1.0
@@ -762,6 +794,14 @@ reactions:
     weight: 0.2
 - action: gaze_shift
   options:
+  # La retícula barre al saltar la mirada; la pupila felina la sigue.
+  - name: ojos_escaner
+    weight: 0.4
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [eyes_scanner, eyes_feline], thickness: 0.008, focus: false}
+      trigger: {hold: 75, fade_in: 1, fade_out: 3}
   - name: ojos_laser
     weight: 0.35
     cooldown: 240
@@ -782,6 +822,14 @@ reactions:
 # Guiño: un destello en el ojo.
 - action: wink
   options:
+  # Ojos de galaxia: el ojo que guiña suelta estrellas.
+  - name: ojos_galaxia
+    weight: 0.5
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [eyes_galaxy], thickness: 0.008, focus: false}
+      trigger: {hold: 75, fade_in: 1, fade_out: 3}
   - name: destello
     weight: 0.6
     cooldown: 300
@@ -796,6 +844,14 @@ reactions:
 # Ojos muy abiertos: rayos o llamas que salen de los ojos.
 - action: eyes_wide
   options:
+  # El vacío crece con los ojos muy abiertos; el fuego se aviva.
+  - name: ojos_vacio
+    weight: 0.6
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [eyes_void, eyes_fire], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 3}
   # Iris azul, grietas de luz y cristales al parpadear (engine/ice_eyes.py).
   - name: ojos_hielo
     weight: 0.7

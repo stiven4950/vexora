@@ -85,6 +85,31 @@ hecho antes de este cambio no lo tiene hasta que se vuelva a analizar.
 - Los dibujos sobre la piel llevan poco halo, para no lavar la cara de luz. Los rayos, el aliento y
   los anillos orbitales sí llevan halo completo.
 - Los dibujos de línea sobre la cara terminan en polvo de luz (`engine/dissolve.py`), no se apagan.
+- Un solo efecto principal sobre la cara. Con él puede ir uno periférico (`rune_orbit`, `face_swirl`,
+  `face_sparkle_rain`, `face_emanate`, `head_echo`, `emotion_burst`, `shock_burst`, `skeleton_dance`,
+  `raven`, `fairies`); con uno que cubre toda la cara (máscaras, `blink_mask`, `face_mesh_live`,
+  `face_crystal`, disfraces de cara) no va nada (`engine/face_zone.py`).
+
+## Familia de ojos (engine/eye_family.py)
+
+Seis variantes que comparten el seguimiento del iris y del párpado, cuatro fases (entrada, activo,
+reacción, salida en polvo) y las señales de `engine/face_signals.py`. Cada aparición sortea una variante
+de la opción y sus perillas (intensidad, velocidad, densidad, estela, trazo, movimiento, paleta propia
+o del capítulo) con una semilla de la forma, la persona y el momento; `style.variants` las limita.
+
+| Forma | Qué dibuja | Cómo reacciona |
+| --- | --- | --- |
+| `eyes_fire` | Anillo ámbar en el iris y llamas finas que suben del párpado | Se encoge al cerrar los ojos, se aviva con la mirada fija, deja estela al girar, baja con la cara relajada |
+| `eyes_galaxy` | Iris de noche con estrellas que giran y una constelación en la sien | Las estrellas se corren hacia donde mira; el ojo que guiña suelta estrellas |
+| `eyes_storm` | Iris blanco y cian con arcos eléctricos hacia la sien | Más brillo y arcos más largos con el ceño; chispas al abrir los ojos |
+| `eyes_void` | Anillo violeta de borde brillante y volutas que se enroscan hacia el ojo | Crece con los ojos muy abiertos y se repliega al cerrarlos |
+| `eyes_feline` | Contorno del ojo, pupila vertical y bigotes de luz | La pupila se angosta con los ojos abiertos y sigue la mirada |
+| `eyes_scanner` | Retícula sobre el iris, barrido y líneas de datos en la sien | Un barrido nuevo en cada salto de la mirada; se enciende con la mirada fija |
+
+Opciones: `ojos_familia` (`look`, `spotlight`), `ojos_mirada` (`still`), `ojos_vacio` (`eyes_wide`),
+`ojos_tormenta` (`frown`), `ojos_escaner` (`gaze_shift`) y `ojos_galaxia` (`wink`). Solo el iris y el
+párpado se devuelven al motor, en orden fijo, para que la continuidad transforme ojo en ojo; lo de
+alrededor es línea fina.
 
 ## Halloween
 
