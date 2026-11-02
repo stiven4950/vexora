@@ -37,9 +37,10 @@ FACE_SHAPES = (
 # convivir uno periférico (lo que rodea la cabeza sin tapar ojos ni boca). Lo que cubre toda la cara
 # (alta) no admite nada al lado. Lo que no está en ninguna lista cuenta como "medium" (principal).
 PERIPHERAL = frozenset(
-    {"rune_orbit", "face_swirl", "face_sparkle_rain", "face_emanate", "head_echo", "emotion_burst", "shock_burst", "skeleton_dance", "raven", "fairies"}
+    {"rune_orbit", "face_swirl", "face_emanate", "head_echo", "emotion_burst", "shock_burst", "skeleton_dance", "raven", "fairies"}
 )
-LOW = frozenset({"brow_lines", "cheek_glow", "smile_sparks", "eye_sparks", "glint", "stars", "exclaim", "question"})
+# La lluvia de destellos cae sobre la cara (facil_1, fotograma 600: tapaba el ojo junto a Cleopatra).
+LOW = frozenset({"brow_lines", "cheek_glow", "smile_sparks", "eye_sparks", "glint", "stars", "exclaim", "question", "face_sparkle_rain"})
 HIGH = frozenset(HORROR_MASKS) | {"blink_mask", "face_mesh_live", "face_crystal", "caricature"} | set(FACE)
 RANK = {"peripheral": 0, "low": 1, "medium": 2, "high": 3}
 
