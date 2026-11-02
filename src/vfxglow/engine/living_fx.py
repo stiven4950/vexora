@@ -28,7 +28,8 @@ from vfxglow.analysis.expressions import gaze_vector
 from vfxglow.engine.cleopatra import cleopatra
 from vfxglow.engine.critters import _ease, _phase, _seg
 from vfxglow.engine.dissolve import disintegrate, fine, melt
-from vfxglow.engine.face_glow import _RUNES, WHITE, Face, _seed, steps
+from vfxglow.engine.face_glow import _RUNES, WHITE, Face, _seed
+from vfxglow.engine.face_signals import smooth as _smooth
 from vfxglow.engine.firebend import cel, living_ribbon, teardrop
 from vfxglow.engine.hologram import mini_me
 from vfxglow.engine.ice_eyes import ice_eyes
@@ -65,15 +66,6 @@ LASER_CHARGE = (0.3, 0.8)
 LASER_RELEASE = 0.75
 LASER_SWAY = 0.1
 LASER_SPARKS = 18
-
-
-def _smooth(runtime, key: str, value: float, rise: float = 0.35, fall: float = 0.12) -> float:
-    """Un valor que sube rápido y baja lento: la señal cruda tiembla."""
-    st = runtime.swoosh.setdefault("_living", {})
-    old = st.get(key, 0.0)
-    rate = 1.0 - (1.0 - (rise if value > old else fall)) ** steps(runtime)
-    st[key] = old + (value - old) * rate
-    return st[key]
 
 
 def _dragon(face: Face, u: float, frame_index: int, runtime, layer, alpha: float, event, rng) -> list:
