@@ -32,17 +32,23 @@ def _pixels(surface) -> np.ndarray:
     return surface.makeImageSnapshot().toarray(alphaType=skia.kPremul_AlphaType)
 
 
+def light_over(dst: np.ndarray, add: np.ndarray, weight: np.ndarray) -> None:
+    """Suma `add` (RGBA con A a 0) a `dst` y cubre su alfa con `weight`. Da lo mismo que operar con
+    `dst[..., :3] += ...`, pero recorrer los canales intercalados con NumPy cuesta unas 4 veces más."""
+    cv2.add(dst, add, dst=dst)
+    cv2.mixChannels([1.0 - (1.0 - cv2.extractChannel(dst, 3)) * (1.0 - weight)], [dst], [0, 3])
+
+
 def _stamp(layer: np.ndarray, rgba: np.ndarray, gain: float) -> None:
-    alpha = rgba[..., 3:4].astype(np.float32) / 255.0
-    rgb = rgba[..., :3].astype(np.float32) / 255.0
-    straight = np.divide(rgb, np.maximum(alpha, 1e-4))
+    red, green, blue, alpha = cv2.split(rgba.astype(np.float32) / 255.0)
+    keep = np.maximum(alpha, 1e-4)
+    straight = red / keep, green / keep, blue / keep
     # La ganancia HDR empuja el color; el blanco se queda cerca de 1 para que el núcleo de un
     # neón siga siendo una línea fina y el bloom no lo convierta en una mancha blanca.
-    peak = straight.max(axis=-1, keepdims=True)
-    saturation = (peak - straight.min(axis=-1, keepdims=True)) / np.maximum(peak, 1e-4)
-    energy = straight * (1.0 + np.float32(gain - 1.0) * saturation)
-    layer[..., :3] += energy * alpha
-    layer[..., 3] = 1.0 - (1.0 - layer[..., 3]) * (1.0 - alpha[..., 0])
+    peak = np.maximum(np.maximum(straight[0], straight[1]), straight[2])
+    low = np.minimum(np.minimum(straight[0], straight[1]), straight[2])
+    push = 1.0 + np.float32(gain - 1.0) * ((peak - low) / np.maximum(peak, 1e-4))
+    light_over(layer, cv2.merge((*[channel * push * alpha for channel in straight], np.zeros_like(alpha))), alpha)
 
 
 def _paint(color: np.ndarray | tuple[float, float, float], width: float, alpha: float, blur: float = 0.0):

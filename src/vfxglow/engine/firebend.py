@@ -37,7 +37,7 @@ import cv2
 import numpy as np
 
 from vfxglow.engine.critters import TAU, WHITE, _activation, _ease, _phase, _seg
-from vfxglow.engine.raster import fill_polygon, splat
+from vfxglow.engine.raster import fill_polygon, light_over, splat
 
 FIREBEND = ("fire_whip", "hand_fire", "candle", "floor_fire", "fire_ring", "avatar_mark", "body_blaze", "fire_wall", "fire_light", "fire_blast", "fire_carpet", "fire_halo", "fire_carpet_end", "fire_trail", "fire_landing", "fire_orbit")
 MID = np.array([1.0, 0.66, 0.1], np.float32)
@@ -48,14 +48,6 @@ CORE = np.array([1.0, 0.97, 0.78], np.float32)
 
 
 _WARM: dict[int, np.ndarray] = {}
-
-
-def _light_over(dst: np.ndarray, add: np.ndarray, weight: np.ndarray) -> None:
-    """Suma `add` (RGBA con A a 0) a `dst` y cubre su alfa con `weight`. Da lo mismo que operar con
-    `dst[..., :3] += ...`, pero recorrer los canales intercalados con NumPy cuesta unas 4 veces más,
-    y el fuego lo hace sobre casi todo el cuadro."""
-    cv2.add(dst, add, dst=dst)
-    cv2.mixChannels([1.0 - (1.0 - cv2.extractChannel(dst, 3)) * (1.0 - weight)], [dst], [0, 3])
 
 
 def warm(layer, center: np.ndarray, radius: float, color: np.ndarray, alpha: float) -> None:
@@ -80,7 +72,7 @@ def warm(layer, center: np.ndarray, radius: float, color: np.ndarray, alpha: flo
     dst = layer[y0 + sy0 : y0 + sy1, x0 + sx0 : x0 + sx1]
     weight = kernel[sy0:sy1, sx0:sx1] * np.float32(alpha)
     red, green, blue = np.asarray(color, np.float32)
-    _light_over(dst, cv2.merge((weight * red, weight * green, weight * blue, np.zeros_like(weight))), weight)
+    light_over(dst, cv2.merge((weight * red, weight * green, weight * blue, np.zeros_like(weight))), weight)
 
 
 # ----- cómo se pinta el fuego -----
@@ -425,7 +417,7 @@ def flush_fire(layer, frame_index: int, u: float | None = None, st: dict | None 
         near_glow, far_glow = near * 0.375, far * 0.3
         rgb = [(pal["body"][c] * m + pal["rim"][c] * band + pal["near"][c] * near_glow + pal["far"][c] * far_glow) * a for c in range(3)]
         cover = np.clip(m + band + near * 0.3 + far * 0.2, 0.0, 1.0)
-        _light_over(layer[y0:y1, x0:x1], cv2.merge((*rgb, np.zeros_like(m))), cover * a)
+        light_over(layer[y0:y1, x0:x1], cv2.merge((*rgb, np.zeros_like(m))), cover * a)
     else:
         if look == "hot":
             rgb = pal["body"] * m[..., None] + pal["rim"] * band[..., None] + pal["near"] * (near * 0.375)[..., None] + pal["far"] * (far * 0.3)[..., None]
