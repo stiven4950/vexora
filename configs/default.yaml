@@ -97,7 +97,7 @@ composite:
   codec: h264
   crf: 18
   soft_knee: 0.85
-  threads: 1             # hilos de composición en paralelo (1 = en el hilo principal)
+  threads: 4             # hilos que componen en paralelo; en video_51, 6 no mejora a 4 porque el motor marca el ritmo
   groups:                # capas RGBA activables sin volver a renderizar
     grade: true
     glow: true
