@@ -10,23 +10,26 @@ un video de referencia de cara con efectos glowing.
 | Evento | Qué detecta | Opciones del catálogo |
 | --- | --- | --- |
 | `entrance` | Al empezar el video | contorno, escaner |
-| `spotlight` | La cabeza es lo que más se mueve | delineado, geometria, malla, cristal, circuito, runas, aro_runas, eco_cabeza, escaner, llamas_ojos, gafas |
-| `still` | La persona está quieta | runas, circuito, cristal, delineado |
+| `look` | Lugar reservado cada ~8 s para un efecto largo | ojos_cleopatra, fantasma, ojos_hielo, mini_yo |
+| `ambient` | Cada ~3 s, irregular, además del efecto de la cara | portal_cabeza, agujeros_negros, cabello_energia, aro_cabeza, onda_prenda |
+| `spotlight` | La cabeza es lo que más se mueve | mini_yo, fantasma, ojos_hielo, ojos_cleopatra, delineado, geometria, malla, cristal, circuito, runas, aro_runas, eco_cabeza, escaner, llamas_ojos, gafas |
+| `still` | La persona está quieta | mini_yo, fantasma, ojos_hielo, ojos_cleopatra, runas, circuito, cristal, delineado |
 | `mouth_open` | Boca abierta un rato | carga_boca, aliento, nada |
-| `blink` | Parpadeo: los dos ojos se cierran poco tiempo | mascara, nada |
+| `blink` | Parpadeo: los dos ojos se cierran poco tiempo | ojos_hielo, mascara, nada |
 | `wink` | Un solo ojo cerrado (guiño) | destello, nada |
-| `eyes_wide` | Ojos muy abiertos | rayos_ojos, llamas_ojos, nada |
-| `smile` | Sonrisa, medida contra la mediana de la persona | destellos, mejillas, nada |
-| `brows_up` | Cejas arriba, medidas contra la mediana | arcos_cejas, signo, nada |
+| `eyes_wide` | Ojos muy abiertos | ojos_hielo, ojos_cleopatra, ojos_laser, rayos_ojos, llamas_ojos, nada |
+| `smile` | Sonrisa, medida contra la mediana de la persona | emocion, destellos, mejillas, nada |
+| `frown` | Ceño fruncido u ojos entrecerrados, sin sonreír | ojos_laser, emocion, nada |
+| `brows_up` | Cejas arriba, medidas contra la mediana | emocion, arcos_cejas, signo, nada |
 | `cheeks_puff` | Mejillas infladas | mejillas, nada |
-| `pucker` | Labios en beso | beso, nada |
-| `head_turn` | Giro rápido de la cabeza (al menos 25°) | eco_cabeza, aro_runas, nada |
+| `pucker` | Labios en beso | emocion, beso, nada |
+| `head_turn` | Giro rápido de la cabeza (al menos 25°) | fantasma, eco_cabeza, aro_runas, nada |
 | `head_tilt` | Cabeza inclinada hacia un hombro (al menos 15°, sostenida) | aro_runas, geometria, nada |
-| `paint_stroke` | Trazo de maquillaje nuevo: figura en detalle, zona de la cara en `kind` | figura_maquillaje, delineado |
+| `paint_stroke` | Trazo de maquillaje nuevo: figura en detalle, zona de la cara en `kind` | ojos_cleopatra, figura_maquillaje, delineado |
 | `tool_touch` | La punta del pincel deja pigmento | llama_pincel, nada |
 | `face_touch` | Mano en la cara | beso, asombro, nada |
-| `surprise` | Cara de impresión: cejas arriba con ojos muy abiertos o boca abierta | impresion_cara, impresion_rayos |
-| `gaze_shift` | La mirada salta a otro lado (izquierda, derecha, arriba, abajo) | rafaga_mirada, nada |
+| `surprise` | Cara de impresión: cejas arriba con ojos muy abiertos o boca abierta | emocion, impresion_cara, impresion_rayos |
+| `gaze_shift` | La mirada salta a otro lado (izquierda, derecha, arriba, abajo) | ojos_laser, rafaga_mirada, nada |
 | `cover_eyes` | Se tapa los ojos | antifaz, burla, nada |
 | `hands_on_head` | Manos en la cabeza | calavera, aro_runas, nada |
 | `hand_mouth` | Mano en la boca | cigarro, vapeador, botella, nada |

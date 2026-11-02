@@ -14,6 +14,10 @@ tags: [cara, rostro, maquillaje, retrato, selfie]
 seed: 17
 # Ningún tramo de más de 1,2 s sin efecto.
 max_gap_s: 2.0
+# Alrededor de la persona, cada ~3 s, además del efecto de la cara (ver la acción `ambient`).
+ambient_every_s: 3.0
+# Un efecto largo cada ~8 s (ver la acción `look`).
+look_every_s: 8.0
 chapters: true
 # Un dibujo nuevo, un color nuevo.
 color_per_effect: true
@@ -22,7 +26,7 @@ one_at_a_time: true
 # Orden de reparto con un efecto a la vez: primero lo que no cabe en cualquier lado (el rostro de
 # entrada y los efectos largos de las pausas), luego los gestos clave y al final la mirada, que es
 # corta y llena los huecos. Con la mirada antes, sus ráfagas no dejaban lugar a los largos.
-priority: [entrance, still, surprise, pucker, mouth_open, eyes_wide, speaking, gaze_shift, wink]
+priority: [entrance, still, surprise, frown, pucker, mouth_open, eyes_wide, speaking, gaze_shift, wink]
 defaults:
   type: adornment
   target: {kind: joint, id: body}
@@ -86,9 +90,118 @@ reactions:
     - type: adornment
       style: {shapes: [face_scan], thickness: 0.008, focus: false}
       trigger: {hold: 120, fade_in: 1, fade_out: 6}
+# Los efectos largos tienen su lugar reservado (`look_every_s`): con un efecto a la vez, los momentos
+# cortos no les dejaban espacio. Se quedan también en las pausas y gestos, si hay lugar.
+- action: look
+  options:
+  - name: ojos_cleopatra
+    weight: 1.0
+    cooldown: 0
+    effects:
+    - type: adornment
+      style: {shapes: [cleopatra_eyes], thickness: 0.008, focus: false, look: mix, fire_palette: dorado}
+      trigger: {hold: 126, fade_in: 1, fade_out: 3}
+  - name: fantasma
+    weight: 1.0
+    cooldown: 0
+    effects:
+    - type: adornment
+      style: {shapes: [behind_ghost], thickness: 0.008, focus: false}
+      render: {occlude: true}
+      trigger: {hold: 135, fade_in: 1, fade_out: 3}
+  - name: ojos_hielo
+    weight: 1.0
+    cooldown: 0
+    effects:
+    - type: adornment
+      style: {shapes: [ice_eyes], thickness: 0.008, focus: false}
+      trigger: {hold: 114, fade_in: 1, fade_out: 3}
+  - name: mini_yo
+    weight: 0.8
+    cooldown: 0
+    effects:
+    - type: adornment
+      style: {shapes: [mini_me], thickness: 0.008, focus: false}
+      trigger: {hold: 135, fade_in: 1, fade_out: 3}
+# Lo que llena el espacio alrededor de la persona (engine/ambient_fx.py): va fuera de la cara, así que
+# no cuenta para `one_at_a_time`. La onda en la prenda se vuelve un aro si no se ve ropa.
+- action: ambient
+  options:
+  - name: portal_cabeza
+    weight: 1.0
+    cooldown: 0
+    effects:
+    - type: adornment
+      style: {shapes: [head_portal], thickness: 0.008, focus: false}
+      render: {occlude: true}
+      trigger: {hold: 75, fade_in: 1, fade_out: 6}
+  - name: agujeros_negros
+    weight: 1.0
+    cooldown: 0
+    effects:
+    - type: adornment
+      style: {shapes: [black_holes], thickness: 0.008, focus: false}
+      render: {blend: over, occlude: true, motion_blur: 0.0, glow_layers: 1}
+      trigger: {hold: 84, fade_in: 1, fade_out: 4}
+  - name: cabello_energia
+    weight: 1.0
+    cooldown: 0
+    effects:
+    - type: adornment
+      style: {shapes: [hair_energy], thickness: 0.008, focus: false}
+      render: {occlude: true}
+      trigger: {hold: 72, fade_in: 1, fade_out: 4}
+  - name: aro_cabeza
+    weight: 0.6
+    cooldown: 0
+    effects:
+    - type: adornment
+      style: {shapes: [head_halo], thickness: 0.008, focus: false}
+      trigger: {hold: 60, fade_in: 1, fade_out: 4}
+  - name: onda_prenda
+    weight: 1.2
+    cooldown: 0
+    effects:
+    - type: adornment
+      style: {shapes: [garment_wave], thickness: 0.008, focus: false}
+      render: {blend: tint}
+      trigger: {hold: 54, fade_in: 2, fade_out: 6}
 # Lo que más se mueve es la cabeza, o la persona está quieta: dibujos sobre el rostro.
 - action: spotlight
   options:
+  # Asoma detrás del hombro; si la persona gira hacia él, reaparece del otro lado (engine/ambient_fx.py).
+  - name: fantasma
+    weight: 0.6
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [behind_ghost], thickness: 0.008, focus: false}
+      render: {occlude: true}
+      trigger: {hold: 135, fade_in: 1, fade_out: 3}
+  # Iris azul, grietas de luz y cristales al parpadear (engine/ice_eyes.py).
+  - name: ojos_hielo
+    weight: 0.7
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [ice_eyes], thickness: 0.008, focus: false}
+      trigger: {hold: 114, fade_in: 1, fade_out: 3}
+  # Maquillaje de oro y llamas que salen de los ojos (engine/cleopatra.py).
+  - name: ojos_cleopatra
+    weight: 0.7
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [cleopatra_eyes], thickness: 0.008, focus: false, look: mix, fire_palette: dorado}
+      trigger: {hold: 126, fade_in: 1, fade_out: 3}
+  # La copia diminuta que repite los gestos (engine/hologram.py).
+  - name: mini_yo
+    weight: 0.7
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [mini_me], thickness: 0.008, focus: false}
+      trigger: {hold: 135, fade_in: 1, fade_out: 3}
   # Partículas que salen del rostro o lo rodean: lo que más sale.
   - name: particulas_salen
     weight: 0.9
@@ -322,6 +435,39 @@ reactions:
 - action: still
   cooldown: 60
   options:
+  # Asoma detrás del hombro; si la persona gira hacia él, reaparece del otro lado (engine/ambient_fx.py).
+  - name: fantasma
+    weight: 0.8
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [behind_ghost], thickness: 0.008, focus: false}
+      render: {occlude: true}
+      trigger: {hold: 135, fade_in: 1, fade_out: 3}
+  # Iris azul, grietas de luz y cristales al parpadear (engine/ice_eyes.py).
+  - name: ojos_hielo
+    weight: 0.9
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [ice_eyes], thickness: 0.008, focus: false}
+      trigger: {hold: 114, fade_in: 1, fade_out: 3}
+  # Maquillaje de oro y llamas que salen de los ojos (engine/cleopatra.py).
+  - name: ojos_cleopatra
+    weight: 0.9
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [cleopatra_eyes], thickness: 0.008, focus: false, look: mix, fire_palette: dorado}
+      trigger: {hold: 126, fade_in: 1, fade_out: 3}
+  # La copia diminuta que repite los gestos (engine/hologram.py).
+  - name: mini_yo
+    weight: 1.0
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [mini_me], thickness: 0.008, focus: false}
+      trigger: {hold: 135, fade_in: 1, fade_out: 3}
   # Partículas que salen del rostro o lo rodean: lo que más sale.
   - name: particulas_salen
     weight: 0.8
@@ -529,6 +675,14 @@ reactions:
 # Parpadeo: por un instante, una máscara de neón (robot o calavera).
 - action: blink
   options:
+  # Iris azul, grietas de luz y cristales al parpadear (engine/ice_eyes.py).
+  - name: ojos_hielo
+    weight: 0.3
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [ice_eyes], thickness: 0.008, focus: false}
+      trigger: {hold: 114, fade_in: 1, fade_out: 3}
   - name: sellos_ojos
     weight: 0.3
     cooldown: 450
@@ -549,6 +703,14 @@ reactions:
 # Cara de impresión (cejas arriba con ojos o boca abiertos): ojos y boca de susto o líneas de impacto.
 - action: surprise
   options:
+  # Símbolos alrededor de la cabeza (engine/face_moods.py): corazones, estrellas o rayos según la cara.
+  - name: emocion
+    weight: 0.8
+    cooldown: 150
+    effects:
+    - type: adornment
+      style: {shapes: [emotion_burst], thickness: 0.008, focus: false}
+      trigger: {hold: 54, fade_in: 1, fade_out: 3}
   - name: impresion_cara
     weight: 0.7
     cooldown: 120
@@ -577,8 +739,36 @@ reactions:
     weight: 0.3
     effects: []
 # Cambio de mirada: los ojos disparan partículas hacia donde mira.
+# Ceño o ojos entrecerrados: carga y dispara, o suelta rayos alrededor de la cabeza.
+- action: frown
+  options:
+  # Los ojos se cargan y disparan (engine/living_fx.py).
+  - name: ojos_laser
+    weight: 1.0
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [laser_eyes], thickness: 0.008, focus: false}
+      trigger: {hold: 48, fade_in: 1, fade_out: 5}
+  # Símbolos alrededor de la cabeza (engine/face_moods.py): corazones, estrellas o rayos según la cara.
+  - name: emocion
+    weight: 0.7
+    cooldown: 150
+    effects:
+    - type: adornment
+      style: {shapes: [emotion_burst], thickness: 0.008, focus: false}
+      trigger: {hold: 54, fade_in: 1, fade_out: 3}
+  - name: nada
+    weight: 0.2
 - action: gaze_shift
   options:
+  - name: ojos_laser
+    weight: 0.35
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [laser_eyes], thickness: 0.008, focus: false}
+      trigger: {hold: 48, fade_in: 1, fade_out: 5}
   - name: rafaga_mirada
     weight: 0.85
     cooldown: 75
@@ -606,6 +796,30 @@ reactions:
 # Ojos muy abiertos: rayos o llamas que salen de los ojos.
 - action: eyes_wide
   options:
+  # Iris azul, grietas de luz y cristales al parpadear (engine/ice_eyes.py).
+  - name: ojos_hielo
+    weight: 0.7
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [ice_eyes], thickness: 0.008, focus: false}
+      trigger: {hold: 114, fade_in: 1, fade_out: 3}
+  # Maquillaje de oro y llamas que salen de los ojos (engine/cleopatra.py).
+  - name: ojos_cleopatra
+    weight: 0.7
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [cleopatra_eyes], thickness: 0.008, focus: false, look: mix, fire_palette: dorado}
+      trigger: {hold: 126, fade_in: 1, fade_out: 3}
+  # Los ojos se cargan y disparan (engine/living_fx.py).
+  - name: ojos_laser
+    weight: 0.5
+    cooldown: 240
+    effects:
+    - type: adornment
+      style: {shapes: [laser_eyes], thickness: 0.008, focus: false}
+      trigger: {hold: 48, fade_in: 1, fade_out: 5}
   # Partículas que salen del rostro o lo rodean: lo que más sale.
   - name: impresion_cara
     weight: 0.6
@@ -641,6 +855,14 @@ reactions:
 # Sonrisa: destellos que saltan de las mejillas o círculos de luz.
 - action: smile
   options:
+  # Símbolos alrededor de la cabeza (engine/face_moods.py): corazones, estrellas o rayos según la cara.
+  - name: emocion
+    weight: 0.9
+    cooldown: 150
+    effects:
+    - type: adornment
+      style: {shapes: [emotion_burst], thickness: 0.008, focus: false}
+      trigger: {hold: 54, fade_in: 1, fade_out: 3}
   # Partículas que salen del rostro o lo rodean: lo que más sale.
   - name: lluvia_destellos
     weight: 0.6
@@ -669,6 +891,13 @@ reactions:
 # Cejas arriba: arcos de sorpresa.
 - action: brows_up
   options:
+  - name: emocion
+    weight: 0.6
+    cooldown: 150
+    effects:
+    - type: adornment
+      style: {shapes: [emotion_burst], thickness: 0.008, focus: false}
+      trigger: {hold: 54, fade_in: 1, fade_out: 3}
   # Partículas que salen del rostro o lo rodean: lo que más sale.
   - name: particulas_salen
     weight: 0.5
@@ -731,6 +960,13 @@ reactions:
 # Labios en beso: lanza corazones y una marca de labios (engine/face_moods.py), o el beso de face_toon.
 - action: pucker
   options:
+  - name: emocion
+    weight: 0.6
+    cooldown: 150
+    effects:
+    - type: adornment
+      style: {shapes: [emotion_burst], thickness: 0.008, focus: false}
+      trigger: {hold: 54, fade_in: 1, fade_out: 3}
   - name: aliento_dragon
     weight: 0.4
     cooldown: 240
@@ -758,6 +994,15 @@ reactions:
 # Giro rápido de la cabeza: copias del contorno o el anillo de runas.
 - action: head_turn
   options:
+  # Asoma detrás del hombro; si la persona gira hacia él, reaparece del otro lado (engine/ambient_fx.py).
+  - name: fantasma
+    weight: 1.0
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [behind_ghost], thickness: 0.008, focus: false}
+      render: {occlude: true}
+      trigger: {hold: 135, fade_in: 1, fade_out: 3}
   - name: marioneta
     weight: 0.4
     cooldown: 600
@@ -827,6 +1072,14 @@ reactions:
 # Un trazo de maquillaje: su figura se traza, gira, se itera y queda como cristal.
 - action: paint_stroke
   options:
+  # Maquillaje de oro y llamas que salen de los ojos (engine/cleopatra.py).
+  - name: ojos_cleopatra
+    weight: 1.0
+    cooldown: 450
+    effects:
+    - type: adornment
+      style: {shapes: [cleopatra_eyes], thickness: 0.008, focus: false, look: mix, fire_palette: dorado}
+      trigger: {hold: 126, fade_in: 1, fade_out: 3}
   - name: figura_maquillaje
     weight: 0.7
     cooldown: 60

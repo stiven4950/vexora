@@ -15,7 +15,11 @@ serpientes, cachos, guadaña, esqueletos y hadas.
 
 - Solo efectos glowing: luz sobre la persona real; nada de deformar la cara, filtros de belleza ni
   caricaturas de cuerpo entero.
-- En `cara`, **un solo efecto a la vez** (`one_at_a_time: true` en el catálogo).
+- En `cara`, **un solo efecto a la vez sobre el rostro** (`one_at_a_time: true` en el catálogo). La
+  capa de ambiente va fuera de la cara y puede coincidir con él (acción `ambient`).
+- No buscar figuras sueltas en ropa u objetos para colorearlas: da formas al azar. Se trabaja con zonas
+  completas (ropa, pelo, fondo).
+- La ropa se ilumina de paso, sin rellenarla de color plano: la onda conserva el tejido.
 - Preferir **partículas que salen del rostro o lo rodean** (pesan más en el catálogo que los dibujos
   de líneas).
 - Con un **rostro especial** puesto (máscara de terror) no va nada más sobre la cara: la coreografía
@@ -47,11 +51,21 @@ serpientes, cachos, guadaña, esqueletos y hadas.
 | Eventos `surprise`, `speaking` y `gaze_shift` (la mirada usa las expresiones `eyeLook*`) | `analysis/expressions.py` |
 | Volumen por fotograma (`FrameRecord.voice`) | `analysis/voice.py` |
 | El cuervo: silueta que se transforma entre vuelo y posado, aterrizaje sobre el contorno del hombro | `engine/raven.py` |
-| Colores de las máscaras: `MASK_PALETTES`, se sortea una por aparición | `engine/horror_masks.py` |
+| Colores de las máscaras: `MASK_PALETTES` (cerca de la mitad, de un solo color: `MONO`), se sortea una por aparición | `engine/horror_masks.py` |
 | Efectos que responden por grados: aliento de dragón, pulso sónico, marioneta, cuervo, sellos en los ojos | `engine/living_fx.py` |
 | Señales por grados en el motor: `runtime.voice`, `runtime.head_pose`, `runtime.energy` (además de `runtime.expressions`) | `engine/bodyglow.py` |
 | Máscara viva `terror_<id>` (se ajusta por los ojos, grita con `jawOpen`, parpadea, luz que fluye, salida en figuras de Halloween) | `engine/horror_masks.py` |
 | Halloween: la máscara como momento de temporada | `configs/seasons.yaml` (halloween → moments), `director/seasons.py` |
+| Qué es cada píxel (fondo, pelo, piel, cara, prenda), solo si el guion lo pide; PNG por fotograma en `analysis/regions/` | `analysis/regions.py`, `Pipeline._engine` |
+| Ambiente alrededor de la persona: portal detrás de la cabeza, aro, onda en la prenda (sin prenda, un aro) | `engine/ambient_fx.py`, `ambient_every_s` en el catálogo, `ambient_events` en `director/choreography.py` |
+| Agujeros negros: `black_holes`, centro negro real (`blend: over`), en el fondo libre, se tragan polvo de luz | `engine/ambient_fx.py` |
+| Ojos de Cleopatra: delineado, ojo de Horus y diadema en oro; llamas desde el rabillo, que se contraen al parpadear | `engine/cleopatra.py` |
+| Fantasma: `behind_ghost`, asoma detrás del hombro y cambia de lado si la cabeza gira hacia él | `engine/ambient_fx.py` |
+| Cabello de energía: `hair_energy`, mechones desde el borde real del pelo que se atrasan al mover la cabeza | `engine/ambient_fx.py` |
+| Ojos de hielo: iris azul, grietas finas, escarcha y cristales al parpadear | `engine/ice_eyes.py` |
+| Mini yo: copia diminuta de la malla facial que repite los gestos | `engine/hologram.py` |
+| Ojos láser con carga: `laser_eyes` y el evento `frown` | `engine/living_fx.py`, `analysis/expressions.py` |
+| Símbolos por emoción alrededor de la cabeza (corazones, estrellas, rayos): `emotion_burst` | `engine/face_moods.py` |
 | Opciones de motor nuevas: `keep_on_cut` (sigue tras un corte de toma), `one_at_a_time` y `moment_scale` en el catálogo | `director/schema.py`, `director/choreography.py`, `engine/engine.py` |
 
 Video de prueba: `api_data/uploads/3c00dd033c/facil_1.mp4` (la API que corre el usuario mueve las
@@ -85,8 +99,36 @@ fotogramas 2 y 470.
 
 Un grito sin ceño ni ojos entrecerrados (fotogramas 214-219) no se distingue del asombro.
 
+## Efectos largos: lugar reservado
+
+Con `one_at_a_time`, los momentos cortos ocupaban todo y los efectos de 4-5 s no salían (fantasma, hielo,
+Cleopatra y mini yo: 0 de 40 semillas en `facial_3`). `look_every_s` reserva un lugar cada ~8 s, que se
+reparte antes que todo y busca el tramo con menos gestos clave. Para medir: contar opciones elegidas con 40 semillas sobre el brief.
+
+## Medición de la capa de ambiente (`facial_2`, `facial_3`)
+
+Antes casi todo iba sobre la piel. La diferencia entre render y original, aproximada:
+
+| Video | Fotogramas con efecto | Pantalla encendida | Hueco mayor |
+| --- | --- | --- | --- |
+| `facial_2` | de 76% a 80% | de 1,3% a 3,1% | de 1,9 s a 1,5 s |
+| `facial_3` | de 81% a 92% | de 1,5% a 5,9% | de 1,3 s a menos de 1 s |
+
+Lecciones de esos videos: el modelo parte una prenda entre "ropa" y "otros", deja manchas pegadas al
+pelo y toma por ropa el logo de TikTok (`clean_labels`). En un primer plano no hay prenda: la onda se
+vuelve un aro. Una mano rápida abre huecos en la máscara: la luz de la prenda se suaviza en el tiempo.
+
 ## Pendientes conocidos
 
+- Cleopatra salió de una descripción del trend, sin video: al llegar uno, calibrar forma y tiempos. Va
+  desde el rabillo y sigue la cabeza, no la mirada, porque la mirada salta entre cuadros.
+- Agujeros sobre la cara: descartados con centro negro (parecen lunares o heridas). Solo se probaría un
+  anillo de luz diminuto si los de alrededor convencen.
+- La máscara `espectro` es igual a la de Scream: no usarla como dibujo genérico. El fantasma tiene su
+  propia silueta.
+- La onda solo se probó con un suéter liso, no con ropa estampada.
+- Con la mano cerca de la cabeza el portal no reacciona todavía (idea original: ondas al acercarla).
+- El evento `frown` está calibrado con `expressions_1` y `facial_3`; `facial_2` no frunce el ceño.
 - Sin video de referencia de cara: tiempos y pesos calibrados a ojo sobre `facil_1`.
 - `facil_1` no tiene boca abierta ni ojos muy abiertos: para eso usar `expressions_1.mp4`.
 - Los análisis anteriores a octubre de 2026 no tienen malla facial (se borraba en `analysis/cast.py`)

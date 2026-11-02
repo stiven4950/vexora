@@ -169,6 +169,12 @@ class Catalog(_Strict):
     # Ningún tramo sin efecto: un hueco más largo que esto (s) se rellena con un efecto del foco de
     # ese momento (0 = no se rellena). Ver fill_gaps.
     max_gap_s: float = 0.0
+    # Cada cuánto (s) nace un evento `ambient` para los efectos que llenan el espacio alrededor de la
+    # persona (0 = nunca). Son de ambiente: no cuentan para `one_at_a_time` ni para los huecos.
+    ambient_every_s: float = 0.0
+    # Cada cuánto (s) se reserva un lugar para un efecto largo (`look`). Con `one_at_a_time` los
+    # momentos cortos llenaban todo y un efecto de 4-5 s no salía nunca (facial_3: 0 de 40 semillas).
+    look_every_s: float = 0.0
     # Acciones que se reparten primero los lugares (antes que el resto, en todo el video), sin
     # saltarse el tope de focos: en avatar, los golpes y saltos ganan a las pisadas.
     priority: list[str] = Field(default_factory=list)
@@ -293,6 +299,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
         MotionEvent(name="beat", target="music", start_frame=int(f), end_frame=int(f), confidence=1.0, detail="Golpe de la música.")
         for f in brief.audio_onsets
     ]
+    extra += ambient_events(catalog, brief, seed, fps)
+    extra += look_events(catalog, brief, seed, fps)
     events += extra
     if catalog.attention and brief.attention:
         # Lo que se enciende por "la parte que más se mueve" sale de la línea de atención, para
@@ -338,9 +346,10 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
             forced[(id(event), id(reaction))] = (option, pin)
             pinned.append((event, reaction))
     passes = [
+        [(e, r) for r in catalog.reactions if r.action == "look" for e in events if e.name == r.action],  # el lugar reservado va primero
         [(e, r) for r in catalog.reactions if r.action in KEY_ACTIONS for e in events if e.name == r.action],
-        [(e, r) for r in catalog.reactions if r.action not in KEY_ACTIONS and r.action in catalog.priority for e in events if e.name == r.action],
-        [(e, r) for r in catalog.reactions if r.action not in KEY_ACTIONS and r.action not in catalog.priority for e in events if e.name == r.action],
+        [(e, r) for r in catalog.reactions if r.action != "look" and r.action not in KEY_ACTIONS and r.action in catalog.priority for e in events if e.name == r.action],
+        [(e, r) for r in catalog.reactions if r.action != "look" and r.action not in KEY_ACTIONS and r.action not in catalog.priority for e in events if e.name == r.action],
     ]
     if pins is not None:
         rest = [] if pins.solo_estos else [[pair for pair in pairs if (id(pair[0]), id(pair[1])) not in forced] for pairs in passes]
@@ -1190,7 +1199,15 @@ MIRROR_ALWAYS = (*TURN_ACTIONS, "entrance")
 SCENE_TYPES = ("disco_fx", "mirror_ball", "equalizer", "beat_pulse", "closing_stars", "season_fx")
 KEY_ACTIONS = ("face_touch", "throw", "neck_slash", "prop_transfer", "prop_spin", "prop_worn")
 CANDIDATES = 8
-AMBIENT_ACTIONS = ("beat",)
+AMBIENT_ACTIONS = ("beat", "ambient")
+# Primer momento de ambiente y hasta cuánto antes del final pueden empezar (s).
+AMBIENT_FIRST_S = 0.8
+AMBIENT_TAIL_S = 2.5
+AMBIENT_GAP_S = 0.3
+# Primer lugar para un efecto largo (tras la entrada), cuánto puede correrse y final libre (s).
+LOOK_FIRST_S = 3.2
+LOOK_SHIFT_S = 2.0
+LOOK_TAIL_S = 0.8
 # Más efectos por segundo que esto satura la escena.
 MAX_DENSITY = 1.2
 MAX_TOGETHER = 3
@@ -1341,6 +1358,54 @@ def _draw(reaction: Reaction, event: MotionEvent, seed: int, resting: set[str] =
 
 
 RESTLESS = ("jump", "flip", "tumble", "frenzy", "spin_body", "landing")
+
+
+def ambient_events(catalog: Catalog, brief: MotionBrief, seed: int, fps: float) -> list[MotionEvent]:
+    """Los momentos de ambiente del video, a intervalos irregulares: con uno fijo se nota el metrónomo.
+    Empiezan tras la entrada y paran antes del cierre, que apaga todo."""
+    if catalog.ambient_every_s <= 0:
+        return []
+    rng = np.random.default_rng(zlib.crc32(f"{seed}:ambient:{brief.video.frame_count}".encode()) & 0xFFFFFFFF)
+    every = catalog.ambient_every_s * fps
+    # Nunca dos a la vez: el siguiente nace cuando el más largo ya terminó.
+    reaction = next((r for r in catalog.reactions if r.action == "ambient"), None)
+    longest = max((_window(o, MotionEvent(name="ambient", target="", start_frame=0, end_frame=0, confidence=1.0))[1] for o in reaction.options), default=0) if reaction else 0
+    room = longest + int(round(AMBIENT_GAP_S * fps))
+    last = brief.video.frame_count - int(round(AMBIENT_TAIL_S * fps))
+    out: list[MotionEvent] = []
+    at = int(round(AMBIENT_FIRST_S * fps))
+    while at < last:
+        out.append(MotionEvent(name="ambient", target=brief.person_id, start_frame=at, end_frame=at, confidence=1.0, detail="Ambiente alrededor de la persona."))
+        at += max(int(round(every * rng.uniform(0.75, 1.25))), room)
+    return out
+
+
+def look_events(catalog: Catalog, brief: MotionBrief, seed: int, fps: float) -> list[MotionEvent]:
+    """Los lugares para efectos largos, tras la entrada y antes del cierre. Se reparten antes que todo;
+    cada uno busca, en un margen corto, el tramo que menos gestos clave (`KEY_ACTIONS`) le quite: en un
+    video lleno de manos en la cara (facial_3) no hay ningún tramo libre de 4 s."""
+    if catalog.look_every_s <= 0:
+        return []
+    reaction = next((r for r in catalog.reactions if r.action == "look"), None)
+    if reaction is None:
+        return []
+    probe = MotionEvent(name="look", target="", start_frame=0, end_frame=0, confidence=1.0)
+    length = max((_window(o, probe)[1] for o in reaction.options), default=0)
+    keys = [(e.start_frame, e.end_frame) for e in brief.events if e.name in KEY_ACTIONS]
+    rng = np.random.default_rng(zlib.crc32(f"{seed}:look:{brief.video.frame_count}".encode()) & 0xFFFFFFFF)
+    last = brief.video.frame_count - length - int(round(LOOK_TAIL_S * fps))
+    step, reach = max(int(round(0.2 * fps)), 1), int(round(LOOK_SHIFT_S * fps))
+
+    def cost(start: int) -> int:
+        return sum(1 for a, b in keys if a <= start + length and start <= b)
+
+    out: list[MotionEvent] = []
+    at = int(round(LOOK_FIRST_S * fps))
+    while at <= last:
+        best = min(range(at, min(at + reach, last) + 1, step), key=lambda start: (cost(start), start))
+        out.append(MotionEvent(name="look", target=brief.person_id, start_frame=best, end_frame=best, confidence=1.0, detail="Lugar para un efecto largo."))
+        at = best + max(int(round(catalog.look_every_s * fps * rng.uniform(0.8, 1.2))), length)
+    return out
 
 
 def ends_still(events: list[MotionEvent], frame_count: int, fps: float, seconds: float) -> bool:
