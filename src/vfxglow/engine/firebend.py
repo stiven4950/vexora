@@ -113,6 +113,14 @@ PALETTES: dict[str, dict] = {
         "light": np.array([1.6, 0.74, 0.32]), "tint": np.array([1.0, 0.5, 0.26]),
         "embers": [[1.0, 0.88, 0.45], [1.0, 0.6, 0.1], [1.0, 0.4, 0.04], [0.8, 0.15, 0.02]],
     },
+    # El de Cleopatra: naranja dorado; el plano de "naranja" es amarillo limón.
+    "dorado": {
+        "body": np.array([1.0, 0.86, 0.5]) * 1.35, "rim": np.array([1.0, 0.6, 0.1]) * 1.6,
+        "near": np.array([1.0, 0.38, 0.03]), "far": np.array([0.9, 0.18, 0.0]),
+        "flat": np.array([1.0, 0.56, 0.05]), "mid": np.array([1.0, 0.3, 0.02]), "glow": np.array([1.0, 0.25, 0.0]),
+        "light": np.array([1.5, 0.74, 0.3]), "tint": np.array([1.0, 0.55, 0.22]),
+        "embers": [[1.0, 0.85, 0.4], [1.0, 0.55, 0.1], [1.0, 0.32, 0.03], [0.8, 0.14, 0.02]],
+    },
     "azul": {
         "body": np.array([0.82, 0.93, 1.0]) * 1.35, "rim": np.array([0.35, 0.72, 1.0]) * 1.6,
         "near": np.array([0.1, 0.42, 1.0]), "far": np.array([0.0, 0.16, 0.95]),

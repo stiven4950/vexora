@@ -11,6 +11,11 @@ dónde mira, y cambian con eso: si la persona hace más, el efecto hace más.
   Vibran con la velocidad de cada punto y la cruceta sigue a la cabeza con retraso. Al final se
   rompen uno por uno.
 - raven: el cuervo que aterriza en el hombro (engine/raven.py).
+- laser_eyes: dos núcleos se cargan en los ojos mientras la persona los entrecierra; al abrirlos (o al
+  llenarse la carga) disparan dos rayos hacia donde mira, que estallan en el borde del cuadro.
+- cleopatra_eyes: maquillaje de oro y llamas que salen de los ojos (engine/cleopatra.py).
+- ice_eyes: iris azul, grietas de luz, escarcha y cristales al parpadear (engine/ice_eyes.py).
+- mini_me: la copia diminuta de la cara que flota al lado (engine/hologram.py).
 - eye_curse: sellos diminutos alrededor de los ojos que se corren con la mirada, se apagan al cerrar
   los ojos y sueltan una onda al abrirlos.
 """
@@ -20,16 +25,19 @@ from __future__ import annotations
 import numpy as np
 
 from vfxglow.analysis.expressions import gaze_vector
+from vfxglow.engine.cleopatra import cleopatra
 from vfxglow.engine.critters import _ease, _phase, _seg
 from vfxglow.engine.dissolve import disintegrate, fine, melt
 from vfxglow.engine.face_glow import _RUNES, WHITE, Face, _seed, steps
 from vfxglow.engine.firebend import cel, living_ribbon, teardrop
+from vfxglow.engine.hologram import mini_me
+from vfxglow.engine.ice_eyes import ice_eyes
 from vfxglow.engine.raster import splat
 from vfxglow.engine.raven import raven
 
 TAU = 2.0 * np.pi
-LIVING = ("dragon_breath", "sonic_pulse", "puppet_strings", "raven", "eye_curse")
-ON_THE_FACE = ("dragon_breath", "sonic_pulse", "eye_curse")
+LIVING = ("dragon_breath", "sonic_pulse", "puppet_strings", "raven", "eye_curse", "laser_eyes", "mini_me", "cleopatra_eyes", "ice_eyes")
+ON_THE_FACE = ("dragon_breath", "sonic_pulse", "eye_curse", "laser_eyes", "cleopatra_eyes", "ice_eyes")
 FIRE = np.array([1.0, 0.45, 0.1], np.float32)
 FLAME_HOT = np.array([1.0, 0.8, 0.2], np.float32)
 FLAME_COOL = np.array([1.0, 0.12, 0.03], np.float32)
@@ -52,6 +60,11 @@ STRING_SHAKE = 0.5
 STRING_DAMP = 0.86
 # Lo que queda más cerca que esto del centro de la cabeza no lleva hilo.
 STRING_CLEAR = 1.2
+# Láser: carga mínima y máxima (s), caída de los ojos entrecerrados que dispara y cuánto gira el rayo.
+LASER_CHARGE = (0.3, 0.8)
+LASER_RELEASE = 0.75
+LASER_SWAY = 0.1
+LASER_SPARKS = 18
 
 
 def _smooth(runtime, key: str, value: float, rise: float = 0.35, fall: float = 0.12) -> float:
@@ -206,6 +219,61 @@ def _puppet(face: Face, body, u: float, frame_index: int, runtime, layer, color,
             splat(layer, float(at[0]), float(at[1]), 0.05 * face.unit + 0.5, tint, alpha * 0.8, runtime.kernels)
 
 
+def _laser(face: Face, u: float, frame_index: int, runtime, layer, color, alpha: float, event, rng) -> list:
+    e = getattr(runtime, "expressions", {}) or {}
+    height, width = layer.shape[:2]
+    tint = np.asarray(color, np.float32)
+    st = runtime.swoosh.setdefault(f"_laser:{event.start_frame if event else 0}", {"peak": 0.0, "shot": None})
+    squint = (float(e.get("eyeSquintLeft", 0.0)) + float(e.get("eyeSquintRight", 0.0))) / 2.0
+    st["peak"] = max(st["peak"], squint)
+    held = runtime.active_frames / (getattr(runtime, "fps", 30.0) or 30.0)
+    if st["shot"] is None and (held >= LASER_CHARGE[1] or (held >= LASER_CHARGE[0] and squint < st["peak"] * LASER_RELEASE)):
+        st["shot"] = frame_index
+    eyes = [face.at(f"{side}_iris", (0.5 * sign, 0.0)) for side, sign in (("right", -1.0), ("left", 1.0)) if face.visible(side)]
+    if st["shot"] is None:  # la carga: chispas que caen al ojo y un núcleo que crece
+        power = min(held / LASER_CHARGE[1], 1.0)
+        for eye in eyes:
+            for k in range(8):
+                a = rng.uniform(0, TAU)
+                at = eye + np.array([np.cos(a), np.sin(a)]) * (1.0 - power) * rng.uniform(0.5, 1.1) * face.unit
+                splat(layer, float(at[0]), float(at[1]), 0.02 * face.unit + 0.6, tint, alpha, runtime.kernels)
+            splat(layer, float(eye[0]), float(eye[1]), (0.03 + 0.09 * power) * face.unit, WHITE, alpha * (0.5 + 0.5 * power), runtime.kernels)
+        return []
+    gx = gaze_vector(e)[0]
+    yaw = (getattr(runtime, "head_pose", None) or (0.0,))[0]
+    lean = float(np.clip(yaw / 25.0 + gx, -1.0, 1.0))
+    across, down = face.ux / face.unit, face.uy / face.unit
+    if "side" not in st:
+        st["side"] = float(np.sign(lean)) if abs(lean) > 0.15 else (1.0 if rng.uniform() < 0.5 else -1.0)
+    aim = across * st["side"] * (0.8 + 0.2 * abs(lean)) + down * 0.32
+    old = st.get("aim")
+    st["aim"] = aim if old is None else old + (aim - old) * LASER_SWAY
+    aim = st["aim"] / max(float(np.linalg.norm(st["aim"])), 1e-6)
+    side = np.array([-aim[1], aim[0]])
+    reach = _seg(frame_index - st["shot"], 0.0, 3.0) * float(np.hypot(height, width))
+    q = np.linspace(0.0, 1.0, 30)
+    out: list = []
+    for k, eye in enumerate(eyes):
+        wobble = np.sin(q * 18.0 - frame_index * 0.9 + k) * 0.015 * face.unit * (0.3 + q)
+        out.append((eye + np.outer(q * reach, aim) + np.outer(wobble, side), tint))
+        out.append((eye + np.outer(q * reach, aim) - np.outer(wobble, side), WHITE))
+        splat(layer, float(eye[0]), float(eye[1]), 0.16 * face.unit, tint, alpha, runtime.kernels)
+        hit = _edge_hit(eye, aim, width, height)
+        if reach >= float(np.linalg.norm(hit - eye)):  # el rayo estalla donde llega al borde
+            for _ in range(LASER_SPARKS):
+                a = rng.uniform(0, TAU)
+                at = hit + np.array([np.cos(a), np.sin(a)]) * rng.uniform(0.05, 0.75) * face.unit
+                splat(layer, float(at[0]), float(at[1]), 0.03 * face.unit + 0.8, tint, alpha * rng.uniform(0.3, 1.0), runtime.kernels)
+    return out
+
+
+def _edge_hit(start: np.ndarray, aim: np.ndarray, width: int, height: int) -> np.ndarray:
+    """Dónde sale del cuadro un rayo que nace en `start`."""
+    limits = [((width if d > 0 else 0.0) - s) / d for s, d in ((start[0], aim[0]), (start[1], aim[1])) if abs(d) > 1e-6]
+    ahead = [t for t in limits if t > 0.0]
+    return start + aim * (min(ahead) if ahead else 0.0)
+
+
 def _eye_curse(face: Face, u: float, frame_index: int, runtime, layer, color, alpha: float, seed: int) -> list:
     e = getattr(runtime, "expressions", {}) or {}
     tint = np.asarray(color, np.float32)
@@ -248,6 +316,14 @@ def living_fx(shape, body, frame, scale, frame_index, runtime, layer, color, alp
         return []
     if shape == "raven":
         return raven(face, body, scale, u, frame_index, runtime, layer, alpha, seed)
+    if shape == "laser_eyes":
+        return _laser(face, u, frame_index, runtime, layer, color, alpha, event, np.random.default_rng([seed, frame_index]))
+    if shape == "cleopatra_eyes":
+        return cleopatra(face, u, frame_index, runtime, layer, alpha, seed, event)
+    if shape == "ice_eyes":
+        return ice_eyes(face, u, frame_index, runtime, layer, alpha, seed, event)
+    if shape == "mini_me":
+        return mini_me(face, u, frame_index, runtime, layer, color, alpha, seed)
     if shape == "sonic_pulse":
         return _sonic(face, frame_index, runtime, layer, color, alpha, event)
     return melt(_eye_curse(face, u, frame_index, runtime, layer, color, alpha, seed), u, face, layer, color, alpha, runtime.kernels, seed)

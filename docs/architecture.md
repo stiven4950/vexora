@@ -95,7 +95,7 @@ El raster no es el origen de la calidad. Lo es el buffer lineal de energía.
 - Persistencia: `layer + persist * decay` para la cola luminosa.
 - Trazos en Skia. `line boil` (`style.boil_frames`) redibuja el trazo cada N fotogramas. El bloom multicapa ocurre al componer, por grupo (`grade`, `glow`, `particles`, `interaction`, `lightning`). `grade` se multiplica sobre el plano antes del glow.
 
-El motor no abre el video. Lee tracks, el guion y el tamaño del cuadro. `render.occlude` recorta la capa con la máscara de persona erosionada, para que el fuego pueda quedar detrás del torso.
+El motor no abre el video. Lee tracks, el guion y el tamaño del cuadro. `render.occlude` recorta la capa con la máscara de persona erosionada, para que el fuego pueda quedar detrás del torso; sin máscara de SAM usa la persona de `analysis/regions.py`, con el borde suave. Esas etiquetas son la única excepción al "no abre el video": `Pipeline._engine` las calcula antes de renderizar si el guion las pide.
 
 ## Refinador
 

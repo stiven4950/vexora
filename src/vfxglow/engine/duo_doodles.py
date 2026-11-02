@@ -57,6 +57,7 @@ from vfxglow.engine.arm_fx import ARM_FX, arm_fx
 from vfxglow.engine.morph_fx import MORPH_FX, morph_fx
 from vfxglow.engine.face_glow import FACE_GLOW, face_glow, paced
 from vfxglow.engine.face_creatures import CREATURES, face_creature
+from vfxglow.engine.ambient_fx import AMBIENT, ambient_fx
 from vfxglow.engine.face_moods import MOODS, face_mood
 from vfxglow.engine.face_wounds import WOUNDS, face_wound
 from vfxglow.engine.head_beasts import BEASTS, head_beast
@@ -75,9 +76,9 @@ DOODLES = (
     "shoulder_bolts", "head_bolts", "hand_ring", "moon", "chest_burst", "body_bolts", "foot_spark",
     "floor_arc", "leg_line", "leg_string", "side_edges", "shoulder_arcs", "heart_eyes", "spin_arcs", "glow_eyes",
     "foot_ring", "foot_bolts",
-) + DUO_FX + COSTUMES + SHOES + DRESSES + CRITTERS + STORIES + GUNS + FISTS + HAND_PROPS + ENERGY_PASS + COUNTING + SOLO_FX + ARM_FX + MORPH_FX + FACE_GLOW + HORROR_MASKS + CREATURES + WOUNDS + MOODS + BEASTS + LIVING + FIREBEND + FIRE_CREATURES + WATERBEND + AIRBEND + EARTHBEND + CHARACTERS
+) + DUO_FX + COSTUMES + SHOES + DRESSES + CRITTERS + STORIES + GUNS + FISTS + HAND_PROPS + ENERGY_PASS + COUNTING + SOLO_FX + ARM_FX + MORPH_FX + FACE_GLOW + HORROR_MASKS + CREATURES + WOUNDS + MOODS + BEASTS + LIVING + AMBIENT + FIREBEND + FIRE_CREATURES + WATERBEND + AIRBEND + EARTHBEND + CHARACTERS
 WHITE = np.array([1.0, 1.0, 1.0], np.float32)
-PACED = frozenset(FACE_GLOW + HORROR_MASKS + CREATURES + WOUNDS + MOODS + BEASTS + LIVING)
+PACED = frozenset(FACE_GLOW + HORROR_MASKS + CREATURES + WOUNDS + MOODS + BEASTS + LIVING + AMBIENT)
 
 
 def _ellipse(center, rx, ry, across, up, a0=0.0, a1=TAU, n=40) -> np.ndarray:
@@ -206,6 +207,8 @@ def doodle(shape, body, frame, scale, frame_index, seed, runtime, layer, color, 
         return face_mood(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape in LIVING:
         return living_fx(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape in AMBIENT:
+        return ambient_fx(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape in BEASTS:
         return head_beast(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape in FIREBEND:

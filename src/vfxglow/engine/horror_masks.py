@@ -14,8 +14,9 @@ color, en coordenadas de cara (ojos en x = ±0,5, y hacia el mentón). La forma 
   de luz y figuritas (engine/dissolve.py) que se expanden lejos de la cara.
 - Ya armada, la figura queda quieta y la luz corre por dentro de cada línea, como agua por una
   zanja: un tramo brillante recorre cada trazo y suelta chispas por delante.
-- El color se sortea en cada aparición entre varias paletas (MASK_PALETTES), con un degradado de lado a
-  lado y un acento en ojos y boca; una de ellas es la del dibujo original.
+- El color se sortea en cada aparición entre varias paletas (MASK_PALETTES): de un solo color (solo
+  rojo, solo blanco), o con un degradado de lado a lado y un acento en ojos y boca; una de ellas es la
+  del dibujo original.
 """
 
 from __future__ import annotations
@@ -45,6 +46,18 @@ DISSOLVE = 0.88
 MOUTH_CLOSED = 0.8
 MOUTH_OPEN_GAIN = 0.7
 FIT_MIN, FIT_MAX = 0.8, 1.3
+# Un solo color en toda la máscara: sale cerca de la mitad de las veces (ver MASK_PALETTES).
+MONO = (
+    (1.0, 0.04, 0.06),  # rojo
+    (1.0, 1.0, 1.0),  # blanco
+    (0.1, 0.35, 1.0),  # azul
+    (0.15, 1.0, 0.25),  # verde
+    (0.42, 0.12, 1.0),  # violeta
+    (1.0, 0.1, 0.6),  # rosa
+    (1.0, 0.42, 0.02),  # naranja
+    (1.0, 0.9, 0.1),  # amarillo
+    (0.1, 0.95, 1.0),  # cian
+)
 # Paletas de la máscara: (izquierda, derecha, acento de ojos y boca). None: los colores del dibujo.
 MASK_PALETTES = (
     None,
@@ -55,6 +68,9 @@ MASK_PALETTES = (
     ((0.65, 0.2, 1.0), (1.0, 0.25, 0.7), (0.3, 1.0, 0.85)),  # veneno
     ((1.0, 0.4, 0.0), (0.55, 0.15, 1.0), (0.4, 1.0, 0.2)),  # Halloween
     ((0.8, 0.95, 1.0), (0.3, 0.7, 1.0), (1.0, 0.15, 0.2)),  # hielo
+    ((0.1, 0.9, 1.0), (1.0, 0.2, 0.75), (1.0, 1.0, 1.0)),  # cian y rosa
+    ((1.0, 0.1, 0.1), (0.2, 0.3, 1.0), (1.0, 1.0, 1.0)),  # rojo y azul
+    *(((c, c, c)) for c in MONO),
 )
 FEATURE_ROLES = ("eye_right", "eye_left", "nose", "mouth")
 

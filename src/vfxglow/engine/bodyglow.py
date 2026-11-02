@@ -679,7 +679,7 @@ def draw_adornment(runtime, track, points, frame_index: int, height: int, envelo
     from vfxglow.engine.earthbend import EARTHBEND
     from vfxglow.engine.waterbend import WATERBEND
 
-    if shape in FIREBEND or shape == "dragon_breath" or shape in FIRE_CREATURES or shape in WATERBEND or shape in AIRBEND or shape in EARTHBEND:
+    if shape in FIREBEND or shape in ("dragon_breath", "cleopatra_eyes") or shape in FIRE_CREATURES or shape in WATERBEND or shape in AIRBEND or shape in EARTHBEND:
         # El fuego nace creciendo en forma y opaco: con el fundido quedaba gris y transparente
         # los primeros cuadros (piezas grises a 6,3 s en marcial_arts).
         grow = 1.0

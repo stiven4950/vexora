@@ -112,12 +112,24 @@ def test_the_choreography_rejects_face_effects_during_a_special_face() -> None:
     pytest.fail("la máscara no salió en ninguna semilla")
 
 
+def test_a_mask_can_come_out_in_a_single_color() -> None:
+    from vfxglow.engine.horror_masks import MONO, _colored
+
+    mask = load_mask("pennywise")
+    single = set()
+    for seed in range(400):
+        colors = {tuple(np.round(s["color"], 2).tolist()) for s in _colored(mask, seed)}
+        if len(colors) == 1:
+            single |= colors
+    assert single == {tuple(np.round(np.asarray(c, np.float32), 2).tolist()) for c in MONO}
+
+
 def test_each_appearance_can_have_another_color_and_the_mask_stays_intact() -> None:
     from vfxglow.engine.horror_masks import MASK_PALETTES, _colored
 
     mask = load_mask("pennywise")
     before = mask["strokes"][0]["color"].copy()
-    seen = {tuple(np.round(_colored(mask, seed)[0]["color"], 2).tolist()) for seed in range(60)}
+    seen = {tuple(np.round(_colored(mask, seed)[0]["color"], 2).tolist()) for seed in range(400)}
     assert len(seen) >= len(MASK_PALETTES) - 1
     assert np.array_equal(mask["strokes"][0]["color"], before)
 

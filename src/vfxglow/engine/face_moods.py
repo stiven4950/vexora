@@ -8,6 +8,9 @@
 - gaze_burst: al cambiar la mirada, los ojos disparan partículas hacia donde mira (`gaze_shift`). Es
   una ráfaga de verdad: cada partícula sale del ojo en el cuadro en que nace, sigue su camino y se
   frena, aunque la cabeza siga moviéndose.
+- emotion_burst: la expresión suelta símbolos alrededor de la cabeza, nunca sobre la cara: corazones
+  con la sonrisa o el beso, estrellas con la sorpresa o las cejas y rayos con el ceño. Saltan, crecen y se apagan uno tras
+  otro. La tristeza no se detecta bien: no tiene símbolo.
 """
 
 from __future__ import annotations
@@ -22,7 +25,7 @@ from vfxglow.engine.raster import fill_polygon, splat
 from vfxglow.engine.season import _heart, _star
 
 TAU = 2.0 * np.pi
-MOODS = ("kiss_blow", "shock_face", "shock_burst", "gaze_burst")
+MOODS = ("kiss_blow", "shock_face", "shock_burst", "gaze_burst", "emotion_burst")
 HEARTS = 9
 # Ojos abiertos que ya cuentan como máximo: en caras reales el valor casi nunca pasa de 0,3.
 WIDE_FULL = 0.25
@@ -37,6 +40,53 @@ GAZE_DRAG = 0.93
 GAZE_LIFE = (14, 28)
 # Para fiarse de la mirada del momento y no del evento.
 GAZE_MIN = 0.12
+# Símbolos de la emoción: cuántos, a qué distancia de la cabeza (unidades de cara) y sus colores.
+EMOTION_COUNT = 9
+EMOTION_RING = (1.65, 2.5)
+EMOTION_OF = {"smile": "heart", "pucker": "heart", "surprise": "star", "brows_up": "star", "eyes_wide": "star", "frown": "bolt"}
+EMOTION_TINTS = {
+    "heart": np.array([1.0, 0.35, 0.65], np.float32),
+    "star": np.array([1.0, 0.85, 0.2], np.float32),
+    "bolt": np.array([1.0, 0.18, 0.08], np.float32),
+}
+
+
+def _bolt(center: np.ndarray, size: float, turn: float) -> np.ndarray:
+    points = np.array([(0.25, -1.0), (-0.3, -0.05), (0.15, -0.05), (-0.25, 1.0)], dtype=np.float64)
+    c, s = np.cos(turn), np.sin(turn)
+    return center + (points * size) @ np.array([[c, s], [-s, c]])
+
+
+def _emotion(face: Face, u: float, frame_index: int, layer, alpha: float, event, seed: int, kernels: dict) -> list:
+    height, width = layer.shape[:2]
+    kind = EMOTION_OF.get(event.name if event is not None else "", "heart")
+    tint = EMOTION_TINTS[kind]
+    rng = np.random.default_rng(seed)
+    center = face.place([(0.0, 0.2)])[0]
+    out: list = []
+    # Abanico por arriba y los lados: abajo está el cuello y lo que tape la mano.
+    angles = np.radians(np.linspace(-205.0, 25.0, EMOTION_COUNT)) + rng.uniform(-0.12, 0.12, EMOTION_COUNT)
+    for turn, k in enumerate(rng.permutation(EMOTION_COUNT)):
+        begin = 0.5 * turn / EMOTION_COUNT
+        p = _seg(u, begin, begin + 0.5)
+        if p <= 0.0 or p >= 1.0:
+            continue
+        pop = 1.0 + 0.45 * float(np.sin(min(p / 0.22, 1.0) * np.pi))
+        grow = _ease(_seg(p, 0.0, 0.14)) * (1.0 - _ease(_seg(p, 0.72, 1.0)))
+        radius = (EMOTION_RING[0] + (EMOTION_RING[1] - EMOTION_RING[0]) * _ease(p)) * face.unit
+        at = center + np.array([np.cos(angles[k]) * radius, np.sin(angles[k]) * radius * 1.15])
+        at = np.clip(at, 0.05 * np.array([width, height]), 0.95 * np.array([width, height]))
+        size = 0.3 * face.unit * pop * grow
+        if size < 1.0:
+            continue
+        if kind == "heart":
+            out.append((_heart(at, size), tint))
+        elif kind == "star":
+            out.append((_star(at, size), tint))
+        else:
+            out.append((_bolt(at, size * 1.3, float(angles[k]) + np.pi / 2.0), tint))
+        splat(layer, float(at[0]), float(at[1]), size * 0.5, tint, alpha * 0.25 * grow, kernels)
+    return out
 
 
 def _lip_print(center: np.ndarray, size: float, tilt: float) -> list[np.ndarray]:
@@ -220,6 +270,8 @@ def face_mood(shape, body, frame, scale, frame_index, runtime, layer, color, alp
         return _kiss(face, u, frame_index, layer, alpha, runtime.kernels, rng)
     if shape == "gaze_burst":
         return _gaze(face, frame_index, runtime, expressions, layer, _palette(runtime, color), alpha, event, seed)
+    if shape == "emotion_burst":
+        return _emotion(face, u, frame_index, layer, alpha, event, seed, runtime.kernels)
     if shape == "shock_face":
         items = _shock_face(face, u, frame_index, expressions, layer, color, alpha, runtime.kernels)
     else:

@@ -10,6 +10,7 @@ import cv2
 import numpy as np
 
 from vfxglow.analysis.attention import focus_at
+from vfxglow.analysis.regions import load_regions, person_mask
 from vfxglow.engine.focus import focus_gain
 
 from vfxglow.analysis.names import FACE_ANCHORS
@@ -68,6 +69,7 @@ class EffectEngine:
         self._special = {effect.id for effect in script.effects if is_special(effect)}
         self._on_face = {effect.id for effect in script.effects if on_face(effect)}
         self._mask_frame = -1
+        self._needs_regions = needs_regions(script)
         self.runtimes = [self.runtimes[i] for i in order]
         self.timelines = [self.timelines[i] for i in order]
         self.chapter_starts = [chapter.start_frame for chapter in script.chapters]
@@ -134,6 +136,8 @@ class EffectEngine:
             vx, vy = joint_velocity(track, name)
             points[f"vel:{name}"] = np.array([vx * width, vy * height], dtype=np.float64)
         mask = _load_mask(run_dir, track, width, height)
+        regions = load_regions(run_dir, frame_index, width, height) if self._needs_regions else None
+        person = person_mask(regions) if regions is not None else None
         head_px = None
         if track is not None and track.head_contour:
             head_px = np.array([[x * width, y * height] for x, y in track.head_contour], dtype=np.float64)
@@ -190,6 +194,7 @@ class EffectEngine:
             # El próximo corte de toma: un efecto largo (el aro grande) se apaga antes, no de golpe en él.
             runtime.next_cut = next((c for c in sorted(self.cuts) if c > frame_index), None)
             runtime.contour_px = None
+            runtime.regions = regions
             runtime.tool_tip = None
             runtime.appearance = self.appearance
             if self.appearance is not None:
@@ -227,6 +232,10 @@ class EffectEngine:
                     self._scratch = empty_layer(height, width)  # dibujó con gain 0: ese búfer ya es la capa
                 else:
                     self._scratch = empty_layer(height, width)  # pudo ensuciar el búfer antes de cambiar de capa
+            if effect.render.occlude and mask is None and person is not None and gain > 0:
+                # Sin máscara de SAM: la persona de analysis/regions.py, con el borde suave. El corte
+                # binario de render_effect deja escalones alrededor del pelo.
+                layer *= (1.0 - person)[..., None]
             if (effect.style.tint is not None or effect.style.scale != 1.0) and gain > 0:
                 layer = self._edited(layer, runtime, points, width, height)
             decay = effect.render.persistence
@@ -276,6 +285,13 @@ class EffectEngine:
 
 
 _FACE_ANCHOR_SET = set(FACE_ANCHORS)
+
+
+def needs_regions(script: EffectScript) -> bool:
+    """El guion usa efectos que necesitan saber qué es cada píxel (analysis/regions.py)."""
+    from vfxglow.engine.ambient_fx import AMBIENT
+
+    return any(shape in AMBIENT for effect in script.effects for shape in effect.style.shapes or [])
 
 
 def _is_face(name: str) -> bool:

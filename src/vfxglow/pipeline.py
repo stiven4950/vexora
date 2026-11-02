@@ -17,7 +17,7 @@ from vfxglow.config import LAYER_GROUPS, PRESET_ALIASES, catalog_file, catalog_n
 from vfxglow.device import require_cuda, resolve_device
 from vfxglow.director.director import CreativeDirector
 from vfxglow.director.schema import EffectScript, effect_group
-from vfxglow.engine.engine import EffectEngine, load_events, load_layer, load_tracks, save_layer
+from vfxglow.engine.engine import EffectEngine, load_events, load_layer, load_tracks, needs_regions, save_layer
 from pydantic import BaseModel
 
 from vfxglow.io.store import (
@@ -47,8 +47,9 @@ _STAGE_CODE: dict[str, tuple[str, ...]] = {
 # Los gestos son señales derivadas: con una etiqueta nueva en analyzer.DERIVED se recalculan sobre
 # el análisis guardado (Pipeline._ensure_derived) en segundos. Que su código no invalide el
 # análisis entero (un detector nuevo costaba rehacer ~15 min de pose por video). extras.py solo lo
-# usa la vista previa del Estudio, en memoria: no forma parte del análisis guardado.
-_STAGE_SKIP: dict[str, tuple[str, ...]] = {"analyze": ("analysis/gestures.py", "analysis/extras.py")}
+# usa la vista previa del Estudio, en memoria: no forma parte del análisis guardado. regions.py es
+# una etapa aparte que solo corre si el guion la pide (Pipeline._engine).
+_STAGE_SKIP: dict[str, tuple[str, ...]] = {"analyze": ("analysis/gestures.py", "analysis/extras.py", "analysis/regions.py")}
 
 
 def _code(stage: str) -> str:
@@ -464,6 +465,10 @@ class Pipeline:
         if tracks is None:
             tracks = {track.frame: track for track in load_tracks(analysis / "tracks.jsonl")}
         events = load_events(analysis / "events.jsonl") if events is None else events
+        if needs_regions(script):
+            from vfxglow.analysis.regions import ensure_regions
+
+            ensure_regions(self.video, self.run_dir, Path(self.config.paths.models_dir).resolve())
         engine = EffectEngine(script, self.config.engine, events, cuts=cuts, fps=meta.fps)
         return engine, tracks
 
