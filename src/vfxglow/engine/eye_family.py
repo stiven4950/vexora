@@ -322,11 +322,12 @@ def _void(ctx: Ctx, eye: Eye, mods: Mods) -> None:
 def _feline(ctx: Ctx, eye: Eye, mods: Mods) -> None:
     if eye.lid is not None and len(eye.lid) > 4:
         ctx.lids.append((np.vstack([eye.lid, eye.lid[:1]]), ctx.main * mods.glow))
-    tall = eye.radius * 1.35 * mods.size
-    narrow = 0.38 - 0.26 * float(np.clip(ctx.sig.wide / 0.25, 0.0, 1.0))
+    # La pupila: una lente de puntas afiladas (dos arcos), no una elipse, que de lejos parecía un rombo.
+    tall = eye.radius * 1.2 * mods.size
+    narrow = 0.3 - 0.2 * float(np.clip(ctx.sig.wide / 0.25, 0.0, 1.0))
     center = eye.center + mods.aim * 0.4 * eye.radius
-    t = np.linspace(-1.0, 1.0, 15)
-    half = np.sqrt(np.clip(1.0 - t**2, 0.0, 1.0)) * narrow * eye.radius
+    t = np.linspace(-1.0, 1.0, 25)
+    half = (1.0 - t**2) * narrow * eye.radius
     side_a = center + np.outer(t * tall, eye.down) + np.outer(half, eye.across)
     side_b = center + np.outer(t * tall, eye.down) - np.outer(half, eye.across)
     ctx.iris.append((np.vstack([side_a, side_b[::-1], side_a[:1]]), ctx.accent * mods.glow))
