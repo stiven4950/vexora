@@ -38,7 +38,8 @@ log = logging.getLogger("vfxglow")
 # Código del que depende cada etapa. Si cambia, la caché de esa etapa deja de valer.
 _STAGE_CODE: dict[str, tuple[str, ...]] = {
     "analyze": ("analysis", "io/video.py", "geom.py"),
-    "direct": ("director", "analysis/names.py"),
+    # face_zone.py: qué va sobre la cara y su cobertura, que la coreografía consulta al elegir.
+    "direct": ("director", "analysis/names.py", "engine/face_zone.py"),
     "render": ("engine", "director/schema.py", "analysis/names.py", "analysis/appearance.py", "analysis/beats.py", "geom.py"),
     "compose": ("composite",),
 }
