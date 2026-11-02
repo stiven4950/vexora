@@ -317,8 +317,8 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
     face_windows: list[tuple[int, int]] = []
     # Rostros especiales (máscaras de terror): mientras duran, nada más sobre la cara.
     mask_windows: list[tuple[int, int]] = []
-    # Lo encendido hasta ahora, para `one_at_a_time`.
-    taken: list[tuple[int, int]] = []
+    # Lo encendido hasta ahora, para `one_at_a_time`, con su cobertura de la cara.
+    taken: list[tuple[int, int, str]] = []
     # Ventanas encendidas que no son momentos clave ni ambiente. Un efecto nuevo cuenta estas
     # (al empezar) y los momentos clave que se crucen con su ventana: como mucho MAX_TOGETHER.
     lit: list[tuple[int, int]] = []
@@ -453,7 +453,12 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 option = Option(name="nada (cede a la cara)")
             if option.effects and not _special(option) and _touches_face(option) and any(ms <= end and start <= me for ms, me in mask_windows):
                 option = Option(name="nada (cede al rostro especial)")
-            if option.effects and catalog.one_at_a_time and reaction.action not in AMBIENT_ACTIONS and any(ts <= end and start <= te for ts, te in taken):
+            if (
+                option.effects
+                and catalog.one_at_a_time
+                and reaction.action not in AMBIENT_ACTIONS
+                and not _fits_beside(option, [c for ts, te, c in taken if ts <= end and start <= te])
+            ):
                 option = Option(name="nada (un efecto a la vez)")
             person = _person(event) if duet else None
             span = duet_at(duet, event.start_frame) if person else None
@@ -507,7 +512,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 if _special(option):
                     mask_windows.append((start, end))
                 if reaction.action not in AMBIENT_ACTIONS:
-                    taken.append((start, end))
+                    taken.append((start, end, _coverage(option)))
                 if reaction.action not in AMBIENT_ACTIONS and reaction.action not in KEY_ACTIONS and weight_class(option) != "ligero":
                     lit.append((start, until_cut(start, end, cuts)))  # lo ligero no ocupa lugar de foco; el corte lo apaga
                 partner = _partner(person, span, brief)
@@ -1290,6 +1295,19 @@ def _special(option: Option) -> bool:
     from vfxglow.engine.face_zone import is_special
 
     return any(is_special(raw) for raw in option.effects)
+
+
+def _coverage(option: Option) -> str:
+    """La cobertura de la cara de la opción: la de su efecto que más tapa."""
+    from vfxglow.engine.face_zone import RANK, coverage
+
+    return max((coverage(raw) for raw in option.effects), key=RANK.__getitem__, default="medium")
+
+
+def _fits_beside(option: Option, others: list[str]) -> bool:
+    from vfxglow.engine.face_zone import fits_beside
+
+    return fits_beside(_coverage(option), others)
 
 
 def _touches_face(option: Option) -> bool:

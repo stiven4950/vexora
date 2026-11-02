@@ -113,9 +113,9 @@ def test_the_face_catalog_lights_one_effect_at_a_time() -> None:
     meta = VideoMeta(path="x", fps=FPS, width=W, height=H, frame_count=300, duration_s=10.0)
     brief = MotionBrief(video=meta, person_id="person_0", anchors=[], limbs=[], events=events, summary="", people=["person_0"])
     _, choreo = choreograph(catalog, brief, 3)
-    lit = sorted((d.frame, d.until) for d in choreo.decisions if not d.choice.startswith("nada") and d.action not in ("beat", "lull", "ambient"))
+    lit = _lit(catalog, choreo)
     assert len(lit) >= 2
-    assert all(b[0] > a[1] for a, b in zip(lit, lit[1:]))  # nunca dos encendidos a la vez
+    _assert_one_main_at_a_time(lit)
 
 
 def test_gap_filling_also_keeps_one_effect_at_a_time() -> None:
@@ -124,5 +124,38 @@ def test_gap_filling_also_keeps_one_effect_at_a_time() -> None:
     meta = VideoMeta(path="x", fps=FPS, width=W, height=H, frame_count=300, duration_s=10.0)
     brief = MotionBrief(video=meta, person_id="person_0", anchors=[], limbs=[], events=events, summary="", people=["person_0"])
     _, choreo = choreograph(catalog, brief, 5)
-    lit = sorted((d.frame, d.until) for d in choreo.decisions if not d.choice.startswith("nada") and d.action not in ("beat", "lull", "ambient"))
-    assert all(b[0] > a[1] for a, b in zip(lit, lit[1:])), lit
+    _assert_one_main_at_a_time(_lit(catalog, choreo))
+
+
+def _lit(catalog, choreo) -> list[tuple[int, int, str]]:
+    """Lo encendido sobre la cara (sin ambiente): (desde, hasta, cobertura)."""
+    from vfxglow.director.choreography import _coverage
+
+    options = {(r.action, o.name): o for r in catalog.reactions for o in r.options}
+    lit = []
+    for d in choreo.decisions:
+        option = options.get((d.action, d.choice.split(" (")[0]))
+        if option is not None and option.effects and not d.choice.startswith("nada") and d.action not in ("beat", "lull", "ambient"):
+            lit.append((d.frame, d.until, _coverage(option)))
+    return sorted(lit)
+
+
+def _assert_one_main_at_a_time(lit: list[tuple[int, int, str]]) -> None:
+    """Un solo efecto principal a la vez; con él, como mucho uno periférico; con uno alto, nada."""
+    from vfxglow.engine.face_zone import fits_beside
+
+    for k, (start, end, cov) in enumerate(lit):
+        others = [c for s, e, c in lit[:k] if s <= end and start <= e]
+        assert fits_beside(cov, others), (lit[k], others)
+
+
+def test_a_peripheral_effect_can_go_with_the_main_one_but_nothing_goes_with_a_full_face() -> None:
+    from vfxglow.engine.face_zone import coverage, fits_beside
+
+    assert coverage({"type": "adornment", "style": {"shapes": ["emotion_burst"]}}) == "peripheral"
+    assert coverage({"type": "adornment", "style": {"shapes": ["eyes_fire"]}}) == "medium"
+    assert coverage({"type": "adornment", "style": {"shapes": ["terror_pennywise"]}}) == "high"
+    assert coverage({"type": "adornment", "style": {"shapes": ["face_swirl", "eyes_fire"]}}) == "medium"
+    assert fits_beside("peripheral", ["medium"]) and fits_beside("low", ["peripheral"])
+    assert not fits_beside("peripheral", ["peripheral"]) and not fits_beside("medium", ["low"])
+    assert not fits_beside("peripheral", ["high"]) and not fits_beside("high", ["peripheral"])
