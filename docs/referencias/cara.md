@@ -112,6 +112,25 @@ Opciones: `ojos_familia` (`look`, `spotlight`), `ojos_mirada` (`still`), `ojos_v
 párpado se devuelven al motor, en orden fijo, para que la continuidad transforme ojo en ojo; lo de
 alrededor es línea fina.
 
+## Símbolos, maquillaje de luz y criaturas (entrega 2)
+
+Con la misma base que la familia de ojos (fases, perillas, señales). El maquillaje sale de
+referencias de maquillaje real que dio el usuario el 2026-11-02 (alas UV, emblema egipcio, líneas
+neón, Medusa y rostro que se desintegra): línea fina y nítida, rellenos tenues y puntos.
+
+| Forma | Qué dibuja | Cómo reacciona | Cobertura |
+| --- | --- | --- | --- |
+| `third_eye` | Ojo vertical en la frente: doble almendra, iris de rayos grabados, pupila y bindi | Se abre con las cejas (contra lo habitual de esa cara), parpadea con los ojos, suelta rayos si las cejas suben de golpe | baja |
+| `rune_shift` | Runas en la frente y las mejillas | Sus trazos viajan hasta otra runa al parpadear, al girar la cabeza o cada tanto | media |
+| `light_crown` | Diadema de joyería en perspectiva: banda con perlas, puntas ojivales, gota y estrella | Las puntas crecen con la sonrisa y las cejas; un brillo la recorre | periférica |
+| `butterfly_wings` | Alas de mariposa UV alrededor de cada ojo: celdas amarillas y cian, contorno azul, puntos blancos | Aletean al parpadear, se abren con los ojos muy abiertos, los puntos brillan con la sonrisa | media |
+| `pharaoh_mark` | Emblema alado egipcio (plumas en tres hileras, escarabajo con ankh, disco solar), fila de puntos y ojo de Horus | Se traza al entrar | media |
+| `neon_veins` | Líneas neón por la anatomía: puntos al centro, sienes, ganchos sobre las cejas, lágrimas con gota, labios, barbilla y pecas | Un pulso las recorre, más rápido al sonreír o al hablar; bajan con la cara relajada | media |
+| `face_dissolve` | El contorno se vuelve polvo azul y del costado de la cabeza sale humo rosa y naranja; chispas al frente | El viento sopla más fuerte al girar o moverse la cabeza; al irse, se lo lleva todo | media |
+| `eye_butterflies` | Mariposas (alas, venas, manchas, antenas) que salen de los párpados y vuelan en vaivén sobre la cabeza | Cada parpadeo suelta una; la órbita se corre hacia donde mira | periférica |
+| `holo_snake` | Serpiente holográfica de línea fina que se desliza por fuera del contorno de la cara | Más rápida al girar; se acerca a la boca abierta sin entrar; sin malla se repliega | periférica |
+| `medusa_snakes` | Serpientes de neón que nacen del pelo, se mecen en S y enroscan la punta; escamas en rombo de rosa a azul | Se yerguen con la boca abierta y se mecen más rápido al girar | periférica |
+
 ## Halloween
 
 - Hay 24 rostros de terror en `assets/masks`, sacados de `assets/masks/source/halloween_grid.yaml`

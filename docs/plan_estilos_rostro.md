@@ -84,14 +84,14 @@ subidas; si no está, buscar `facil_1.mp4` en `api_data/uploads/`). Resultado:
 Las mejoras de cara neón propuestas el 2026-11-02 van por entregas. La 1 (señales comunes, familia de
 ojos, variaciones y cobertura) está hecha. Las siguientes, en orden:
 
-- Entrega 2: pasar `ice_eyes`, `eye_flames`, `laser_eyes`, `eye_curse` y `cleopatra_eyes` a
-  `face_signals` y a la familia (con visto bueno visual, porque cambian sus cuadros). Familias nuevas:
-  símbolos (tercer ojo con las cejas, runas que se reorganizan, corona) y criaturas periféricas
-  (mariposas desde los párpados, serpiente holográfica que orbita y se acerca con la boca abierta).
+- Entrega 2 (hecha): `ice_eyes` y `eye_curse` leen `face_signals`; Cleopatra y el láser conservan su
+  lectura propia (es su personalidad). Símbolos (`engine/face_symbols.py`), maquillaje de luz sacado de
+  referencias del usuario (`engine/face_makeup.py`, incluida la desintegración facial) y criaturas
+  periféricas (`engine/head_companions.py`, con Medusa). Criterio del usuario: dibujos profesionales,
+  no infantiles; tomar sus referencias de maquillaje real como guía de forma.
 - Entrega 3: transformaciones reales: emparejar líneas por rol en `morph.morph_lines`, transición
   temática entre variantes (fuego que se enfría a hielo) y reensamblar desde el polvo.
-- Entrega 4: porcelana fracturada (variante de `face_cracks`) y desintegración facial. La "faraona"
-  ya existe como `cleopatra_eyes`.
+- Entrega 4: porcelana fracturada (variante de `face_cracks`).
 
 Además:
 

@@ -94,6 +94,46 @@ reactions:
 # cortos no les dejaban espacio. Se quedan también en las pausas y gestos, si hay lugar.
 - action: look
   options:
+  # Serpientes de neón que nacen del pelo y se enroscan (engine/head_companions.py).
+  - name: medusa
+    weight: 0.7
+    cooldown: 0
+    effects:
+    - type: adornment
+      style: {shapes: [medusa_snakes], thickness: 0.008, focus: false}
+      trigger: {hold: 130, fade_in: 1, fade_out: 3}
+  # Maquillaje UV de alas de mariposa alrededor de los ojos (engine/face_makeup.py).
+  - name: alas_mariposa
+    weight: 0.8
+    cooldown: 0
+    effects:
+    - type: adornment
+      style: {shapes: [butterfly_wings], thickness: 0.008, focus: false}
+      trigger: {hold: 120, fade_in: 1, fade_out: 3}
+  # Emblema alado egipcio en la frente y ojo de Horus (engine/face_makeup.py).
+  - name: faraona
+    weight: 0.7
+    cooldown: 0
+    effects:
+    - type: adornment
+      style: {shapes: [pharaoh_mark], thickness: 0.008, focus: false}
+      trigger: {hold: 120, fade_in: 1, fade_out: 3}
+  # El contorno de la cara se vuelve polvo y humo que se lleva el viento (engine/face_makeup.py).
+  - name: desintegracion
+    weight: 0.6
+    cooldown: 0
+    effects:
+    - type: adornment
+      style: {shapes: [face_dissolve], thickness: 0.008, focus: false}
+      trigger: {hold: 120, fade_in: 1, fade_out: 3}
+  # Mariposas que salen de los párpados y vuelan sobre la cabeza.
+  - name: mariposas
+    weight: 0.6
+    cooldown: 0
+    effects:
+    - type: adornment
+      style: {shapes: [eye_butterflies], thickness: 0.008, focus: false}
+      trigger: {hold: 130, fade_in: 1, fade_out: 3}
   # Familia de ojos (engine/eye_family.py): una variante por aparición, cada una con su personalidad.
   - name: ojos_familia
     weight: 1.2
@@ -177,6 +217,22 @@ reactions:
 # Lo que más se mueve es la cabeza, o la persona está quieta: dibujos sobre el rostro.
 - action: spotlight
   options:
+  # Runas que se reorganizan.
+  - name: runas_vivas
+    weight: 0.25
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [rune_shift], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 3}
+  # Diadema de luz sobre la cabeza.
+  - name: corona_luz
+    weight: 0.25
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [light_crown], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 3}
   # Familia de ojos: una variante por aparición.
   - name: ojos_familia
     weight: 0.5
@@ -451,6 +507,30 @@ reactions:
 - action: still
   cooldown: 60
   options:
+  # Alas de mariposa: aletean al parpadear.
+  - name: alas_mariposa
+    weight: 0.4
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [butterfly_wings], thickness: 0.008, focus: false}
+      trigger: {hold: 105, fade_in: 1, fade_out: 3}
+  # Runas que se reorganizan al parpadear o cada tanto (engine/face_symbols.py).
+  - name: runas_vivas
+    weight: 0.4
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [rune_shift], thickness: 0.008, focus: false}
+      trigger: {hold: 105, fade_in: 1, fade_out: 3}
+  # Diadema de luz sobre la cabeza (engine/face_symbols.py).
+  - name: corona_luz
+    weight: 0.35
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [light_crown], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 3}
   # Quieta: las variantes que se encienden con la mirada fija.
   - name: ojos_mirada
     weight: 0.6
@@ -656,6 +736,14 @@ reactions:
 # Boca abierta: una llamarada que sigue a la boca, una esfera de energía que sale en ondas, o un aliento.
 - action: mouth_open
   options:
+  # La serpiente holográfica se acerca a la boca abierta.
+  - name: serpiente_holo
+    weight: 0.3
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [holo_snake], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 3}
   - name: aliento_dragon
     weight: 0.9
     cooldown: 240
@@ -699,6 +787,14 @@ reactions:
 # Parpadeo: por un instante, una máscara de neón (robot o calavera).
 - action: blink
   options:
+  # Cada parpadeo suelta una mariposa.
+  - name: mariposas
+    weight: 0.35
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [eye_butterflies], thickness: 0.008, focus: false}
+      trigger: {hold: 120, fade_in: 1, fade_out: 3}
   # Iris azul, grietas de luz y cristales al parpadear (engine/ice_eyes.py).
   - name: ojos_hielo
     weight: 0.3
@@ -727,6 +823,14 @@ reactions:
 # Cara de impresión (cejas arriba con ojos o boca abiertos): ojos y boca de susto o líneas de impacto.
 - action: surprise
   options:
+  # El tercer ojo se abre del todo con la impresión.
+  - name: tercer_ojo
+    weight: 0.4
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [third_eye], thickness: 0.008, focus: false}
+      trigger: {hold: 75, fade_in: 1, fade_out: 3}
   # Símbolos alrededor de la cabeza (engine/face_moods.py): corazones, estrellas o rayos según la cara.
   - name: emocion
     weight: 0.8
@@ -752,6 +856,14 @@ reactions:
 # Habla o grita: las ondas de voz, en los tramos en que suena fuerte.
 - action: speaking
   options:
+  # Líneas neón: el pulso sigue la voz.
+  - name: lineas_neon
+    weight: 0.5
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [neon_veins], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 3}
   - name: pulso_sonico
     weight: 0.7
     cooldown: 240
@@ -911,6 +1023,22 @@ reactions:
 # Sonrisa: destellos que saltan de las mejillas o círculos de luz.
 - action: smile
   options:
+  # La diadema crece con la sonrisa.
+  - name: corona_luz
+    weight: 0.4
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [light_crown], thickness: 0.008, focus: false}
+      trigger: {hold: 75, fade_in: 1, fade_out: 3}
+  # Líneas neón por la anatomía: el pulso corre más rápido al sonreír.
+  - name: lineas_neon
+    weight: 0.35
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [neon_veins], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 3}
   # Símbolos alrededor de la cabeza (engine/face_moods.py): corazones, estrellas o rayos según la cara.
   - name: emocion
     weight: 0.9
@@ -947,6 +1075,22 @@ reactions:
 # Cejas arriba: arcos de sorpresa.
 - action: brows_up
   options:
+  # El tercer ojo se abre con las cejas (engine/face_symbols.py).
+  - name: tercer_ojo
+    weight: 0.6
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [third_eye], thickness: 0.008, focus: false}
+      trigger: {hold: 75, fade_in: 1, fade_out: 3}
+  # Emblema egipcio en la frente.
+  - name: faraona
+    weight: 0.3
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [pharaoh_mark], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 3}
   - name: emocion
     weight: 0.6
     cooldown: 150
@@ -1050,6 +1194,30 @@ reactions:
 # Giro rápido de la cabeza: copias del contorno o el anillo de runas.
 - action: head_turn
   options:
+  # Las serpientes se mecen más rápido al girar la cabeza.
+  - name: medusa
+    weight: 0.4
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [medusa_snakes], thickness: 0.008, focus: false}
+      trigger: {hold: 105, fade_in: 1, fade_out: 3}
+  # El giro sopla el polvo y el humo del rostro.
+  - name: desintegracion
+    weight: 0.35
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [face_dissolve], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 3}
+  # Serpiente holográfica alrededor de la cabeza.
+  - name: serpiente_holo
+    weight: 0.35
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [holo_snake], thickness: 0.008, focus: false}
+      trigger: {hold: 105, fade_in: 1, fade_out: 3}
   # Asoma detrás del hombro; si la persona gira hacia él, reaparece del otro lado (engine/ambient_fx.py).
   - name: fantasma
     weight: 1.0
