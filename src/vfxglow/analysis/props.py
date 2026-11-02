@@ -69,7 +69,10 @@ class PropTracker:
         self.device = torch_device()
         self.dino = GroundingDino(cfg.detector_model, cfg.query, cfg.threshold)
         self.processor = Sam2VideoProcessor.from_pretrained(cfg.sam_model)
-        self.model = Sam2VideoModel.from_pretrained(cfg.sam_model).to(self.device)
+        # En MPS la atención SDPA tarda el doble que la de matrices (en CPU, al revés): en video_33
+        # SAM 2 baja de 1,16 a 0,88 s por fotograma con los mismos contornos.
+        attention = "eager" if self.device == "mps" else "sdpa"
+        self.model = Sam2VideoModel.from_pretrained(cfg.sam_model, attn_implementation=attention).to(self.device)
         self.session = self.processor.init_video_session(inference_device=self.device, dtype=torch.float32)
         self.appearance: np.ndarray | None = None
         self.learned = 0
