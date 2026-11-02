@@ -5,7 +5,7 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
-from vfxglow.composite.color import linear_to_srgb, shoulder, srgb_to_linear
+from vfxglow.composite.color import ROUND_TRIP, linear_to_srgb, plate_to_linear, shoulder
 from vfxglow.composite.glow import bloom
 from vfxglow.director.schema import Effect, Grade, effect_group
 
@@ -64,6 +64,15 @@ def _record(parts: list | None, effect_id: str, before: np.ndarray, after: np.nd
     parts.append((effect_id, a, after - before * (1.0 - a)[..., None]))
 
 
+def _box(layer: np.ndarray) -> tuple[slice, slice] | None:
+    """El recuadro con algo distinto de cero. Afuera ninguna mezcla cambia el píxel (rgb = alfa = 0)."""
+    height, width = layer.shape[:2]
+    x, y, w, h = cv2.boundingRect((layer.reshape(height, width * 4) != 0).astype(np.uint8))
+    if w == 0:
+        return None
+    return slice(y, y + h), slice(x // 4, (x + w - 1) // 4 + 1)
+
+
 def composite_frame(
     plate_bgr: np.ndarray,
     layers: list[tuple[Effect, np.ndarray]],
@@ -77,9 +86,10 @@ def composite_frame(
     `parts` (una lista vacía): se llena con lo que aporta cada efecto, en el orden en que se mezcla,
     como (id, A, C) tal que `después = antes * (1 - A) + C` en luz lineal (A = None: mezcla
     aditiva, A = 0). Es la base de las capas por pista del editor (composite/atlas.py)."""
-    plate_rgb = plate_bgr[..., ::-1].astype(np.float32) / 255.0
-    plate = srgb_to_linear(plate_rgb)
+    plate = plate_to_linear(plate_bgr)
     acc = plate.copy()
+    height, width = plate.shape[:2]
+    whole = slice(0, height), slice(0, width)
     coverage = np.zeros(plate.shape[:2], dtype=np.float32)
     knee = grade.soft_knee if soft_knee is None else soft_knee
     active = enabled_groups if enabled_groups is not None else set(GROUP_ORDER)
@@ -90,33 +100,40 @@ def composite_frame(
         for effect, layer in layers:
             if effect_group(effect) == group and float(layer[..., 3].max()) > 1e-5:
                 ordered.append((effect, layer))
+    # Lo que no toca ninguna capa no se calcula. `parts` necesita el cuadro entero de cada efecto.
+    top, left, bottom, right = height, width, 0, 0
     for effect, layer in ordered:
-        before = acc
-        if effect_group(effect) == "grade":
-            acc = _blend(acc, layer[..., :3], layer[..., 3], "multiply")
-            coverage = np.maximum(coverage, np.clip(layer[..., 3], 0.0, 1.0))
-            _record(parts, effect.id, before, acc, layer[..., 3])
-            continue
-        if effect.render.blend == "refract":
-            # Lleva desplazamientos, no luz: sin bloom ni shoulder.
-            acc = _refract(acc, layer)
-            coverage = np.maximum(coverage, np.clip(layer[..., 3], 0.0, 1.0))
-            _record(parts, effect.id, before, acc, layer[..., 3])
-            continue
+        before = None if parts is None else acc.copy()
+        tinted = effect_group(effect) == "grade"
+        refracted = not tinted and effect.render.blend == "refract"
         # Un tinte de pantalla completa (type grade) no tiene núcleo que irradie: sin bloom.
-        glowed = layer.astype(np.float32) if effect.type == "grade" else bloom(
-            layer.astype(np.float32),
+        # La refracción lleva desplazamientos, no luz: sin bloom ni shoulder.
+        glowed = layer.astype(np.float32, copy=False) if tinted or refracted or effect.type == "grade" else bloom(
+            layer.astype(np.float32, copy=False),
             grade.bloom_radius,
             grade.bloom_threshold,
             grade.bloom_intensity,
             effect.render.glow_layers,
         )
-        rgb = shoulder(glowed[..., :3], knee)
-        alpha = glowed[..., 3]
-        acc = _blend(acc, rgb, alpha, effect.render.blend)
-        coverage = np.maximum(coverage, np.clip(alpha, 0.0, 1.0))
-        _record(parts, effect.id, before, acc, None if effect.render.blend == "add" else alpha)
-    untouched = coverage <= 1e-4
-    acc[untouched] = plate[untouched]
-    encoded = linear_to_srgb(acc)
-    return np.round(encoded * 255.0).astype(np.uint8)
+        box = whole if parts is not None else _box(glowed)
+        if box is None:
+            continue
+        piece = glowed[box]
+        alpha = piece[..., 3]
+        if tinted:
+            acc[box] = _blend(acc[box], piece[..., :3], alpha, "multiply")
+        elif refracted:
+            acc = _refract(acc, layer)
+        else:
+            acc[box] = _blend(acc[box], shoulder(piece[..., :3], knee), alpha, effect.render.blend)
+        coverage[box] = np.maximum(coverage[box], np.clip(alpha, 0.0, 1.0))
+        _record(parts, effect.id, before, acc, None if not tinted and not refracted and effect.render.blend == "add" else alpha)
+        top, left, bottom, right = min(top, box[0].start), min(left, box[1].start), max(bottom, box[0].stop), max(right, box[1].stop)
+    done = cv2.cvtColor(cv2.LUT(plate_bgr, ROUND_TRIP), cv2.COLOR_BGR2RGB)
+    if top < bottom and left < right:
+        box = slice(top, bottom), slice(left, right)
+        drawn = acc[box]
+        untouched = coverage[box] <= 1e-4
+        drawn[untouched] = plate[box][untouched]
+        done[box] = np.round(linear_to_srgb(drawn) * 255.0).astype(np.uint8)
+    return done

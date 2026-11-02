@@ -39,16 +39,19 @@ def bloom(
     height, width = layer.shape[:2]
     # El halo solo nace de lo que pasa el umbral (el fuego, el núcleo del neón), no del resplandor
     # tenue alrededor, que puede cubrir casi todo el cuadro.
-    ys, xs = np.nonzero(layer[..., :3].max(axis=-1) > threshold)
-    if len(xs) == 0:
+    hot = layer.reshape(height, width * 4) > threshold
+    hot[:, 3::4] = False  # el alfa no cuenta
+    px, y0, pw, ph = cv2.boundingRect(hot.astype(np.uint8))
+    if pw == 0:
         return layer
+    xmin, xmax, ymin, ymax = px // 4, (px + pw - 1) // 4, y0, y0 + ph - 1
     passes = _PASSES[: max(1, min(layers, len(_PASSES)))]
     near = [p for p in passes if p[0] < WIDE]
     far = [p for p in passes if p[0] >= WIDE]
     out = layer.copy()
     reach = int(radius * max(scale for scale, _ in near) * 1.2) + 4
-    x0, x1 = max(xs.min() - reach, 0), min(xs.max() + reach + 1, width)
-    y0, y1 = max(ys.min() - reach, 0), min(ys.max() + reach + 1, height)
+    x0, x1 = max(xmin - reach, 0), min(xmax + reach + 1, width)
+    y0, y1 = max(ymin - reach, 0), min(ymax + reach + 1, height)
     crop = out[y0:y1, x0:x1]
     rgb = crop[..., :3]
     bright, _luma = _bright(rgb, threshold)
