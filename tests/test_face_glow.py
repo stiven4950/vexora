@@ -156,6 +156,7 @@ def test_a_peripheral_effect_can_go_with_the_main_one_but_nothing_goes_with_a_fu
     assert coverage({"type": "adornment", "style": {"shapes": ["eyes_fire"]}}) == "medium"
     assert coverage({"type": "adornment", "style": {"shapes": ["terror_pennywise"]}}) == "high"
     assert coverage({"type": "adornment", "style": {"shapes": ["face_swirl", "eyes_fire"]}}) == "medium"
+    assert coverage({"type": "adornment", "style": {"shapes": ["face_swirl"]}}) == "low"  # cruza por delante de la cara
     assert fits_beside("peripheral", ["medium"]) and fits_beside("low", ["peripheral"])
     assert not fits_beside("peripheral", ["peripheral"]) and not fits_beside("medium", ["low"])
     assert not fits_beside("peripheral", ["high"]) and not fits_beside("high", ["peripheral"])

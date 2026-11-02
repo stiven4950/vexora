@@ -85,7 +85,7 @@ hecho antes de este cambio no lo tiene hasta que se vuelva a analizar.
 - Los dibujos sobre la piel llevan poco halo, para no lavar la cara de luz. Los rayos, el aliento y
   los anillos orbitales sí llevan halo completo.
 - Los dibujos de línea sobre la cara terminan en polvo de luz (`engine/dissolve.py`), no se apagan.
-- Un solo efecto principal sobre la cara. Con él puede ir uno periférico (`rune_orbit`, `face_swirl`,
+- Un solo efecto principal sobre la cara. Con él puede ir uno periférico (`rune_orbit`,
   `face_emanate`, `head_echo`, `emotion_burst`, `shock_burst`, `skeleton_dance`,
   `raven`, `fairies`); con uno que cubre toda la cara (máscaras, `blink_mask`, `face_mesh_live`,
   `face_crystal`, disfraces de cara) no va nada (`engine/face_zone.py`).
