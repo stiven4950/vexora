@@ -54,6 +54,12 @@ POSE_MIN_S = 0.2
 # abierta no es asombro, es un grito (expressions_1: entrecerrados 0,18 al asombrarse, 0,45 al gritar).
 FROWN = 0.35
 SQUINT = 0.38
+# Evento `frown`: ojos entrecerrados (mínimo, margen sobre lo habitual), sonrisa y ojos cerrados que lo
+# descartan, y cuánto debe durar.
+FROWN_SQUINT = (0.38, 0.15)
+FROWN_SMILE = 0.35
+FROWN_BLINK = 0.45
+FROWN_MIN_S = 0.2
 # Con la boca más abierta que esto, los labios redondos son habla, no un beso.
 PUCKER_JAW = 0.35
 # Impresión: las cejas arriba con los ojos algo abiertos o la boca algo abierta.
@@ -180,6 +186,21 @@ def expression_events(frames: list[FrameRecord], fps: float) -> list[MotionEvent
     events += _gaze_events(frames, fps)
     events += _head_events(frames, fps)
     return sorted(events, key=lambda e: e.start_frame)
+
+
+def frown_spans(frames: list[FrameRecord], fps: float) -> list[MotionEvent]:
+    """Ceño o ojos entrecerrados claros (por encima de lo habitual de esa cara): en expressions_1 el
+    valor normal de `eyeSquint` ya es 0,31. Sonreír o cerrar los ojos también lo suben."""
+    if not frames or not any(f.expressions for f in frames):
+        return []
+    with np.errstate(invalid="ignore"):
+        brow = np.fmax(_series(frames, "browDownLeft"), _series(frames, "browDownRight"))
+        squint = (_series(frames, "eyeSquintLeft") + _series(frames, "eyeSquintRight")) / 2
+        smile = (_series(frames, "mouthSmileLeft") + _series(frames, "mouthSmileRight")) / 2
+        blink = np.fmax(_series(frames, "eyeBlinkLeft"), _series(frames, "eyeBlinkRight"))
+        tense = (np.nan_to_num(brow) >= FROWN) | _above(squint, FROWN_SQUINT)
+        tense &= (np.nan_to_num(smile) < FROWN_SMILE) & (np.nan_to_num(blink) < FROWN_BLINK)
+    return [_event(frames, "frown", span, "Frunce el ceño.") for span in _spans(tense, max(int(round(FROWN_MIN_S * fps)), 1))]
 
 
 def gaze_vector(expressions: dict[str, float]) -> tuple[float, float]:

@@ -135,6 +135,9 @@ EVENT_CATALOG: dict[str, str] = {
     "step": "Paso: el pie vuelve a apoyarse en el piso.",
     "frenzy": "Todo el cuerpo se mueve mucho más de lo normal a la vez (modo discoteca).",
     "beat": "Golpe de la música (onset de audio).",
+    "look": "Lugar reservado para un efecto largo de la cara.",
+    "ambient": "Momento para llenar el espacio alrededor de la persona.",
+    "frown": "Frunce el ceño o entrecierra los ojos.",
     "stomp": "Pisotón: el pie levantado baja rápido y se frena en el piso.",
     "neck_slash": "Corte de cuello: la mano cruza el cuello de lado (\"ya valió\").",
 }

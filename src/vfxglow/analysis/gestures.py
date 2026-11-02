@@ -885,6 +885,13 @@ def face_expression_events(frames, fps, width, height):
     return expression_events(frames, fps)
 
 
+def frown_events(frames, fps, width, height):
+    """Ceño fruncido o ojos entrecerrados, sin sonreír ni estar cerrándolos."""
+    from vfxglow.analysis.expressions import frown_spans
+
+    return frown_spans(frames, fps)
+
+
 GESTURE_DETECTORS = (
     throw_events,
     neck_slash_events,
@@ -909,6 +916,7 @@ GESTURE_DETECTORS = (
     finger_count_events,
     walk_events,
     face_expression_events,
+    frown_events,
 )
-EXPRESSION_NAMES = {"mouth_open", "blink", "wink", "eyes_wide", "smile", "brows_up", "cheeks_puff", "pucker", "surprise", "gaze_shift", "speaking", "head_turn", "head_tilt"}
+EXPRESSION_NAMES = {"mouth_open", "blink", "wink", "eyes_wide", "smile", "brows_up", "cheeks_puff", "pucker", "surprise", "gaze_shift", "speaking", "head_turn", "head_tilt", "frown"}
 GESTURE_NAMES = EXPRESSION_NAMES | {"walk", "finger_count", "hand_mouth", "hand_chin", "fist_up", "finger_gun", "rock_hands", "hands_on_head", "arms_x", "lunge", "throw", "neck_slash", "stomp", "frenzy", "heart_hands", "arms_up", "arms_open", "point", "hand_ear", "cover_eyes", "spin_body", "step"}
