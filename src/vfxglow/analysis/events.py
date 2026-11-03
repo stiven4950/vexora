@@ -136,6 +136,8 @@ EVENT_CATALOG: dict[str, str] = {
     "frenzy": "Todo el cuerpo se mueve mucho más de lo normal a la vez (modo discoteca).",
     "beat": "Golpe de la música (onset de audio).",
     "look": "Lugar reservado para un efecto largo de la cara.",
+    "outfit": "Un outfit del desfile: la toma entre dos cortes.",
+    "outfit_head": "La pieza de cabeza de un outfit del desfile.",
     "ambient": "Momento para llenar el espacio alrededor de la persona.",
     "frown": "Frunce el ceño o entrecierra los ojos.",
     "stomp": "Pisotón: el pie levantado baja rápido y se frena en el piso.",

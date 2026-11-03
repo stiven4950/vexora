@@ -82,6 +82,33 @@ de lado y su dibujo ya está puesto sobre él (con el color viejo un cuadro; al 
 5. **Eventos de caminar**: el análisis da `step`, `stomp` y `foot_strike` al andar; en un desfile no
    deben disparar efectos de baile (pisotones).
 
+## Decisión de precisión (2026-11-02)
+
+El usuario eligió el camino rápido: segmentador multiclase más bordes de la imagen, con los trazos
+ajustados al borde real de la tela y seguidos entre cuadros. **Mejora futura anotada**: recortar cada
+prenda con SAM 2 (el mismo que sigue el objeto, `analysis/props.py`) para un contorno casi perfecto,
+a ~0,9 s por cuadro; podría ofrecerse como opción de "alta calidad" al subir el video.
+
+## Implementado (2026-11-02, primera versión)
+
+- `analysis/garment.py`: trazos de la prenda por cuadro (fronteras, accesorios, bordes internos),
+  ajustados al borde real y seguidos con ids estables por toma (distancia media de sus puntos; un tramo
+  de la misma costura conserva su id). Solo si el guion lo pide.
+- `engine/garment_fx.py` (`garment_lines`): elige por outfit los trazos que más aparecen con más
+  contraste (calzado y bolso, un par de fronteras, unos bordes internos), los dibuja cuadro a cuadro y
+  sale en guiones los últimos 6 cuadros.
+- Catálogo `desfile`: eventos `outfit` y `outfit_head` por toma (`outfits: true`), un color distinto
+  por outfit (`cut_chapters: true`), piezas de cabeza (cachos, aro, orejas de gato sueltas `cat_ears`,
+  visera, gafas si las lleva, corona), espera 0 entre activaciones y `keep_on_cut`.
+- Cortes deslizantes de 2-3 cuadros detectados (`analysis/beats.py`): video_46 da 27, 59, 90, 122 y 153.
+- El motor reinicia un efecto que pasa sin pausa a otra activación (su fase y su color de capítulo).
+
+Comparado con la referencia, lo que falta afinar: menos trazos de prenda que la referencia (en prendas
+oscuras sobre oscuro, como el abrigo, Canny no ve los bordes delanteros), juntar tramos de una misma
+costura en una línea larga, el patrón de la prenda (puntos en el acolchado, zigzag), lucecitas en el
+pelo, anillos de articulaciones, y que las piezas de cabeza se elijan según el outfit (gafas solo
+cuando las lleva).
+
 ## Pendiente
 
 - El glowing de `video_55` no está en `glowing/data/glowing/` (solo su original); sin él no se puede

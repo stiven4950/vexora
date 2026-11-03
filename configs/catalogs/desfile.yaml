@@ -1,0 +1,76 @@
+# Desfile / modelaje (docs/referencias/video_46.md): una modelo camina o posa y cada pocos segundos
+# cambia de outfit (un corte). No se dibuja lo que hace: se delinea la ropa. Cada outfit es un
+# capítulo con su color, sus trazos (dependen de la prenda: costuras, bordes, franjas, calzado,
+# bolso) y una pieza de cabeza que le da personaje.
+name: desfile
+title: Desfile
+subtitle: Delinea cada outfit
+description: Para videos de moda con cambios de outfit. Cada look se delinea con su color, sus costuras, el calzado y el bolso, y lleva una pieza de luz en la cabeza.
+tags: [moda, desfile, outfit, modelaje, ropa]
+seed: 46
+needs: [garment]
+# Un evento por toma (entre cortes) y un color por toma. Cada efecto vive exactamente su toma: no se
+# apaga en el corte (keep_on_cut), sale en guiones antes.
+outfits: true
+cut_chapters: true
+chapters: true
+one_at_a_time: false
+defaults:
+  type: adornment
+  target: {kind: joint, id: body}
+  style: {focus: false, keep_on_cut: true, palette: [[0.2, 1.0, 0.3], [1.0, 0.08, 0.08], [0.1, 0.95, 1.0], [0.8, 0.5, 1.0], [1.0, 0.5, 0.08], [1.0, 0.25, 0.7], [1.0, 0.9, 0.2]]}
+always:
+- type: closing_stars
+  style: {size: 1.0, hdr_gain: 1.8, focus: false}
+reactions:
+# Los trazos de la prenda: completos en el corte, siguen la tela y salen en guiones.
+- action: outfit
+  options:
+  - name: delinear
+    weight: 1.0
+    effects:
+    - type: adornment
+      style: {shapes: [garment_lines], thickness: 0.006, focus: false}
+      trigger: {hold: 0, cooldown: 0, fade_in: 0, fade_out: 0}
+# La pieza de cabeza del outfit (en la referencia: barra de ojos, cachos y gafas, aro, orejas).
+- action: outfit_head
+  options:
+  - name: cachos
+    weight: 1.0
+    effects:
+    - type: adornment
+      style: {shapes: [horns], thickness: 0.006, focus: false}
+      trigger: {hold: 0, cooldown: 0, fade_in: 0, fade_out: 2}
+  - name: aro
+    weight: 1.0
+    effects:
+    - type: adornment
+      style: {shapes: [head_halo], thickness: 0.006, focus: false}
+      trigger: {hold: 0, cooldown: 0, fade_in: 0, fade_out: 2}
+  - name: orejas
+    weight: 1.0
+    effects:
+    - type: adornment
+      style: {shapes: [cat_ears], thickness: 0.006, focus: false}
+      trigger: {hold: 0, cooldown: 0, fade_in: 0, fade_out: 2}
+  - name: visera
+    weight: 0.7
+    effects:
+    - type: eyewear
+      target: {kind: joint, id: nose}
+      style: {thickness: 0.05, shapes: [visor], focus: false}
+      trigger: {hold: 0, cooldown: 0, fade_in: 0, fade_out: 2}
+  - name: gafas
+    weight: 1.0
+    accessories: [sunglasses, glasses]
+    effects:
+    - type: eyewear
+      target: {kind: joint, id: nose}
+      style: {thickness: 0.05, shapes: [frames], focus: false}
+      trigger: {hold: 0, cooldown: 0, fade_in: 0, fade_out: 2}
+  - name: corona
+    weight: 0.6
+    effects:
+    - type: adornment
+      style: {shapes: [light_crown], thickness: 0.006, focus: false}
+      trigger: {hold: 0, cooldown: 0, fade_in: 0, fade_out: 2}

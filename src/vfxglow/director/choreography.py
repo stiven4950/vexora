@@ -175,6 +175,11 @@ class Catalog(_Strict):
     # Cada cuánto (s) se reserva un lugar para un efecto largo (`look`). Con `one_at_a_time` los
     # momentos cortos llenaban todo y un efecto de 4-5 s no salía nunca (facial_3: 0 de 40 semillas).
     look_every_s: float = 0.0
+    # Desfile (docs/referencias/video_46.md): un evento `outfit` y otro `outfit_head` por cada toma
+    # (entre cortes): cada outfit es un capítulo con su dibujo y su pieza de cabeza.
+    outfits: bool = False
+    # El color solo cambia en los cortes (no con el foco ni con cada efecto): un color por outfit.
+    cut_chapters: bool = False
     # Acciones que se reparten primero los lugares (antes que el resto, en todo el video), sin
     # saltarse el tope de focos: en avatar, los golpes y saltos ganan a las pisadas.
     priority: list[str] = Field(default_factory=list)
@@ -301,6 +306,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
     ]
     extra += ambient_events(catalog, brief, seed, fps)
     extra += look_events(catalog, brief, seed, fps)
+    extra += outfit_events(catalog, brief, fps)
     events += extra
     if catalog.attention and brief.attention:
         # Lo que se enciende por "la parte que más se mueve" sale de la línea de atención, para
@@ -628,7 +634,10 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
         palette = catalog.defaults.get("style", {}).get("palette") or catalog.colors
         weights = skin_scores(palette, luma) ** 2 if luma is not None else None
         starts = [d.frame for d in decisions if not d.choice.startswith("nada")] if catalog.color_per_effect else None
-        script.chapters = build_chapters(events, palette, seed, fps, brief.video.frame_count, catalog.chapter_min_s, weights, cuts, starts)
+        if catalog.cut_chapters:  # un color por toma: ni el foco ni cada efecto lo cambian
+            script.chapters = build_chapters([], palette, seed, fps, brief.video.frame_count, 0.0, weights, cuts, None, distinct=True)
+        else:
+            script.chapters = build_chapters(events, palette, seed, fps, brief.video.frame_count, catalog.chapter_min_s, weights, cuts, starts)
     if pins is not None and not pair:
         acts = pin_chapters(pins, fps, brief.video.frame_count)
         if acts:
@@ -1129,7 +1138,7 @@ def pin_chapters(pins, fps: float, frame_count: int) -> list[Chapter]:
     return chapters
 
 
-def build_chapters(events: list[MotionEvent], palette, seed: int, fps: float, frame_count: int, min_s: float = 0.8, weights=None, cuts: list[int] | None = None, starts: list[int] | None = None) -> list[Chapter]:
+def build_chapters(events: list[MotionEvent], palette, seed: int, fps: float, frame_count: int, min_s: float = 0.8, weights=None, cuts: list[int] | None = None, starts: list[int] | None = None, distinct: bool = False) -> list[Chapter]:
     """Capítulos de foco estable con dos colores cada uno (principal y acento).
 
     Un capítulo nuevo empieza cuando un evento de foco nombra otro foco. Un capítulo dura al
@@ -1182,8 +1191,15 @@ def build_chapters(events: list[MotionEvent], palette, seed: int, fps: float, fr
         w = weight[choices]
         return int(rng.choice(choices, p=w / w.sum())) if w.sum() > 0 else int(rng.choice(choices))
 
+    used: set[int] = set()
     for start, stop, focus in spans:
-        main = pick([i for i in range(len(colors)) if i != previous] or [0])
+        # Con `distinct` (desfile), ningún color se repite hasta que se acaban los de la paleta.
+        fresh = [i for i in range(len(colors)) if i != previous and (not distinct or i not in used)]
+        if distinct and not fresh:
+            used.clear()
+            fresh = [i for i in range(len(colors)) if i != previous]
+        main = pick(fresh or [0])
+        used.add(main)
         accent = pick([i for i in range(len(colors)) if i != main] or [main])
         chapters.append(Chapter(start_frame=int(start), end_frame=int(stop) - 1, focus=focus, colors=[colors[main], colors[accent]]))
         previous = main
@@ -1395,6 +1411,27 @@ def ambient_events(catalog: Catalog, brief: MotionBrief, seed: int, fps: float) 
     while at < last:
         out.append(MotionEvent(name="ambient", target=brief.person_id, start_frame=at, end_frame=at, confidence=1.0, detail="Ambiente alrededor de la persona."))
         at += max(int(round(every * rng.uniform(0.75, 1.25))), room)
+    return out
+
+
+# Una toma más corta que esto (s) no es un outfit: es la transición deslizante entre dos.
+OUTFIT_MIN_S = 0.3
+
+
+def outfit_events(catalog: Catalog, brief: MotionBrief, fps: float) -> list[MotionEvent]:
+    """Con `outfits`, un evento `outfit` y otro `outfit_head` por cada toma (entre cortes), de punta a punta."""
+    if not catalog.outfits:
+        return []
+    from vfxglow.analysis.beats import cut_frames
+
+    total = brief.video.frame_count
+    bounds = [0] + [c for c in cut_frames(brief.beats) if 0 < c < total] + [total]
+    out: list[MotionEvent] = []
+    for a, b in zip(bounds[:-1], bounds[1:]):
+        if b - a < OUTFIT_MIN_S * fps:
+            continue
+        for name in ("outfit", "outfit_head"):
+            out.append(MotionEvent(name=name, target=brief.person_id, start_frame=a, end_frame=b - 1, confidence=1.0, detail="Un outfit (una toma entre cortes)."))
     return out
 
 
