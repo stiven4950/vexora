@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import logging
 import threading
 from collections.abc import Callable
@@ -39,7 +41,7 @@ log = logging.getLogger("vfxglow")
 _STAGE_CODE: dict[str, tuple[str, ...]] = {
     "analyze": ("analysis", "io/video.py", "geom.py"),
     # face_zone.py: qué va sobre la cara y su cobertura, que la coreografía consulta al elegir.
-    "direct": ("director", "analysis/names.py", "engine/face_zone.py"),
+    "direct": ("director", "analysis/names.py", "engine/face_zone.py", "analysis/garment.py"),
     "render": ("engine", "director/schema.py", "analysis/names.py", "analysis/appearance.py", "analysis/beats.py", "geom.py"),
     "compose": ("composite",),
 }
@@ -348,7 +350,7 @@ class Pipeline:
             return
         from vfxglow.analysis.schema import MotionBrief
 
-        brief = read_model(brief_path, MotionBrief)
+        brief = self._with_outfits(read_model(brief_path, MotionBrief))
         director = CreativeDirector(
             self.config.director,
             self.config_path.resolve().parent / "presets",
@@ -377,6 +379,26 @@ class Pipeline:
             code=_code("direct")[:12],
         )
 
+    def _with_outfits(self, brief):
+        """Con un catálogo de desfile (`outfits`), los cambios de ropa medidos en el video
+        (analysis/garment.py); se guardan en analysis/outfits.json y no se vuelven a medir."""
+        from vfxglow.director.choreography import load_catalog
+
+        path = catalog_file(self.config_path, self.config.director.catalog)
+        if brief.outfits is not None or self.config.director.provider != "catalog" or not path.exists() or not load_catalog(path).outfits:
+            return brief
+        cache = self.run_dir / "analysis" / "outfits.json"
+        if cache.exists():
+            changes = json.loads(cache.read_text())
+        else:
+            from vfxglow.analysis.beats import cut_frames
+            from vfxglow.analysis.garment import outfit_changes
+
+            log.info("Buscando los cambios de outfit")
+            changes = outfit_changes(self.video, Path(self.config.paths.models_dir).resolve(), cut_frames(brief.beats))
+            cache.write_text(json.dumps(changes))
+        return brief.model_copy(update={"outfits": changes})
+
     def direct_in_memory(self, brief=None) -> EffectScript:
         """La coreografía del catálogo con el análisis en caché, sin escribir nada en la carpeta de la
         corrida (ni guion, ni manifiesto): la vista previa del Estudio la usa para no pisar el guion
@@ -388,6 +410,7 @@ class Pipeline:
             brief_path = self.run_dir / "analysis" / "motion_brief.json"
             self._ensure_derived(brief_path)
             brief = read_model(brief_path, MotionBrief)
+        brief = self._with_outfits(brief)
         director = CreativeDirector(self.config.director, self.config_path.resolve().parent / "presets", video=self.video)
         return director.create(brief)
 

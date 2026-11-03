@@ -321,6 +321,67 @@ def ensure_garment(video_path: Path, run_dir: Path, models_dir: Path, cuts: list
     return target
 
 
+# Cambio de outfit: ventana a cada lado (cuadros, saltando los 2 del medio, que pueden ser una
+# transición), distancia de Bhattacharyya mínima entre el color de la prenda de antes y de después,
+# separación mínima entre dos cambios (s) y cuánto se corre el cambio a un corte cercano (cuadros).
+# Medido el 2026-11-03: video_46 da 0,40-0,81 en sus cuatro cambios; video_55, 0,66 al ponerse la
+# sudadera y 0,50 al sumar pantalón y bomber, y no más de 0,28 en sus otros seis cortes.
+OUTFIT_WINDOW = 8
+OUTFIT_SKIP = 2
+OUTFIT_CHANGE = 0.33
+OUTFIT_GAP_S = 0.8
+OUTFIT_SNAP = 4
+
+
+def outfit_changes(video_path: Path, models_dir: Path, cuts: list[int] | None = None) -> list[int]:
+    """Dónde empieza un outfit nuevo: picos del cambio de color de la prenda (tono, saturación y brillo
+    de lo que el segmentador llama ropa), no los cortes. Una capa que se suma con colores parecidos
+    no cuenta; una prenda que se cambia en un salto sin corte, sí."""
+    import mediapipe as mp
+    from mediapipe.tasks.python import BaseOptions
+    from mediapipe.tasks.python.vision import ImageSegmenter, ImageSegmenterOptions
+
+    from vfxglow.analysis.models_store import ensure_model
+    from vfxglow.io.video import VideoReader
+
+    options = ImageSegmenterOptions(base_options=BaseOptions(model_asset_path=str(ensure_model(models_dir, MODEL))), output_category_mask=True)
+    hists = []
+    with VideoReader(video_path) as reader, ImageSegmenter.create_from_options(options) as segmenter:
+        fps = reader.meta.fps
+        for _index, frame in reader:
+            ratio = SEG_SIDE / max(frame.shape[:2])
+            small = cv2.resize(frame, None, fx=ratio, fy=ratio, interpolation=cv2.INTER_AREA)
+            cat = segmenter.segment(mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(small, cv2.COLOR_BGR2RGB))).category_mask.numpy_view().squeeze()
+            hsv = cv2.cvtColor(small, cv2.COLOR_BGR2HSV)
+            hist = cv2.calcHist([hsv], [0, 1, 2], (cat == CLOTHES).astype(np.uint8), [12, 4, 4], [0, 180, 0, 256, 0, 256]).flatten()
+            hists.append(hist / max(float(hist.sum()), 1.0))
+    return outfit_peaks(np.array(hists), fps, cuts)
+
+
+def outfit_peaks(hists: np.ndarray, fps: float, cuts: list[int] | None = None) -> list[int]:
+    """Los cambios de outfit a partir del color de la prenda por cuadro (un histograma por fila)."""
+    n, wnd, skip = len(hists), OUTFIT_WINDOW, OUTFIT_SKIP
+    score = np.zeros(n)
+    for t in range(wnd, n - wnd):
+        before, after = hists[t - wnd : t - skip].mean(axis=0), hists[t + skip : t + wnd].mean(axis=0)
+        score[t] = cv2.compareHist(before.astype(np.float32), after.astype(np.float32), cv2.HISTCMP_BHATTACHARYYA)
+    # Un cambio seco da una meseta (la ventana salta los cuadros del medio): el suavizado la vuelve un pico
+    # en su centro, que es donde cambió.
+    score = np.convolve(score, np.array([1.0, 2.0, 3.0, 2.0, 1.0]) / 9.0, mode="same")
+    gap = int(round(OUTFIT_GAP_S * fps))
+    peaks = []
+    for t in np.argsort(-score):
+        if score[t] < OUTFIT_CHANGE:
+            break
+        if all(abs(int(t) - p) >= gap for p in peaks):
+            peaks.append(int(t))
+    out = []
+    for p in sorted(peaks):
+        near = [c for c in (cuts or []) if abs(c - p) <= OUTFIT_SNAP]
+        out.append(min(near, key=lambda c: abs(c - p)) if near else p)
+    return out
+
+
 def _poses(path: Path) -> dict[int, dict[str, np.ndarray]]:
     """Las articulaciones de la pose por fotograma, en coordenadas 0-1 de quien se vio (las de
     confianza); se pasan a píxeles al usarlas."""

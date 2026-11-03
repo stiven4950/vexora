@@ -65,7 +65,10 @@ por bueno).
    reflejo del espejo) y `garment_zones` (acción `outfit_zone` de `desfile`) tiñe una zona por turno
    (~0,9 s, con fundido), la cruza con un brillo diagonal y pone destellos donde toca el borde. Con
    cortes muy seguidos (este video), cada toma vuelve a empezar por el torso: lo arregla el punto 1.
-1. **Capítulo solo con cambio de outfit**: comparar la prenda antes y después de cada corte.
+1. ✅ **Capítulo solo con cambio de outfit** (2026-11-03): `garment.outfit_changes` busca picos del cambio
+   de color de la prenda (no los cortes) y el catálogo `desfile` los usa para sus outfits y colores
+   (`MotionBrief.outfits`, guardado en `analysis/outfits.json`). video_55 da un solo cambio (57, el de la
+   referencia); video_46, sus cuatro outfits. Los trazos se siguen eligiendo por toma.
 2. **Revelado y estreno**: barrido de relleno sobre la prenda nueva y unos cuadros de prenda completa
    teñida con contorno, antes de quedarse en los trazos.
 3. **Estilo holográfico**: separación de color en los contornos y arcoíris en el calzado (perilla del

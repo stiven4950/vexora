@@ -109,6 +109,9 @@ costura en una línea larga, el patrón de la prenda (puntos en el acolchado, zi
 pelo, anillos de articulaciones, y que las piezas de cabeza se elijan según el outfit (gafas solo
 cuando las lleva).
 
+- Desde el 2026-11-03 los outfits salen de los cambios de ropa medidos (`garment.outfit_changes`), no
+  de los cortes: aquí coinciden (27, 59, 90, 122).
+
 ## Pendiente
 
 - El glowing de `video_55` no está en `glowing/data/glowing/` (solo su original); sin él no se puede

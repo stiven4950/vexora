@@ -164,3 +164,24 @@ def test_the_painted_zone_takes_turns_and_a_sheen_crosses_it() -> None:
         lit[f] = (float(layer[60:120, 30:70, 3].mean()), float(layer[120:180, 30:70, 3].mean()))
     first, second = lit.values()
     assert first[0] > first[1] and second[1] > second[0]  # el turno pasó del torso a la pierna
+
+
+def test_the_outfit_changes_with_the_clothes_not_with_every_cut() -> None:
+    from vfxglow.director.choreography import choreograph, load_catalog
+
+    catalog = load_catalog(ROOT / "configs/catalogs/desfile.yaml")
+    brief = _brief([30, 60, 90, 120]).model_copy(update={"outfits": [60]})  # los cortes 30, 90 y 120 suman capas
+    script, choreo = choreograph(catalog, brief, 3)
+    assert sorted(d.frame for d in choreo.decisions if d.action == "outfit") == [0, 60]
+    assert [c.start_frame for c in script.chapters] == [0, 60]
+
+
+def test_a_clothes_change_is_found_where_the_garment_colour_jumps() -> None:
+    from vfxglow.analysis.garment import outfit_peaks
+
+    rng = np.random.default_rng(0)
+    red, blue, grey = (np.eye(48, dtype=np.float32)[k] for k in (0, 30, 12))
+    noise = lambda base: [base * 0.9 + rng.random(48).astype(np.float32) * 0.1 / 48 for _ in range(40)]  # noqa: E731
+    hists = np.array(noise(red) + noise(blue) + noise(blue * 0.85 + grey * 0.15))  # el último tramo: una capa chica
+    assert outfit_peaks(hists, 30.0) == [40]
+    assert outfit_peaks(hists, 30.0, cuts=[42]) == [42]  # un corte cercano se lleva el cambio

@@ -220,6 +220,7 @@ class EffectEngine:
             runtime.frame_count = frame_count  # los efectos de cierre saben cuánto falta (firebend.fire_wall)
             # El próximo corte de toma: un efecto largo (el aro grande) se apaga antes, no de golpe en él.
             runtime.next_cut = next((c for c in sorted(self.cuts) if c > frame_index), None)
+            runtime.take_start = max((c for c in self.cuts if c <= frame_index), default=0)
             runtime.contour_px = None
             runtime.regions = regions
             runtime.garment = garment

@@ -179,7 +179,8 @@ class Catalog(_Strict):
     # outfit_head, outfit_zone) y cada toma (entre cortes): cada outfit es un capítulo con su dibujo,
     # su pieza de cabeza y sus zonas pintadas.
     outfits: bool = False
-    # El color solo cambia en los cortes (no con el foco ni con cada efecto): un color por outfit.
+    # El color solo cambia con el outfit (los cambios de ropa medidos, o los cortes si no se midieron),
+    # no con el foco ni con cada efecto.
     cut_chapters: bool = False
     # Acciones que se reparten primero los lugares (antes que el resto, en todo el video), sin
     # saltarse el tope de focos: en avatar, los golpes y saltos ganan a las pisadas.
@@ -635,8 +636,9 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
         palette = catalog.defaults.get("style", {}).get("palette") or catalog.colors
         weights = skin_scores(palette, luma) ** 2 if luma is not None else None
         starts = [d.frame for d in decisions if not d.choice.startswith("nada")] if catalog.color_per_effect else None
-        if catalog.cut_chapters:  # un color por toma: ni el foco ni cada efecto lo cambian
-            script.chapters = build_chapters([], palette, seed, fps, brief.video.frame_count, 0.0, weights, cuts, None, distinct=True)
+        if catalog.cut_chapters:  # un color por outfit (o por toma): ni el foco ni cada efecto lo cambian
+            bounds = brief.outfits if brief.outfits is not None else cuts
+            script.chapters = build_chapters([], palette, seed, fps, brief.video.frame_count, 0.0, weights, bounds, None, distinct=True)
         else:
             script.chapters = build_chapters(events, palette, seed, fps, brief.video.frame_count, catalog.chapter_min_s, weights, cuts, starts)
     if pins is not None and not pair:
@@ -1426,7 +1428,8 @@ def outfit_events(catalog: Catalog, brief: MotionBrief, fps: float) -> list[Moti
     from vfxglow.analysis.beats import cut_frames
 
     total = brief.video.frame_count
-    bounds = [0] + [c for c in cut_frames(brief.beats) if 0 < c < total] + [total]
+    changes = brief.outfits if brief.outfits is not None else cut_frames(brief.beats)
+    bounds = [0] + [c for c in changes if 0 < c < total] + [total]
     out: list[MotionEvent] = []
     for a, b in zip(bounds[:-1], bounds[1:]):
         if b - a < OUTFIT_MIN_S * fps:

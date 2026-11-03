@@ -64,10 +64,14 @@ def garment_lines(shape, body, frame, scale, frame_index, runtime, layer, color,
         return []
     height, width = runtime.frame_shape
     knobs = pick_knobs(shape, body.prefix, event.start_frame, runtime.effect.style.variants)
-    st = runtime.swoosh.setdefault(f"_garment:{event.start_frame}", {"last": {}})
+    # Los trazos se eligen por toma: un outfit puede tener varias (capas que se suman con un corte) y
+    # al cortar los trazos son otros. El color y la salida siguen siendo del outfit.
+    take = max(getattr(runtime, "take_start", event.start_frame), event.start_frame)
+    take_end = min(getattr(runtime, "next_cut", None) or event.end_frame + 1, event.end_frame + 1) - 1
+    st = runtime.swoosh.setdefault(f"_garment:{event.start_frame}:{take}", {"last": {}})
     if "ids" not in st:
-        seed = zlib.crc32(f"garment:{event.start_frame}:{runtime.effect.id}".encode())
-        st["ids"] = _choose(strokes_by_frame, event.start_frame, event.end_frame, float(knobs["density"]), seed)
+        seed = zlib.crc32(f"garment:{take}:{runtime.effect.id}".encode())
+        st["ids"] = _choose(strokes_by_frame, take, take_end, float(knobs["density"]), seed)
     for stroke in (strokes_by_frame.get(frame_index) or {}).get("strokes", []):
         if stroke["id"] in st["ids"]:
             st["last"][stroke["id"]] = (frame_index, np.asarray(stroke["points"], dtype=np.float64) * [width, height])

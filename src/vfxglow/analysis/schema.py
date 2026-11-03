@@ -260,5 +260,8 @@ class MotionBrief(_Strict):
     skin: dict[str, SkinTone] = Field(default_factory=dict)
     attention: list[AttentionSpan] = Field(default_factory=list)
     duet: list[DuetSpan] = Field(default_factory=list)
+    # Desfile: fotogramas donde empieza un outfit nuevo (cambia la ropa, no solo la toma; sin el 0).
+    # None = no se calculó (analysis/garment.py: outfit_changes).
+    outfits: list[int] | None = None
     # Señales derivadas ya calculadas (analysis/analyzer.py: DERIVED).
     derived: list[str] = Field(default_factory=list)
