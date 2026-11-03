@@ -32,6 +32,19 @@ reactions:
     - type: adornment
       style: {shapes: [garment_lines], thickness: 0.006, focus: false}
       trigger: {hold: 0, cooldown: 0, fade_in: 0, fade_out: 0}
+# El estreno de un outfit nuevo: barrido de luz, prenda entera teñida y silueta (video_55).
+- action: outfit_reveal
+  options:
+  - name: revelado
+    weight: 1.0
+    effects:
+    - type: adornment
+      style: {shapes: [garment_reveal], thickness: 0.004, focus: false}
+      trigger: {hold: 0, cooldown: 0, fade_in: 0, fade_out: 0}
+  # A veces el outfit entra directo, ya delineado (como en video_46).
+  - name: nada
+    weight: 0.4
+    effects: []
 # Zonas de la prenda pintadas con luz, con un brillo que las recorre (video_55).
 - action: outfit_zone
   options:

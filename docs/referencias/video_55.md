@@ -69,8 +69,9 @@ por bueno).
    de color de la prenda (no los cortes) y el catálogo `desfile` los usa para sus outfits y colores
    (`MotionBrief.outfits`, guardado en `analysis/outfits.json`). video_55 da un solo cambio (57, el de la
    referencia); video_46, sus cuatro outfits. Los trazos se siguen eligiendo por toma.
-2. **Revelado y estreno**: barrido de relleno sobre la prenda nueva y unos cuadros de prenda completa
-   teñida con contorno, antes de quedarse en los trazos.
+2. ✅ **Revelado y estreno** (2026-11-03): `garment_reveal` (acción `outfit_reveal`): barrido diagonal de
+   luz sobre la ropa (0,3 s), prenda entera teñida con su silueta (0,4 s) y fundido (0,35 s); no en el
+   outfit del comienzo, y a veces no (opción `nada`).
 3. **Estilo holográfico**: separación de color en los contornos y arcoíris en el calzado (perilla del
    catálogo).
 4. **Onda en banda**: zigzag animado sobre una franja de la prenda (cadera, pecho).

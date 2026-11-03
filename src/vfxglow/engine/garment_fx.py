@@ -9,6 +9,9 @@ analysis/garment.py, en neón con el color del outfit.
 - garment_zones: zonas de la prenda pintadas con luz (video_55): el turno pasa de una zona a otra
   (torso, mangas, piernas, bolso); la de turno se tiñe suave con el color del outfit y un brillo la
   cruza en diagonal como un reflejo en la tela, con destellos donde toca el borde.
+- garment_reveal: el estreno de un outfit nuevo (video_55, 1,9-2,7 s): un barrido de luz blanca cruza
+  la prenda, la deja entera teñida del color del outfit con su silueta delineada y se desvanece hacia
+  los trazos. No en el outfit con el que empieza el video (ahí no hay cambio).
 """
 
 from __future__ import annotations
@@ -22,7 +25,7 @@ from vfxglow.engine.eye_family import pick_knobs
 from vfxglow.engine.hand_props import _dashed
 from vfxglow.engine.raster import fill_polygon, splat
 
-GARMENT_FX = ("garment_lines", "garment_zones")
+GARMENT_FX = ("garment_lines", "garment_zones", "garment_reveal")
 # Cuántos trazos de cada clase elige un outfit (con la perilla `density`: 0,6, 1 o 1,5) y en cuántos de
 # los cuadros de la toma tiene que aparecer uno para contar.
 PICK = {"accessory": 4, "border": 2, "inner": 3}
@@ -173,3 +176,64 @@ def garment_zones(shape, body, frame, scale, frame_index, runtime, layer, color,
                     lines += [(np.array([at - [arm, 0], at + [arm, 0]]), shine), (np.array([at - [0, arm * 1.6], at + [0, arm * 1.6]]), shine)]
                     splat(layer, float(at[0]), float(at[1]), 0.004 * height + 1.0, shine, alpha, runtime.kernels)
     return lines
+
+
+# Revelado: cuánto tarda el barrido, cuánto dura la prenda entera teñida y su fundido de salida (s);
+# brillo del barrido y del tinte.
+REVEAL_WIPE_S = 0.3
+REVEAL_HOLD_S = 0.4
+REVEAL_FADE_S = 0.35
+REVEAL_FLASH = 1.4
+REVEAL_TINT = 0.5
+
+
+def _garment_mask(polys: list[np.ndarray], shape: tuple[int, int]) -> tuple[np.ndarray, int, int] | None:
+    """La prenda entera (todas sus zonas) como máscara de su recuadro: (máscara, x0, y0)."""
+    if not polys:
+        return None
+    pts = np.vstack(polys)
+    h, w = shape
+    x0, y0 = max(int(pts[:, 0].min()) - 3, 0), max(int(pts[:, 1].min()) - 3, 0)
+    x1, y1 = min(int(pts[:, 0].max()) + 4, w), min(int(pts[:, 1].max()) + 4, h)
+    if x1 - x0 < 3 or y1 - y0 < 3:
+        return None
+    mask = np.zeros((y1 - y0, x1 - x0), np.uint8)
+    cv2.fillPoly(mask, [np.round(p - [x0, y0]).astype(np.int32) for p in polys], 255, lineType=cv2.LINE_AA)
+    return mask, x0, y0
+
+
+def garment_reveal(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
+    rows = getattr(runtime, "garment", None) or {}
+    if not rows or event is None or event.start_frame == 0:
+        return []
+    fps = getattr(runtime, "fps", 30.0) or 30.0
+    t = (frame_index - event.start_frame) / fps
+    if t > REVEAL_WIPE_S + REVEAL_HOLD_S + REVEAL_FADE_S:
+        return []
+    height, width = runtime.frame_shape
+    zones = ((rows.get(frame_index) or {}).get("zones") or {})
+    # Solo la ropa (torso, mangas, piernas): el bolso y el calzado tienen sus propios trazos.
+    polys = [np.asarray(pts, dtype=np.float64) * [width, height] for name, pts in zones.items() if name.split("_")[0] in ("torso", "sleeve", "leg")]
+    found = _garment_mask(polys, layer.shape[:2])
+    if found is None:
+        return []
+    mask, x0, y0 = found
+    weight = cv2.GaussianBlur(mask.astype(np.float32) / 255.0, (0, 0), 2.0)
+    tint = np.asarray(color, np.float32)
+    yy, xx = np.mgrid[y0 : y0 + mask.shape[0], x0 : x0 + mask.shape[1]]
+    s = (xx - x0) / max(mask.shape[1], 1) * 0.6 + (yy - y0) / max(mask.shape[0], 1) * 0.4  # en diagonal, de arriba a la izquierda
+    wipe = float(np.clip(t / REVEAL_WIPE_S, 0.0, 1.0))
+    fade = 1.0 - float(np.clip((t - REVEAL_WIPE_S - REVEAL_HOLD_S) / REVEAL_FADE_S, 0.0, 1.0))
+    covered = (s <= wipe * 1.05).astype(np.float32)
+    front = np.exp(-(((s - wipe) / 0.06) ** 2)).astype(np.float32) if wipe < 1.0 else 0.0
+    energy = weight * (covered * REVEAL_TINT * fade + front * REVEAL_FLASH) * np.float32(alpha)
+    shine = tint * 0.3 + 0.7  # el frente del barrido, casi blanco
+    paint = (tint[None, None, :] * (covered * REVEAL_TINT * fade)[..., None] + shine[None, None, :] * (front * REVEAL_FLASH if wipe < 1.0 else 0.0)[..., None] if wipe < 1.0 else tint[None, None, :] * (REVEAL_TINT * fade))
+    dst = layer[y0 : y0 + mask.shape[0], x0 : x0 + mask.shape[1]]
+    dst[..., :3] += paint * (weight * np.float32(alpha))[..., None]
+    dst[..., 3] = 1.0 - (1.0 - dst[..., 3]) * (1.0 - np.clip(energy, 0.0, 1.0))
+    if wipe < 1.0 or fade <= 0.0:
+        return []
+    # Estrenada: la silueta de la prenda (no las fronteras entre zonas, que pone la pose).
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    return [(c[:, 0, :].astype(np.float64) + [x0, y0], (tint * 0.4 + 0.6) * fade) for c in contours if len(c) > 20]

@@ -185,3 +185,27 @@ def test_a_clothes_change_is_found_where_the_garment_colour_jumps() -> None:
     hists = np.array(noise(red) + noise(blue) + noise(blue * 0.85 + grey * 0.15))  # el último tramo: una capa chica
     assert outfit_peaks(hists, 30.0) == [40]
     assert outfit_peaks(hists, 30.0, cuts=[42]) == [42]  # un corte cercano se lleva el cambio
+
+
+def test_a_new_outfit_is_revealed_by_a_wipe_and_then_worn_whole() -> None:
+    from types import SimpleNamespace
+
+    from vfxglow.engine.garment_fx import REVEAL_WIPE_S, garment_reveal
+
+    zones = {"torso": [[0.3, 0.2], [0.7, 0.2], [0.7, 0.6], [0.3, 0.6]]}
+    rows = {f: {"strokes": [], "zones": zones} for f in range(100)}
+    runtime = SimpleNamespace(garment=rows, frame_shape=(200, 100), fps=30.0, swoosh={}, kernels={})
+
+    def draw(frame: int, start: int) -> tuple[np.ndarray, list]:
+        layer = np.zeros((200, 100, 4), np.float32)
+        event = MotionEvent(name="outfit_reveal", target="person_0", start_frame=start, end_frame=99, confidence=1.0)
+        lines = garment_reveal("garment_reveal", None, None, 40.0, frame, runtime, layer, np.array([1.0, 0.0, 1.0], np.float32), 1.0, event)
+        return layer, lines
+
+    mid, _ = draw(30 + int(REVEAL_WIPE_S * 30 / 2), 30)
+    left, right = float(mid[50:110, 32:45, 3].mean()), float(mid[50:110, 56:68, 3].mean())
+    assert left > right  # a mitad del barrido, de un lado ya está y del otro todavía no
+    whole, lines = draw(30 + int(REVEAL_WIPE_S * 30) + 3, 30)
+    assert float(whole[50:110, 32:68, 3].min()) > 0.2 and lines  # entera, con su silueta
+    assert not draw(95, 30)[1] and float(draw(95, 30)[0][..., 3].max()) == 0.0  # después ya no está
+    assert float(draw(5, 0)[0][..., 3].max()) == 0.0  # el outfit del comienzo no se revela
