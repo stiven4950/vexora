@@ -17,7 +17,7 @@ from vfxglow.config import LAYER_GROUPS, PRESET_ALIASES, catalog_file, catalog_n
 from vfxglow.device import require_cuda, resolve_device
 from vfxglow.director.director import CreativeDirector
 from vfxglow.director.schema import EffectScript, effect_group
-from vfxglow.engine.engine import EffectEngine, load_events, load_layer, load_tracks, needs_regions, save_layer
+from vfxglow.engine.engine import EffectEngine, load_events, load_layer, load_tracks, needs_garment, needs_regions, save_layer
 from pydantic import BaseModel
 
 from vfxglow.io.store import (
@@ -50,7 +50,7 @@ _STAGE_CODE: dict[str, tuple[str, ...]] = {
 # análisis entero (un detector nuevo costaba rehacer ~15 min de pose por video). extras.py solo lo
 # usa la vista previa del Estudio, en memoria: no forma parte del análisis guardado. regions.py es
 # una etapa aparte que solo corre si el guion la pide (Pipeline._engine).
-_STAGE_SKIP: dict[str, tuple[str, ...]] = {"analyze": ("analysis/gestures.py", "analysis/extras.py", "analysis/regions.py")}
+_STAGE_SKIP: dict[str, tuple[str, ...]] = {"analyze": ("analysis/gestures.py", "analysis/extras.py", "analysis/regions.py", "analysis/garment.py")}
 
 
 def _code(stage: str) -> str:
@@ -470,6 +470,10 @@ class Pipeline:
             from vfxglow.analysis.regions import ensure_regions
 
             ensure_regions(self.video, self.run_dir, Path(self.config.paths.models_dir).resolve())
+        if needs_garment(script):
+            from vfxglow.analysis.garment import ensure_garment
+
+            ensure_garment(self.video, self.run_dir, Path(self.config.paths.models_dir).resolve(), cuts)
         engine = EffectEngine(script, self.config.engine, events, cuts=cuts, fps=meta.fps)
         return engine, tracks
 

@@ -127,7 +127,16 @@ def _scene_cuts(video_path: Path, frame_count: int, correlation: float) -> list[
         detected = _histogram_cuts(video_path, frame_count, correlation)
     # Tomas del mismo lugar (el mismo cielo y el mismo pasto) tienen casi el mismo histograma: el
     # corte se ve en la forma de la imagen.
-    return sorted(set(detected) | set(_structure_cuts(video_path, frame_count)))
+    found = sorted(set(detected) | set(_structure_cuts(video_path, frame_count)))
+    # Dos detectores ven la misma transición en cuadros vecinos: un solo corte, el último (el outfit
+    # nuevo ya se ve entero; ahí cambia el color en video_46).
+    merged: list[int] = []
+    for c in found:
+        if merged and c - merged[-1] <= SLIDE_MERGE:
+            merged[-1] = c
+        else:
+            merged.append(c)
+    return merged
 
 
 def _scenedetect_cuts(video_path: Path, frame_count: int) -> list[int] | None:
@@ -155,6 +164,8 @@ def _scenedetect_cuts(video_path: Path, frame_count: int) -> list[int] | None:
 
 CUT_JUMP = 8.0  # salto medio de gris (0-255) entre dos cuadros para que pueda ser un corte...
 CUT_RATIO = 4.0  # ...y cuántas veces más grande que el movimiento normal de los cuadros vecinos
+SLIDE_RATIO = 3.0  # una transición de 2-3 cuadros: cuántas veces el movimiento normal medido lejos de ella
+SLIDE_MERGE = 3  # cuadros de una misma transición que se funden en un corte
 
 
 def _structure_cuts(video_path: Path, frame_count: int) -> list[int]:
@@ -178,7 +189,21 @@ def _structure_cuts(video_path: Path, frame_count: int) -> list[int]:
         near = np.concatenate([d[max(i - 6, 0) : i], d[i + 1 : i + 7]])
         if d[i] > CUT_JUMP and d[i] > CUT_RATIO * max(float(np.median(near)) if len(near) else 0.0, 1.0):
             cuts.append(i + 1)
-    return [c for c in cuts if c < frame_count - 3]  # el último fundido a negro no es un corte
+            continue
+        # Transición deslizante (video_46, cuadros 121-123): el salto se reparte en 2-3 cuadros seguidos
+        # y sus vecinos son la misma transición; el movimiento normal se mide lejos de ella.
+        run = d[i] > 2 * CUT_JUMP and ((i > 0 and d[i - 1] > 2 * CUT_JUMP) or (i + 1 < len(d) and d[i + 1] > 2 * CUT_JUMP))
+        far = np.concatenate([d[max(i - 9, 0) : max(i - 2, 0)], d[i + 3 : i + 10]])
+        if run and len(far) and d[i] > SLIDE_RATIO * max(float(np.median(far)), 1.0):
+            cuts.append(i + 1)
+    merged: list[int] = []  # los cuadros de una misma transición son un solo corte (el del salto mayor)
+    for c in cuts:
+        if merged and c - merged[-1] <= SLIDE_MERGE:
+            if d[c - 1] > d[merged[-1] - 1]:
+                merged[-1] = c
+            continue
+        merged.append(c)
+    return [c for c in merged if c < frame_count - 3]  # el último fundido a negro no es un corte
 
 
 def _histogram_cuts(video_path: Path, frame_count: int, correlation: float) -> list[int]:
