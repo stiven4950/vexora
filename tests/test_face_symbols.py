@@ -182,3 +182,21 @@ def test_makeup_and_medusa_coverage() -> None:
 
     assert {cov(s) for s in MAKEUP} == {"medium"}
     assert cov("medusa_snakes") == "peripheral"
+
+
+def test_the_porcelain_cracks_open_with_a_strong_expression() -> None:
+    calm, shouting = _runtime("porcelain_cracks"), _runtime("porcelain_cracks")
+    for f in range(30):
+        a = _frame("porcelain_cracks", calm, f)
+        b = _frame("porcelain_cracks", shouting, f, {"jawOpen": 0.9})
+    assert _ink(*b) > _ink(*a) * 1.5
+
+
+def test_the_porcelain_cracks_never_enter_the_eyes_or_the_mouth() -> None:
+    from vfxglow.engine.face_makeup import CRACK_KEEP_OUT, _crack_tree
+
+    for seed in range(20):
+        for side in (-1.0, 1.0):
+            for local, _depth in _crack_tree(np.random.default_rng(seed), side):
+                for (cx, cy), r in CRACK_KEEP_OUT:
+                    assert np.all(np.hypot(local[1:, 0] - cx, local[1:, 1] - cy) >= r)

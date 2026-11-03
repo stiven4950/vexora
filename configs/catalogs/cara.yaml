@@ -736,6 +736,14 @@ reactions:
 # Boca abierta: una llamarada que sigue a la boca, una esfera de energía que sale en ondas, o un aliento.
 - action: mouth_open
   options:
+  # Porcelana fracturada: crece con la boca abierta.
+  - name: porcelana
+    weight: 0.3
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [porcelain_cracks], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 3}
   # La serpiente holográfica se acerca a la boca abierta.
   - name: serpiente_holo
     weight: 0.3
@@ -823,6 +831,14 @@ reactions:
 # Cara de impresión (cejas arriba con ojos o boca abiertos): ojos y boca de susto o líneas de impacto.
 - action: surprise
   options:
+  # Porcelana fracturada: la impresión abre las grietas y suelta esquirlas.
+  - name: porcelana
+    weight: 0.45
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [porcelain_cracks], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 3}
   # El tercer ojo se abre del todo con la impresión.
   - name: tercer_ojo
     weight: 0.4
@@ -878,6 +894,14 @@ reactions:
 # Ceño o ojos entrecerrados: carga y dispara, o suelta rayos alrededor de la cabeza.
 - action: frown
   options:
+  # Porcelana fracturada (kintsugi): las grietas se abren con la fuerza del gesto (engine/face_makeup.py).
+  - name: porcelana
+    weight: 0.4
+    cooldown: 300
+    effects:
+    - type: adornment
+      style: {shapes: [porcelain_cracks], thickness: 0.008, focus: false}
+      trigger: {hold: 90, fade_in: 1, fade_out: 3}
   # Tormenta en los ojos: con el ceño, más brillo y arcos más largos.
   - name: ojos_tormenta
     weight: 0.7

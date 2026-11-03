@@ -95,7 +95,8 @@ ojos, variaciones y cobertura) está hecha. Las siguientes, en orden:
   misma zona (cabeza o cuerpo). Los efectos de línea fina devuelven (curva, color, ancho) y el motor
   los pinta: así también se transforman. Como el que sale ya se suelta en polvo, el nuevo nace de esos
   fragmentos (el "reensamblar desde el polvo").
-- Entrega 4: porcelana fracturada (variante de `face_cracks`).
+- Entrega 4 (hecha): porcelana fracturada al estilo kintsugi (`porcelain_cracks` en
+  `engine/face_makeup.py`).
 
 Además:
 

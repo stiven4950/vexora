@@ -17,6 +17,10 @@ familia de ojos (engine/eye_family.py): fases, perillas y señales de la cara.
   el viento arrastra hacia atrás (más lejos en el lado que da al viento), de la sien y el ojo salen
   hebras de humo rosa y naranja, y por delante flotan chispas. Al girar la cabeza o moverse, el viento
   sopla más fuerte; al irse, todo se lo lleva el viento.
+- porcelain_cracks: porcelana fracturada al estilo kintsugi: grietas finas de oro y luz blanca que se
+  ramifican por un lado del rostro, sin cruzar ojos ni boca. Crecen con la fuerza de la expresión
+  (ceño, ojos muy abiertos, boca abierta), sueltan esquirlas que caen girando cuando la expresión sube
+  de golpe y se cierran de a poco cuando la cara se relaja.
 
 Coordenadas de cara (engine/face_glow.py): los ojos en x = ±0,5, y hacia el mentón; junto a cada ojo,
 x crece hacia afuera de la cara.
@@ -35,7 +39,7 @@ from vfxglow.engine.raster import fill_polygon, splat
 from vfxglow.geom import catmull_rom
 
 TAU = 2.0 * np.pi
-MAKEUP = ("butterfly_wings", "pharaoh_mark", "neon_veins", "face_dissolve")
+MAKEUP = ("butterfly_wings", "pharaoh_mark", "neon_veins", "face_dissolve", "porcelain_cracks")
 GOLD = np.array([1.0, 0.76, 0.22], np.float32)
 TURQUOISE = np.array([0.15, 0.85, 0.85], np.float32)
 RUBY = np.array([1.0, 0.12, 0.08], np.float32)
@@ -336,7 +340,94 @@ def _face_dissolve(face: Face, ctx: dict) -> list:
     return []
 
 
-DRAW = {"butterfly_wings": _butterfly_wings, "pharaoh_mark": _pharaoh_mark, "neon_veins": _neon_veins, "face_dissolve": _face_dissolve}
+# Porcelana: orígenes de las grietas (unidades de cara, del lado elegido), ramas, cuánto crece en
+# reposo y con la expresión plena, y zonas que no cruza (ojos y boca: centro y radio).
+CRACK_ORIGINS = ((0.82, 0.25), (0.62, -0.62), (0.45, 1.0))
+CRACK_DEPTH = 3
+CRACK_REST = 0.3
+CRACK_KEEP_OUT = (((0.5, 0.0), 0.24), ((-0.5, 0.0), 0.24), ((0.0, 1.0), 0.38))
+FLAKES = 6
+FLAKE_LIFE = 30
+KINTSUGI = np.array([1.0, 0.8, 0.35], np.float32)
+
+
+def _crack_tree(rng, side: float) -> list[tuple[np.ndarray, int]]:
+    """Grietas quebradas (en coordenadas de cara) con su profundidad: cada una suelta dos ramas más
+    cortas. Los tramos que entrarían en un ojo o la boca se cortan ahí."""
+    out: list[tuple[np.ndarray, int]] = []
+
+    def blocked(p) -> bool:
+        return any(np.hypot(p[0] - cx, p[1] - cy) < r for (cx, cy), r in CRACK_KEEP_OUT)
+
+    def grow(start, angle, length, depth):
+        pts = [np.asarray(start, dtype=np.float64)]
+        for _ in range(5):
+            angle += rng.uniform(-0.45, 0.45)
+            nxt = pts[-1] + np.array([np.cos(angle), np.sin(angle)]) * length / 5
+            if blocked(nxt):
+                break
+            pts.append(nxt)
+        if len(pts) < 2:
+            return
+        out.append((np.array(pts), depth))
+        if depth < CRACK_DEPTH:
+            for turn in (-0.7, 0.6):
+                k = int(rng.integers(1, len(pts)))
+                grow(pts[k], angle + turn + rng.uniform(-0.2, 0.2), length * 0.6, depth + 1)
+
+    for ox, oy in CRACK_ORIGINS:
+        origin = (side * ox, oy)
+        toward = np.arctan2(-oy * 0.3, -side * ox)  # hacia el centro de la cara, sin llegar
+        for turn in (-0.9, 0.0, 0.9):
+            grow(origin, toward + turn + rng.uniform(-0.2, 0.2), rng.uniform(0.35, 0.55), 1)
+    return out
+
+
+def _porcelain(face: Face, ctx: dict) -> list:
+    sig, st, layer, kernels, frame_index = ctx["sig"], ctx["st"], ctx["layer"], ctx["runtime"].kernels, ctx["frame_index"]
+    from vfxglow.engine.face_signals import smooth
+
+    force = max(float(np.clip(sig.frown / 0.5, 0, 1)), float(np.clip(sig.wide / 0.25, 0, 1)), float(np.clip(sig.jaw / 0.45, 0, 1)))
+    entry = _ease(_seg(ctx["u"], 0.0, ENTRY_END * 2.0))
+    # Sube rápido con la expresión y se cierra despacio al relajarse.
+    level = smooth(ctx["runtime"], f"porcelain:{id(st)}", entry * (CRACK_REST + (1.0 - CRACK_REST) * force), 0.4, 0.04, store="_porcelain")
+    side = 1.0 if ctx["seed"] % 2 else -1.0
+    tree = _crack_tree(np.random.default_rng(ctx["seed"]), side)
+    lines = []
+    for local, depth in tree:
+        # Lo profundo (ramas finas) solo se abre con la expresión fuerte.
+        reach = float(np.clip((level - (depth - 1) * 0.22) / 0.4, 0.0, 1.0))
+        if reach <= 0.0:
+            continue
+        curve = _trim(face.place(local), reach)
+        lines.append((curve, KINTSUGI if depth == 1 else KINTSUGI * 0.75 + 0.25))
+        if depth == 1 and reach > 0.3:  # brillo en el origen de cada grieta
+            root = curve[0]
+            splat(layer, float(root[0]), float(root[1]), 0.025 * face.unit + 0.5, WHITE, ctx["alpha"] * reach, kernels)
+    if level - st.get("level", level) > 0.08 and ctx["stage"] == "active":  # subió de golpe: se sueltan esquirlas
+        st.setdefault("flakes", []).append(frame_index)
+    st["level"] = level
+    rng = np.random.default_rng(ctx["seed"] + 7)
+    spots = [face.place([(side * ox, oy)])[0] for ox, oy in CRACK_ORIGINS]
+    kept = []
+    for born in st.get("flakes", []):
+        age = (frame_index - born) / FLAKE_LIFE
+        if not 0.0 <= age < 1.0:
+            continue
+        kept.append(born)
+        for k in range(FLAKES):
+            start = spots[k % len(spots)] + rng.normal(0.0, 0.05, 2) * face.unit
+            drift = np.array([rng.uniform(-0.2, 0.2), 0.0]) * face.unit * age
+            at = start + drift + face.uy * (0.9 * age**2)  # caen con gravedad
+            spin = age * 9.0 + k
+            size = 0.04 * face.unit
+            chip = at + np.array([[np.cos(spin + a), np.sin(spin + a)] for a in (0.0, 2.3, 4.1)]) * size
+            lines.append((np.vstack([chip, chip[:1]]), KINTSUGI * (1.0 - age)))
+    st["flakes"] = kept
+    return lines
+
+
+DRAW = {"butterfly_wings": _butterfly_wings, "pharaoh_mark": _pharaoh_mark, "neon_veins": _neon_veins, "face_dissolve": _face_dissolve, "porcelain_cracks": _porcelain}
 
 
 def face_makeup(shape: str, body, frame, scale, frame_index: int, runtime, layer, color, alpha: float, event) -> list:
