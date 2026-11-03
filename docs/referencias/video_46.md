@@ -112,6 +112,10 @@ cuando las lleva).
 - Desde el 2026-11-03 los outfits salen de los cambios de ropa medidos (`garment.outfit_changes`), no
   de los cortes: aquí coinciden (27, 59, 90, 122).
 
+- 2026-11-03: los tramos de una misma costura se juntan en una línea (`join_chains`) y la pieza de
+  cabeza sigue lo que lleva el outfit (gorra → barra de luz, sombrero → aro, gafas → gafas; el resto, sin
+  repetirse). Con eso salen las cuatro piezas de la referencia en sus outfits.
+
 ## Pendiente
 
 - El glowing de `video_55` no está en `glowing/data/glowing/` (solo su original); sin él no se puede

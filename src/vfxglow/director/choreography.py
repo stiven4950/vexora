@@ -483,6 +483,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                 option.effects
                 and reaction.action not in KEY_ACTIONS
                 and reaction.action not in AMBIENT_ACTIONS
+                and not reaction.action.startswith("outfit")  # las capas de un outfit no compiten entre sí
                 and not _earned(option)
                 and sum(1 for ls, le in lit if ls <= start <= le) + sum(1 for ks, ke in key_windows if ks <= end and start <= ke) >= MAX_TOGETHER
             ):
@@ -521,7 +522,7 @@ def choreograph(catalog: Catalog, brief: MotionBrief, seed: int | None = None, p
                     mask_windows.append((start, end))
                 if reaction.action not in AMBIENT_ACTIONS:
                     taken.append((start, end, _coverage(option)))
-                if reaction.action not in AMBIENT_ACTIONS and reaction.action not in KEY_ACTIONS and weight_class(option) != "ligero":
+                if reaction.action not in AMBIENT_ACTIONS and reaction.action not in KEY_ACTIONS and not reaction.action.startswith("outfit") and weight_class(option) != "ligero":
                     lit.append((start, until_cut(start, end, cuts)))  # lo ligero no ocupa lugar de foco; el corte lo apaga
                 partner = _partner(person, span, brief)
                 whole_scene = all(raw.get("type") in SCENE_TYPES for raw in option.effects)

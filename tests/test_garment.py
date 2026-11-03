@@ -248,3 +248,79 @@ def test_the_wave_crosses_the_trousers_and_stays_on_them() -> None:
     assert points[:, 0].min() < 75 and points[:, 0].max() > 125  # de una pierna a la otra
     assert np.all((points[:, 0] >= 58) & (points[:, 0] <= 142) & (points[:, 1] >= 198))  # sobre el pantalón
     assert not np.allclose(np.vstack([c for c, _t in later])[:20], points[:20])  # se mueve
+
+
+def test_pieces_of_one_seam_are_joined_into_one_line() -> None:
+    from vfxglow.analysis.garment import join_chains
+
+    a = np.stack([np.full(20, 100.0), np.linspace(100, 200, 20)], axis=1)
+    b = np.stack([np.full(20, 101.0), np.linspace(208, 300, 20)], axis=1)  # sigue a la primera, tras un hueco
+    side = np.stack([np.linspace(150, 250, 20), np.full(20, 205.0)], axis=1)  # cruza: no es la misma costura
+    joined = join_chains([a, b[::-1], side], gap=12.0)
+    lengths = sorted(len(c) for c in joined)
+    assert lengths == [20, 40]
+
+
+def test_a_logo_is_a_small_contrasting_mark_high_in_the_middle() -> None:
+    from vfxglow.analysis.garment import _logo
+
+    gray = np.full((400, 200), 90, np.uint8)
+    inside = np.zeros((400, 200), np.uint8)
+    inside[80:360, 40:160] = 1
+    gray[130:150, 90:115] = 230  # el logo, arriba al centro
+    gray[300:320, 50:60] = 230  # una mancha abajo al costado: no
+    logo = _logo(gray, inside, 400, 200)
+    assert logo is not None and 85 <= logo[:, 0].mean() <= 120 and 125 <= logo[:, 1].mean() <= 155
+
+
+def _runtime_for(rows: dict, **extra):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(garment=rows, frame_shape=(400, 200), fps=30.0, swoosh={}, kernels={}, **extra)
+
+
+def test_bubbles_float_beside_the_person_and_one_follows_the_moving_hand() -> None:
+    from types import SimpleNamespace
+
+    from vfxglow.engine.garment_fx import garment_bubbles
+
+    rows = {f: {"strokes": [], "zones": {"torso": [[0.35, 0.3], [0.65, 0.3], [0.65, 0.7], [0.35, 0.7]]}} for f in range(40)}
+    runtime = _runtime_for(rows)
+    event = MotionEvent(name="outfit_bubbles", target="person_0", start_frame=0, end_frame=39, confidence=1.0)
+    count = []
+    for f in range(12):
+        wrist = np.array([60.0 + f * 12.0, 200.0])  # la mano derecha se mueve rápido
+        body = SimpleNamespace(get=lambda name, w=wrist: w if name == "right_wrist" else np.array([140.0, 200.0]))
+        lines = garment_bubbles("garment_bubbles", body, None, 40.0, f, runtime, np.zeros((400, 200, 4), np.float32), np.ones(3, np.float32), 1.0, event)
+        count.append(len(lines))
+    assert count[-1] == count[1] + 3  # una burbuja más (tres anillos: rojo, rosa, azul) en la mano
+
+
+def test_the_bag_leaves_a_trail_only_when_it_swings() -> None:
+    from vfxglow.engine.garment_fx import garment_trail
+
+    def run(step: float) -> list:
+        rows = {f: {"strokes": [], "zones": {"bag": (np.array([[0.2, 0.6], [0.3, 0.6], [0.3, 0.7], [0.2, 0.7]]) + [f * step, 0.0]).tolist()}} for f in range(10)}
+        runtime = _runtime_for(rows)
+        event = MotionEvent(name="outfit_trail", target="person_0", start_frame=0, end_frame=9, confidence=1.0)
+        out = []
+        for f in range(10):
+            out = garment_trail("garment_trail", None, None, 40.0, f, runtime, np.zeros((400, 200, 4), np.float32), np.ones(3, np.float32), 1.0, event)
+        return out
+
+    assert run(0.0) == [] and run(0.06)
+
+
+def test_the_prism_only_lights_the_last_second() -> None:
+    from vfxglow.engine.garment_fx import garment_prism
+
+    rows = {f: {"strokes": [], "zones": {"torso": [[0.3, 0.3], [0.7, 0.3], [0.7, 0.7], [0.3, 0.7]]}} for f in range(90)}
+    runtime = _runtime_for(rows, frame_count=90)
+    event = MotionEvent(name="outfit_prism", target="person_0", start_frame=0, end_frame=89, confidence=1.0)
+
+    def lit(f: int) -> float:
+        layer = np.zeros((400, 200, 4), np.float32)
+        garment_prism("garment_prism", None, None, 40.0, f, runtime, layer, np.ones(3, np.float32), 1.0, event)
+        return float(layer[..., 3].sum())
+
+    assert lit(30) == 0.0 and lit(75) > 0.0

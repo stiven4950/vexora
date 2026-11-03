@@ -76,9 +76,12 @@ por bueno).
    `garment_lines` pone a cada línea una copia roja y otra azul corridas y pinta el calzado en arcoíris.
 4. ✅ **Onda en banda** (2026-11-03): `garment_ecg` (acción `outfit_wave`, ~45% de los outfits): hebras con
    picos de electrocardiograma que cruzan el pantalón a la altura de la cadera, recortadas a la prenda.
-5. **Anillos flotantes** con separación de color, uno en la mano que más se mueve.
-6. **Destello que recorre un borde** cuando la persona está quieta.
-7. **Logo o estampado**: una mancha de alto contraste dentro de la prenda, trazada.
-8. **Estela del accesorio** que se mueve rápido (como `prop_swoosh`, con el bolso o la mochila de la
-   segmentación).
-9. **Cierre de prisma**: franjas de arcoíris que se deslizan sobre la prenda.
+5. ✅ **Anillos flotantes** (2026-11-03): `garment_bubbles` (acción `outfit_bubbles`, ~35%): anillos con
+   separación de color que suben a los costados; uno se queda en la muñeca que más se mueve.
+6. ✅ **Destello que recorre un borde**: `garment_lines` desliza dos brillos por las líneas más largas.
+7. ✅ **Logo o estampado**: `analysis/garment.py` busca una mancha chica de mucho contraste arriba y al
+   centro de la prenda (trazo `logo`). Tenue en video_55: no siempre sale; sin falsos positivos.
+8. ✅ **Estela del accesorio**: `garment_trail` (acción `outfit_trail`): con el bolso o la mochila
+   moviéndose rápido, copias tenues de su silueta lo siguen.
+9. ✅ **Cierre de prisma**: `garment_prism` (acción `outfit_prism`): en el último segundo, destellos finos
+   de arcoíris se deslizan en diagonal sobre la ropa. `desfile` ya no usa las estrellas de cierre.

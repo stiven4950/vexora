@@ -65,7 +65,7 @@ from vfxglow.engine.horror_masks import HORROR_MASKS, horror_mask
 from vfxglow.engine.living_fx import LIVING, living_fx
 from vfxglow.engine.eye_family import EYES, eye_family
 from vfxglow.engine.face_makeup import MAKEUP, face_makeup
-from vfxglow.engine.garment_fx import GARMENT_FX, garment_lines, garment_reveal, garment_ecg, garment_zones
+from vfxglow.engine.garment_fx import GARMENT_FX, garment_bubbles, garment_ecg, garment_lines, garment_prism, garment_reveal, garment_trail, garment_zones
 from vfxglow.engine.face_symbols import SYMBOLS, face_symbol
 from vfxglow.engine.head_companions import COMPANIONS, head_companion
 from vfxglow.engine.stories import STORIES, story
@@ -218,6 +218,12 @@ def doodle(shape, body, frame, scale, frame_index, seed, runtime, layer, color, 
         return face_symbol(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape in MAKEUP:
         return face_makeup(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape == "garment_bubbles":
+        return garment_bubbles(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape == "garment_trail":
+        return garment_trail(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape == "garment_prism":
+        return garment_prism(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape == "garment_ecg":
         return garment_ecg(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape == "garment_reveal":

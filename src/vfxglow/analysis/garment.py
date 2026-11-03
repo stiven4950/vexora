@@ -8,7 +8,8 @@ analysis/regions.py, que descarta "otros", justo donde caen zapatos, bolsos y go
   top) o entre la prenda y el calzado (la caña de la bota).
 - accessory: el contorno de lo que el modelo llama "otros": calzado, bolsos, gorras.
 - inner: bordes largos dentro de la prenda (costuras, solapas, franjas, cierres, el acolchado), de la
-  imagen a tamaño real.
+  imagen a tamaño real; los tramos de una misma costura se juntan en una línea.
+- logo: el contorno del logo o estampado (una mancha chica de mucho contraste arriba y al centro).
 
 El modelo trabaja a 256 px: cada punto de una frontera se corre al borde más fuerte de la imagen a
 pocos píxeles (`snap`), así la línea cae sobre la tela y no sobre el escalón de la máscara. Cada
@@ -39,8 +40,8 @@ FILE = "garment.jsonl"
 # El lado mayor con el que se segmenta (el modelo trabaja a 256 px; más no agrega detalle).
 SEG_SIDE = 512
 # Largo mínimo de un trazo (fracción del alto del cuadro) y cuántos de cada clase se guardan.
-MIN_LENGTH = {"border": 0.05, "accessory": 0.04, "inner": 0.09}
-KEEP = {"border": 6, "accessory": 6, "inner": 10}
+MIN_LENGTH = {"border": 0.05, "accessory": 0.04, "inner": 0.09, "logo": 0.0}
+KEEP = {"border": 6, "accessory": 6, "inner": 10, "logo": 1}
 # Un accesorio más chico que esto (fracción del cuadro) es ruido; uno en la parte alta de la persona
 # (esta fracción de su alto) es pelo o gorra.
 MIN_ACCESSORY = 0.0015
@@ -135,11 +136,16 @@ def frame_strokes(frame: np.ndarray, categories: np.ndarray) -> list[dict]:
             continue
         if cv2.contourArea(curve.astype(np.float32)) >= MIN_ACCESSORY * h * w:
             strokes.append({"kind": "accessory", "curve": snap(np.vstack([curve, curve[:1]]), gradient)})
-    # Bordes de la imagen dentro de la prenda.
+    # Bordes de la imagen dentro de la prenda; los tramos de una misma costura se juntan en una línea.
     inside = cv2.erode(clothes.astype(np.uint8), np.ones((INNER_ERODE, INNER_ERODE), np.uint8))
     edges = cv2.Canny(gray, *CANNY) * inside
-    for curve in _chains(edges > 0, MIN_LENGTH["inner"] * h):
-        strokes.append({"kind": "inner", "curve": curve})
+    pieces = _chains(edges > 0, JOIN_MIN * h)
+    for curve in join_chains(pieces, JOIN_GAP * h):
+        if _length(curve) >= MIN_LENGTH["inner"] * h:
+            strokes.append({"kind": "inner", "curve": curve})
+    logo = _logo(gray, inside, h, w)
+    if logo is not None:
+        strokes.append({"kind": "logo", "curve": logo})
     # Puntaje: largo por contraste medio del borde (las costuras marcadas ganan a las arrugas).
     for stroke in strokes:
         curve = stroke["curve"]
@@ -241,6 +247,95 @@ def frame_zones(categories: np.ndarray, pose: dict[str, np.ndarray], width: int,
             smooth = np.stack([np.convolve(padded[:, k], kernel, mode="valid") for k in range(2)], axis=1)
             out[name] = _resample(np.vstack([smooth, smooth[:1]]), 40)[:-1] / scale
     return out
+
+
+# Costuras partidas: largo mínimo de un tramo que se intenta unir, hueco máximo entre dos tramos
+# (fracción del alto) y cuánto pueden torcerse en la unión (grados).
+JOIN_MIN = 0.025
+JOIN_GAP = 0.02
+JOIN_TURN = 35.0
+# Logo: área (fracción del cuadro), contraste mínimo contra la tela de alrededor (gris 0-255) y dónde
+# puede estar (fracción del ancho de la prenda desde su centro, y de su alto desde arriba).
+LOGO_AREA = (0.0003, 0.012)
+LOGO_CONTRAST = 40
+LOGO_SPREAD = 0.3
+LOGO_TOP = 0.55
+
+
+def _ends(curve: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Los extremos de una línea y la dirección con que sale de cada uno (hacia afuera)."""
+    k = min(5, len(curve) - 1)
+    a, b = curve[0], curve[-1]
+    da, db = a - curve[k], b - curve[-1 - k]
+    return a, da / max(float(np.linalg.norm(da)), 1e-6), b, db / max(float(np.linalg.norm(db)), 1e-6)
+
+
+def join_chains(chains: list[np.ndarray], gap: float) -> list[np.ndarray]:
+    """Junta tramos que siguen uno al otro: extremos cerca y la misma dirección (una costura que Canny
+    partió en pedazos). Se repite hasta que no hay más uniones."""
+    lines = [np.asarray(c, dtype=np.float64) for c in chains if len(c) >= 3]
+    cos_max = np.cos(np.radians(JOIN_TURN))
+    merged = True
+    while merged:
+        merged = False
+        for i in range(len(lines)):
+            for j in range(len(lines)):
+                if i == j:
+                    continue
+                a0, ad, a1, bd = _ends(lines[i])
+                b0, cd, b1, dd = _ends(lines[j])
+                # El final de i con el comienzo de j: cerca, y j sigue en la dirección en que sale i.
+                for tail, tail_dir, other, flip in ((a1, bd, lines[j], False), (a1, bd, lines[j][::-1], True)):
+                    head, head_dir = (b0, cd) if not flip else (b1, dd)
+                    step = head - tail
+                    dist = float(np.linalg.norm(step))
+                    if dist > gap:
+                        continue
+                    if float(tail_dir @ -head_dir) < cos_max:
+                        continue
+                    if dist > 1e-6 and float(tail_dir @ (step / dist)) < cos_max * 0.5:
+                        continue
+                    lines[i] = np.vstack([lines[i], other])
+                    lines.pop(j)
+                    merged = True
+                    break
+                if merged:
+                    break
+            if merged:
+                break
+    return lines
+
+
+def _logo(gray: np.ndarray, inside: np.ndarray, h: int, w: int) -> np.ndarray | None:
+    """El logo o estampado de la prenda: una mancha chica de mucho contraste con la tela de alrededor,
+    en la parte de arriba y al centro de la prenda. Su contorno."""
+    rows, cols = np.nonzero(inside)
+    if len(rows) < 100:
+        return None
+    local = cv2.medianBlur(gray, 31)
+    contrast = (np.abs(gray.astype(np.int16) - local.astype(np.int16)) > LOGO_CONTRAST).astype(np.uint8) * inside
+    contrast = cv2.morphologyEx(contrast, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
+    count, labels, stats, centers = cv2.connectedComponentsWithStats(contrast)
+    mid_x, top, tall, wide = cols.mean(), rows.min(), np.ptp(rows), max(np.ptp(cols), 1)
+    best, best_score = None, 0.0
+    for k in range(1, count):
+        area = stats[k, cv2.CC_STAT_AREA] / (h * w)
+        cx, cy = centers[k]
+        if not (LOGO_AREA[0] <= area <= LOGO_AREA[1]):
+            continue
+        if abs(cx - mid_x) > LOGO_SPREAD * wide or cy - top > LOGO_TOP * tall:
+            continue
+        bw, bh = stats[k, cv2.CC_STAT_WIDTH], stats[k, cv2.CC_STAT_HEIGHT]
+        if max(bw, bh) > 4 * min(bw, bh):  # una línea larga es una costura, no un logo
+            continue
+        score = area * (1.0 - abs(cx - mid_x) / wide)
+        if score > best_score:
+            best, best_score = k, score
+    if best is None:
+        return None
+    contours, _ = cv2.findContours((labels == best).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    curve = max(contours, key=cv2.contourArea)[:, 0, :].astype(np.float64)
+    return np.vstack([curve, curve[:1]]) if len(curve) >= 8 else None
 
 
 class Tracker:
