@@ -30,6 +30,12 @@ todos son la misma ropa con una capa más**: el color no cambia con ellos.
 
 ## Patrones (combinados con video_46)
 
+0. **Zonas pintadas y destellos que recorren la prenda** (observación del usuario, 2026-11-02): dentro de
+   un mismo outfit se pintan ciertas zonas de la ropa (la manga, el frente de la chaqueta, una pierna
+   del pantalón, la mochila) con un tinte de luz, y por encima pasan brillos que se deslizan por la tela
+   como un reflejo, de una zona a otra. Da la ilusión de un material brillante sin cambiar de outfit; es
+   el recurso principal del video, más que los contornos. Las zonas salen de la prenda segmentada
+   partida por la pose (torso, mangas, piernas) y de los accesorios.
 1. **El color va con el outfit, no con el corte.** En video_46 cada corte era un outfit nuevo; aquí 9
    cortes y tres colores (rojo, verde, verde con acentos rosa y amarillo). Hay que medir si la ropa
    cambió (color y forma de la prenda antes y después del corte) y abrir capítulo solo entonces.
@@ -54,6 +60,9 @@ por bueno).
 
 ## Lo que falta, por prioridad
 
+0. **Zonas pintadas con destellos**: partir la prenda en zonas (torso, mangas, piernas, accesorios con
+   la pose), teñir una o dos a la vez y pasarles un brillo que se desliza por la tela; el turno pasa de
+   una zona a otra durante el outfit.
 1. **Capítulo solo con cambio de outfit**: comparar la prenda antes y después de cada corte.
 2. **Revelado y estreno**: barrido de relleno sobre la prenda nueva y unos cuadros de prenda completa
    teñida con contorno, antes de quedarse en los trazos.
