@@ -126,6 +126,7 @@ EVENT_NAMES: tuple[str, ...] = (
     "look",
     "outfit",
     "outfit_head",
+    "outfit_zone",
     "frown",
     "heart_hands",
     "arms_up",

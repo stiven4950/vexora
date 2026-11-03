@@ -32,6 +32,15 @@ reactions:
     - type: adornment
       style: {shapes: [garment_lines], thickness: 0.006, focus: false}
       trigger: {hold: 0, cooldown: 0, fade_in: 0, fade_out: 0}
+# Zonas de la prenda pintadas con luz, con un brillo que las recorre (video_55).
+- action: outfit_zone
+  options:
+  - name: zonas
+    weight: 1.0
+    effects:
+    - type: adornment
+      style: {shapes: [garment_zones], thickness: 0.004, focus: false}
+      trigger: {hold: 0, cooldown: 0, fade_in: 0, fade_out: 0}
 # La pieza de cabeza del outfit (en la referencia: barra de ojos, cachos y gafas, aro, orejas).
 - action: outfit_head
   options:

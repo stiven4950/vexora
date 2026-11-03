@@ -138,6 +138,7 @@ EVENT_CATALOG: dict[str, str] = {
     "look": "Lugar reservado para un efecto largo de la cara.",
     "outfit": "Un outfit del desfile: la toma entre dos cortes.",
     "outfit_head": "La pieza de cabeza de un outfit del desfile.",
+    "outfit_zone": "Las zonas pintadas de un outfit del desfile.",
     "ambient": "Momento para llenar el espacio alrededor de la persona.",
     "frown": "Frunce el ceño o entrecierra los ojos.",
     "stomp": "Pisotón: el pie levantado baja rápido y se frena en el piso.",

@@ -154,6 +154,95 @@ def frame_strokes(frame: np.ndarray, categories: np.ndarray) -> list[dict]:
     return kept
 
 
+# Zonas de la prenda: a qué escala se calculan (fracción del cuadro), el área mínima de una zona
+# (fracción del cuadro) y cuánto cerca del tobillo un "otros" es calzado y no bolso (fracción del alto).
+ZONE_SCALE = 0.4
+MIN_ZONE = 0.004
+SHOE_REACH = 0.1
+ZONES = ("torso", "sleeve_left", "sleeve_right", "leg_left", "leg_right", "bag", "shoe_left", "shoe_right")
+
+
+def _seg_dist(px: np.ndarray, a, b) -> np.ndarray:
+    """Distancia de cada punto `px` (N, 2) al segmento a-b."""
+    a, b = np.asarray(a, dtype=np.float64), np.asarray(b, dtype=np.float64)
+    ab = b - a
+    t = np.clip(((px - a) @ ab) / max(float(ab @ ab), 1e-9), 0.0, 1.0)
+    return np.linalg.norm(px - (a + t[:, None] * ab), axis=1)
+
+
+def _chain_dist(px: np.ndarray, chain: list) -> np.ndarray:
+    """Distancia a una cadena de puntos (hombro, codo, muñeca); infinito sin dos puntos seguidos."""
+    pts = [p for p in chain if p is not None]
+    if len(pts) < 2:
+        return np.full(len(px), np.inf)
+    return np.min([_seg_dist(px, a, b) for a, b in zip(pts[:-1], pts[1:])], axis=0)
+
+
+def frame_zones(categories: np.ndarray, pose: dict[str, np.ndarray], width: int, height: int) -> dict[str, np.ndarray]:
+    """La prenda partida en zonas con la pose (torso, mangas, piernas) y los accesorios (bolso,
+    calzado de cada pie): el contorno de cada una en píxeles del cuadro.
+
+    `pose`: articulaciones en píxeles del cuadro (las que se vieron)."""
+    w, h = max(int(width * ZONE_SCALE), 8), max(int(height * ZONE_SCALE), 8)
+    cat = cv2.medianBlur(cv2.resize(categories.astype(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST), 3)
+    scale = np.array([w / width, h / height])
+    joints = {name: p * scale for name, p in pose.items()}
+    zone = np.zeros((h, w), np.uint8)  # 0 = nada; k + 1 = ZONES[k]
+    ys, xs = np.nonzero(cat == CLOTHES)
+    if len(xs):
+        px = np.stack([xs, ys], axis=1).astype(np.float64)
+        hips = [joints.get("left_hip"), joints.get("right_hip")]
+        shoulders = [joints.get("left_shoulder"), joints.get("right_shoulder")]
+        if all(p is not None for p in hips + shoulders):
+            mid_hip, mid_shoulder = (hips[0] + hips[1]) / 2, (shoulders[0] + shoulders[1]) / 2
+            upper = px[:, 1] < mid_hip[1]
+            torso = _seg_dist(px, mid_shoulder, mid_hip)
+            labels = np.full(len(px), ZONES.index("torso"))
+            for side in ("left", "right"):
+                arm = _chain_dist(px, [joints.get(f"{side}_shoulder"), joints.get(f"{side}_elbow"), joints.get(f"{side}_wrist")])
+                other = _chain_dist(px, [joints.get(f"{'right' if side == 'left' else 'left'}_shoulder"), joints.get(f"{'right' if side == 'left' else 'left'}_elbow"),
+                                         joints.get(f"{'right' if side == 'left' else 'left'}_wrist")])
+                labels[upper & (arm < torso) & (arm <= other)] = ZONES.index(f"sleeve_{side}")
+            legs = {side: _chain_dist(px, [joints.get(f"{side}_hip"), joints.get(f"{side}_knee"), joints.get(f"{side}_ankle")]) for side in ("left", "right")}
+            lower = ~upper
+            labels[lower & (legs["left"] <= legs["right"])] = ZONES.index("leg_left")
+            labels[lower & (legs["right"] < legs["left"])] = ZONES.index("leg_right")
+        else:
+            labels = np.full(len(px), ZONES.index("torso"))
+        zone[ys, xs] = labels + 1
+    # Accesorios: lo que está cerca de un tobillo es su calzado; el resto (lejos de la cabeza), bolso.
+    rows = np.nonzero((cat > 0).any(axis=1))[0]
+    head_line = rows.min() + HEAD_ZONE * (rows.max() - rows.min()) if len(rows) else 0
+    count, blobs, stats, centers = cv2.connectedComponentsWithStats((cat == OTHER).astype(np.uint8))
+    near_person = cv2.dilate(((cat > 0) & (cat != OTHER)).astype(np.uint8), np.ones((5, 5), np.uint8)) > 0
+    for k in range(1, count):
+        cx, cy = centers[k]
+        if cy < head_line or stats[k, cv2.CC_STAT_AREA] < MIN_ZONE * w * h:
+            continue
+        if not (near_person & (blobs == k)).any():
+            continue  # no toca a la persona: un reflejo en el espejo o algo del fondo
+        name = "bag"
+        for side in ("left", "right"):
+            ankle = joints.get(f"{side}_ankle")
+            if ankle is not None and np.hypot(cx - ankle[0], cy - ankle[1]) < SHOE_REACH * h:
+                name = f"shoe_{side}"
+        zone[blobs == k] = ZONES.index(name) + 1
+    out = {}
+    for k, name in enumerate(ZONES):
+        mask = (zone == k + 1).astype(np.uint8)
+        if mask.sum() < MIN_ZONE * w * h:
+            continue
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        big = max(contours, key=cv2.contourArea)[:, 0, :].astype(np.float64)
+        if len(big) >= 8:
+            # Suavizado a lo largo del contorno (la máscara del modelo tiene escalones) y 40 puntos.
+            kernel = np.ones(7) / 7.0
+            padded = np.vstack([big[-3:], big, big[:3]])
+            smooth = np.stack([np.convolve(padded[:, k], kernel, mode="valid") for k in range(2)], axis=1)
+            out[name] = _resample(np.vstack([smooth, smooth[:1]]), 40)[:-1] / scale
+    return out
+
+
 class Tracker:
     """Ids estables. Cada trazo se compara con los trazos vivos de la misma clase por la distancia media
     de sus puntos al otro (un tramo de la misma costura cuenta como la misma costura: Canny la parte
@@ -210,6 +299,7 @@ def ensure_garment(video_path: Path, run_dir: Path, models_dir: Path, cuts: list
     )
     cut_set = set(cuts or [])
     tracker = Tracker()
+    poses = _poses(Path(run_dir) / "analysis" / "tracks.jsonl")
     part = target.with_suffix(".part")
     with VideoReader(video_path) as reader, ImageSegmenter.create_from_options(options) as segmenter, part.open("w") as out:
         fps, (h, w) = reader.meta.fps, (reader.meta.height, reader.meta.width)
@@ -222,20 +312,38 @@ def ensure_garment(video_path: Path, run_dir: Path, models_dir: Path, cuts: list
             categories = segmenter.segment_for_video(image, int(index * 1000 / fps)).category_mask.numpy_view().squeeze()
             strokes = frame_strokes(frame, categories)
             tracker.assign(strokes, h)
+            pose = {name: p * [w, h] for name, p in poses.get(index, {}).items()}
+            zones = frame_zones(categories, pose, w, h)
             out.write(json.dumps({"frame": index, "strokes": [
                 {"id": s["id"], "kind": s["kind"], "score": round(s["score"], 4), "points": np.round(s["curve"] / [w, h], 4).tolist()} for s in strokes
-            ]}) + "\n")
+            ], "zones": {name: np.round(poly / [w, h], 4).tolist() for name, poly in zones.items()}}) + "\n")
     part.rename(target)
     return target
 
 
-def load_garment(run_dir: Path | None) -> dict[int, list[dict]]:
-    """Los trazos por fotograma (coordenadas 0-1), o vacío si no se calcularon."""
+def _poses(path: Path) -> dict[int, dict[str, np.ndarray]]:
+    """Las articulaciones de la pose por fotograma, en coordenadas 0-1 de quien se vio (las de
+    confianza); se pasan a píxeles al usarlas."""
+    if not path.exists():
+        return {}
+    from vfxglow.analysis.schema import FrameRecord
+    from vfxglow.io.store import read_jsonl
+
+    out = {}
+    for record in read_jsonl(path, FrameRecord):
+        if record.pose:
+            out[record.frame] = {lm.name: np.array([lm.x, lm.y]) for lm in record.pose if lm.c > 0.3}
+    return out
+
+
+def load_garment(run_dir: Path | None) -> dict[int, dict]:
+    """Por fotograma, sus trazos (`strokes`) y sus zonas (`zones`), en coordenadas 0-1; vacío si no se
+    calcularon."""
     path = Path(run_dir) / "analysis" / FILE if run_dir is not None else None
     if path is None or not path.exists():
         return {}
     out = {}
     for line in path.read_text().splitlines():
         row = json.loads(line)
-        out[row["frame"]] = row["strokes"]
+        out[row["frame"]] = {"strokes": row["strokes"], "zones": row.get("zones", {})}
     return out

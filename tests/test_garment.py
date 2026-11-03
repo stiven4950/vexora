@@ -63,7 +63,7 @@ def test_an_outfit_keeps_the_strokes_that_appear_most() -> None:
     def stroke(sid: int, kind: str, score: float) -> dict:
         return {"id": sid, "kind": kind, "score": score, "points": [[0.1, 0.1], [0.2, 0.2]]}
 
-    frames = {f: [stroke(1, "accessory", 0.5), stroke(2, "inner", 0.9)] + ([stroke(3, "inner", 2.0)] if f == 0 else []) for f in range(20)}
+    frames = {f: {"strokes": [stroke(1, "accessory", 0.5), stroke(2, "inner", 0.9)] + ([stroke(3, "inner", 2.0)] if f == 0 else []), "zones": {}} for f in range(20)}
     chosen = _choose(frames, 0, 19, 1.0, seed=1)
     assert 1 in chosen and 2 in chosen
     assert 3 not in chosen  # salió en un solo cuadro: no es del outfit
@@ -125,3 +125,42 @@ def test_back_to_back_activations_start_over() -> None:
     runtime = engine.runtimes[0]
     assert runtime.chapter_frame == 10
     assert tuple(runtime.chapter_colors[0]) == (0.0, 1.0, 0.0)
+
+
+def test_the_garment_splits_into_zones_with_the_pose() -> None:
+    from vfxglow.analysis.garment import frame_zones
+
+    h, w = 400, 200
+    cat = np.zeros((h, w), np.uint8)
+    cat[80:200, 60:140] = 4  # torso
+    cat[80:200, 30:60] = 4  # manga derecha (izquierda del cuadro)
+    cat[80:200, 140:170] = 4  # manga izquierda
+    cat[200:360, 60:100] = 4  # pierna derecha
+    cat[200:360, 100:140] = 4  # pierna izquierda
+    cat[60:80, 80:120] = 3  # cara: la persona empieza ahí
+    pose = {"right_shoulder": np.array([60.0, 85]), "left_shoulder": np.array([140.0, 85]), "right_elbow": np.array([45.0, 140]), "left_elbow": np.array([155.0, 140]),
+            "right_wrist": np.array([45.0, 195]), "left_wrist": np.array([155.0, 195]), "right_hip": np.array([80.0, 200]), "left_hip": np.array([120.0, 200]),
+            "right_knee": np.array([80.0, 280]), "left_knee": np.array([120.0, 280]), "right_ankle": np.array([80.0, 355]), "left_ankle": np.array([120.0, 355])}
+    zones = frame_zones(cat, pose, w, h)
+    assert {"torso", "sleeve_left", "sleeve_right", "leg_left", "leg_right"} <= set(zones)
+    assert zones["leg_left"][:, 0].mean() > zones["leg_right"][:, 0].mean()
+
+
+def test_the_painted_zone_takes_turns_and_a_sheen_crosses_it() -> None:
+    from types import SimpleNamespace
+
+    from vfxglow.engine.garment_fx import ZONE_TURN_S, garment_zones
+
+    square = [[0.3, 0.3], [0.7, 0.3], [0.7, 0.6], [0.3, 0.6]]
+    legs = [[0.3, 0.6], [0.7, 0.6], [0.7, 0.9], [0.3, 0.9]]
+    rows = {f: {"strokes": [], "zones": {"torso": square, "leg_left": legs}} for f in range(90)}
+    effect = SimpleNamespace(id="z", style=SimpleNamespace(variants={}))
+    runtime = SimpleNamespace(garment=rows, frame_shape=(200, 100), fps=30.0, swoosh={}, kernels={}, effect=effect)
+    event = MotionEvent(name="outfit_zone", target="person_0", start_frame=0, end_frame=89, confidence=1.0)
+    lit = {}
+    for f in (5, int(ZONE_TURN_S * 30) + 15):
+        layer = np.zeros((200, 100, 4), np.float32)
+        garment_zones("garment_zones", SimpleNamespace(prefix="p"), None, 40.0, f, runtime, layer, np.array([1.0, 0.0, 1.0], np.float32), 1.0, event)
+        lit[f] = (float(layer[60:120, 30:70, 3].mean()), float(layer[120:180, 30:70, 3].mean()))
+    first, second = lit.values()
+    assert first[0] > first[1] and second[1] > second[0]  # el turno pasó del torso a la pierna

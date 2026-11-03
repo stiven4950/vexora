@@ -6,18 +6,23 @@ analysis/garment.py, en neón con el color del outfit.
   fronteras (prenda contra piel o contra el calzado) y unos pocos bordes de adentro (costuras,
   solapas, franjas). Cuántos, según la perilla `density`. Entra completo en el corte, sigue la tela
   cuadro a cuadro y en los últimos cuadros se parte en guiones (la salida de la referencia).
+- garment_zones: zonas de la prenda pintadas con luz (video_55): el turno pasa de una zona a otra
+  (torso, mangas, piernas, bolso); la de turno se tiñe suave con el color del outfit y un brillo la
+  cruza en diagonal como un reflejo en la tela, con destellos donde toca el borde.
 """
 
 from __future__ import annotations
 
 import zlib
 
+import cv2
 import numpy as np
 
 from vfxglow.engine.eye_family import pick_knobs
 from vfxglow.engine.hand_props import _dashed
+from vfxglow.engine.raster import fill_polygon, splat
 
-GARMENT_FX = ("garment_lines",)
+GARMENT_FX = ("garment_lines", "garment_zones")
 # Cuántos trazos de cada clase elige un outfit (con la perilla `density`: 0,6, 1 o 1,5) y en cuántos de
 # los cuadros de la toma tiene que aparecer uno para contar.
 PICK = {"accessory": 4, "border": 2, "inner": 3}
@@ -32,6 +37,7 @@ DASH = 0.03
 def _choose(strokes_by_frame: dict, start: int, end: int, density: float, seed: int) -> set[int]:
     """Los trazos de este outfit: por clase, los que más aparecen por su contraste medio."""
     frames = [f for f in range(start, end + 1) if f in strokes_by_frame]
+    strokes_by_frame = {f: strokes_by_frame[f]["strokes"] if isinstance(strokes_by_frame[f], dict) else strokes_by_frame[f] for f in frames}
     if not frames:
         return set()
     seen: dict[int, list] = {}
@@ -62,7 +68,7 @@ def garment_lines(shape, body, frame, scale, frame_index, runtime, layer, color,
     if "ids" not in st:
         seed = zlib.crc32(f"garment:{event.start_frame}:{runtime.effect.id}".encode())
         st["ids"] = _choose(strokes_by_frame, event.start_frame, event.end_frame, float(knobs["density"]), seed)
-    for stroke in strokes_by_frame.get(frame_index, []):
+    for stroke in (strokes_by_frame.get(frame_index) or {}).get("strokes", []):
         if stroke["id"] in st["ids"]:
             st["last"][stroke["id"]] = (frame_index, np.asarray(stroke["points"], dtype=np.float64) * [width, height])
     lines = [curve for sid, (seen, curve) in st["last"].items() if frame_index - seen <= HOLD_FRAMES]
@@ -71,3 +77,95 @@ def garment_lines(shape, body, frame, scale, frame_index, runtime, layer, color,
         keep = max(left, 0) / EXIT_FRAMES
         lines = [piece for curve in lines for piece in _dashed(curve, keep, DASH * height)]
     return [(curve, np.asarray(color, np.float32)) for curve in lines if len(curve) >= 2]
+
+
+# Zonas: cuánto dura el turno de cada una (s), el fundido entre turnos (fracción del turno), en cuántos
+# cuadros de la toma tiene que aparecer una zona para entrar en la ronda, el tinte y el brillo.
+ZONE_TURN_S = 0.9
+ZONE_FADE = 0.3
+ZONE_PRESENCE = 0.5
+ZONE_TINT = 0.3
+SHEEN_WIDTH = 0.09
+SHEEN_GAIN = 1.1
+ZONE_ORDER = ("torso", "sleeve_right", "leg_left", "bag", "sleeve_left", "leg_right")
+
+
+def _zone_order(rows: dict, start: int, end: int, seed: int) -> list[str]:
+    """Las zonas que entran en la ronda (las que se ven casi toda la toma), en un orden con semilla
+    que empieza siempre por la más grande de las que estén (el torso, si está)."""
+    frames = [f for f in range(start, end + 1) if f in rows]
+    present = [z for z in ZONE_ORDER if frames and sum(z in (rows[f].get("zones") or {}) for f in frames) >= ZONE_PRESENCE * len(frames)]
+    if len(present) <= 2:
+        return present
+    rest = present[1:]
+    np.random.default_rng(seed).shuffle(rest)
+    return present[:1] + rest
+
+
+def _sheen(layer: np.ndarray, poly: np.ndarray, angle: float, center: float, tint, alpha: float) -> tuple[np.ndarray, np.ndarray] | None:
+    """Un brillo en banda que cruza la zona en la dirección `angle`; `center` de 0 a 1 es dónde va la
+    banda. Devuelve (la dirección, el borde de la banda) para los destellos."""
+    lo = np.floor(poly.min(axis=0)).astype(int) - 2
+    hi = np.ceil(poly.max(axis=0)).astype(int) + 3
+    h, w = layer.shape[:2]
+    x0, y0, x1, y1 = max(lo[0], 0), max(lo[1], 0), min(hi[0], w), min(hi[1], h)
+    if x1 - x0 < 3 or y1 - y0 < 3:
+        return None
+    mask = np.zeros((y1 - y0, x1 - x0), np.float32)
+    cv2.fillPoly(mask, [np.round(poly - [x0, y0]).astype(np.int32)], 1.0, lineType=cv2.LINE_AA)
+    mask = cv2.GaussianBlur(mask, (0, 0), 1.5)
+    direction = np.array([np.cos(angle), np.sin(angle)])
+    yy, xx = np.mgrid[y0:y1, x0:x1]
+    proj = xx * direction[0] + yy * direction[1]
+    span = poly @ direction
+    s = (proj - span.min()) / max(float(np.ptp(span)), 1.0)
+    band = np.exp(-(((s - center) / SHEEN_WIDTH) ** 2)).astype(np.float32) * mask * np.float32(alpha)
+    dst = layer[y0:y1, x0:x1]
+    dst[..., :3] += np.asarray(tint, np.float32) * band[..., None]
+    dst[..., 3] = 1.0 - (1.0 - dst[..., 3]) * (1.0 - band)
+    return direction, span
+
+
+def garment_zones(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
+    rows = getattr(runtime, "garment", None) or {}
+    if not rows or event is None:
+        return []
+    height, width = runtime.frame_shape
+    fps = getattr(runtime, "fps", 30.0) or 30.0
+    st = runtime.swoosh.setdefault(f"_zones:{event.start_frame}", {"last": {}})
+    seed = zlib.crc32(f"zones:{event.start_frame}:{runtime.effect.id}".encode())
+    if "order" not in st:
+        st["order"] = _zone_order(rows, event.start_frame, event.end_frame, seed)
+    for name, pts in ((rows.get(frame_index) or {}).get("zones") or {}).items():
+        st["last"][name] = (frame_index, np.asarray(pts, dtype=np.float64) * [width, height])
+    if not st["order"]:
+        return []
+    turn = ZONE_TURN_S * fps
+    clock = (frame_index - event.start_frame) / turn
+    k, t = int(clock), clock - int(clock)
+    tint = np.asarray(color, np.float32)
+    shine = tint * 0.35 + 0.65  # el brillo, casi blanco con el color del outfit
+    lines = []
+    rng = np.random.default_rng([seed, k])
+    for step, weight in ((k, min(t / ZONE_FADE, 1.0) if k else 1.0), (k - 1, max(1.0 - t / ZONE_FADE, 0.0))):
+        if step < 0 or weight <= 0.0:
+            continue
+        name = st["order"][step % len(st["order"])]
+        seen, poly = st["last"].get(name, (-10_000, None))
+        if poly is None or frame_index - seen > 3 or len(poly) < 3:
+            continue
+        # Un tinte suave, sin borde: las fronteras entre zonas las pone la pose y no existen en la tela.
+        fill_polygon(layer, poly, tint, alpha * ZONE_TINT * weight, 1.0, feather=0.012 * height)
+        if step == k:  # el brillo cruza la zona en este turno
+            angle = np.radians(60.0 + 60.0 * rng.random()) * (1 if rng.random() < 0.5 else -1)
+            center = -0.15 + 1.3 * t
+            found = _sheen(layer, poly, angle, center, shine, alpha * SHEEN_GAIN * weight)
+            if found is not None:  # destellos donde la banda toca el borde
+                direction, span = found
+                s = (span - span.min()) / max(float(np.ptp(span)), 1.0)
+                for idx in np.argsort(np.abs(s - center))[:2]:
+                    at = poly[idx]
+                    arm = 0.012 * height
+                    lines += [(np.array([at - [arm, 0], at + [arm, 0]]), shine), (np.array([at - [0, arm * 1.6], at + [0, arm * 1.6]]), shine)]
+                    splat(layer, float(at[0]), float(at[1]), 0.004 * height + 1.0, shine, alpha, runtime.kernels)
+    return lines

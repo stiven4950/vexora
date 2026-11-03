@@ -175,8 +175,9 @@ class Catalog(_Strict):
     # Cada cuánto (s) se reserva un lugar para un efecto largo (`look`). Con `one_at_a_time` los
     # momentos cortos llenaban todo y un efecto de 4-5 s no salía nunca (facial_3: 0 de 40 semillas).
     look_every_s: float = 0.0
-    # Desfile (docs/referencias/video_46.md): un evento `outfit` y otro `outfit_head` por cada toma
-    # (entre cortes): cada outfit es un capítulo con su dibujo y su pieza de cabeza.
+    # Desfile (docs/referencias/video_46.md): un evento por cada acción `outfit*` del catálogo (outfit,
+    # outfit_head, outfit_zone) y cada toma (entre cortes): cada outfit es un capítulo con su dibujo,
+    # su pieza de cabeza y sus zonas pintadas.
     outfits: bool = False
     # El color solo cambia en los cortes (no con el foco ni con cada efecto): un color por outfit.
     cut_chapters: bool = False
@@ -1430,7 +1431,7 @@ def outfit_events(catalog: Catalog, brief: MotionBrief, fps: float) -> list[Moti
     for a, b in zip(bounds[:-1], bounds[1:]):
         if b - a < OUTFIT_MIN_S * fps:
             continue
-        for name in ("outfit", "outfit_head"):
+        for name in sorted({r.action for r in catalog.reactions if r.action.startswith("outfit")} or {"outfit", "outfit_head"}):
             out.append(MotionEvent(name=name, target=brief.person_id, start_frame=a, end_frame=b - 1, confidence=1.0, detail="Un outfit (una toma entre cortes)."))
     return out
 

@@ -60,9 +60,11 @@ por bueno).
 
 ## Lo que falta, por prioridad
 
-0. **Zonas pintadas con destellos**: partir la prenda en zonas (torso, mangas, piernas, accesorios con
-   la pose), teñir una o dos a la vez y pasarles un brillo que se desliza por la tela; el turno pasa de
-   una zona a otra durante el outfit.
+0. ✅ **Zonas pintadas con destellos** (2026-11-02): `analysis/garment.py` parte la prenda con la pose
+   (torso, mangas, piernas, bolso, calzado de cada pie; descarta lo que no toca a la persona, como el
+   reflejo del espejo) y `garment_zones` (acción `outfit_zone` de `desfile`) tiñe una zona por turno
+   (~0,9 s, con fundido), la cruza con un brillo diagonal y pone destellos donde toca el borde. Con
+   cortes muy seguidos (este video), cada toma vuelve a empezar por el torso: lo arregla el punto 1.
 1. **Capítulo solo con cambio de outfit**: comparar la prenda antes y después de cada corte.
 2. **Revelado y estreno**: barrido de relleno sobre la prenda nueva y unos cuadros de prenda completa
    teñida con contorno, antes de quedarse en los trazos.
