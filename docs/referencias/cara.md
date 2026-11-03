@@ -106,7 +106,7 @@ o del capítulo) con una semilla de la forma, la persona y el momento; `style.va
 | `eyes_galaxy` | Iris de noche con estrellas que giran y una constelación en la sien | Las estrellas se corren hacia donde mira; el ojo que guiña suelta estrellas |
 | `eyes_storm` | Iris blanco y cian con arcos eléctricos hacia la sien | Más brillo y arcos más largos con el ceño; chispas al abrir los ojos |
 | `eyes_void` | Anillo violeta de borde brillante y volutas que se enroscan hacia el ojo | Crece con los ojos muy abiertos y se repliega al cerrarlos |
-| `eyes_feline` | Contorno del ojo, pupila vertical y bigotes de luz | La pupila se angosta con los ojos abiertos y sigue la mirada |
+| `eyes_feline` | Contorno del ojo, pupila vertical, bigotes de luz y orejas de gato sobre la cabeza (contorno curvo, oreja interior, mechones, pincel en la punta) | La pupila se angosta con los ojos abiertos y sigue la mirada; las orejas se paran con los ojos muy abiertos, se echan atrás con el ceño, se sacuden al parpadear y se mecen al girar |
 | `eyes_scanner` | Retícula sobre el iris, barrido y líneas de datos en la sien | Un barrido nuevo en cada salto de la mirada; se enciende con la mirada fija |
 
 Opciones: `ojos_familia` (`look`, `spotlight`), `ojos_mirada` (`still`), `ojos_vacio` (`eyes_wide`),

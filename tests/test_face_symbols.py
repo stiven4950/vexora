@@ -257,3 +257,30 @@ def test_older_eye_effects_vary_between_appearances() -> None:
 
     assert "eye_flames" in VARIED and "cleopatra_eyes" in VARIED
     assert len({pick_knobs("eye_flames", "p0", s, {})["intensity"] for s in range(0, 300, 7)}) > 1
+
+
+def _ear_top(lines, eyes_y: float) -> float:
+    """La punta más alta de lo que dibuja la mirada felina sobre los ojos (las orejas)."""
+    tops = [float(np.asarray(item[0])[:, 1].min()) for item in lines if np.asarray(item[0])[:, 1].min() < eyes_y - 30]
+    return min(tops) if tops else eyes_y
+
+
+def test_the_feline_ears_sit_on_the_head_and_flatten_with_a_frown() -> None:
+    body = _with_forehead()
+    eyes_y = float(body.points["left_iris"][1])
+    calm, angry = _runtime("eyes_feline"), _runtime("eyes_feline")
+    for f in range(25):
+        _, a = _frame("eyes_feline", calm, f, body=body)
+        _, b = _frame("eyes_feline", angry, f, {"browDownLeft": 0.9, "browDownRight": 0.9}, body=body)
+    assert _ear_top(a, eyes_y) < body.points["forehead_top"][1]  # por encima de la frente
+    assert _ear_top(b, eyes_y) > _ear_top(a, eyes_y)  # con el ceño se aplanan (la punta baja)
+
+
+def test_the_feline_ears_twitch_after_a_blink() -> None:
+    body = _with_forehead()
+    runtime = _runtime("eyes_feline")
+    shut = {"eyeBlinkLeft": 0.9, "eyeBlinkRight": 0.9}
+    for f, expressions in enumerate([{}] * 20 + [shut]):
+        _frame("eyes_feline", runtime, f, expressions, body=body)
+    state = runtime.swoosh["_eyes:eyes_feline:0:" + body.prefix]
+    assert state["twitch"] == 20

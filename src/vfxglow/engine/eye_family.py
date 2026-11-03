@@ -24,7 +24,8 @@ Variantes (`style.shapes`):
 - eyes_galaxy: el iris es un disco de noche con estrellas que giran; una constelación en la sien.
 - eyes_storm: iris blanco y cian con arcos eléctricos cortos que saltan del párpado.
 - eyes_void: anillo violeta de borde brillante y volutas que se enroscan hacia el ojo.
-- eyes_feline: el contorno del ojo, una pupila vertical que se angosta y bigotes de luz.
+- eyes_feline: el contorno del ojo, una pupila vertical que se angosta, bigotes de luz y orejas de gato
+  sobre la cabeza (se paran, se echan atrás con el ceño, se sacuden al parpadear).
 - eyes_scanner: una retícula sobre el iris, un barrido que recorre el ojo y líneas de datos en la sien.
 
 Las líneas del iris y del párpado se devuelven siempre en el mismo orden (iris derecho, iris izquierdo,
@@ -66,6 +67,15 @@ KNOBS: dict[str, tuple] = {
     "motion": (0, 1, 2),
     "palette": ("theme", "theme", "chapter"),
 }
+# Orejas de gato: separación del centro y altura de la base (sobre la frente), alto, ancho y cuánto se
+# echan atrás con el ceño (radianes), en unidades de cara.
+EAR_X = 0.72
+EAR_DROP = -0.32
+EAR_TALL = 0.58
+EAR_WIDE = 1.0
+EAR_BACK = 0.55
+# Inclinación hacia afuera en reposo (radianes): orejas de gato, no de conejo.
+EAR_TILT = 0.28
 # La pupila felina ocupa a lo sumo esta fracción del alto del ojo abierto.
 PUPIL_FIT = 0.7
 # Constelación de la galaxia, junto al ojo (x hacia afuera, y hacia abajo, unidades de cara).
@@ -342,6 +352,48 @@ def _feline(ctx: Ctx, eye: Eye, mods: Mods) -> None:
         tip = ctx.face.place([((0.22 + 0.45 * grow * float(ctx.knobs["intensity"])) * eye.out, 0.34 + lift * 2.0)])[0]
         bend = (root + tip) / 2 - eye.down * 0.03 * eye.unit
         ctx.extra.append((np.array([root, bend, tip]), ctx.main * 0.7))
+    _cat_ear(ctx, eye, grow)
+
+
+def _cat_ear(ctx: Ctx, eye: Eye, grow: float) -> None:
+    """La oreja de luz de ese lado, sobre la cabeza: contorno curvo, oreja interior, mechones y un
+    pincel en la punta. Se para con los ojos muy abiertos, se echa atrás y se aplana con el ceño, se
+    sacude al parpadear y se mece al girar la cabeza."""
+    from vfxglow.geom import catmull_rom
+
+    face, sig, st = ctx.face, ctx.sig, ctx.st
+    top_x, top_y = face.local("forehead_top", (0.0, -1.1))
+    if sig.blink_start:
+        st["twitch"] = ctx.frame_index
+    age = ctx.frame_index - st.get("twitch", -1_000)
+    twitch = 0.18 * np.exp(-age / 6.0) * np.sin(age * 1.4) if age >= 0 else 0.0
+    alert = float(np.clip(sig.wide / 0.25, 0.0, 1.0))
+    angry = float(np.clip(sig.frown / 0.5, 0.0, 1.0))
+    sway = float(np.clip(sig.yaw_rate / 150.0, -1.0, 1.0)) * 0.12 * eye.out
+    tall = EAR_TALL * grow * (1.0 + 0.18 * alert) * (1.0 - 0.3 * angry)
+    turn = (EAR_TILT + EAR_BACK * angry + twitch) * eye.out + sway  # hacia afuera (atrás) con el ceño
+    base = np.array([top_x + eye.out * EAR_X, top_y + EAR_DROP])
+    # Contorno de la oreja (x hacia afuera de la cabeza, y hacia arriba), en unidades de cara.
+    # Triángulo de lados curvos: el de adentro se arquea, el de afuera baja casi recto.
+    shape = np.array([(-0.34, 0.0), (-0.3, 0.38), (-0.12, 0.78), (0.04, 1.0), (0.14, 0.7), (0.24, 0.32), (0.32, 0.02)])
+    inner = np.array([(-0.2, 0.1), (-0.17, 0.4), (-0.06, 0.72), (0.03, 0.82), (0.1, 0.56), (0.16, 0.28), (0.2, 0.1)])
+    # Mechones en abanico desde el borde de adentro hacia la punta.
+    tufts = [np.array([(-0.2, 0.06 + 0.1 * k), (-0.12, 0.14 + 0.1 * k), (-0.05, 0.2 + 0.11 * k)]) for k in range(3)]
+    brush = np.array([(0.04, 1.0), (0.05, 1.14), (0.01, 1.24)])
+    cos_, sin_ = np.cos(turn), np.sin(turn)
+
+    def place(local: np.ndarray) -> np.ndarray:
+        x, y = local[:, 0] * EAR_WIDE, local[:, 1] * tall
+        x, y = x * cos_ + y * sin_, -x * sin_ + y * cos_  # gira alrededor de su base
+        return face.place(np.stack([base[0] + eye.out * x, base[1] - y], axis=1))
+
+    outline = catmull_rom(place(shape), 7)
+    ctx.extra.append((outline, ctx.main))
+    ctx.extra.append((catmull_rom(place(inner), 6), ctx.accent * 0.8))
+    for tuft in tufts:
+        ctx.extra.append((catmull_rom(place(tuft), 4), ctx.accent * 0.55))
+    ctx.extra.append((catmull_rom(place(brush), 4), ctx.main * 0.8))
+    fill_polygon(ctx.layer, np.vstack([outline, outline[:1]]), ctx.main, ctx.alpha * 0.12 * grow, 1.0, feather=1.5)
 
 
 def _scanner(ctx: Ctx, eye: Eye, mods: Mods) -> None:
