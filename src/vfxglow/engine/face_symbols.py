@@ -6,6 +6,7 @@ las mismas fases, perillas de variación y señales de la cara (engine/face_sign
   levantar las cejas de golpe, suelta rayos cortos.
 - rune_shift: runas en la frente y las mejillas que se reorganizan: sus trazos viajan hasta formar
   otra runa al parpadear, al girar rápido la cabeza o cada tanto. Se apagan con la cara relajada.
+- cat_ears: las orejas de gato de la mirada felina, solas (pieza de cabeza del desfile).
 - light_crown: una diadema de luz en perspectiva sobre la cabeza, inclinada con ella. Las puntas crecen con la sonrisa
   y las cejas, y un brillo recorre la banda. Va sobre el pelo: no tapa la cara.
 """
@@ -23,11 +24,12 @@ from vfxglow.engine.face_signals import signals
 from vfxglow.engine.raster import fill_polygon, splat
 
 TAU = 2.0 * np.pi
-SYMBOLS = ("third_eye", "rune_shift", "light_crown")
+SYMBOLS = ("third_eye", "rune_shift", "light_crown", "cat_ears")
 THEMES = {
     "third_eye": ((0.8, 0.5, 1.0), (1.0, 0.85, 0.35)),
     "rune_shift": ((0.35, 0.9, 1.0), (0.85, 1.0, 1.0)),
     "light_crown": ((1.0, 0.8, 0.3), (1.0, 0.95, 0.75)),
+    "cat_ears": ((0.85, 0.55, 1.0), (0.4, 0.6, 1.0)),
 }
 # Cejas: cuánto sobre lo habitual abre del todo el tercer ojo, a qué ritmo se aprende lo habitual
 # (por paso de 30 fps) y desde qué apertura un salto suelta rayos.
@@ -225,7 +227,20 @@ def _crown(face: Face, ctx: dict, lines: list) -> None:
     splat(ctx["layer"], float(shine[0]), float(shine[1]), 0.035 * face.unit + 0.6, accent, ctx["alpha"] * 0.8 * entry, ctx["runtime"].kernels)
 
 
-DRAW = {"third_eye": _third_eye, "rune_shift": _rune_shift, "light_crown": _crown}
+def _cat_ears(face: Face, ctx: dict, lines: list) -> None:
+    """Las orejas de gato de la mirada felina (engine/eye_family.py), solas: la pieza de cabeza de un
+    outfit (video_46, lila). Mismas reacciones: se paran, se echan atrás con el ceño, se sacuden."""
+    from vfxglow.engine.eye_family import Ctx, _cat_ear, _eyes
+
+    ears = Ctx(face, ctx["sig"], ctx["u"], ctx["stage"], 0.0, ctx["frame_index"], ctx["runtime"], ctx["layer"], ctx["alpha"], ctx["seed"],
+               ctx["knobs"], ctx["main"], ctx["accent"], ctx["st"])
+    grow = _ease(_seg(ctx["u"], 0.0, ENTRY_END + 0.08))
+    for eye in _eyes(face):
+        _cat_ear(ears, eye, grow)
+    lines += ears.extra
+
+
+DRAW = {"third_eye": _third_eye, "rune_shift": _rune_shift, "light_crown": _crown, "cat_ears": _cat_ears}
 
 
 def face_symbol(shape: str, body, frame, scale, frame_index: int, runtime, layer, color, alpha: float, event) -> list:

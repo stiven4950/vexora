@@ -77,6 +77,8 @@ class EffectEngine:
         self._big_frame = -1
         self._mask_frame = -1
         self._needs_regions = needs_regions(script)
+        self._needs_garment = needs_garment(script)
+        self._garment: dict | None = None
         self.runtimes = [self.runtimes[i] for i in order]
         self.timelines = [self.timelines[i] for i in order]
         self.chapter_starts = [chapter.start_frame for chapter in script.chapters]
@@ -145,6 +147,11 @@ class EffectEngine:
         mask = _load_mask(run_dir, track, width, height)
         regions = load_regions(run_dir, frame_index, width, height) if self._needs_regions else None
         person = person_mask(regions) if regions is not None else None
+        if self._needs_garment and self._garment is None:
+            from vfxglow.analysis.garment import load_garment
+
+            self._garment = load_garment(run_dir)
+        garment = self._garment
         head_px = None
         if track is not None and track.head_contour:
             head_px = np.array([[x * width, y * height] for x, y in track.head_contour], dtype=np.float64)
@@ -186,6 +193,12 @@ class EffectEngine:
                 runtime.swoosh.clear()
             if (cut and not keep) or gain <= 0:
                 runtime.active_frames = 0
+            elif event is not None and getattr(runtime, "event_start", event.start_frame) != event.start_frame:
+                # Pasa sin pausa a otra activación (outfits seguidos del desfile): cuenta como un
+                # encendido nuevo (su fase y el color de su capítulo vuelven a empezar).
+                runtime.active_frames = 0
+            if event is not None:
+                runtime.event_start = event.start_frame
             if gain > 0:
                 runtime.active_frames += 1
                 if effect.id in self._special:
@@ -209,6 +222,7 @@ class EffectEngine:
             runtime.next_cut = next((c for c in sorted(self.cuts) if c > frame_index), None)
             runtime.contour_px = None
             runtime.regions = regions
+            runtime.garment = garment
             runtime.tool_tip = None
             runtime.appearance = self.appearance
             if self.appearance is not None:
@@ -299,6 +313,13 @@ class EffectEngine:
 
 
 _FACE_ANCHOR_SET = set(FACE_ANCHORS)
+
+
+def needs_garment(script: EffectScript) -> bool:
+    """El guion delinea la ropa (analysis/garment.py, estilo desfile)."""
+    from vfxglow.engine.garment_fx import GARMENT_FX
+
+    return any(shape in GARMENT_FX for effect in script.effects for shape in effect.style.shapes or [])
 
 
 def needs_regions(script: EffectScript) -> bool:
