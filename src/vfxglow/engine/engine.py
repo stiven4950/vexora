@@ -27,6 +27,9 @@ from vfxglow.engine.timeline import ActivationTimeline
 from vfxglow.io.store import read_jsonl
 
 
+# Fracción por cuadro con la que el ambiente se aparta (o vuelve) cuando hay un efecto grande en la cara.
+AMBIENT_YIELD = 0.25
+
 class EffectEngine:
     def __init__(
         self,
@@ -63,11 +66,15 @@ class EffectEngine:
         # El cierre va último: necesita ver lo que dibujaron los demás en el fotograma.
         # Los rostros especiales primero: si uno está encendido, los demás efectos de cara se apagan en
         # ese cuadro (engine/face_zone.py). El cierre va último.
-        from vfxglow.engine.face_zone import is_special, on_face
+        from vfxglow.engine.face_zone import is_ambient, is_big, is_special, on_face
 
-        order = sorted(range(len(self.runtimes)), key=lambda i: (script.effects[i].type == "closing_stars", not is_special(script.effects[i])))
+        # El ambiente va después de todo lo demás: así sabe si en ese cuadro hay un efecto grande en la cara.
+        order = sorted(range(len(self.runtimes)), key=lambda i: (script.effects[i].type == "closing_stars", not is_special(script.effects[i]), is_ambient(script.effects[i])))
         self._special = {effect.id for effect in script.effects if is_special(effect)}
         self._on_face = {effect.id for effect in script.effects if on_face(effect)}
+        self._big = {effect.id for effect in script.effects if is_big(effect)}
+        self._ambient = {effect.id for effect in script.effects if is_ambient(effect)}
+        self._big_frame = -1
         self._mask_frame = -1
         self._needs_regions = needs_regions(script)
         self.runtimes = [self.runtimes[i] for i in order]
@@ -163,6 +170,11 @@ class EffectEngine:
             gain *= gain_for(effect, state, points, self.config.min_point_confidence)
             if effect.id in self._on_face and self._mask_frame == frame_index:
                 gain = 0.0  # hay un rostro especial puesto: nada más sobre la cara
+            if effect.id in self._ambient:
+                # Con un efecto grande en la cara, el ambiente se aparta de a poco (no de golpe).
+                target = 0.0 if self._big_frame == frame_index else 1.0
+                runtime.yield_level = getattr(runtime, "yield_level", 1.0) + (target - getattr(runtime, "yield_level", 1.0)) * AMBIENT_YIELD
+                gain *= runtime.yield_level if runtime.yield_level > 0.02 else 0.0
             # Un efecto disparado no sobrevive a un corte de toma: lo que empezó en la toma anterior
             # (la tierra que se partió, la bestia que vuela) no sigue dibujándose en la nueva.
             keep = effect.style.keep_on_cut
@@ -178,6 +190,8 @@ class EffectEngine:
                 runtime.active_frames += 1
                 if effect.id in self._special:
                     self._mask_frame = frame_index
+                if effect.id in self._big:
+                    self._big_frame = frame_index
             if event is not None and event.position is not None:
                 runtime.anchor_point = np.array(
                     [event.position[0] * width, event.position[1] * height],

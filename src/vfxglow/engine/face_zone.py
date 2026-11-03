@@ -76,6 +76,23 @@ def fits_beside(new: str, others: list[str]) -> bool:
     return all(other == "peripheral" for other in others)
 
 
+# Efectos grandes sobre la cabeza (los que cubren toda la cara o la rodean entera): con ellos encendidos,
+# la capa de ambiente (engine/ambient_fx.py) se aparta para no cargar el cuadro.
+BIG = HIGH | set(MAKEUP) | {"medusa_snakes"}
+
+
+def is_big(effect) -> bool:
+    kind = effect.get("type") if isinstance(effect, dict) else effect.type
+    return coverage(effect) == "high" or (kind == "adornment" and any(shape in BIG for shape in _shapes(effect)))
+
+
+def is_ambient(effect) -> bool:
+    from vfxglow.engine.ambient_fx import AMBIENT
+
+    kind = effect.get("type") if isinstance(effect, dict) else effect.type
+    return kind == "adornment" and bool(_shapes(effect)) and all(shape in AMBIENT for shape in _shapes(effect))
+
+
 def is_special(effect) -> bool:
     """Un rostro especial: una máscara de terror (dict del catálogo o Effect)."""
     return any(shape in HORROR_MASKS for shape in _shapes(effect))

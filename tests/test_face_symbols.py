@@ -200,3 +200,41 @@ def test_the_porcelain_cracks_never_enter_the_eyes_or_the_mouth() -> None:
             for local, _depth in _crack_tree(np.random.default_rng(seed), side):
                 for (cx, cy), r in CRACK_KEEP_OUT:
                     assert np.all(np.hypot(local[1:, 0] - cx, local[1:, 1] - cy) >= r)
+
+
+def test_what_goes_behind_the_head_hides_only_over_the_person() -> None:
+    from vfxglow.engine.head_companions import _front
+
+    mask = np.zeros((100, 100), np.uint8)
+    mask[20:80, 40:60] = 1  # la persona, en el medio
+    center = np.array([50.0, 50.0])
+    above = np.stack([np.linspace(0, 99, 50), np.full(50, 30.0)], axis=1)  # por detrás de la cabeza
+    below = np.stack([np.linspace(0, 99, 50), np.full(50, 70.0)], axis=1)  # por delante
+    hidden = _front(above, None, center, mask)
+    assert len(hidden) == 2 and all(not (45 < piece[:, 0].mean() < 55) for piece, _ in hidden)
+    assert len(_front(below, None, center, mask)) == 1
+
+
+def test_the_ambient_steps_aside_while_a_big_face_effect_is_on() -> None:
+    from test_face_glow import FPS, H, N, POSE, W, _mesh
+    from vfxglow.analysis.schema import FrameRecord, Landmark, MotionEvent, PersonPose
+    from vfxglow.config import EngineConfig
+    from vfxglow.director.schema import Effect, EffectScript, EffectStyle, EffectTarget
+    from vfxglow.engine.engine import EffectEngine
+
+    pose = [Landmark(name=n, x=x, y=y, c=0.95) for n, (x, y) in POSE.items()]
+    frames = [FrameRecord(frame=i, time_s=i / FPS, pose=pose, face=_mesh(), people=[PersonPose(person_id="person_0", pose=pose, face=_mesh())]) for i in range(N)]
+
+    def effect(eid: str, shape: str) -> Effect:
+        return Effect(id=eid, type="adornment", target=EffectTarget(kind="joint", id="body"), style=EffectStyle(shapes=[shape], focus=False), triggers=[{"event": eid, "hold": 0}])
+
+    script = EffectScript(title="t", theme="t", effects=[effect("halo", "head_halo"), effect("big", "pharaoh_mark")])
+    events = [MotionEvent(name="halo", target="person_0", start_frame=0, end_frame=N - 1, confidence=1.0),
+              MotionEvent(name="big", target="person_0", start_frame=20, end_frame=39, confidence=1.0)]
+    engine = EffectEngine(script, EngineConfig(), events=events, fps=FPS)
+    halo = {}
+    for i in range(N):
+        halo[i] = next(float(layer[..., 3].sum()) for eid, _g, layer in engine.render_frame(frames[i], i, W, H, N) if eid == "halo")
+    assert halo[15] > 0  # solo, el halo se ve
+    assert halo[32] < 0.05 * halo[15]  # con el emblema puesto, se apartó
+    assert max(halo[k] for k in range(45, 55)) > 0.5 * halo[15]  # al irse el emblema, vuelve

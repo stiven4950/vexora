@@ -112,6 +112,11 @@ def _butterflies(face: Face, ctx: dict) -> list:
         heading = np.arctan2(*(orbit - start)[::-1]) if out_t < 1.0 else float(np.arctan2(*(face.ux * -np.sin(a) + face.uy * np.cos(a))[::-1])) + (np.pi if np.cos(phase_k) < 0 else 0.0)
         size = BUTTERFLY_SIZE * face.unit * (0.4 + 0.6 * out_t)
         tint = np.asarray(BUTTERFLY_COLORS[k % len(BUTTERFLY_COLORS)], np.float32)
+        # Órbita en 3D: en un sentido del vaivén van por delante; en el otro, por detrás de la cabeza (si
+        # caen sobre la persona, no se ven). Al salir del párpado siempre van por delante.
+        behind = out_t >= 1.0 and np.cos(phase_k) < 0
+        if behind and _on_person(ctx, at):
+            continue
         wings, details, spots = _butterfly(at, size, np.sin(frame_index * 0.9 + k * 1.7), heading)
         for wing in wings:  # alas apenas rellenas, contorno nítido, venas y cuerpo más tenues
             fill_polygon(ctx["layer"], wing, tint, ctx["alpha"] * 0.18, 1.0, feather=1.0)
@@ -144,7 +149,16 @@ def _holo_snake(face: Face, ctx: dict) -> list:
     spine = center + np.outer(np.cos(a) * radius, face.ux / face.unit) + np.outer(np.sin(a) * radius * 0.9, face.uy / face.unit)
     flicker = 0.85 + 0.15 * np.sin(frame_index * 1.3)  # el parpadeo del holograma
     tint = ctx["main"] * flicker
-    pairs = _snake(spine, SNAKE_WIDTH * face.unit, tint, frame_index, ctx["seed"], ctx["layer"], ctx["alpha"] * flicker, ctx["runtime"].kernels)
+    # La mitad de arriba de su vuelta va por detrás: si cae sobre la persona (un peinado alto), no se ve.
+    # Se dibuja aparte y se borra eso. El aro no se aplasta sobre la cabeza: con la silueta de la pose,
+    # que no siempre cubre la frente, cruzaba la cara.
+    mask = _person(ctx)
+    drawn = np.zeros_like(ctx["layer"])
+    pairs = _snake(spine, SNAKE_WIDTH * face.unit, tint, frame_index, ctx["seed"], drawn, ctx["alpha"] * flicker, ctx["runtime"].kernels)
+    if mask is not None:
+        drawn[(mask > 0) & (np.arange(mask.shape[0])[:, None] < center[1])] = 0.0
+        pairs = [piece for curve, tint_ in pairs for piece in _front(curve, tint_, center, mask)]
+    ctx["layer"] += drawn
     for k in range(0, len(spine) - 2, 4):  # líneas de barrido del holograma, cruzando el cuerpo
         d = spine[k + 1] - spine[k]
         n = np.array([-d[1], d[0]]) / max(float(np.linalg.norm(d)), 1e-6)
@@ -232,6 +246,32 @@ def _medusa(face: Face, ctx: dict) -> list:
     return out_lines
 
 
+def _person(ctx: dict) -> np.ndarray | None:
+    """La silueta de la persona en el cuadro (para lo que pasa por detrás de la cabeza)."""
+    if "mask" not in ctx:
+        from vfxglow.engine.duo_fx import body_mask
+
+        ctx["mask"] = body_mask(ctx["body"], ctx["layer"].shape[:2], ctx["scale"])
+    return ctx["mask"]
+
+
+def _on_person(ctx: dict, at: np.ndarray) -> bool:
+    mask = _person(ctx)
+    if mask is None:
+        return False
+    x, y = int(np.clip(at[0], 0, mask.shape[1] - 1)), int(np.clip(at[1], 0, mask.shape[0] - 1))
+    return bool(mask[y, x])
+
+
+def _front(curve: np.ndarray, tint, center: np.ndarray, mask: np.ndarray) -> list:
+    """Los tramos de una línea que se ven: por delante (debajo del centro de la cabeza) o, por detrás,
+    fuera de la persona."""
+    from vfxglow.engine.duo_fx import visible
+
+    curve = np.asarray(curve, dtype=np.float64)
+    return [(curve[a:b], tint) for a, b in visible(curve, curve[:, 1] - center[1], mask)]
+
+
 DRAW = {"eye_butterflies": _butterflies, "holo_snake": _holo_snake, "medusa_snakes": _medusa}
 
 
@@ -246,7 +286,7 @@ def head_companion(shape: str, body, frame, scale, frame_index: int, runtime, la
     ctx = {
         "sig": signals(runtime, frame_index, body.prefix), "st": runtime.swoosh.setdefault(f"_companion:{shape}:{start}:{body.prefix}", {}),
         "u": u, "stage": stage, "frame_index": frame_index, "runtime": runtime, "layer": layer, "knobs": knobs, "seed": _seed(shape, body, event),
-        "main": main, "alpha": power * (1.0 - _ease(t) if stage == "exit" else 1.0),
+        "main": main, "alpha": power * (1.0 - _ease(t) if stage == "exit" else 1.0), "body": body, "scale": scale,
     }
     items = melt(DRAW[shape](face, ctx), u, face, layer, main, power, runtime.kernels, ctx["seed"], start=EXIT_AT)
     # Línea fina con poco halo (con neón grueso eran manchas y un tubo pesado); las serpientes de Medusa
