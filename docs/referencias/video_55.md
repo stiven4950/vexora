@@ -72,8 +72,8 @@ por bueno).
 2. ✅ **Revelado y estreno** (2026-11-03): `garment_reveal` (acción `outfit_reveal`): barrido diagonal de
    luz sobre la ropa (0,3 s), prenda entera teñida con su silueta (0,4 s) y fundido (0,35 s); no en el
    outfit del comienzo, y a veces no (opción `nada`).
-3. **Estilo holográfico**: separación de color en los contornos y arcoíris en el calzado (perilla del
-   catálogo).
+3. ✅ **Estilo holográfico** (2026-11-03): en ~35% de los outfits (o fijo con `style.variants.holo`),
+   `garment_lines` pone a cada línea una copia roja y otra azul corridas y pinta el calzado en arcoíris.
 4. **Onda en banda**: zigzag animado sobre una franja de la prenda (cadera, pecho).
 5. **Anillos flotantes** con separación de color, uno en la mano que más se mueve.
 6. **Destello que recorre un borde** cuando la persona está quieta.

@@ -78,12 +78,48 @@ def garment_lines(shape, body, frame, scale, frame_index, runtime, layer, color,
     for stroke in (strokes_by_frame.get(frame_index) or {}).get("strokes", []):
         if stroke["id"] in st["ids"]:
             st["last"][stroke["id"]] = (frame_index, np.asarray(stroke["points"], dtype=np.float64) * [width, height])
-    lines = [curve for sid, (seen, curve) in st["last"].items() if frame_index - seen <= HOLD_FRAMES]
+    live = [curve for seen, curve in st["last"].values() if frame_index - seen <= HOLD_FRAMES]
+    # El calzado: lo que queda abajo del todo (se pinta en arcoíris si el outfit es holográfico).
+    marked = [(curve, curve[:, 1].mean() > SHOE_LINE * height) for curve in live]
     left = event.end_frame - frame_index
     if left < EXIT_FRAMES:  # la salida: se parte en guiones
         keep = max(left, 0) / EXIT_FRAMES
-        lines = [piece for curve in lines for piece in _dashed(curve, keep, DASH * height)]
-    return [(curve, np.asarray(color, np.float32)) for curve in lines if len(curve) >= 2]
+        marked = [(piece, shoe) for curve, shoe in marked for piece in _dashed(curve, keep, DASH * height)]
+    marked = [(curve, shoe) for curve, shoe in marked if len(curve) >= 2]
+    tint = np.asarray(color, np.float32)
+    holo = runtime.effect.style.variants.get("holo")
+    rng = np.random.default_rng(zlib.crc32(f"holo:{event.start_frame}:{runtime.effect.id}".encode()))
+    if not (bool(holo[0]) if holo else rng.random() < HOLO_CHANCE):
+        return [(curve, tint) for curve, _shoe in marked]
+    # Holográfico (video_55): cada línea en su color y, a los lados, una copia roja y otra azul corridas
+    # unos píxeles (separación de color); el calzado, en arcoíris que corre a lo largo.
+    shift = HOLO_SHIFT * height
+    out = []
+    for curve, shoe in marked:
+        out += _rainbow(curve, frame_index) if shoe else [(curve, tint)]
+        out += [(curve + [-shift, 0.0], RED * 0.6), (curve + [shift, 0.0], BLUE * 0.6)]
+    return out
+
+
+HOLO_CHANCE = 0.35
+HOLO_SHIFT = 0.003
+SHOE_LINE = 0.82
+RED = np.array([1.0, 0.1, 0.1], np.float32)
+BLUE = np.array([0.15, 0.35, 1.0], np.float32)
+RAINBOW_PIECES = 7
+
+
+def _rainbow(curve: np.ndarray, frame_index: int) -> list:
+    """La línea partida en tramos de colores del arcoíris que corren a lo largo."""
+    out = []
+    n = len(curve)
+    for k in range(RAINBOW_PIECES):
+        a, b = k * (n - 1) // RAINBOW_PIECES, (k + 1) * (n - 1) // RAINBOW_PIECES + 1
+        hue = ((k / RAINBOW_PIECES + frame_index * 0.03) % 1.0) * 179
+        rgb = cv2.cvtColor(np.uint8([[[hue, 220, 255]]]), cv2.COLOR_HSV2RGB)[0, 0] / 255.0
+        if b - a >= 2:
+            out.append((curve[a:b], np.asarray(rgb, np.float32) * 1.2))
+    return out
 
 
 # Zonas: cuánto dura el turno de cada una (s), el fundido entre turnos (fracción del turno), en cuántos

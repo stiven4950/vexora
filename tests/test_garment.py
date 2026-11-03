@@ -209,3 +209,24 @@ def test_a_new_outfit_is_revealed_by_a_wipe_and_then_worn_whole() -> None:
     assert float(whole[50:110, 32:68, 3].min()) > 0.2 and lines  # entera, con su silueta
     assert not draw(95, 30)[1] and float(draw(95, 30)[0][..., 3].max()) == 0.0  # después ya no está
     assert float(draw(5, 0)[0][..., 3].max()) == 0.0  # el outfit del comienzo no se revela
+
+
+def test_a_holographic_outfit_splits_colour_and_paints_the_shoes_in_rainbow() -> None:
+    from types import SimpleNamespace
+
+    from vfxglow.engine.garment_fx import garment_lines
+
+    seam = {"id": 1, "kind": "inner", "score": 1.0, "points": [[0.5, 0.3], [0.5, 0.5]]}
+    shoe = {"id": 2, "kind": "accessory", "score": 1.0, "points": [[0.4, 0.9], [0.6, 0.9], [0.6, 0.95], [0.4, 0.95]]}
+    rows = {f: {"strokes": [seam, shoe], "zones": {}} for f in range(40)}
+
+    def lines(holo: int) -> list:
+        effect = SimpleNamespace(id="g", style=SimpleNamespace(variants={"holo": [holo]}))
+        runtime = SimpleNamespace(garment=rows, frame_shape=(400, 200), swoosh={}, effect=effect, take_start=0, next_cut=None)
+        event = MotionEvent(name="outfit", target="person_0", start_frame=0, end_frame=39, confidence=1.0)
+        return garment_lines("garment_lines", SimpleNamespace(prefix="p"), None, 40.0, 10, runtime, None, np.array([0.0, 1.0, 0.0], np.float32), 1.0, event)
+
+    plain, holo = lines(0), lines(1)
+    assert len(plain) == 2
+    assert len(holo) > 6  # copias corridas y tramos de arcoíris en el zapato
+    assert len({tuple(np.round(t, 2)) for _c, t in holo}) > 4
