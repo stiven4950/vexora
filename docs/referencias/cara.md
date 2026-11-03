@@ -132,7 +132,7 @@ neón, Medusa y rostro que se desintegra): línea fina y nítida, rellenos tenue
 | `face_dissolve` | El contorno se vuelve polvo azul y del costado de la cabeza sale humo rosa y naranja; chispas al frente | El viento sopla más fuerte al girar o moverse la cabeza; al irse, se lo lleva todo | media |
 | `eye_butterflies` | Mariposas de seis especies (monarca, golondrina, paisley, festoneada, polilla, ocelo; de referencias de ilustración del usuario) que salen de los párpados y vuelan en vaivén sobre la cabeza; por detrás de la cabeza se ocultan | Cada parpadeo suelta una; la órbita se corre hacia donde mira | periférica |
 | `holo_snake` | Serpiente holográfica de línea fina que se desliza por fuera del contorno de la cara | Más rápida al girar; se acerca a la boca abierta sin entrar; sin malla se repliega | periférica |
-| `medusa_snakes` | Serpientes de neón que nacen del pelo, se mecen en S y enroscan la punta; escamas en rombo de rosa a azul | Se yerguen con la boca abierta y se mecen más rápido al girar | periférica |
+| `medusa_snakes` | Serpientes de neón que nacen del pelo, se mecen en S y enroscan la punta; con volumen: cuerpo en franjas de azul (sombra) a rosa casi blanco (luz), brillo húmedo con destellos por el lomo, borde iluminado y escamas curvas sobre el cilindro | Se yerguen con la boca abierta y se mecen más rápido al girar | periférica |
 
 - Con un efecto grande en la cara (máscaras completas, maquillaje de luz, Medusa), la capa de ambiente
   se aparta de a poco y vuelve cuando se va (`face_zone.is_big`, `engine.py`).

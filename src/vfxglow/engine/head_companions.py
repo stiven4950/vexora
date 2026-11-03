@@ -239,6 +239,7 @@ MEDUSA_CURL = 7.0
 MEDUSA_HEAD = np.array([1.0, 0.35, 0.8], np.float32)
 MEDUSA_TAIL = np.array([0.3, 0.5, 1.0], np.float32)
 MEDUSA_SCALES = np.array([1.0, 0.6, 0.2], np.float32)
+MEDUSA_SHADOW = np.array([0.12, 0.15, 0.75], np.float32)
 
 
 def _medusa_spine(face: Face, root: np.ndarray, out: np.ndarray, length: float, phase_: float, curl: float) -> np.ndarray:
@@ -259,6 +260,70 @@ def _medusa_spine(face: Face, root: np.ndarray, out: np.ndarray, length: float, 
     return face.place(local)
 
 
+# Volumen de las serpientes (luz aditiva: no hay sombra negra, el volumen sale del brillo): la luz
+# llega desde arriba a la izquierda del cuadro; franjas a lo ancho del cuerpo, tramos a lo largo, y
+# las escamas por fila (ángulo sobre el cilindro, en grados).
+LIGHT_DIR = np.array([-0.6, -0.8])
+BODY_BANDS = 5
+BODY_CHUNK = 3
+SCALE_ROWS = (-55.0, -20.0, 20.0, 55.0)
+
+
+def _medusa_body(spine: np.ndarray, n: np.ndarray, half: np.ndarray, q: np.ndarray, emerge: np.ndarray, phase_: float, layer, alpha: float, kernels) -> list:
+    """El cuerpo como un cilindro iluminado: franjas más claras del lado de la luz, una línea de brillo
+    húmedo por el lomo con destellos que corren, el borde de la luz claro y el de la sombra tenue, y
+    escamas curvas que se achican y se apagan hacia los costados."""
+    facing = np.sign(n @ LIGHT_DIR)[:, None]  # de qué lado del cuerpo llega la luz
+    toward = n * np.where(facing == 0, 1.0, facing)
+    tints = MEDUSA_TAIL[None, :] + (MEDUSA_HEAD - MEDUSA_TAIL)[None, :] * q[:, None]
+    edges = np.linspace(-1.0, 1.0, BODY_BANDS + 1)  # -1 a la sombra, 1 a la luz
+    for b0, b1 in zip(edges[:-1], edges[1:]):
+        mid = (b0 + b1) / 2
+        light = 0.08 + 0.92 * max(np.cos((mid - 0.35) * np.pi / 2.2), 0.0) ** 2.5
+        for i in range(0, len(spine) - 1, BODY_CHUNK):
+            j = min(i + BODY_CHUNK, len(spine) - 1)
+            a_side = spine[i : j + 1] + toward[i : j + 1] * (half[i : j + 1, None] * b0)
+            b_side = spine[i : j + 1] + toward[i : j + 1] * (half[i : j + 1, None] * b1)
+            strip = np.vstack([a_side, b_side[::-1]])
+            # Dos tonos: la sombra se va a un azul profundo y la luz al color del cuerpo, casi blanco al
+            # centro del brillo (así se lee redondo aunque la luz sea aditiva).
+            tint = MEDUSA_SHADOW + (tints[i] - MEDUSA_SHADOW) * light + light**4 * 0.45
+            fill_polygon(layer, strip, tint * (0.35 + 0.65 * light), alpha * 0.7 * emerge[i], 1.0, feather=0.7)
+    # La línea de brillo: del lado de la luz, con destellos que corren por el cuerpo.
+    gloss = spine + toward * half[:, None] * 0.42
+    glints = []
+    for i in range(1, len(spine) - 1):
+        shine = 0.5 + 0.5 * np.sin(q[i] * 14.0 - phase_ * 3.0)
+        if shine > 0.35:
+            glints.append((np.array([gloss[i - 1], gloss[i + 1]]), (tints[i] * 0.3 + 0.7) * shine * emerge[i]))
+    for curve, tint in glints:
+        fine([curve], tint, alpha, layer, width=1.0)
+    # Escamas: arcos que miran hacia la cola, a lo largo y en filas sobre el cilindro.
+    scales = []
+    for i in range(2, len(spine) - 2, 2):
+        back = spine[i - 1] - spine[i + 1]
+        back = back / max(float(np.linalg.norm(back)), 1e-6)
+        for r, angle in enumerate(SCALE_ROWS):
+            if (i // 2 + r) % 2:
+                continue
+            theta = np.radians(angle)
+            center = spine[i] + toward[i] * half[i] * np.sin(theta) * 0.9
+            size = half[i] * 0.42 * np.cos(theta)
+            light = 0.35 + 0.65 * max(np.cos(theta - 0.6), 0.0)
+            side_ = toward[i] * size
+            arc = catmull_rom(np.array([center - side_, center + back * size * 0.9, center + side_]), 4)
+            scales.append((arc, MEDUSA_SCALES * light * emerge[i]))
+    for curve, tint in scales:
+        fine([curve], tint, alpha * 0.9, layer, width=1.0)
+    # Bordes: claro del lado de la luz, tenue del de la sombra (se devuelven al motor).
+    lit, dark = spine + toward * half[:, None], spine - toward * half[:, None]
+    out = []
+    for i in range(3, len(spine) - 1, BODY_CHUNK):
+        j = min(i + BODY_CHUNK + 1, len(spine))
+        out += [(lit[i:j], tints[i] * 0.45 + 0.55), (dark[i:j], tints[i] * 0.45)]
+    return out
+
+
 def _medusa(face: Face, ctx: dict) -> list:
     sig, frame_index, knobs, layer, alpha, kernels = ctx["sig"], ctx["frame_index"], ctx["knobs"], ctx["layer"], ctx["alpha"], ctx["runtime"].kernels
     grow = _ease(_seg(ctx["u"], 0.0, ENTRY_END * 2.5))
@@ -277,27 +342,16 @@ def _medusa(face: Face, ctx: dict) -> list:
         n = np.stack([-n[:, 1], n[:, 0]], axis=1) / np.maximum(np.linalg.norm(n, axis=1, keepdims=True), 1e-6)
         q = np.linspace(0.0, 1.0, len(spine))
         half = (MEDUSA_WIDTH * face.unit * (1.0 - 0.45 * q) * (0.6 + 0.4 * np.minimum(q * 6.0, 1.0)))[:, None]
-        left, right = spine + n * half, spine - n * half
         emerge = np.clip(q / 0.15, 0.0, 1.0)  # la raíz sale del pelo: aparece de a poco
-        for i in range(len(spine) - 1):  # el cuerpo en tramos, de azul (raíz) a rosa (cabeza)
-            tint = MEDUSA_TAIL + (MEDUSA_HEAD - MEDUSA_TAIL) * q[i]
-            fill_polygon(layer, np.array([left[i], left[i + 1], right[i + 1], right[i]]), tint, alpha * 0.32 * emerge[i], 1.0, feather=0.8)
-        # Escamas en retícula: dos familias de diagonales cortas que se cruzan en rombos.
-        lattice = []
-        for i in range(2, len(spine) - 3, 2):
-            for sign in (-1.0, 1.0):
-                a_, b_ = spine[i] - n[i] * half[i, 0] * 0.8 * sign, spine[i + 2] + n[i + 2] * half[i + 2, 0] * 0.8 * sign
-                lattice.append(np.array([a_, b_]))
-        fine(lattice, MEDUSA_SCALES, alpha * 0.45, layer, width=1.0)
-        mid = len(spine) // 2
-        rim = MEDUSA_HEAD * 0.4 + 0.6  # el borde iluminado, casi blanco
-        out_lines += [(left[3:mid], MEDUSA_TAIL), (left[mid - 1 :], MEDUSA_HEAD), (right[3:mid], MEDUSA_TAIL), (right[mid - 1 :], rim)]
+        out_lines += _medusa_body(spine, n, half[:, 0], q, emerge, frame_index * speed + k, layer, alpha, kernels)
         tip, d = spine[-1], spine[-1] - spine[-3]
         d = d / max(float(np.linalg.norm(d)), 1e-6)
         s_ = np.array([-d[1], d[0]])
         w = MEDUSA_WIDTH * face.unit * 0.9
         head = catmull_rom(np.array([tip - s_ * w * 0.8, tip + d * w * 1.1 - s_ * w * 0.7, tip + d * w * 2.2, tip + d * w * 1.1 + s_ * w * 0.7, tip + s_ * w * 0.8]), 5)
-        fill_polygon(layer, head, MEDUSA_HEAD, alpha * 0.5, 1.0, feather=1.0)
+        fill_polygon(layer, head, MEDUSA_HEAD * 0.55, alpha * 0.5, 1.0, feather=1.0)
+        crown = tip + d * w * 1.0 + LIGHT_DIR * w * 0.35  # el brillo de la cabeza, del lado de la luz
+        fill_polygon(layer, crown + (head - head.mean(axis=0)) * 0.45, MEDUSA_HEAD * 0.6 + 0.4, alpha * 0.45, 1.0, feather=1.5)
         out_lines.append((head, MEDUSA_HEAD))
         for sign in (-1.0, 1.0):
             eye = tip + d * w * 1.2 + s_ * sign * w * 0.4
