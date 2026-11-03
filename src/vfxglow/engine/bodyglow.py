@@ -604,6 +604,8 @@ from vfxglow.engine.face_wounds import WOUNDS as _WOUNDS  # noqa: E402
 from vfxglow.engine.head_beasts import SNAKES as _SNAKES  # noqa: E402
 
 FACE_SHAPES += _FACE_GLOW_ON_FACE + _CREATURES + _WOUNDS + _SNAKES + ("shock_face", "shock_burst", "eye_curse", "sonic_pulse") + _EYES + _SYMBOLS
+# Efectos de cara anteriores a las familias que también sortean intensidad y grosor por aparición.
+VARIED = ("eye_flames", "eye_beams", "eye_sparks", "laser_eyes", "cleopatra_eyes", "ice_eyes", "dragon_breath", "sonic_pulse", "eye_curse")
 # Grosor del trazo de la familia de ojos y de los símbolos de la cara frente al de los demás adornos.
 EYE_LINE = 0.6
 
@@ -733,12 +735,19 @@ def draw_adornment(runtime, track, points, frame_index: int, height: int, envelo
             continue
         color = _color(style, person)
         line = max(1.4, style.thickness * scale)
+        shine = 1.0
+        if shape in VARIED:
+            # Los efectos anteriores a las familias también varían por aparición (mismo sorteo con semilla).
+            from vfxglow.engine.eye_family import pick_knobs
+
+            knobs = pick_knobs(shape, person or "", event.start_frame if event is not None else key, style.variants)
+            shine, line = float(knobs["intensity"]), line * float(knobs["stroke"])
         if shape in _EYES or shape in _SYMBOLS:
             line = max(1.0, line * EYE_LINE)  # ojos y símbolos de la cara: trazo más fino, el rostro se sigue viendo
         halo = FACE_HALO if shape in FACE_SHAPES else 1.0  # sobre la cara, poco halo (no la lava de luz)
         if _handed_off(runtime, person, frame_index):
             continue  # su dibujo ya se convirtió en el del efecto siguiente
-        items = adornment(shape, body, frame, scale, frame_index, seed, runtime, layer, color, envelope * grow, event)
+        items = adornment(shape, body, frame, scale, frame_index, seed, runtime, layer, color, envelope * grow * shine, event)
         # Una línea puede traer su propio color (curva, color): el dibujo cambia de color a mitad
         # del efecto (video_52: los cuernos se vuelven ojos en X de otro color).
         pairs = [item if isinstance(item, tuple) else (item, color) for item in items]
@@ -747,7 +756,7 @@ def draw_adornment(runtime, track, points, frame_index: int, height: int, envelo
 
         fine_lines = [item for item in pairs if len(item) > 2]
         for curve, tint in (item[:2] for item in pairs if len(item) == 2):
-            strokes += neon_layers(curve, tint, line, envelope * (1.0 if morphing else grow), halo=halo)
+            strokes += neon_layers(curve, tint, line, envelope * (1.0 if morphing else grow) * shine, halo=halo)
         for curve, tint, width in fine_lines:  # los efectos que se dibujan con línea fina (cara, joyería)
             fine([curve], tint, envelope * (1.0 if morphing else grow), layer, width=width)
         if morphing:

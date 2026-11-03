@@ -28,7 +28,6 @@ from vfxglow.geom import catmull_rom
 
 TAU = 2.0 * np.pi
 COMPANIONS = ("eye_butterflies", "holo_snake", "medusa_snakes")
-BUTTERFLY_COLORS = ((1.0, 0.45, 0.85), (0.5, 0.85, 1.0), (1.0, 0.85, 0.35))
 HOLO = (0.3, 1.0, 0.85)
 RUBY_TONGUE = np.array([1.0, 0.15, 0.3], np.float32)
 # Centro de la cabeza (unidades de cara) alrededor del que giran.
@@ -57,27 +56,90 @@ SNAKE_CLOSEST = 1.3
 JAW_FULL = 0.45
 
 
-# Mariposa en su caja (x a lo largo del cuerpo, hacia la cabeza; y hacia un costado), en tamaños.
-FOREWING = ((0.08, 0.04), (0.32, 0.38), (0.5, 0.92), (0.34, 1.02), (0.02, 0.95), (-0.14, 0.52), (-0.04, 0.06))
-HINDWING = ((-0.04, 0.05), (-0.12, 0.5), (-0.38, 0.78), (-0.62, 0.7), (-0.8, 0.5), (-0.56, 0.24), (-0.14, 0.04))
-VEINS = (((0.02, 0.06), (0.36, 0.78)), ((0.0, 0.06), (0.06, 0.8)), ((-0.08, 0.06), (-0.46, 0.56)))
-SPOTS = ((0.26, 0.78), (-0.48, 0.5))
+# Mariposas por especie, sacadas de referencias de ilustración que dio el usuario: cada una con su
+# silueta (ala de adelante y de atrás en su caja: x a lo largo del cuerpo hacia la cabeza, y hacia un
+# costado, en tamaños), si el borde es festoneado, sus adornos y sus dos colores.
+BUTTERFLY_SPECIES = {
+    "monarca": {
+        "fore": ((0.08, 0.04), (0.3, 0.36), (0.52, 0.94), (0.34, 1.02), (0.02, 0.95), (-0.14, 0.52), (-0.04, 0.06)),
+        "hind": ((-0.04, 0.05), (-0.12, 0.5), (-0.38, 0.78), (-0.62, 0.7), (-0.78, 0.48), (-0.56, 0.22), (-0.14, 0.04)),
+        "scallop": False, "ornaments": ("inset", "dots", "veins"), "colors": ((1.0, 0.55, 0.15), (1.0, 0.95, 0.85)),
+    },
+    "golondrina": {
+        "fore": ((0.08, 0.04), (0.36, 0.42), (0.62, 1.0), (0.4, 1.04), (0.02, 0.86), (-0.12, 0.42), (-0.04, 0.06)),
+        "hind": ((-0.04, 0.05), (-0.1, 0.42), (-0.32, 0.62), (-0.52, 0.56), (-0.98, 0.38), (-0.6, 0.22), (-0.14, 0.04)),
+        "scallop": False, "ornaments": ("inset", "drops"), "colors": ((0.55, 0.95, 1.0), (1.0, 0.85, 0.3)),
+    },
+    "paisley": {
+        "fore": ((0.08, 0.04), (0.26, 0.4), (0.5, 0.82), (0.68, 0.92), (0.6, 1.04), (0.36, 0.98), (0.0, 0.84), (-0.1, 0.42), (-0.04, 0.06)),
+        "hind": ((-0.04, 0.05), (-0.16, 0.48), (-0.4, 0.74), (-0.7, 0.84), (-0.82, 0.68), (-0.62, 0.62), (-0.48, 0.34), (-0.14, 0.04)),
+        "scallop": False, "ornaments": ("inset", "drops", "dots"), "colors": ((0.3, 1.0, 0.75), (0.35, 0.45, 1.0)),
+    },
+    "festoneada": {
+        "fore": ((0.08, 0.04), (0.28, 0.34), (0.46, 0.84), (0.3, 1.0), (0.0, 0.96), (-0.14, 0.54), (-0.04, 0.06)),
+        "hind": ((-0.04, 0.05), (-0.14, 0.54), (-0.4, 0.86), (-0.66, 0.78), (-0.76, 0.52), (-0.54, 0.24), (-0.14, 0.04)),
+        "scallop": True, "ornaments": ("inset", "drops", "dots"), "colors": ((1.0, 0.45, 0.75), (1.0, 0.8, 0.9)),
+    },
+    "polilla": {
+        "fore": ((0.08, 0.04), (0.26, 0.4), (0.38, 0.86), (0.18, 1.02), (-0.08, 0.92), (-0.16, 0.5), (-0.04, 0.06)),
+        "hind": ((-0.04, 0.05), (-0.2, 0.56), (-0.44, 0.88), (-0.7, 0.8), (-0.72, 0.5), (-0.5, 0.2), (-0.14, 0.04)),
+        "scallop": False, "ornaments": ("inset", "veins", "dots"), "colors": ((0.75, 0.5, 1.0), (0.5, 1.0, 0.7)),
+    },
+    "ocelo": {
+        "fore": ((0.08, 0.04), (0.34, 0.38), (0.58, 0.96), (0.36, 1.04), (0.02, 0.92), (-0.12, 0.5), (-0.04, 0.06)),
+        "hind": ((-0.04, 0.05), (-0.12, 0.5), (-0.36, 0.8), (-0.64, 0.74), (-0.8, 0.5), (-0.56, 0.22), (-0.14, 0.04)),
+        "scallop": True, "ornaments": ("inset", "ocelli"), "colors": ((1.0, 0.5, 0.2), (0.4, 0.75, 1.0)),
+    },
+}
+SPECIES = tuple(BUTTERFLY_SPECIES)
 
 
-def _butterfly(at: np.ndarray, size: float, flap: float, heading: float) -> tuple[list[np.ndarray], list[np.ndarray], list[np.ndarray]]:
-    """(contornos de las alas, líneas finas: venas, cuerpo y antenas, manchas). El aleteo, visto desde
-    arriba, acorta las alas hacia el cuerpo (escorzo)."""
+def _wing_shape(points: np.ndarray, root: np.ndarray, scallop: bool) -> np.ndarray:
+    """El contorno suave del ala; festoneado, ondula el borde hacia afuera de la raíz."""
+    outline = catmull_rom(np.vstack([points, points[:1]]), 6)
+    if scallop:
+        q = np.linspace(0.0, 1.0, len(outline))
+        away = outline - root
+        reach = np.linalg.norm(away, axis=1, keepdims=True)
+        bumps = 0.06 * np.abs(np.sin(q * np.pi * 14.0))[:, None] * np.clip(reach / max(float(reach.max()), 1e-6) - 0.35, 0.0, 1.0)
+        outline = outline + away / np.maximum(reach, 1e-6) * bumps * float(reach.max())
+    return outline
+
+
+def _butterfly(at: np.ndarray, size: float, flap: float, heading: float, species: str = "monarca") -> tuple[list, list, list]:
+    """(contornos de las alas, líneas finas de adorno, puntos). El aleteo, visto desde arriba, acorta
+    las alas hacia el cuerpo (escorzo)."""
+    kind = BUTTERFLY_SPECIES[species]
     spread = 0.3 + 0.7 * abs(flap)
     d = np.array([np.cos(heading), np.sin(heading)])
     n = np.array([-d[1], d[0]])
     place = lambda pts, sign: at + np.outer(np.asarray(pts)[:, 0] * size, d) + np.outer(np.asarray(pts)[:, 1] * size * spread * sign, n)  # noqa: E731
     wings, details, spots = [], [], []
     for sign in (-1.0, 1.0):
-        for shape in (FOREWING, HINDWING):
-            outline = catmull_rom(place(shape, sign), 6)
-            wings.append(np.vstack([outline, outline[:1]]))
-        details += [place(vein, sign) for vein in VEINS]
-        spots += list(place(SPOTS, sign))
+        for part in ("fore", "hind"):
+            outline = _wing_shape(place(kind[part], sign), at, kind["scallop"])
+            wings.append(outline)
+            middle = outline.mean(axis=0)
+            if "inset" in kind["ornaments"]:  # el contorno interior, paralelo al borde
+                details.append(middle + (outline - middle) * 0.72)
+            if "dots" in kind["ornaments"]:  # una fila de puntos junto al borde
+                ring = middle + (outline - middle) * 0.86
+                spots += list(ring[:: max(len(ring) // 9, 1)])
+            if "veins" in kind["ornaments"]:
+                for k in (len(outline) // 4, len(outline) // 2, 3 * len(outline) // 4):
+                    details.append(np.array([at + (outline[k] - at) * 0.15, at + (outline[k] - at) * 0.8]))
+            if "drops" in kind["ornaments"]:  # gotas que apuntan hacia la raíz
+                for frac in (0.45, 0.68):
+                    tip = at + (middle - at) * frac * 0.9
+                    bulb = middle + (outline[len(outline) // 3] - middle) * 0.35 * frac
+                    axis = bulb - tip
+                    side_ = np.array([-axis[1], axis[0]]) * 0.35
+                    details.append(catmull_rom(np.array([tip, bulb + side_ - axis * 0.1, bulb + axis * 0.25, bulb - side_ - axis * 0.1, tip]), 5))
+            if "ocelli" in kind["ornaments"] and part == "hind":  # el ojo del ala de atrás
+                t = np.linspace(0.0, 2.0 * np.pi, 18)
+                r = size * 0.13 * spread + 0.5
+                circle = np.stack([np.cos(t), np.sin(t)], axis=1)
+                details += [middle + circle * r, middle + circle * r * 0.5]
     details.append(np.array([at - d * size * 0.5, at + d * size * 0.34]))  # el cuerpo
     for sign in (-1.0, 1.0):  # las antenas, curvadas hacia afuera
         details.append(catmull_rom(np.array([at + d * size * 0.34, at + d * size * 0.55 + n * sign * size * 0.14, at + d * size * 0.66 + n * sign * size * 0.3]), 5))
@@ -111,18 +173,19 @@ def _butterflies(face: Face, ctx: dict) -> list:
         at = start + (orbit - start) * out_t - face.uy * np.sin(np.pi * out_t) * 0.4  # sale hacia arriba y se va
         heading = np.arctan2(*(orbit - start)[::-1]) if out_t < 1.0 else float(np.arctan2(*(face.ux * -np.sin(a) + face.uy * np.cos(a))[::-1])) + (np.pi if np.cos(phase_k) < 0 else 0.0)
         size = BUTTERFLY_SIZE * face.unit * (0.4 + 0.6 * out_t)
-        tint = np.asarray(BUTTERFLY_COLORS[k % len(BUTTERFLY_COLORS)], np.float32)
+        species = SPECIES[int(np.random.default_rng([ctx["seed"], k]).integers(0, len(SPECIES)))]
+        tint, accent = (np.asarray(c, np.float32) for c in BUTTERFLY_SPECIES[species]["colors"])
         # Órbita en 3D: en un sentido del vaivén van por delante; en el otro, por detrás de la cabeza (si
         # caen sobre la persona, no se ven). Al salir del párpado siempre van por delante.
         behind = out_t >= 1.0 and np.cos(phase_k) < 0
         if behind and _on_person(ctx, at):
             continue
-        wings, details, spots = _butterfly(at, size, np.sin(frame_index * 0.9 + k * 1.7), heading)
+        wings, details, spots = _butterfly(at, size, np.sin(frame_index * 0.9 + k * 1.7), heading, species)
         for wing in wings:  # alas apenas rellenas, contorno nítido, venas y cuerpo más tenues
             fill_polygon(ctx["layer"], wing, tint, ctx["alpha"] * 0.18, 1.0, feather=1.0)
         for spot in spots:
-            splat(ctx["layer"], float(spot[0]), float(spot[1]), size * 0.07 + 0.5, tint, ctx["alpha"] * 0.8, ctx["runtime"].kernels)
-        out += [(curve, tint) for curve in wings] + [(curve, tint * 0.6) for curve in details]
+            splat(ctx["layer"], float(spot[0]), float(spot[1]), size * 0.045 + 0.5, accent, ctx["alpha"] * 0.85, ctx["runtime"].kernels)
+        out += [(curve, tint) for curve in wings] + [(curve, accent * 0.75) for curve in details]
     return out
 
 

@@ -238,3 +238,22 @@ def test_the_ambient_steps_aside_while_a_big_face_effect_is_on() -> None:
     assert halo[15] > 0  # solo, el halo se ve
     assert halo[32] < 0.05 * halo[15]  # con el emblema puesto, se apartó
     assert max(halo[k] for k in range(45, 55)) > 0.5 * halo[15]  # al irse el emblema, vuelve
+
+
+def test_butterflies_come_in_several_species() -> None:
+    from vfxglow.engine.head_companions import BUTTERFLY_SPECIES, _butterfly
+
+    shapes = {}
+    for species in BUTTERFLY_SPECIES:
+        wings, details, _spots = _butterfly(np.zeros(2), 50.0, 1.0, -np.pi / 2, species)
+        assert len(wings) == 4 and details
+        shapes[species] = np.round(np.ptp(np.vstack(wings), axis=0), 0).tolist()
+    assert len({tuple(v) for v in shapes.values()}) >= 5  # siluetas distintas
+
+
+def test_older_eye_effects_vary_between_appearances() -> None:
+    from vfxglow.engine.bodyglow import VARIED
+    from vfxglow.engine.eye_family import pick_knobs
+
+    assert "eye_flames" in VARIED and "cleopatra_eyes" in VARIED
+    assert len({pick_knobs("eye_flames", "p0", s, {})["intensity"] for s in range(0, 300, 7)}) > 1

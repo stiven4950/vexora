@@ -130,9 +130,14 @@ neón, Medusa y rostro que se desintegra): línea fina y nítida, rellenos tenue
 | `neon_veins` | Líneas neón por la anatomía: puntos al centro, sienes, ganchos sobre las cejas, lágrimas con gota, labios, barbilla y pecas | Un pulso las recorre, más rápido al sonreír o al hablar; bajan con la cara relajada | media |
 | `porcelain_cracks` | Porcelana fracturada al estilo kintsugi: grietas de oro y luz blanca por un lado del rostro, sin cruzar ojos ni boca | Crecen con el ceño, los ojos muy abiertos o la boca abierta; sueltan esquirlas si el gesto sube de golpe; se cierran al relajarse | media |
 | `face_dissolve` | El contorno se vuelve polvo azul y del costado de la cabeza sale humo rosa y naranja; chispas al frente | El viento sopla más fuerte al girar o moverse la cabeza; al irse, se lo lleva todo | media |
-| `eye_butterflies` | Mariposas (alas, venas, manchas, antenas) que salen de los párpados y vuelan en vaivén sobre la cabeza | Cada parpadeo suelta una; la órbita se corre hacia donde mira | periférica |
+| `eye_butterflies` | Mariposas de seis especies (monarca, golondrina, paisley, festoneada, polilla, ocelo; de referencias de ilustración del usuario) que salen de los párpados y vuelan en vaivén sobre la cabeza; por detrás de la cabeza se ocultan | Cada parpadeo suelta una; la órbita se corre hacia donde mira | periférica |
 | `holo_snake` | Serpiente holográfica de línea fina que se desliza por fuera del contorno de la cara | Más rápida al girar; se acerca a la boca abierta sin entrar; sin malla se repliega | periférica |
 | `medusa_snakes` | Serpientes de neón que nacen del pelo, se mecen en S y enroscan la punta; escamas en rombo de rosa a azul | Se yerguen con la boca abierta y se mecen más rápido al girar | periférica |
+
+- Con un efecto grande en la cara (máscaras completas, maquillaje de luz, Medusa), la capa de ambiente
+  se aparta de a poco y vuelve cuando se va (`face_zone.is_big`, `engine.py`).
+- Llamas de ojos, rayos, chispas, láser, Cleopatra, hielo, aliento, ondas y sellos sortean intensidad y
+  grosor por aparición (`bodyglow.VARIED`), como las familias.
 
 ## Halloween
 

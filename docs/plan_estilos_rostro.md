@@ -97,6 +97,14 @@ ojos, variaciones y cobertura) está hecha. Las siguientes, en orden:
   fragmentos (el "reensamblar desde el polvo").
 - Entrega 4 (hecha): porcelana fracturada al estilo kintsugi (`porcelain_cracks` en
   `engine/face_makeup.py`).
+- Después de la entrega 4 (hecho): el ambiente se aparta con un efecto grande en la cara; mariposas y
+  serpiente holográfica se ocultan por detrás de la cabeza (silueta de la pose; con ella el aro de la
+  serpiente no puede cruzar la cabeza: la silueta no siempre cubre la frente); seis especies de
+  mariposas; variación de intensidad y grosor en los efectos anteriores (sin velocidad: guardan estado
+  por cuadro).
+- Pendiente: un video de referencia de efectos de cara para calibrar tiempos y tamaños; la oclusión
+  real de la cabeza necesita una máscara de cabeza (las regiones de `analysis/regions.py` solo se
+  calculan con efectos de ambiente).
 
 Además:
 
