@@ -9,6 +9,7 @@ from test_face_glow import H, W, _body
 from vfxglow.analysis.schema import MotionEvent
 from vfxglow.director.schema import Effect, EffectStyle, EffectTarget
 from vfxglow.engine.bodyglow import adornment
+from vfxglow.engine.dissolve import fine
 from vfxglow.engine.effects import EffectRuntime
 from vfxglow.engine.eye_family import EXIT_AT, EYES, KNOBS, pick_knobs
 
@@ -29,6 +30,8 @@ def _frame(shape: str, runtime, frame: int, expressions: dict | None = None, bod
     runtime.expressions = expressions or {}
     layer = np.zeros((H, W, 4), np.float32)
     lines = adornment(shape, body or _body(), (body or _body()).frame(), (body or _body()).scale, frame, 1, runtime, layer, CYAN, 1.0, event=EVENT)
+    for curve, tint, width in (item for item in lines if isinstance(item, tuple) and len(item) > 2):
+        fine([curve], tint, 1.0, layer, width=width)  # las líneas finas las pinta el motor (bodyglow)
     return layer, lines
 
 

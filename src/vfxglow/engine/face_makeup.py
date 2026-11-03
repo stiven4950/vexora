@@ -353,6 +353,6 @@ def face_makeup(shape: str, body, frame, scale, frame_index: int, runtime, layer
     }
     lines = DRAW[shape](face, ctx)
     width = max(1.0, 0.005 * face.unit) * float(knobs["stroke"])
-    for curve, tint in melt(lines, u, face, layer, WHITE, power, runtime.kernels, ctx["seed"], start=EXIT_AT):
-        fine([curve], tint, ctx["alpha"] if stage != "exit" else power, layer, width=width)
-    return []
+    # Línea fina: el motor la pinta (curva, color, ancho) y así la continuidad la transforma.
+    ratio = (ctx["alpha"] if stage != "exit" else power) / max(alpha, 1e-6)
+    return [(curve, np.asarray(tint, np.float32) * ratio, width) for curve, tint in melt(lines, u, face, layer, WHITE, power, runtime.kernels, ctx["seed"], start=EXIT_AT)]

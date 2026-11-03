@@ -55,6 +55,37 @@ def morph_lines(src: list[np.ndarray], dst: list[np.ndarray], t: float, n: int =
     return out
 
 
+def match_lines(src: list[np.ndarray], dst: list[np.ndarray], t: float, n: int = SAMPLES) -> list[tuple[np.ndarray, int, int]]:
+    """Como `morph_lines`, pero cada línea viaja a la más cercana del dibujo nuevo (por su centro), no a
+    la del mismo orden: entre efectos distintos el orden no dice nada y los ojos cruzaban la cara. Una
+    línea se recorre al revés si así viaja menos (no se retuerce). Las líneas de origen que sobran se
+    funden con la de destino más cercana. Devuelve (línea, índice de origen, índice de destino)."""
+    t = ease(t)
+    if not src or not dst:
+        return [(c, -1, k) for k, c in enumerate(dst)] if t >= 1.0 else []
+    a_lines = [resample(c, n) for c in src]
+    b_lines = [resample(c, n) for c in dst]
+    a_mid = np.array([c.mean(axis=0) for c in a_lines])
+    b_mid = np.array([c.mean(axis=0) for c in b_lines])
+    dist = np.linalg.norm(a_mid[:, None, :] - b_mid[None, :, :], axis=2)
+    pairs: list[tuple[int, int]] = []
+    free_src, free_dst = set(range(len(src))), set(range(len(dst)))
+    for i, j in sorted(np.ndindex(dist.shape), key=lambda ij: dist[ij]):  # primero las parejas más cercanas
+        if i in free_src and j in free_dst:
+            pairs.append((i, j))
+            free_src.discard(i)
+            free_dst.discard(j)
+    pairs += [(int(np.argmin(dist[:, j])), j) for j in sorted(free_dst)]  # destino sin pareja: de la más cercana
+    pairs += [(i, int(np.argmin(dist[i]))) for i in sorted(free_src)]  # origen que sobra: se funde
+    out = []
+    for i, j in pairs:
+        a, b = a_lines[i], b_lines[j]
+        if np.linalg.norm(a - b[::-1]) < np.linalg.norm(a - b):
+            b = b[::-1]
+        out.append((a + (b - a) * t, i, j))
+    return out
+
+
 def chain(stages: list[tuple[float, list[np.ndarray]]], u: float, blend: float = 0.5) -> tuple[list[np.ndarray], int]:
     """Una secuencia de dibujos: `stages` = [(desde_u, líneas), ...] en orden. Cada dibujo se
     sostiene y, en la última fracción `blend` de su tramo, se convierte en el siguiente.

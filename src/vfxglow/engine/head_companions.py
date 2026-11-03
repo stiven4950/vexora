@@ -252,6 +252,5 @@ def head_companion(shape: str, body, frame, scale, frame_index: int, runtime, la
     # Línea fina con poco halo (con neón grueso eran manchas y un tubo pesado); las serpientes de Medusa
     # son grandes y llevan un borde más marcado.
     width = max(1.5, 0.012 * face.unit) if shape == "medusa_snakes" else max(1.0, 0.006 * face.unit)
-    for curve, tint in items:
-        fine([curve], tint, ctx["alpha"] if stage != "exit" else power, layer, width=width)
-    return []
+    ratio = (ctx["alpha"] if stage != "exit" else power) / max(alpha, 1e-6)
+    return [(curve, np.asarray(tint, np.float32) * ratio, width) for curve, tint in items]

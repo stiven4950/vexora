@@ -89,8 +89,12 @@ ojos, variaciones y cobertura) está hecha. Las siguientes, en orden:
   referencias del usuario (`engine/face_makeup.py`, incluida la desintegración facial) y criaturas
   periféricas (`engine/head_companions.py`, con Medusa). Criterio del usuario: dibujos profesionales,
   no infantiles; tomar sus referencias de maquillaje real como guía de forma.
-- Entrega 3: transformaciones reales: emparejar líneas por rol en `morph.morph_lines`, transición
-  temática entre variantes (fuego que se enfría a hielo) y reensamblar desde el polvo.
+- Entrega 3 (hecha): la continuidad empareja cada línea con la más cercana del dibujo nuevo
+  (`morph.match_lines`, se recorre al revés si viaja menos), cada línea pasa de su color al de su
+  pareja, dura ~0,35 s a cualquier fps, suelta chispas mientras se convierte y solo une dibujos de la
+  misma zona (cabeza o cuerpo). Los efectos de línea fina devuelven (curva, color, ancho) y el motor
+  los pinta: así también se transforman. Como el que sale ya se suelta en polvo, el nuevo nace de esos
+  fragmentos (el "reensamblar desde el polvo").
 - Entrega 4: porcelana fracturada (variante de `face_cracks`).
 
 Además:

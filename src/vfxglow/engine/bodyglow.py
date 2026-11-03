@@ -617,8 +617,11 @@ HEAD_ENERGY_SPEED = 0.15
 # (engine/morph.py) durante MORPH_FRAMES, en vez de apagarse uno y encenderse el otro. Solo si el
 # anterior dibujó hace menos de CONTINUITY_GAP fotogramas.
 CONTINUITY = 0.4
-MORPH_FRAMES = 6
+# Cuadros que dura la conversión, contados a 30 fps (a otro fps, el mismo tiempo: ~0,35 s).
+MORPH_FRAMES = 10
 CONTINUITY_GAP = 15
+# Chispas que suelta el dibujo mientras se convierte (la energía que se reacomoda).
+MORPH_SPARKS = 18
 
 
 def _handed_off(runtime, person, frame_index: int) -> bool:
@@ -629,10 +632,11 @@ def _handed_off(runtime, person, frame_index: int) -> bool:
     return taken is not None and taken[0] is runtime and start is not None and start["since"] <= taken[1] <= frame_index
 
 
-def _continuity(runtime, person, frame_index: int, pairs: list, key) -> tuple[list, bool]:
-    """Las líneas de este fotograma, convertidas desde las del adorno anterior al empezar.
-    Devuelve (líneas, si está convirtiéndose)."""
-    from vfxglow.engine.morph import morph_lines
+def _continuity(runtime, person, frame_index: int, pairs: list, key, zone: str | None = None) -> tuple[list, bool]:
+    """Las líneas de este fotograma, convertidas desde las del adorno anterior al empezar. Solo entre
+    dibujos de la misma zona (`zone`: lo de la cabeza no viaja a la mano). Cada línea es (curva, color)
+    o (curva, color, ancho) si el efecto la quiere fina. Devuelve (líneas, si está convirtiéndose)."""
+    from vfxglow.engine.morph import match_lines
 
     relay = runtime.relay
     start = runtime.swoosh.get("_relay_start")
@@ -642,7 +646,8 @@ def _continuity(runtime, person, frame_index: int, pairs: list, key) -> tuple[li
         # Solo un dibujo que ya terminó (dejó de dibujarse al menos un cuadro) se convierte en el nuevo:
         # uno que sigue encendido no se le quita (la máscara de Halloween se apagaba al sonreír).
         ended = previous is not None and frame_index - 1 > previous["frame"]
-        if ended and previous["runtime"] is not runtime and frame_index - previous["frame"] <= CONTINUITY_GAP and previous["pairs"]:
+        same_zone = previous is not None and previous.get("zone") == zone
+        if ended and same_zone and previous["runtime"] is not runtime and frame_index - previous["frame"] <= CONTINUITY_GAP and previous["pairs"]:
             coin = zlib.crc32(f"relay:{runtime.effect.id}:{key}:{person}".encode()) % 1000 / 1000.0
             if coin < CONTINUITY:
                 start["from"] = previous["pairs"]
@@ -652,15 +657,37 @@ def _continuity(runtime, person, frame_index: int, pairs: list, key) -> tuple[li
     morphing = False
     source = start.get("from")
     if source and pairs:
-        t = (frame_index - start["at"] + 1) / MORPH_FRAMES
+        frames = max(int(round(MORPH_FRAMES * (getattr(runtime, "fps", 30.0) or 30.0) / 30.0)), 2)
+        t = (frame_index - start["at"] + 1) / frames
         if t < 1.0:
-            curves = morph_lines([c for c, _ in source], [c for c, _ in pairs], t)
-            src_tint, dst_tint = np.asarray(source[0][1], np.float32), np.asarray(pairs[0][1], np.float32)
-            tint = src_tint + (dst_tint - src_tint) * t
-            pairs, morphing = [(c, tint) for c in curves], True
+            mixed = []
+            for curve, i, j in match_lines([p[0] for p in source], [p[0] for p in pairs], t):
+                # Cada línea cambia del color de la suya al de su pareja, y toma el trazo del destino.
+                src_tint, dst_tint = np.asarray(source[i][1], np.float32), np.asarray(pairs[j][1], np.float32)
+                mixed.append((curve, src_tint + (dst_tint - src_tint) * t, *pairs[j][2:]))
+            pairs, morphing = mixed, True
     if pairs:
-        relay[("last", person)] = {"runtime": runtime, "frame": frame_index, "pairs": pairs}
+        relay[("last", person)] = {"runtime": runtime, "frame": frame_index, "pairs": pairs, "zone": zone}
     return pairs, morphing
+
+
+def _zone(shape: str) -> str:
+    """Dónde dibuja un adorno, para la continuidad: la cabeza (cara y lo que la rodea) o el cuerpo."""
+    from vfxglow.engine.face_zone import FACE_SHAPES as ON_FACE, PERIPHERAL
+    from vfxglow.engine.head_companions import COMPANIONS
+
+    return "head" if shape in ON_FACE or shape in PERIPHERAL or shape in COMPANIONS or shape in FACE_SHAPES else "body"
+
+
+def _morph_sparks(pairs: list, frame_index: int, layer: np.ndarray, envelope: float, kernels: dict) -> None:
+    """Chispas a lo largo de las líneas que se están convirtiendo."""
+    from vfxglow.engine.raster import splat
+
+    points = np.vstack([np.asarray(item[0]) for item in pairs if len(item[0])])
+    rng = np.random.default_rng(frame_index)
+    for k in rng.choice(len(points), size=min(MORPH_SPARKS, len(points)), replace=False):
+        tint = np.asarray(pairs[min(k * len(pairs) // len(points), len(pairs) - 1)][1], np.float32)
+        splat(layer, float(points[k, 0]), float(points[k, 1]), 1.2 + rng.random() * 1.5, tint * 0.6 + 0.4, envelope * 0.8, kernels)
 
 
 def draw_adornment(runtime, track, points, frame_index: int, height: int, envelope: float, layer: np.ndarray, event: MotionEvent | None) -> None:
@@ -715,9 +742,16 @@ def draw_adornment(runtime, track, points, frame_index: int, height: int, envelo
         # Una línea puede traer su propio color (curva, color): el dibujo cambia de color a mitad
         # del efecto (video_52: los cuernos se vuelven ojos en X de otro color).
         pairs = [item if isinstance(item, tuple) else (item, color) for item in items]
-        pairs, morphing = _continuity(runtime, person, frame_index, pairs, key)
-        for curve, tint in pairs:
+        pairs, morphing = _continuity(runtime, person, frame_index, pairs, key, _zone(shape))
+        from vfxglow.engine.dissolve import fine
+
+        fine_lines = [item for item in pairs if len(item) > 2]
+        for curve, tint in (item[:2] for item in pairs if len(item) == 2):
             strokes += neon_layers(curve, tint, line, envelope * (1.0 if morphing else grow), halo=halo)
+        for curve, tint, width in fine_lines:  # los efectos que se dibujan con línea fina (cara, joyería)
+            fine([curve], tint, envelope * (1.0 if morphing else grow), layer, width=width)
+        if morphing:
+            _morph_sparks(pairs, frame_index, layer, envelope, runtime.kernels)
     from vfxglow.engine.firebend import flush_fire
 
     from vfxglow.engine.critters import _phase

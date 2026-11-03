@@ -79,7 +79,9 @@ hecho antes de este cambio no lo tiene hasta que se vuelva a analizar.
 
 - El lado de la cara que gira hacia atrás (su ojo se ve mucho más angosto que el otro) no se dibuja.
 - Las figuras pequeñas o delgadas reciben menos glow, como en el resto de vfxglow.
-- Alrededor del 40% de los cambios de efecto se transforman desde el dibujo anterior en vez de cortar.
+- Alrededor del 40% de los cambios de efecto se transforman desde el dibujo anterior en vez de cortar:
+  cada línea viaja a la más cercana del dibujo nuevo y cambia de color en ~0,35 s, con chispas; solo
+  entre dibujos de la misma zona (cabeza o cuerpo).
 - Cada efecto nuevo tiene un color nuevo (`color_per_effect`).
 - Sin malla facial, el dibujo cae en plantillas puestas con los ojos y la nariz de la pose.
 - Los dibujos sobre la piel llevan poco halo, para no lavar la cara de luz. Los rayos, el aliento y

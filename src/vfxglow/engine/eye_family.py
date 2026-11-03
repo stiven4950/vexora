@@ -400,10 +400,10 @@ def eye_family(shape: str, body, frame, scale, frame_index: int, runtime, layer,
         if "trail" in variant.reactions.values():
             _trail(ctx, eye, mods)
     _burst(ctx, eyes, variant)
-    # El iris y el párpado los pinta el motor (y los transforma la continuidad); lo de alrededor es
-    # fino y con poco halo, como todo lo delgado sobre la cara.
+    # El iris y el párpado los pinta el motor con su neón; lo de alrededor, con línea fina y poco halo,
+    # como todo lo delgado sobre la cara. Todo vuelve al motor: así la continuidad lo transforma.
     power = alpha * float(knobs["intensity"])
     pairs = lambda items: [(curve, np.asarray(tint, np.float32)) for curve, tint in items]  # noqa: E731
-    for curve, tint in melt(pairs(ctx.extra), u, face, layer, main, power, runtime.kernels, ctx.seed + 1, start=EXIT_AT):
-        fine([curve], tint, ctx.alpha if stage != "exit" else power, layer, width=ctx.width)
-    return melt(pairs(ctx.iris + ctx.lids), u, face, layer, main, power, runtime.kernels, ctx.seed, start=EXIT_AT)
+    ratio = (ctx.alpha if stage != "exit" else power) / max(alpha, 1e-6)
+    extra = melt(pairs(ctx.extra), u, face, layer, main, power, runtime.kernels, ctx.seed + 1, start=EXIT_AT)
+    return melt(pairs(ctx.iris + ctx.lids), u, face, layer, main, power, runtime.kernels, ctx.seed, start=EXIT_AT) + [(curve, tint * ratio, ctx.width) for curve, tint in extra]
