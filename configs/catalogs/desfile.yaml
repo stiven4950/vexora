@@ -54,6 +54,18 @@ reactions:
     - type: adornment
       style: {shapes: [garment_zones], thickness: 0.004, focus: false}
       trigger: {hold: 0, cooldown: 0, fade_in: 0, fade_out: 0}
+# Una onda tipo electrocardiograma que cruza el pantalón (video_55); no en todos los outfits.
+- action: outfit_wave
+  options:
+  - name: onda
+    weight: 0.45
+    effects:
+    - type: adornment
+      style: {shapes: [garment_ecg], thickness: 0.004, focus: false}
+      trigger: {hold: 0, cooldown: 0, fade_in: 3, fade_out: 3}
+  - name: nada
+    weight: 0.55
+    effects: []
 # La pieza de cabeza del outfit (en la referencia: barra de ojos, cachos y gafas, aro, orejas).
 - action: outfit_head
   options:

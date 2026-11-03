@@ -12,6 +12,8 @@ analysis/garment.py, en neón con el color del outfit.
 - garment_reveal: el estreno de un outfit nuevo (video_55, 1,9-2,7 s): un barrido de luz blanca cruza
   la prenda, la deja entera teñida del color del outfit con su silueta delineada y se desvanece hacia
   los trazos. No en el outfit con el que empieza el video (ahí no hay cambio).
+- garment_ecg: una onda tipo electrocardiograma que cruza el pantalón a la altura de la cadera
+  (video_55, 2,4-3,5 s): varias hebras con picos que corren de lado a lado, recortadas a la prenda.
 """
 
 from __future__ import annotations
@@ -25,7 +27,7 @@ from vfxglow.engine.eye_family import pick_knobs
 from vfxglow.engine.hand_props import _dashed
 from vfxglow.engine.raster import fill_polygon, splat
 
-GARMENT_FX = ("garment_lines", "garment_zones", "garment_reveal")
+GARMENT_FX = ("garment_lines", "garment_zones", "garment_reveal", "garment_ecg")
 # Cuántos trazos de cada clase elige un outfit (con la perilla `density`: 0,6, 1 o 1,5) y en cuántos de
 # los cuadros de la toma tiene que aparecer uno para contar.
 PICK = {"accessory": 4, "border": 2, "inner": 3}
@@ -273,3 +275,58 @@ def garment_reveal(shape, body, frame, scale, frame_index, runtime, layer, color
     # Estrenada: la silueta de la prenda (no las fronteras entre zonas, que pone la pose).
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     return [(c[:, 0, :].astype(np.float64) + [x0, y0], (tint * 0.4 + 0.6) * fade) for c in contours if len(c) > 20]
+
+
+# Onda: a qué altura de las piernas va (fracción desde la cadera), cuántas hebras, alto de los picos
+# (fracción del alto del cuadro) y a qué velocidad corren (fracción del ancho por cuadro de 30 fps).
+WAVE_AT = 0.22
+WAVE_STRANDS = 3
+WAVE_PEAK = 0.06
+WAVE_SPEED = 0.02
+WAVE_POINTS = 90
+
+
+def garment_ecg(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event) -> list:
+    rows = getattr(runtime, "garment", None) or {}
+    if not rows or event is None:
+        return []
+    height, width = runtime.frame_shape
+    zones = ((rows.get(frame_index) or {}).get("zones") or {})
+    legs = [np.asarray(zones[k], dtype=np.float64) * [width, height] for k in ("leg_left", "leg_right") if k in zones]
+    found = _garment_mask(legs, layer.shape[:2])
+    if found is None:
+        return []
+    mask, x0, y0 = found
+    pts = np.vstack(legs)
+    top, bottom = pts[:, 1].min(), pts[:, 1].max()
+    y = top + WAVE_AT * (bottom - top)
+    row = int(np.clip(y - y0, 0, mask.shape[0] - 1))
+    inside = np.nonzero(mask[row] > 0)[0]
+    if len(inside) < 4:
+        return []
+    xa, xb = x0 + inside.min(), x0 + inside.max()
+    tint = np.asarray(color, np.float32)
+    rng = np.random.default_rng(zlib.crc32(f"wave:{event.start_frame}".encode()))
+    spikes = rng.uniform(0.3, 1.0, 24) * np.where(rng.random(24) < 0.5, 1.0, -0.6)
+    fps = getattr(runtime, "fps", 30.0) or 30.0
+    run = (frame_index - event.start_frame) * WAVE_SPEED * 30.0 / fps
+    out = []
+    for k in range(WAVE_STRANDS):
+        q = np.linspace(0.0, 1.0, WAVE_POINTS)
+        phase = (q * 6.0 + run * 6.0 + k * 0.37) % 1.0
+        idx = ((q * 6.0 + run * 6.0 + k * 0.37).astype(int) + k * 5) % len(spikes)
+        # Un pico afilado por tramo, como el trazo de un electrocardiograma.
+        bump = np.exp(-(((phase - 0.5) / 0.08) ** 2)) * spikes[idx]
+        curve = np.stack([xa + q * (xb - xa), y + k * 0.012 * height - bump * WAVE_PEAK * height], axis=1)
+        xs = np.clip(np.round(curve[:, 0] - x0).astype(int), 0, mask.shape[1] - 1)
+        ys = np.clip(np.round(curve[:, 1] - y0).astype(int), 0, mask.shape[0] - 1)
+        keep = mask[ys, xs] > 0
+        start = None
+        for i, flag in enumerate(np.append(keep, False)):  # los tramos que caen sobre el pantalón
+            if flag and start is None:
+                start = i
+            elif not flag and start is not None:
+                if i - start >= 3:
+                    out.append((curve[start:i], tint * (1.0 - 0.25 * k)))
+                start = None
+    return out

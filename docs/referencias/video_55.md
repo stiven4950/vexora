@@ -74,7 +74,8 @@ por bueno).
    outfit del comienzo, y a veces no (opción `nada`).
 3. ✅ **Estilo holográfico** (2026-11-03): en ~35% de los outfits (o fijo con `style.variants.holo`),
    `garment_lines` pone a cada línea una copia roja y otra azul corridas y pinta el calzado en arcoíris.
-4. **Onda en banda**: zigzag animado sobre una franja de la prenda (cadera, pecho).
+4. ✅ **Onda en banda** (2026-11-03): `garment_ecg` (acción `outfit_wave`, ~45% de los outfits): hebras con
+   picos de electrocardiograma que cruzan el pantalón a la altura de la cadera, recortadas a la prenda.
 5. **Anillos flotantes** con separación de color, uno en la mano que más se mueve.
 6. **Destello que recorre un borde** cuando la persona está quieta.
 7. **Logo o estampado**: una mancha de alto contraste dentro de la prenda, trazada.

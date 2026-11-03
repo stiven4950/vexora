@@ -230,3 +230,21 @@ def test_a_holographic_outfit_splits_colour_and_paints_the_shoes_in_rainbow() ->
     assert len(plain) == 2
     assert len(holo) > 6  # copias corridas y tramos de arcoíris en el zapato
     assert len({tuple(np.round(t, 2)) for _c, t in holo}) > 4
+
+
+def test_the_wave_crosses_the_trousers_and_stays_on_them() -> None:
+    from types import SimpleNamespace
+
+    from vfxglow.engine.garment_fx import garment_ecg
+
+    legs = {"leg_right": [[0.3, 0.5], [0.5, 0.5], [0.5, 0.95], [0.3, 0.95]], "leg_left": [[0.5, 0.5], [0.7, 0.5], [0.7, 0.95], [0.5, 0.95]]}
+    rows = {f: {"strokes": [], "zones": legs} for f in range(40)}
+    runtime = SimpleNamespace(garment=rows, frame_shape=(400, 200), fps=30.0)
+    event = MotionEvent(name="outfit_wave", target="person_0", start_frame=0, end_frame=39, confidence=1.0)
+    layer = np.zeros((400, 200, 4), np.float32)
+    first = garment_ecg("garment_ecg", None, None, 40.0, 5, runtime, layer, np.array([0.0, 1.0, 0.0], np.float32), 1.0, event)
+    later = garment_ecg("garment_ecg", None, None, 40.0, 15, runtime, layer, np.array([0.0, 1.0, 0.0], np.float32), 1.0, event)
+    points = np.vstack([c for c, _t in first])
+    assert points[:, 0].min() < 75 and points[:, 0].max() > 125  # de una pierna a la otra
+    assert np.all((points[:, 0] >= 58) & (points[:, 0] <= 142) & (points[:, 1] >= 198))  # sobre el pantalón
+    assert not np.allclose(np.vstack([c for c, _t in later])[:20], points[:20])  # se mueve
