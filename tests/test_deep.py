@@ -289,3 +289,67 @@ def test_alternatives_keep_the_main_element() -> None:
     alts = _alternatives([{"opcion": "viento", "encaje": 0.4}, {"opcion": "puno_tierra", "encaje": 0.6}, {"opcion": "estela", "encaje": 0.9}], catalog, "fast_swing", "latigo_agua", 0.8, warnings)
     assert alts == []  # viento (aire), puño (tierra) y estela (fuego): ninguno es agua
     assert len(warnings) == 3
+
+
+def test_meta_is_default_and_gemini_stays_as_option() -> None:
+    from vfxglow.config import DeepConfig
+
+    meta = DeepConfig()
+    assert (meta.provider, meta.model, meta.fallback_model, meta.api_key_env) == ("meta", "muse-spark-1.3", "muse-spark-1.2", "META_API_KEY")
+    gemini = DeepConfig(provider="gemini")
+    assert (gemini.model, gemini.fallback_model, gemini.api_key_env) == ("gemini-4-argon", "gemini-3.8-flash", "GEMINI_API_KEY")
+    assert DeepConfig(fallback_model=None).fallback_model is None
+
+
+def test_lyrics_go_into_the_prompt_with_their_times() -> None:
+    from vfxglow.director.deep import lyrics_text
+
+    text = lyrics_text([{"start": 0.78, "end": 13.66, "texto": "it's a UFO"}])
+    assert "[0.8-13.7 s] it's a UFO" in text
+    assert "sin audio" in text
+    assert "no trae voz" in lyrics_text([])
+
+
+def test_failed_transcription_keeps_going_without_lyrics(monkeypatch, tmp_path) -> None:
+    import urllib.error
+
+    from vfxglow.config import DeepConfig
+    from vfxglow.director import deep
+
+    monkeypatch.setattr(deep, "transcribe", lambda video, key: (_ for _ in ()).throw(urllib.error.URLError("sin red")))
+    assert deep._lyrics(tmp_path / "v.mp4", "a" * 64, DeepConfig(), tmp_path) == []
+    assert not list(tmp_path.glob("letra_*.json"))  # el fallo no se guarda: la próxima vez se reintenta
+
+
+def test_busy_muse_spark_falls_back(monkeypatch, tmp_path) -> None:
+    import io
+    import urllib.error
+
+    from vfxglow.config import DeepConfig
+    from vfxglow.director import deep
+
+    asked = []
+
+    class Done(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def fake(url, key, data, content_type, timeout):
+        model = json.loads(data)["model"]
+        asked.append(model)
+        if model == "muse-spark-1.3":
+            raise urllib.error.HTTPError(url, 503, "busy", {}, io.BytesIO(b"busy"))
+        return Done(json.dumps({"choices": [{"message": {"content": '{"momentos": []}'}}], "usage": {"prompt_tokens": 7, "completion_tokens": 3}}).encode())
+
+    monkeypatch.setenv("META_API_KEY", "k")
+    monkeypatch.setattr(deep, "_meta_request", fake)
+    monkeypatch.setattr(deep, "_small_video", lambda video, fps, out: out.write_bytes(b"mp4") and out)
+    monkeypatch.setattr(deep, "RETRY_WAITS_S", ())
+    answer, usage, model = deep.ask_meta(tmp_path / "v.mp4", "prompt", DeepConfig(fps=5.0))
+    assert answer == {"momentos": []}
+    assert model == "muse-spark-1.2"
+    assert asked == ["muse-spark-1.3", "muse-spark-1.2"]
+    assert usage == {"promptTokenCount": 7, "candidatesTokenCount": 3}
