@@ -144,6 +144,7 @@ EVENT_CATALOG: dict[str, str] = {
     "outfit_bubbles": "Burbujas de luz de un outfit del desfile.",
     "outfit_trail": "La estela del bolso de un outfit del desfile.",
     "outfit_prism": "La luz de prisma del cierre del desfile.",
+    "outfit_joints": "Los anillos en codos y rodillas de un outfit del desfile.",
     "ambient": "Momento para llenar el espacio alrededor de la persona.",
     "frown": "Frunce el ceño o entrecierra los ojos.",
     "stomp": "Pisotón: el pie levantado baja rápido y se frena en el piso.",

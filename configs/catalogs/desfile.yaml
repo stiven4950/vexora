@@ -121,6 +121,41 @@ reactions:
     - type: adornment
       style: {shapes: [head_halo], thickness: 0.006, focus: false}
       trigger: {hold: 0, cooldown: 0, fade_in: 0, fade_out: 2}
+  # Lucecitas sobre el pelo, como una guirnalda (outfit naranja de video_46).
+  - name: lucecitas
+    weight: 1.0
+    max_uses: 1
+    effects:
+    - type: adornment
+      style: {shapes: [hair_lights], thickness: 0.004, focus: false}
+      trigger: {hold: 0, cooldown: 0, fade_in: 2, fade_out: 3}
+# Anillos en codos y rodillas, con arcos en los hombros (outfit cian de video_46). No en todos los outfits.
+- action: outfit_joints
+  options:
+  - name: anillos
+    weight: 0.35
+    effects:
+    - type: adornment
+      style: {shapes: [joint_rings], thickness: 0.005, focus: false}
+      trigger: {hold: 0, cooldown: 0, fade_in: 0, fade_out: 3}
+  - name: nada
+    weight: 0.65
+    effects: []
+# Al caminar, cada pie que se apoya enciende su suela y abre un anillo en el piso. Solo `step`: el
+# pisotón (`stomp`) y el golpe de pie (`foot_strike`) son del baile.
+- action: step
+  options:
+  - name: pisada
+    weight: 0.7
+    cooldown: 6
+    effects:
+    - type: adornment
+      style: {shapes: [step_glint], thickness: 0.004, focus: false}
+      # Empieza cuando el pie se apoya (el final del paso), con el color del outfit de ese momento.
+      trigger: {hold: 10, cooldown: 0, fade_in: 0, fade_out: 0, anchor: end}
+  - name: nada
+    weight: 0.3
+    effects: []
 # Burbujas de luz alrededor; una en la mano que más se mueve (video_55). No en todos los outfits.
 - action: outfit_bubbles
   options:
