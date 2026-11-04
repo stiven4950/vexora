@@ -67,6 +67,7 @@ from vfxglow.engine.eye_family import EYES, eye_family
 from vfxglow.engine.face_makeup import MAKEUP, face_makeup
 from vfxglow.engine.garment_fx import GARMENT_FX, garment_bubbles, garment_ecg, garment_lines, garment_prism, garment_reveal, garment_trail, garment_zones
 from vfxglow.engine.face_symbols import SYMBOLS, face_symbol
+from vfxglow.engine.runway_fx import RUNWAY_FX, runway_fx
 from vfxglow.engine.head_companions import COMPANIONS, head_companion
 from vfxglow.engine.stories import STORIES, story
 from vfxglow.engine.dresses import DRESSES, dress
@@ -81,7 +82,7 @@ DOODLES = (
     "shoulder_bolts", "head_bolts", "hand_ring", "moon", "chest_burst", "body_bolts", "foot_spark",
     "floor_arc", "leg_line", "leg_string", "side_edges", "shoulder_arcs", "heart_eyes", "spin_arcs", "glow_eyes",
     "foot_ring", "foot_bolts",
-) + DUO_FX + COSTUMES + SHOES + DRESSES + CRITTERS + STORIES + GUNS + FISTS + HAND_PROPS + ENERGY_PASS + COUNTING + SOLO_FX + ARM_FX + MORPH_FX + FACE_GLOW + HORROR_MASKS + CREATURES + WOUNDS + MOODS + BEASTS + LIVING + EYES + SYMBOLS + MAKEUP + COMPANIONS + GARMENT_FX + AMBIENT + FIREBEND + FIRE_CREATURES + WATERBEND + AIRBEND + EARTHBEND + CHARACTERS
+) + DUO_FX + COSTUMES + SHOES + DRESSES + CRITTERS + STORIES + GUNS + FISTS + HAND_PROPS + ENERGY_PASS + COUNTING + SOLO_FX + ARM_FX + MORPH_FX + FACE_GLOW + HORROR_MASKS + CREATURES + WOUNDS + MOODS + BEASTS + LIVING + EYES + SYMBOLS + MAKEUP + COMPANIONS + GARMENT_FX + RUNWAY_FX + AMBIENT + FIREBEND + FIRE_CREATURES + WATERBEND + AIRBEND + EARTHBEND + CHARACTERS
 WHITE = np.array([1.0, 1.0, 1.0], np.float32)
 PACED = frozenset(FACE_GLOW + HORROR_MASKS + CREATURES + WOUNDS + MOODS + BEASTS + LIVING + EYES + SYMBOLS + MAKEUP + COMPANIONS + AMBIENT)
 
@@ -230,6 +231,8 @@ def doodle(shape, body, frame, scale, frame_index, seed, runtime, layer, color, 
         return garment_reveal(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape == "garment_zones":
         return garment_zones(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
+    if shape in RUNWAY_FX:
+        return runway_fx(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape in GARMENT_FX:
         return garment_lines(shape, body, frame, scale, frame_index, runtime, layer, color, alpha, event)
     if shape in COMPANIONS:

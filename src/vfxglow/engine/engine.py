@@ -326,8 +326,9 @@ def needs_garment(script: EffectScript) -> bool:
 def needs_regions(script: EffectScript) -> bool:
     """El guion usa efectos que necesitan saber qué es cada píxel (analysis/regions.py)."""
     from vfxglow.engine.ambient_fx import AMBIENT
+    from vfxglow.engine.runway_fx import NEEDS_REGIONS
 
-    return any(shape in AMBIENT for effect in script.effects for shape in effect.style.shapes or [])
+    return any(shape in AMBIENT or shape in NEEDS_REGIONS for effect in script.effects for shape in effect.style.shapes or [])
 
 
 def _is_face(name: str) -> bool:
