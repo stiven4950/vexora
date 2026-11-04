@@ -1,6 +1,6 @@
 # Catálogo desfile: estado y contexto (para retomar en una sesión nueva)
 
-Nota escrita el 2026-11-03. Leer esto primero; el detalle de cada referencia está en
+Nota escrita el 2026-11-03; lucecitas, anillos y pisadas añadidos el 2026-11-04. Leer esto primero; el detalle de cada referencia está en
 `docs/referencias/video_46.md` y `docs/referencias/video_55.md`.
 
 ## Qué es
@@ -52,22 +52,31 @@ Salida en `runs/video_55-fcd40e65/output/desfile.mp4` y `runs/video_46-e91b1774/
 | `garment_trail` | `outfit_trail` | Estela del bolso o la mochila cuando se mueve rápido |
 | `garment_prism` | `outfit_prism` | Cierre: en el último segundo, destellos finos de arcoíris en diagonal sobre la ropa. `desfile` no usa `closing_stars` (atenuaba todo) |
 
+## Piezas con la pose (`engine/runway_fx.py`)
+
+No necesitan los trazos de la prenda (sirven también en baile); `hair_lights` y `joint_rings` piden la
+segmentación (`analysis/regions.py`, `NEEDS_REGIONS`).
+
+| Forma | Acción del catálogo | Qué dibuja |
+| --- | --- | --- |
+| `hair_lights` | `outfit_head` (opción `lucecitas`) | Doce lucecitas en cruz repartidas por el pelo de verdad alrededor de la cabeza (se eligen una vez de la máscara de pelo y quedan pegadas a la cara); titilan. Sin pelo a la vista, una plantilla sobre la coronilla. Outfit naranja de video_46 |
+| `joint_rings` | `outfit_joints` (`anillos` 0,35, `nada` 0,65) | Anillo en perspectiva en cada codo y rodilla (mitad de atrás tenue, un brillo que da la vuelta), paréntesis por fuera de cada hombro y una línea por el costado de la pierna de adelante. Si la articulación no cae sobre la persona (el codo que la pose inventa detrás del cuerpo), no va; con las rodillas juntas queda solo la de adelante. Outfit cian de video_46 |
+| `step_glint` | `step` (`pisada` 0,7, `cooldown: 6`) | Cuando el pie se apoya (`anchor: end`, así toma el color del outfit de ese momento), la suela se enciende y un anillo plano se abre en el piso, bajo el zapato (la última fila de la persona bajo el pie), con chispas a ras del piso; ~1/3 s. `stomp` y `foot_strike` siguen siendo del baile |
+
 Pieza de cabeza (`outfit_head`): con gorra → visera (barra sobre los ojos), con sombrero o boina → aro,
-con gafas → gafas (peso 20, filtro `accessories`); si no, cachos, orejas, corona o aro con
+con gafas → gafas (peso 20, filtro `accessories`); si no, cachos, orejas, corona, aro o lucecitas con
 `max_uses: 1`.
 
 Catálogo: `configs/catalogs/desfile.yaml` (`needs: [garment]`, `outfits: true`, `cut_chapters: true`,
 `keep_on_cut: true`, `cooldown: 0` en los disparadores).
 
 Pruebas: `tests/test_garment.py` (trazos, seguimiento, uniones, logo, zonas, cambios de outfit, cortes
-deslizantes, cada efecto). Las formas `garment_*` se saltan en `tests/test_dance.py` porque necesitan
+deslizantes, cada efecto) y `tests/test_runway.py` (lucecitas sobre el pelo, anillos solo sobre la persona
+y la rodilla de adelante, anillo de la pisada en el piso). Las formas `garment_*` se saltan en `tests/test_dance.py` porque necesitan
 el análisis de la prenda.
 
 ## Pendiente
 
-- La pieza de cabeza del último outfit de video_46 (lucecitas sobre el pelo en la referencia) no existe.
 - Prendas oscuras sobre fondo oscuro (el abrigo negro de video_46): Canny no ve sus bordes delanteros.
 - El patrón de la prenda (puntos en el acolchado) no se dibuja; el logo de video_55 casi no sale.
-- Los eventos de caminar (`step`, `stomp`) siguen en el análisis; `desfile` no los usa.
-- Anillos en codos y rodillas (outfit cian de video_46) no están en `desfile`.
 - SAM 2 por prenda (mejora de precisión anotada).
