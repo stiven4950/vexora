@@ -7,7 +7,11 @@ metáforas con historia. Con fotos sueltas por beat (scene_reader) eso no sale.
 
 Flujo:
 1. `build_prompt`: el prompt de animador con el catálogo real (acciones, opciones y figuras).
-2. `ask_gemini`: sube el video (API de archivos de Gemini), pide un JSON y borra el archivo.
+2. Según `provider`:
+   - meta (por defecto): `transcribe` saca la letra con sus tiempos (Muse Voice Transcribe) y la
+     suma al prompt; `ask_meta` manda el video achicado a Muse Spark y pide un JSON.
+   - gemini: `ask_gemini` sube el video con audio (API de archivos de Gemini), pide un JSON y
+     borra el archivo.
 3. `to_pins`: revisa la respuesta y la vuelve un guion de prueba (director/pins.py) con color e
    intención por momento. Lo que no existe en el catálogo se cambia por el sustituto que el
    mismo modelo propone; los efectos nuevos quedan anotados para programarlos después.
@@ -21,6 +25,7 @@ import hashlib
 import json
 import logging
 import os
+import subprocess
 import time
 import urllib.error
 import urllib.request
@@ -417,6 +422,146 @@ def _generate(cfg: DeepConfig, key: str, body: dict, sleep=time.sleep) -> dict:
             sleep(wait)
 
 
+# ----- Meta (Muse Spark + Muse Voice Transcribe) -----
+
+META_API = "https://api.meta.ai/v1"
+TRANSCRIBE_MODEL = "muse-voice-transcribe-1.0"
+# Altura del video que se manda a Muse Spark: va dentro de la petición (base64), así que se achica.
+META_HEIGHT = 640
+# Límite de audio de Muse Voice Transcribe por petición.
+TRANSCRIBE_MAX_S = 600
+
+
+def _meta_request(url: str, key: str, data: bytes, content_type: str, timeout: float):
+    from vfxglow.analysis.models_store import ssl_context
+
+    headers = {"Authorization": f"Bearer {key}", "Content-Type": content_type, "Accept": "application/json"}
+    request = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    return urllib.request.urlopen(request, timeout=timeout, context=ssl_context())
+
+
+def _ffmpeg(*args: str) -> None:
+    import imageio_ffmpeg
+
+    subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(), "-v", "error", "-y", *args], check=True)
+
+
+def _small_video(video: Path, fps: float, out: Path) -> Path:
+    """El video a `fps` fotogramas por segundo y META_HEIGHT de alto, sin audio (la letra va
+    transcrita en el prompt): así pesa poco y el modelo mira los mismos fotogramas que Gemini."""
+    _ffmpeg("-i", str(video), "-an", "-vf", f"fps={fps},scale=-2:{META_HEIGHT}", "-c:v", "libx264", "-crf", "28", "-preset", "veryfast", str(out))
+    return out
+
+
+def transcribe(video: Path, key: str, timeout: float = 180.0) -> list[dict]:
+    """Frases de la letra con sus tiempos (s): [{"start", "end", "texto"}]. Muse Voice Transcribe
+    da tiempos por frase, no por palabra (aproximados). Lista vacía si el video no tiene voz."""
+    import tempfile
+    import uuid
+
+    with tempfile.TemporaryDirectory() as tmp:
+        wav = Path(tmp) / "audio.wav"
+        _ffmpeg("-i", str(video), "-vn", "-t", str(TRANSCRIBE_MAX_S), "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(wav))
+        request = json.dumps({"model": TRANSCRIBE_MODEL, "audioEncoding": "WAV", "mode": "ENDPOINTING"})
+        boundary = uuid.uuid4().hex
+        body = b"".join([
+            f'--{boundary}\r\nContent-Disposition: form-data; name="request"\r\nContent-Type: application/json\r\n\r\n{request}\r\n'.encode(),
+            f'--{boundary}\r\nContent-Disposition: form-data; name="audio"; filename="audio.wav"\r\nContent-Type: audio/wav\r\n\r\n'.encode(),
+            wav.read_bytes(),
+            f"\r\n--{boundary}--\r\n".encode(),
+        ])
+    with _meta_request(f"{META_API}/asr/transcribe", key, body, f"multipart/form-data; boundary={boundary}", timeout) as response:
+        raw = json.loads(response.read())
+    return [
+        {"start": round(turn["startMs"] / 1000, 2), "end": round(turn["endMs"] / 1000, 2), "texto": turn["transcript"].strip()}
+        for turn in raw.get("turns") or []
+        if turn.get("transcript", "").strip()
+    ]
+
+
+def lyrics_text(lines: list[dict]) -> str:
+    """La letra para el prompt. Sin letra, se avisa para que el modelo no la invente."""
+    if not lines:
+        return "\n\nLETRA: el video no trae voz reconocible; guíate por lo que ves y por el ritmo.\n"
+    rows = "\n".join(f"[{line['start']:.1f}-{line['end']:.1f} s] {line['texto']}" for line in lines)
+    return (
+        "\n\nLETRA (el video te llega sin audio; esta es la letra transcrita, con tiempos aproximados por frase).\n"
+        f"Úsala como si la escucharas: cada frase es fuente de ideas en su momento.\n{rows}\n"
+    )
+
+
+def ask_meta(video: Path, prompt: str, cfg: DeepConfig) -> tuple[dict, dict, str]:
+    """(respuesta JSON, uso de tokens, modelo que respondió), igual que ask_gemini, con Muse Spark."""
+    import base64
+    import tempfile
+
+    key = os.environ.get(cfg.api_key_env, "").strip()
+    if not key:
+        raise RuntimeError(f"El análisis profundo necesita {cfg.api_key_env} en el entorno (.env)")
+    with tempfile.TemporaryDirectory() as tmp:
+        clip = _small_video(video, cfg.fps or cfg.fps_min, Path(tmp) / "clip.mp4")
+        data = base64.b64encode(clip.read_bytes()).decode("ascii")
+    body = {
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"type": "video_url", "video_url": {"url": f"data:video/mp4;base64,{data}"}},
+                {"type": "text", "text": prompt},
+            ],
+        }],
+        "response_format": {"type": "json_object"},
+    }
+    try:
+        raw = _generate_meta(cfg, key, body)
+        model = cfg.model
+    except Saturated:
+        if not cfg.fallback_model:
+            raise
+        log.warning("%s sigue saturado tras %d reintentos; se pide la respuesta a %s", cfg.model, cfg.retries, cfg.fallback_model)
+        model = cfg.fallback_model
+        raw = _generate_meta(cfg.model_copy(update={"model": model}), key, body)
+    text = raw["choices"][0]["message"]["content"] or ""
+    usage = raw.get("usage") or {}
+    return json.loads(text), {"promptTokenCount": usage.get("prompt_tokens"), "candidatesTokenCount": usage.get("completion_tokens")}, model
+
+
+def _generate_meta(cfg: DeepConfig, key: str, body: dict, sleep=time.sleep) -> dict:
+    waits = list(RETRY_WAITS_S[: max(cfg.retries, 0)])
+    payload = json.dumps({"model": cfg.model, **body}).encode()
+    while True:
+        try:
+            with _meta_request(f"{META_API}/chat/completions", key, payload, "application/json", cfg.timeout_s) as response:
+                return json.loads(response.read())
+        except urllib.error.HTTPError as exc:
+            detail = exc.read()[:400].decode(errors="replace")
+            if exc.code not in RETRY_CODES:
+                raise RuntimeError(f"Muse Spark respondió {exc.code}: {detail}") from exc
+            if not waits:
+                raise Saturated(f"Muse Spark respondió {exc.code} en {cfg.model}: {detail}") from exc
+            wait = waits.pop(0)
+            log.warning("Muse Spark respondió %d (saturado); reintento en %d s (quedan %d)", exc.code, wait, len(waits))
+            sleep(wait)
+
+
+def _lyrics(video: Path, video_sha: str, cfg: DeepConfig, cache_dir: Path) -> list[dict]:
+    """Letra transcrita, guardada por video. Si la transcripción falla, sigue sin letra."""
+    cache = cache_dir / f"letra_{video_sha[:20]}.json"
+    if cache.exists():
+        return json.loads(cache.read_text(encoding="utf-8"))
+    key = os.environ.get(cfg.api_key_env, "").strip()
+    try:
+        started = time.perf_counter()
+        lines = transcribe(video, key)
+        telemetry.llm_call("meta", TRANSCRIBE_MODEL, "lyrics", 0, 0, round((time.perf_counter() - started) * 1000))
+    except (urllib.error.URLError, OSError, ValueError, KeyError, subprocess.SubprocessError) as exc:
+        log.warning("No se pudo transcribir la letra (%s); el análisis profundo sigue solo con lo visual", exc)
+        return []
+    log.info("Letra transcrita: %d frases", len(lines))
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(json.dumps(lines, ensure_ascii=False, indent=1), encoding="utf-8")
+    return lines
+
+
 # ----- de la respuesta al guion -----
 
 
@@ -662,6 +807,8 @@ def deep_pins(video: Path, video_sha: str, catalog, duration: float, cfg: DeepCo
     from vfxglow.director.pins import save_pins
 
     prompt = build_prompt(catalog, duration)
+    if cfg.provider == "meta" and cfg.lyrics:
+        prompt += lyrics_text(_lyrics(video, video_sha, cfg, out_dir / "deep_cache"))
     if brief is not None:
         cfg = cfg.model_copy(update={"fps": choose_fps(brief, cfg)})
     elif not cfg.fps:
@@ -671,11 +818,12 @@ def deep_pins(video: Path, video_sha: str, catalog, duration: float, cfg: DeepCo
     if cache.exists():
         answer = json.loads(cache.read_text(encoding="utf-8"))
         log.info("Análisis profundo en caché (%s)", cfg.model)
-        telemetry.llm_call("gemini", cfg.model, "deep", 0, 0, cache_hit=True)
+        telemetry.llm_call(cfg.provider, cfg.model, "deep", 0, 0, cache_hit=True)
     else:
         log.info("Análisis profundo con %s a %s fotogramas por segundo: subiendo el video completo (puede tardar unos minutos)", cfg.model, cfg.fps)
         started = time.perf_counter()
-        answer, usage, model = ask_gemini(video, prompt, cfg)
+        ask = ask_meta if cfg.provider == "meta" else ask_gemini
+        answer, usage, model = ask(video, prompt, cfg)
         log.info(
             "Análisis profundo listo con %s: %s tokens de entrada, %s de salida",
             model,
@@ -683,7 +831,7 @@ def deep_pins(video: Path, video_sha: str, catalog, duration: float, cfg: DeepCo
             usage.get("candidatesTokenCount", "?"),
         )
         telemetry.llm_call(
-            "gemini",
+            cfg.provider,
             model,
             "deep",
             usage.get("promptTokenCount"),

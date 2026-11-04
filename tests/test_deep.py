@@ -105,7 +105,7 @@ def test_busy_model_is_retried(monkeypatch) -> None:
 
     monkeypatch.setattr(deep, "_request", fake)
     waits = []
-    assert deep._generate(DeepConfig(), "k", {}, sleep=waits.append) == {"ok": True}
+    assert deep._generate(DeepConfig(provider="gemini"), "k", {}, sleep=waits.append) == {"ok": True}
     assert waits == [5, 10]
 
     calls.clear()
@@ -113,7 +113,7 @@ def test_busy_model_is_retried(monkeypatch) -> None:
     import pytest
 
     with pytest.raises(RuntimeError, match="400"):
-        deep._generate(DeepConfig(), "k", {}, sleep=waits.append)
+        deep._generate(DeepConfig(provider="gemini"), "k", {}, sleep=waits.append)
 
 
 def test_busy_model_falls_back_after_retries(monkeypatch) -> None:
@@ -134,7 +134,7 @@ def test_busy_model_falls_back_after_retries(monkeypatch) -> None:
         raise AssertionError("no debe llegar aquí")
 
     monkeypatch.setattr(deep, "_request", fake)
-    cfg = DeepConfig(model="gemini-4-argon", retries=3)
+    cfg = DeepConfig(provider="gemini", model="gemini-4-argon", retries=3)
     with pytest.raises(deep.Saturated):
         deep._generate(cfg, "k", {}, sleep=lambda s: None)
     assert models == ["gemini-4-argon"] * 4  # 1 intento + 3 reintentos, y luego el respaldo lo decide ask_gemini

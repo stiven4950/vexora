@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class _Strict(BaseModel):
@@ -167,8 +167,14 @@ class DeepConfig(_Strict):
     animador, y escribe la coreografía. Es opcional y cuesta más: por defecto, apagado."""
 
     enabled: bool = False
-    model: str = "gemini-4-argon"
-    api_key_env: str = "GEMINI_API_KEY"
+    # meta: Muse Spark ve el video y Muse Voice Transcribe le pasa la letra con sus tiempos.
+    # gemini: Gemini Argon ve y escucha el video completo (el de la prueba con video_35).
+    # model, fallback_model y api_key_env sin poner toman los del proveedor (DEEP_DEFAULTS).
+    provider: Literal["meta", "gemini"] = "meta"
+    model: str = ""
+    api_key_env: str = ""
+    # Solo meta: transcribir la letra aparte. Si falla o no hay voz, el análisis sigue con lo visual.
+    lyrics: bool = True
     # Fotogramas por segundo que mira el modelo (Gemini usa 1 si no se dice: se pierde los gestos).
     # Sin valor, automático según lo rápido que es el baile (director/deep.py: choose_fps), entre
     # fps_min y fps_max y sin pasar de frame_budget fotogramas en todo el video (el costo).
@@ -181,10 +187,26 @@ class DeepConfig(_Strict):
     retries: int = 3
     # Si el modelo sigue saturado tras los reintentos, se pide la respuesta a este otro (mismo
     # video, mismo prompt). None: no hay respaldo y el análisis falla.
-    fallback_model: str | None = "gemini-3.8-flash"
+    fallback_model: str | None = ""
     # Mixto: el modelo pone la historia (momentos principales) y el coreógrafo económico rellena
     # alrededor (acentos, golpes de la música, la otra persona). false: solo lo del modelo.
     fill: bool = True
+
+    @model_validator(mode="after")
+    def _provider_defaults(self) -> DeepConfig:
+        model, fallback, key = DEEP_DEFAULTS[self.provider]
+        self.model = self.model or model
+        self.api_key_env = self.api_key_env or key
+        if self.fallback_model == "":
+            self.fallback_model = fallback
+        return self
+
+
+# Modelo principal, de respaldo y variable de la clave de cada proveedor del análisis profundo.
+DEEP_DEFAULTS = {
+    "meta": ("muse-spark-1.3", "muse-spark-1.2", "META_API_KEY"),
+    "gemini": ("gemini-4-argon", "gemini-3.8-flash", "GEMINI_API_KEY"),
+}
 
 
 class DirectorConfig(_Strict):
