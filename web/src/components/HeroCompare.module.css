@@ -7,7 +7,8 @@
   border: 1px solid var(--line-strong);
   background: #05070d;
   cursor: ew-resize;
-  touch-action: none;
+  /* El dedo arrastra el tirador a los lados y la página sigue desplazándose hacia arriba y abajo. */
+  touch-action: pan-y;
   box-shadow: 0 40px 120px -40px rgba(var(--cyan-rgb), 0.35);
 }
 
@@ -44,19 +45,30 @@
   height: 56%;
   transform: translateX(-50%);
   border-radius: 40% 40% 6% 6% / 22% 22% 4% 4%;
-  background: linear-gradient(to bottom, #0a0d16, #05070d);
+  /* Cian de marca para que la figura se lea sobre el fondo oscuro; en "Original" el filtro de la
+   * escena la apaga y en el lado con efectos brilla. */
+  background: linear-gradient(to bottom, rgba(var(--cyan-rgb), 0.95), rgba(var(--cyan-rgb), 0.45));
+}
+
+.after .person {
+  box-shadow: 0 0 28px rgba(var(--cyan-rgb), 0.55);
+}
+
+.after .person::before {
+  box-shadow: 0 0 22px rgba(var(--cyan-rgb), 0.55);
 }
 
 .person::before {
   content: "";
   position: absolute;
   left: 50%;
-  top: -22%;
+  /* Apoyada sobre los hombros en cualquier proporción del recuadro (top en % dependía del alto). */
+  bottom: 97%;
   width: 46%;
   aspect-ratio: 1;
   transform: translateX(-50%);
   border-radius: 50%;
-  background: #080b13;
+  background: rgba(var(--cyan-rgb), 0.95);
 }
 
 .tag {
@@ -101,4 +113,18 @@
   border: 1px solid #fff;
   font-size: 15px;
   letter-spacing: -2px;
+}
+
+@media (max-width: 560px) {
+  .tag {
+    top: 8px;
+    padding: 3px 8px;
+    font-size: 10px;
+  }
+  .left {
+    left: 8px;
+  }
+  .right {
+    right: 8px;
+  }
 }

@@ -358,7 +358,8 @@
 .footer nav,
 .legal {
   display: flex;
-  gap: 18px;
+  flex-wrap: wrap;
+  gap: 10px 18px;
 }
 
 .footer a:hover {
@@ -372,5 +373,76 @@
   }
   .nav {
     display: none;
+  }
+  .phone {
+    width: 100%;
+    margin-inline: auto;
+  }
+}
+
+/* Teléfono: la barra solo cabe con un botón (el llamado a crear sigue en la portada), las ventajas y
+ * los estilos van de a dos y el pie se apila. */
+@media (max-width: 560px) {
+  .bar {
+    gap: 12px;
+    height: 60px;
+  }
+  .cta .ghost + .solid {
+    display: none;
+  }
+  .solid,
+  .ghost {
+    padding: 9px 16px;
+  }
+  .actions {
+    gap: 16px;
+  }
+  .actions .solid {
+    width: 100%;
+    justify-content: center;
+  }
+  .benefits {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px 14px;
+    padding-block: 36px;
+  }
+  .badge {
+    width: 52px;
+    height: 52px;
+  }
+  .benefits h3 {
+    font-size: 14px;
+  }
+  .benefits p {
+    font-size: 12px;
+  }
+  .featured,
+  .band {
+    padding-block: 40px;
+  }
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .card {
+    min-height: 170px;
+  }
+  .card:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+  .final {
+    padding-block: 48px;
+  }
+  /* El logotipo de 34 px y "Iniciar sesión" no caben juntos por debajo de ~380 px. */
+  .brand :global(.vx-logo) {
+    font-size: 16px !important;
+  }
+  .brand svg {
+    width: 36px;
+    height: 27px;
+  }
+  .footer {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
