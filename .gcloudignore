@@ -1,0 +1,5 @@
+# Lo que `gcloud builds submit` no sube. Sin este archivo gcloud usa el .gitignore, que deja fuera
+# los modelos (*.pt, models/*.task) que el Dockerfile copia, y el build falla. Mismas reglas que
+# la imagen: nada de secretos (.env), datos locales ni cachés.
+.gcloudignore
+#!include:.dockerignore
