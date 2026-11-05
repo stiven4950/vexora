@@ -8,7 +8,10 @@ o pedir análisis profundos pagados sin tope (docs/analisis_mejoras_y_seguridad.
   píxeles en el lado largo, se rechaza.
 - Cuotas por usuario: trabajos activos a la vez (en cola o procesando) y trabajos por día.
 - Análisis profundo (de pago): solo para quien esté en VEXORA_DEEP_ALLOW (uids o correos separados
-  por comas; "*" = todos), con un tope diario por usuario y otro global.
+  por comas; "*" = todos), con un tope diario por usuario y otro global. Para una demo (el jurado de
+  la Meta Global AI Developer Hackathon prueba Muse Spark directamente), VEXORA_DEEP_OPEN_UNTIL
+  (fecha ISO, UTC si no trae zona) lo abre a toda cuenta con sesión hasta esa fecha y se cierra solo;
+  los topes diarios siguen valiendo.
 
 Con la autenticación apagada (VEXORA_AUTH=off, solo en la máquina local) las cuotas no aplican;
 la validación del video sí.
@@ -34,6 +37,7 @@ MAX_ACTIVE_ENV = "VEXORA_MAX_ACTIVE_JOBS"
 DAILY_JOBS_ENV = "VEXORA_DAILY_JOBS"
 DAILY_PREVIEWS_ENV = "VEXORA_DAILY_PREVIEWS"
 DEEP_ALLOW_ENV = "VEXORA_DEEP_ALLOW"
+DEEP_OPEN_UNTIL_ENV = "VEXORA_DEEP_OPEN_UNTIL"
 DAILY_DEEP_ENV = "VEXORA_DAILY_DEEP"
 DAILY_DEEP_GLOBAL_ENV = "VEXORA_DAILY_DEEP_GLOBAL"
 
@@ -92,7 +96,32 @@ def _refuse(user: User, rule: str, message: str) -> HTTPException:
     return HTTPException(429, message)
 
 
-def deep_allowed(user: User) -> bool:
+def deep_open_until() -> float | None:
+    """Fin (epoch) de la ventana abierta del análisis profundo, o None si no hay. Una fecha mal
+    escrita no abre nada (se avisa en el registro)."""
+    from datetime import datetime, timezone
+
+    raw = os.environ.get(DEEP_OPEN_UNTIL_ENV, "").strip()
+    if not raw:
+        return None
+    try:
+        until = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        logging.getLogger("vexora.limits").warning("%s no es una fecha ISO (%r): el análisis profundo sigue cerrado", DEEP_OPEN_UNTIL_ENV, raw)
+        return None
+    if until.tzinfo is None:
+        until = until.replace(tzinfo=timezone.utc)
+    return until.timestamp()
+
+
+def deep_open(now: float | None = None) -> bool:
+    until = deep_open_until()
+    return until is not None and (now or time.time()) < until
+
+
+def deep_allowed(user: User, now: float | None = None) -> bool:
+    if deep_open(now):
+        return True
     allow = {item.strip().lower() for item in os.environ.get(DEEP_ALLOW_ENV, "").split(",") if item.strip()}
     return "*" in allow or user.uid.lower() in allow or (user.email or "").lower() in allow
 
@@ -110,7 +139,7 @@ def check_quota(user: User, mine: list[Job], everyone: list[Job], deep: bool, no
         raise _refuse(user, "daily_jobs", "Llegaste al límite de videos por hoy. Vuelve a intentarlo mañana.")
     if not deep:
         return
-    if not deep_allowed(user):
+    if not deep_allowed(user, now):
         raise _refuse(user, "deep_not_allowed", "El análisis profundo con IA aún no está disponible para tu cuenta. Usa el análisis económico.")
     if sum(job.deep for job in today) >= _number(DAILY_DEEP_ENV, 2):
         raise _refuse(user, "daily_deep", "Llegaste al límite de análisis profundos por hoy. Usa el análisis económico o vuelve mañana.")

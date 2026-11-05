@@ -20,6 +20,12 @@ ya está en `main` (guía: [despliegue_cloud_run.md](despliegue_cloud_run.md); s
 - [ ] `VEXORA_DEEP_ALLOW="correo1,correo2" scripts/deploy_cloud.sh all`: solo esas cuentas pueden
       pedir el análisis profundo (2 por persona al día y 20 en total; se cambian con
       `VEXORA_DAILY_DEEP` y `VEXORA_DAILY_DEEP_GLOBAL`). Sin `VEXORA_DEEP_ALLOW`, nadie lo tiene.
+- [ ] **Demo de la hackatón** (el jurado prueba Muse Spark directamente): abrir el análisis profundo a
+      toda cuenta con sesión hasta el fin de la evaluación, con topes que acoten el gasto; se cierra
+      solo en esa fecha:
+      `VEXORA_DEEP_OPEN_UNTIL=2026-11-30T23:59:00-05:00 VEXORA_DAILY_DEEP=5 VEXORA_DAILY_DEEP_GLOBAL=60 VEXORA_DEEP_ALLOW="tu@correo.com" scripts/deploy_cloud.sh all`
+      (pon la fecha real del fin del jurado). Para cerrarlo antes, vuelve a correr `deploy` sin
+      `VEXORA_DEEP_OPEN_UNTIL`.
 
 Notas del PC con Windows (4 nov): `py -3.12 -m venv .venv` y `pip install -e ".[dev,scene,api]"`
 funcionan (mediapipe y skia-python tienen rueda para Windows); un antivirus que inspecciona HTTPS

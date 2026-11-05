@@ -389,6 +389,35 @@ def test_deep_analysis_only_for_allowed_accounts_and_with_a_daily_limit(secure: 
     assert deep_upload("token-beto").status_code == 429
 
 
+def test_a_deep_window_opens_the_analysis_to_every_account_until_its_date(secure: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """La demo de la hackatón: el jurado prueba Muse Spark sin estar en VEXORA_DEEP_ALLOW."""
+    def deep_upload(token: str):
+        files = {"video": ("clip.mp4", io.BytesIO(b"\x00" * 128), "video/mp4")}
+        return secure.post("/api/jobs", files=files, data={"style": "baile", "deep": "true"}, headers=_as(token))
+
+    monkeypatch.setenv("VEXORA_MAX_ACTIVE_JOBS", "10")
+    monkeypatch.setenv("VEXORA_DAILY_DEEP", "1")
+    monkeypatch.setenv("VEXORA_DEEP_OPEN_UNTIL", "2999-01-01T00:00:00-05:00")
+    assert secure.get("/api/limits", headers=_as("token-beto")).json()["deep_allowed"] is True
+    assert deep_upload("token-beto").status_code == 201
+    assert deep_upload("token-beto").status_code == 429  # el tope diario sigue valiendo
+    monkeypatch.setenv("VEXORA_DEEP_OPEN_UNTIL", "2000-01-01")  # vencida: se cierra sola
+    assert secure.get("/api/limits", headers=_as("token-ana")).json()["deep_allowed"] is False
+    assert deep_upload("token-ana").status_code == 429
+    monkeypatch.setenv("VEXORA_DEEP_OPEN_UNTIL", "el viernes")  # mal escrita: no abre nada
+    assert secure.get("/api/limits", headers=_as("token-ana")).json()["deep_allowed"] is False
+
+
+def test_deep_window_dates_without_zone_are_utc(monkeypatch: pytest.MonkeyPatch) -> None:
+    from datetime import datetime, timezone
+
+    monkeypatch.setenv("VEXORA_DEEP_OPEN_UNTIL", "2026-11-30T12:00:00")
+    noon = datetime(2026, 11, 30, 12, tzinfo=timezone.utc).timestamp()
+    assert limits.deep_open(noon - 1) and not limits.deep_open(noon)
+    monkeypatch.setenv("VEXORA_DEEP_OPEN_UNTIL", "2026-11-30T12:00:00Z")
+    assert limits.deep_open_until() == noon
+
+
 def test_video_files_are_checked_before_they_are_queued(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import imageio_ffmpeg
     import numpy as np

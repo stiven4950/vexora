@@ -18,6 +18,9 @@
 #   VEXORA_DEEP_ALLOW="ana@correo.com,uid123" scripts/deploy_cloud.sh deploy    # "*" = todos
 # Sin VEXORA_DEEP_ALLOW, nadie lo tiene. Topes: VEXORA_DAILY_DEEP (2 por usuario al día) y
 # VEXORA_DAILY_DEEP_GLOBAL (20 al día entre todos), también opcionales al desplegar.
+# Demo de la hackatón: abierto a toda cuenta con sesión hasta una fecha, y luego se cierra solo:
+#   VEXORA_DEEP_OPEN_UNTIL=2026-11-30T23:59:00-05:00 VEXORA_DAILY_DEEP=5 VEXORA_DAILY_DEEP_GLOBAL=60 \
+#     VEXORA_DEEP_ALLOW="tu@correo.com" scripts/deploy_cloud.sh deploy
 set -euo pipefail
 
 PROJECT="${PROJECT:-vexora-dev}"
@@ -139,10 +142,13 @@ deploy() {
   api_env="${api_env//,/|}|VEXORA_DEEP_ALLOW=${VEXORA_DEEP_ALLOW:-}"
   [ -n "${VEXORA_DAILY_DEEP:-}" ] && api_env="$api_env|VEXORA_DAILY_DEEP=$VEXORA_DAILY_DEEP"
   [ -n "${VEXORA_DAILY_DEEP_GLOBAL:-}" ] && api_env="$api_env|VEXORA_DAILY_DEEP_GLOBAL=$VEXORA_DAILY_DEEP_GLOBAL"
-  if [ -n "${VEXORA_DEEP_ALLOW:-}" ]; then
+  api_env="$api_env|VEXORA_DEEP_OPEN_UNTIL=${VEXORA_DEEP_OPEN_UNTIL:-}"
+  if [ -n "${VEXORA_DEEP_OPEN_UNTIL:-}" ]; then
+    echo "Análisis profundo (Muse Spark) abierto a toda cuenta con sesión hasta $VEXORA_DEEP_OPEN_UNTIL (UTC si no trae zona); después, solo: ${VEXORA_DEEP_ALLOW:-nadie}"
+  elif [ -n "${VEXORA_DEEP_ALLOW:-}" ]; then
     echo "Análisis profundo (Muse Spark) para: $VEXORA_DEEP_ALLOW"
   else
-    echo "AVISO: VEXORA_DEEP_ALLOW vacío: nadie podrá pedir el análisis profundo."
+    echo "AVISO: VEXORA_DEEP_ALLOW y VEXORA_DEEP_OPEN_UNTIL vacíos: nadie podrá pedir el análisis profundo."
   fi
   gcloud run deploy vexora-api --image "$image" --region "$REGION" --project "$PROJECT" --service-account "$SA" \
     --allow-unauthenticated --port 8080 --cpu 1 --memory 2Gi --timeout 300 \
