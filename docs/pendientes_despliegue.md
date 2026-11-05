@@ -12,8 +12,21 @@ ya está en `main` (guía: [despliegue_cloud_run.md](despliegue_cloud_run.md); s
 - [ ] `web/.env.production.local` con la configuración de Firebase de la web (ver `web/.env.example`).
 - [ ] Instalar y entrar: `brew install --cask google-cloud-sdk`, `gcloud auth login`,
       `gcloud config set project vexora-dev`, `firebase login`.
-- [ ] `OPENAI_API_KEY=... GEMINI_API_KEY=... scripts/deploy_cloud.sh setup` (una vez).
-- [ ] `scripts/deploy_cloud.sh all`.
+- [ ] `yolo11n.pt` y `yolo11n-obb.pt` en la raíz del repo: el `Dockerfile` los copia y no están en
+      git (sin ellos `gcloud builds submit` falla).
+- [ ] `META_API_KEY=... OPENAI_API_KEY=... GEMINI_API_KEY=... scripts/deploy_cloud.sh setup` (una vez).
+      `META_API_KEY` es la del análisis profundo por defecto (Muse Spark); sin ella, el análisis
+      profundo falla en la nube.
+- [ ] `VEXORA_DEEP_ALLOW="correo1,correo2" scripts/deploy_cloud.sh all`: solo esas cuentas pueden
+      pedir el análisis profundo (2 por persona al día y 20 en total; se cambian con
+      `VEXORA_DAILY_DEEP` y `VEXORA_DAILY_DEEP_GLOBAL`). Sin `VEXORA_DEEP_ALLOW`, nadie lo tiene.
+
+Notas del PC con Windows (4 nov): `py -3.12 -m venv .venv` y `pip install -e ".[dev,scene,api]"`
+funcionan (mediapipe y skia-python tienen rueda para Windows); un antivirus que inspecciona HTTPS
+(Norton Web/Mail Shield) rompe las llamadas de Python a Meta y OpenAI (`CERTIFICATE_VERIFY_FAILED`);
+la prueba `test_cloud_ready::test_a_worker_process_registers_every_task_kind` falla en Windows sin el
+modo de desarrollador (crear enlaces simbólicos, `WinError 1314`); el estilo `baile` necesita torch
+(el objeto protagonista con Grounding DINO + SAM 2).
 
 ## 2. Verificar en el primer despliegue
 

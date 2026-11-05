@@ -18,9 +18,13 @@ como Cloud Run Job que se apaga sin trabajo, web en Firebase Hosting):
 brew install --cask google-cloud-sdk        # una vez: el CLI de Google Cloud (gcloud)
 gcloud auth login && gcloud config set project vexora-dev
 firebase login
-OPENAI_API_KEY=... GEMINI_API_KEY=... scripts/deploy_cloud.sh setup   # una vez (claves opcionales)
-scripts/deploy_cloud.sh all                                           # construir y desplegar
+META_API_KEY=... OPENAI_API_KEY=... GEMINI_API_KEY=... scripts/deploy_cloud.sh setup   # una vez
+VEXORA_DEEP_ALLOW="tu@correo.com" scripts/deploy_cloud.sh all                          # construir y desplegar
 ```
+
+`META_API_KEY` es la del análisis profundo por defecto (Muse Spark); las otras dos son opcionales.
+`VEXORA_DEEP_ALLOW` (correos o uids con comas, `*` = todos) dice quién puede pedir el análisis
+profundo; sin ella, nadie.
 
 `setup` activa las APIs y crea el repositorio de imágenes, la cuenta de servicio con sus permisos,
 los secretos y el CORS y el ciclo de vida del bucket. `build` construye la imagen en Cloud Build (no

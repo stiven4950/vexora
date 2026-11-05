@@ -1,0 +1,291 @@
+{
+ "protagonista": "hombre atlético sin camiseta, descalzo, con trenzas atadas arriba; cambia de pantalón en cada elemento (short azul para agua, pantalón camuflado para tierra, short rojo para fuego, short gris claro para aire)",
+ "publico": "ninguno",
+ "lectura": [
+  {
+   "inicio": 0.0,
+   "fin": 0.8,
+   "cuerpo": "hace una rueda sin manos (aerial) con piernas extendidas",
+   "intencion": "fluidez inicial como corriente de agua",
+   "camara": "fija, plano general en campo de césped"
+  },
+  {
+   "inicio": 0.8,
+   "fin": 1.6,
+   "cuerpo": "encadena un giro aéreo horizontal (butterfly twist) y aterriza suave",
+   "intencion": "remolino de agua en el aire",
+   "camara": "fija"
+  },
+  {
+   "inicio": 1.6,
+   "fin": 2.5,
+   "cuerpo": "baja al suelo recostándose de lado con la mano alzada en pose relajada",
+   "intencion": "reposo líquido al asentarse en el suelo",
+   "camara": "fija"
+  },
+  {
+   "inicio": 2.5,
+   "fin": 3.5,
+   "cuerpo": "corte a pantalón camuflado: salta con patada circular en el aire",
+   "intencion": "elevar una masa pesada de roca",
+   "camara": "fija"
+  },
+  {
+   "inicio": 3.5,
+   "fin": 4.2,
+   "cuerpo": "aterriza de rodilla golpeando el césped con el puño",
+   "intencion": "impacto sísmico contra la tierra",
+   "camara": "fija"
+  },
+  {
+   "inicio": 4.2,
+   "fin": 4.8,
+   "cuerpo": "se incorpora de golpe alzando la rodilla y ambos brazos en guardia sólida",
+   "intencion": "levantar un muro o formación de roca",
+   "camara": "fija"
+  },
+  {
+   "inicio": 4.8,
+   "fin": 5.5,
+   "cuerpo": "corte a short rojo: entra con rueda a una mano tomando impulso",
+   "intencion": "chispa inicial que prende la llama",
+   "camara": "fija"
+  },
+  {
+   "inicio": 5.5,
+   "fin": 6.4,
+   "cuerpo": "salta en mortal hacia atrás con giro completo (full twist) y cae firme",
+   "intencion": "explosión rotatoria de fuego en el aire",
+   "camara": "fija"
+  },
+  {
+   "inicio": 6.4,
+   "fin": 6.9,
+   "cuerpo": "hinca una rodilla y abre ambos brazos en cruz hacia atrás",
+   "intencion": "desplegar alas de fuego al cerrar el combo",
+   "camara": "fija"
+  },
+  {
+   "inicio": 6.9,
+   "fin": 8.2,
+   "cuerpo": "corte a short blanco: toma carrera girando y salta muy alto pateando en giro",
+   "intencion": "vórtice de viento que lo eleva sin peso",
+   "camara": "fija"
+  },
+  {
+   "inicio": 8.2,
+   "fin": 9.4,
+   "cuerpo": "aterriza en postura baja y se incorpora girando con las manos abiertas en guardia suave",
+   "intencion": "disipar la ráfaga de aire con control",
+   "camara": "fija"
+  }
+ ],
+ "historia": {
+  "arco": "demostración de los cuatro elementos en capítulos marcados por la voz y el cambio de vestuario: fluidez en agua, peso e impacto en tierra, explosividad acrobática en fuego y ligereza suspendida en aire",
+  "motivo": "acrobacia aérea que representa la física de cada elemento seguida de una pose en el suelo que sella el capítulo",
+  "contrastes": "la caída suave y recostada del agua frente al puñetazo seco contra el piso en tierra; el giro explosivo del fuego frente a la suspensión ligera del aire",
+  "colores": "azul agua (#00bfff) en el primer acto, verde/ámbar tierra (#c28e3a) en el segundo, naranja fuego (#ff4500) en el tercero y cian aire (#e0ffff) en el cierre"
+ },
+ "momentos": [
+  {
+   "seg": 0.1,
+   "dur": 0.7,
+   "accion": "fast_swing",
+   "opcion": "latigo_agua",
+   "figura": "water_ribbon",
+   "alternativas": [],
+   "color": "#00bfff",
+   "quien": "protagonista",
+   "intencion": "las piernas trazan un arco líquido en la primera rueda sin manos",
+   "nuevo": null
+  },
+  {
+   "seg": 0.8,
+   "dur": 0.8,
+   "accion": "spin_body",
+   "opcion": "anillo_agua",
+   "figura": "water_ring",
+   "alternativas": [],
+   "color": "#00bfff",
+   "quien": "protagonista",
+   "intencion": "el giro horizontal en el aire envuelve el torso en un torbellino de agua",
+   "nuevo": null
+  },
+  {
+   "seg": 1.6,
+   "dur": 0.9,
+   "accion": "landing",
+   "opcion": "salpicadura",
+   "figura": "water_splash",
+   "alternativas": [],
+   "color": "#00bfff",
+   "quien": "protagonista",
+   "intencion": "al recostarse en el césped el agua se asienta y salpica suave alrededor",
+   "nuevo": null
+  },
+  {
+   "seg": 2.6,
+   "dur": 0.9,
+   "accion": "jump",
+   "opcion": "orbita_tierra",
+   "figura": "earth_orbit",
+   "alternativas": [],
+   "color": "#c28e3a",
+   "quien": "protagonista",
+   "intencion": "fragmentos de roca orbitan el cuerpo durante el salto con patada",
+   "nuevo": null
+  },
+  {
+   "seg": 3.5,
+   "dur": 0.7,
+   "accion": "landing",
+   "opcion": "golpe_tierra",
+   "figura": "earth_slam",
+   "alternativas": [
+    {
+     "opcion": "cristales",
+     "figura": "earth_crystals",
+     "encaje": 0.85
+    }
+   ],
+   "color": "#c28e3a",
+   "quien": "protagonista",
+   "intencion": "aterriza hundiendo el puño en el pasto como un impacto sísmico",
+   "nuevo": null
+  },
+  {
+   "seg": 4.2,
+   "dur": 0.6,
+   "accion": "arms_up",
+   "opcion": "cristales",
+   "figura": "earth_crystals",
+   "alternativas": [
+    {
+     "opcion": "escudo_tierra",
+     "figura": "earth_shield",
+     "encaje": 0.8
+    }
+   ],
+   "color": "#c28e3a",
+   "quien": "protagonista",
+   "intencion": "al erguirse alzando rodilla y brazos hace brotar cristales de roca del suelo",
+   "nuevo": null
+  },
+  {
+   "seg": 4.9,
+   "dur": 0.6,
+   "accion": "fast_swing",
+   "opcion": "estela",
+   "figura": "fire_trail",
+   "alternativas": [
+    {
+     "opcion": "aro",
+     "figura": "fire_ring",
+     "encaje": 0.7
+    }
+   ],
+   "color": "#ff4500",
+   "quien": "protagonista",
+   "intencion": "los pies prenden una estela de fuego en la rueda de entrada",
+   "nuevo": null
+  },
+  {
+   "seg": 5.5,
+   "dur": 0.9,
+   "accion": "flip",
+   "opcion": "aro_grande",
+   "figura": "fire_halo",
+   "alternativas": [
+    {
+     "opcion": "estelas",
+     "figura": "fire_trail",
+     "encaje": 0.85
+    },
+    {
+     "opcion": "cuerpo_en_llamas",
+     "figura": "body_blaze",
+     "encaje": 0.75
+    }
+   ],
+   "color": "#ff4500",
+   "quien": "protagonista",
+   "intencion": "el mortal con giro dibuja un halo de fuego completo en el aire",
+   "nuevo": null
+  },
+  {
+   "seg": 6.4,
+   "dur": 0.5,
+   "accion": "arms_open",
+   "opcion": "alas",
+   "figura": "body_blaze",
+   "alternativas": [
+    {
+     "opcion": "latigos",
+     "figura": "fire_whip",
+     "encaje": 0.8
+    }
+   ],
+   "color": "#ff4500",
+   "quien": "protagonista",
+   "intencion": "al hincar la rodilla y abrir los brazos despliega alas de fuego",
+   "nuevo": null
+  },
+  {
+   "seg": 7.0,
+   "dur": 1.2,
+   "accion": "jump",
+   "opcion": "viento_azul",
+   "figura": "air_vortex",
+   "alternativas": [
+    {
+     "opcion": "viento",
+     "figura": "air_dash",
+     "encaje": 0.85
+    }
+   ],
+   "color": "#e0ffff",
+   "quien": "protagonista",
+   "intencion": "un vórtice de aire lo impulsa y sostiene en el salto giratorio",
+   "nuevo": null
+  },
+  {
+   "seg": 8.2,
+   "dur": 1.1,
+   "accion": "landing",
+   "opcion": "rafaga",
+   "figura": "air_burst",
+   "alternativas": [],
+   "color": "#e0ffff",
+   "quien": "protagonista",
+   "intencion": "al tocar tierra y girar hacia la pose final libera una onda expansiva de viento",
+   "nuevo": null
+  }
+ ],
+ "capitulos": [
+  {
+   "inicio": 0.0,
+   "fin": 2.5,
+   "elemento": "agua",
+   "voz": "Water"
+  },
+  {
+   "inicio": 2.5,
+   "fin": 4.8,
+   "elemento": "tierra",
+   "voz": "Earth"
+  },
+  {
+   "inicio": 4.8,
+   "fin": 6.9,
+   "elemento": "fuego",
+   "voz": "Fire"
+  },
+  {
+   "inicio": 6.9,
+   "fin": 9.4,
+   "elemento": "aire",
+   "voz": "Air"
+  }
+ ],
+ "efectos_nuevos": []
+}

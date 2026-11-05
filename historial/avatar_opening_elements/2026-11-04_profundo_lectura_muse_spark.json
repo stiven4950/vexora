@@ -1,0 +1,380 @@
+{
+ "protagonista": "hombre musculoso moreno sin camisa, descalzo, pelo recogido en trenza alta, cambia short por corte: azul, camuflado, rojo, blanco",
+ "publico": "nadie, campo vacio",
+ "lectura": [
+  {
+   "inicio": 0.0,
+   "fin": 0.8,
+   "cuerpo": "de pie inclinado a la izquierda, brazo derecho arriba, inicia deslocamiento capoeira",
+   "intencion": "presentar fluidez",
+   "camara": "fija a ras de pasto, plano abierto"
+  },
+  {
+   "inicio": 0.8,
+   "fin": 1.9,
+   "cuerpo": "rueda lateral con apoyo de una mano, una pierna alta estirada al cielo",
+   "intencion": "desafiar gravedad con control",
+   "camara": "fija a ras de pasto"
+  },
+  {
+   "inicio": 1.9,
+   "fin": 2.6,
+   "cuerpo": "cae al piso y rueda de espaldas con piernas flexionadas arriba, cierre agua",
+   "intencion": "disolverse en el suelo",
+   "camara": "fija"
+  },
+  {
+   "inicio": 2.6,
+   "fin": 3.3,
+   "cuerpo": "corte a pantalon camuflado, encorvado con puños abajo, impulso para lanzarse",
+   "intencion": "cargar peso tierra",
+   "camara": "fija mismo encuadre"
+  },
+  {
+   "inicio": 3.3,
+   "fin": 4.2,
+   "cuerpo": "salto superman horizontal boca abajo, cuerpo totalmente extendido en el aire",
+   "intencion": "volar pesado",
+   "camara": "fija"
+  },
+  {
+   "inicio": 4.2,
+   "fin": 4.9,
+   "cuerpo": "aterriza en rodilla con puño al piso, pose de cierre tierra",
+   "intencion": "sellar impacto",
+   "camara": "fija"
+  },
+  {
+   "inicio": 4.9,
+   "fin": 5.5,
+   "cuerpo": "corte a short rojo, entrada en rueda lateral inclinada con brazo extendido",
+   "intencion": "encender ataque",
+   "camara": "fija"
+  },
+  {
+   "inicio": 5.5,
+   "fin": 6.4,
+   "cuerpo": "mortal agrupado en el aire, cuerpo hecho bola girando hacia atras",
+   "intencion": "explotar en el aire",
+   "camara": "fija"
+  },
+  {
+   "inicio": 6.4,
+   "fin": 7.0,
+   "cuerpo": "aterriza en cuclillas profunda con brazo al frente, cierre fuego",
+   "intencion": "contener explosion",
+   "camara": "fija"
+  },
+  {
+   "inicio": 7.0,
+   "fin": 8.0,
+   "cuerpo": "corte a short blanco, zancada amplia lateral y carrera corta, brazos abiertos",
+   "intencion": "tomar viento",
+   "camara": "fija"
+  },
+  {
+   "inicio": 8.0,
+   "fin": 8.7,
+   "cuerpo": "salto con rodilla alta y giro del torso en el aire",
+   "intencion": "flotar ligero",
+   "camara": "fija"
+  },
+  {
+   "inicio": 8.7,
+   "fin": 9.4,
+   "cuerpo": "aterriza en cuclillas baja con manos al frente, pose final",
+   "intencion": "respirar y cerrar",
+   "camara": "fija"
+  }
+ ],
+ "historia": {
+  "arco": "inicio agua fluida en el piso, subida tierra pesada que vuela, climax fuego que explota en mortal, cierre aire ligero que respira",
+  "motivo": "la extremidad que manda estira la energia y el cierre la revienta contra el piso",
+  "contrastes": "piso vs aire, cuerpo extendido vs cuerpo bola, pesado vs ligero",
+  "colores": "#00CFFF agua, #D2691E tierra, #FF4500 fuego, #7DF9FF aire"
+ },
+ "momentos": [
+  {
+   "seg": 0.0,
+   "dur": 0.8,
+   "accion": "spotlight",
+   "opcion": "agua",
+   "figura": "water_ribbon",
+   "alternativas": [
+    {
+     "opcion": "agua_piso",
+     "figura": "water_splash",
+     "encaje": 0.6
+    }
+   ],
+   "color": "#00CFFF",
+   "quien": "protagonista",
+   "intencion": "presenta agua que fluye del torso al brazo",
+   "nuevo": null
+  },
+  {
+   "seg": 0.9,
+   "dur": 1.0,
+   "accion": "spin_body",
+   "opcion": "anillo_agua",
+   "figura": "water_ring",
+   "alternativas": [
+    {
+     "opcion": "orbita_tierra",
+     "figura": "earth_orbit",
+     "encaje": 0.5
+    }
+   ],
+   "color": "#00CFFF",
+   "quien": "protagonista",
+   "intencion": "la pierna estirada estira agua como globo a punto de reventar",
+   "nuevo": "water_balloon"
+  },
+  {
+   "seg": 1.9,
+   "dur": 0.7,
+   "accion": "landing",
+   "opcion": "salpicadura",
+   "figura": "water_splash",
+   "alternativas": [
+    {
+     "opcion": "golpe_tierra",
+     "figura": "earth_slam",
+     "encaje": 0.4
+    }
+   ],
+   "color": "#00CFFF",
+   "quien": "protagonista",
+   "intencion": "al rodar el agua se desbarata en salpicadura",
+   "nuevo": null
+  },
+  {
+   "seg": 2.6,
+   "dur": 0.7,
+   "accion": "lunge",
+   "opcion": "puno_tierra",
+   "figura": "earth_fist",
+   "alternativas": [
+    {
+     "opcion": "estela",
+     "figura": "fire_trail",
+     "encaje": 0.4
+    }
+   ],
+   "color": "#D2691E",
+   "quien": "protagonista",
+   "intencion": "carga tierra pesada antes del despegue",
+   "nuevo": null
+  },
+  {
+   "seg": 3.3,
+   "dur": 0.9,
+   "accion": "flip",
+   "opcion": "orbita_tierra",
+   "figura": "earth_orbit",
+   "alternativas": [
+    {
+     "opcion": "viento",
+     "figura": "air_dash",
+     "encaje": 0.5
+    }
+   ],
+   "color": "#D2691E",
+   "quien": "protagonista",
+   "intencion": "el cuerpo superman es cohete que despega de los pies",
+   "nuevo": "rocket"
+  },
+  {
+   "seg": 4.2,
+   "dur": 0.7,
+   "accion": "landing",
+   "opcion": "golpe_tierra",
+   "figura": "earth_slam",
+   "alternativas": [
+    {
+     "opcion": "cristales",
+     "figura": "earth_crystals",
+     "encaje": 0.6
+    }
+   ],
+   "color": "#D2691E",
+   "quien": "protagonista",
+   "intencion": "sella tierra con golpe de rodilla y puno",
+   "nuevo": null
+  },
+  {
+   "seg": 4.9,
+   "dur": 0.6,
+   "accion": "tumble",
+   "opcion": "estelas",
+   "figura": "fire_trail",
+   "alternativas": [
+    {
+     "opcion": "piso",
+     "figura": "floor_fire",
+     "encaje": 0.6
+    }
+   ],
+   "color": "#FF4500",
+   "quien": "protagonista",
+   "intencion": "la rueda enciende fuego en los pies",
+   "nuevo": null
+  },
+  {
+   "seg": 5.5,
+   "dur": 0.9,
+   "accion": "flip",
+   "opcion": "aro_grande",
+   "figura": "fire_halo",
+   "alternativas": [
+    {
+     "opcion": "estelas",
+     "figura": "fire_trail",
+     "encaje": 0.7
+    },
+    {
+     "opcion": "aro",
+     "figura": "fire_ring",
+     "encaje": 0.6
+    }
+   ],
+   "color": "#FF4500",
+   "quien": "protagonista",
+   "intencion": "hecho bola envuelto en burbuja que tiembla y va a reventar",
+   "nuevo": "bubble"
+  },
+  {
+   "seg": 6.4,
+   "dur": 0.6,
+   "accion": "landing",
+   "opcion": "desbarate",
+   "figura": "fire_landing",
+   "alternativas": [
+    {
+     "opcion": "piso",
+     "figura": "floor_fire",
+     "encaje": 0.6
+    }
+   ],
+   "color": "#FF4500",
+   "quien": "protagonista",
+   "intencion": "al caer el fuego se desbarata en el piso",
+   "nuevo": null
+  },
+  {
+   "seg": 7.0,
+   "dur": 1.0,
+   "accion": "spotlight",
+   "opcion": "viento",
+   "figura": "air_dash",
+   "alternativas": [
+    {
+     "opcion": "orbita",
+     "figura": "fire_orbit",
+     "encaje": 0.3
+    }
+   ],
+   "color": "#7DF9FF",
+   "quien": "protagonista",
+   "intencion": "abre aire con zancada amplia",
+   "nuevo": null
+  },
+  {
+   "seg": 8.0,
+   "dur": 0.7,
+   "accion": "jump",
+   "opcion": "viento",
+   "figura": "air_dash",
+   "alternativas": [
+    {
+     "opcion": "viento_azul",
+     "figura": "air_refract",
+     "encaje": 0.7
+    }
+   ],
+   "color": "#7DF9FF",
+   "quien": "protagonista",
+   "intencion": "salta liviano llevado por el viento",
+   "nuevo": null
+  },
+  {
+   "seg": 8.7,
+   "dur": 0.7,
+   "accion": "landing",
+   "opcion": "rafaga",
+   "figura": "air_burst",
+   "alternativas": [
+    {
+     "opcion": "piso",
+     "figura": "floor_fire",
+     "encaje": 0.3
+    }
+   ],
+   "color": "#7DF9FF",
+   "quien": "protagonista",
+   "intencion": "cierra respirando, rafaga suave hacia camara",
+   "nuevo": null
+  }
+ ],
+ "capitulos": [
+  {
+   "inicio": 0.0,
+   "fin": 2.6,
+   "elemento": "agua",
+   "voz": "Water."
+  },
+  {
+   "inicio": 2.6,
+   "fin": 4.9,
+   "elemento": "tierra",
+   "voz": "earth"
+  },
+  {
+   "inicio": 4.9,
+   "fin": 7.0,
+   "elemento": "fuego",
+   "voz": "fire"
+  },
+  {
+   "inicio": 7.0,
+   "fin": 9.4,
+   "elemento": "aire",
+   "voz": "air"
+  }
+ ],
+ "efectos_nuevos": [
+  {
+   "nombre": "water_balloon",
+   "segundos": "0.9-1.9",
+   "escenario": "la pierna derecha estirada al cielo es plataforma",
+   "nace": "globo de agua en el pie rapido",
+   "recorrido": "se estira con la patada girando con el cuerpo",
+   "conflicto": "la otra mano lo persigue para atraparlo",
+   "final": "se aplasta y revienta en anillo al caer al piso",
+   "fisica": "elastico que se deforma y salpica",
+   "porque": "cuenta fluidez y riesgo del agua en gesto acrobatico"
+  },
+  {
+   "nombre": "rocket",
+   "segundos": "3.3-4.2",
+   "escenario": "los pies juntos son base de lanzamiento",
+   "nace": "humo y fuego en los pies",
+   "recorrido": "sube por el cuerpo horizontal extendido",
+   "conflicto": "el cuerpo lucha por mantenerse rigido en el aire",
+   "final": "estalla en polvo sobre la cabeza al aterrizar de rodilla",
+   "fisica": "propulsion que deja estela orbital",
+   "porque": "cuenta peso tierra que logra volar"
+  },
+  {
+   "nombre": "bubble",
+   "segundos": "5.5-6.4",
+   "escenario": "el cuerpo hecho bola es centro de burbuja",
+   "nace": "burbuja que envuelve todo el cuerpo en el mortal",
+   "recorrido": "tiembla con el giro en el aire",
+   "conflicto": "el giro centrifuga hasta tensarla",
+   "final": "revienta con aterrizaje fuerte en desbarate de fuego",
+   "fisica": "tension fragil que explota con impacto",
+   "porque": "cuenta contener y liberar fuego en voltereta agrupada"
+  }
+ ]
+}

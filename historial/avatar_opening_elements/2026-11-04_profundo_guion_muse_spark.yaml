@@ -1,0 +1,124 @@
+catalogo: avatar
+momentos:
+- seg: 0.0
+  opcion: agua
+  accion: spotlight
+  dur: 0.8
+  exacto: true
+  color: '#00CFFF'
+  nota: presenta agua que fluye del torso al brazo
+  alternativas:
+  - opcion: agua_piso
+    encaje: 0.6
+- seg: 0.9
+  opcion: anillo_agua
+  accion: spin_body
+  dur: 1.0
+  exacto: true
+  color: '#00CFFF'
+  nota: '[nuevo: water_balloon] la pierna estirada estira agua como globo a punto
+    de reventar'
+- seg: 1.9
+  opcion: salpicadura
+  accion: landing
+  dur: 0.7
+  exacto: true
+  color: '#00CFFF'
+  nota: al rodar el agua se desbarata en salpicadura
+- seg: 2.87
+  opcion: puno_tierra
+  accion: lunge
+  dur: 0.7
+  exacto: true
+  color: '#D2691E'
+  nota: carga tierra pesada antes del despegue
+- seg: 3.2
+  opcion: orbita_tierra
+  accion: flip
+  dur: 0.9
+  exacto: true
+  color: '#D2691E'
+  nota: '[nuevo: rocket] el cuerpo superman es cohete que despega de los pies'
+- seg: 4.2
+  opcion: golpe_tierra
+  accion: landing
+  dur: 0.7
+  exacto: true
+  color: '#D2691E'
+  nota: sella tierra con golpe de rodilla y puno
+  alternativas:
+  - opcion: cristales
+    encaje: 0.6
+- seg: 5.13
+  opcion: estelas
+  accion: tumble
+  exacto: true
+  color: '#FF4500'
+  nota: la rueda enciende fuego en los pies
+  alternativas:
+  - opcion: piso
+    encaje: 0.6
+- seg: 5.8
+  opcion: aro_grande
+  accion: flip
+  dur: 0.9
+  exacto: true
+  color: '#FF4500'
+  nota: '[nuevo: bubble] hecho bola envuelto en burbuja que tiembla y va a reventar'
+  alternativas:
+  - opcion: estelas
+    encaje: 0.7
+  - opcion: aro
+    encaje: 0.6
+- seg: 6.27
+  opcion: desbarate
+  accion: landing
+  exacto: true
+  color: '#FF4500'
+  nota: al caer el fuego se desbarata en el piso
+  alternativas:
+  - opcion: piso
+    encaje: 0.6
+- seg: 7.2
+  opcion: viento
+  accion: spotlight
+  dur: 1.0
+  exacto: true
+  color: '#7DF9FF'
+  nota: abre aire con zancada amplia
+- seg: 8.03
+  opcion: viento
+  accion: jump
+  dur: 0.7
+  exacto: true
+  color: '#7DF9FF'
+  nota: salta liviano llevado por el viento
+  alternativas:
+  - opcion: viento_azul
+    figura: air_refract
+    encaje: 0.7
+- seg: 8.7
+  opcion: rafaga
+  accion: landing
+  dur: 0.7
+  exacto: true
+  figura: air_burst
+  color: '#7DF9FF'
+  nota: cierra respirando, rafaga suave hacia camara
+capitulos:
+- inicio: 0.0
+  fin: 2.6
+  elemento: agua
+  voz: Water.
+- inicio: 2.6
+  fin: 4.87
+  elemento: tierra
+  voz: earth
+- inicio: 4.87
+  fin: 7.0
+  elemento: fuego
+  voz: fire
+- inicio: 7.0
+  fin: 9.4
+  elemento: aire
+  voz: air

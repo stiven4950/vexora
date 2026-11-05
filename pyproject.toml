@@ -22,7 +22,7 @@ objects = ["ultralytics>=8.3"]
 hq = ["ultralytics>=8.3", "rtmlib>=0.0.13", "onnxruntime>=1.17"]
 masks = ["torch>=2.5", "sam-2"]
 refiner = ["torch>=2.5", "diffusers>=0.30", "transformers>=4.44", "accelerate>=0.34"]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "httpx2>=2.0.0"]  # httpx2: el TestClient de starlette >= 1.10
 train = ["ultralytics>=8.3"]
 api = ["fastapi>=0.115", "uvicorn[standard]>=0.30", "python-multipart>=0.0.9", "google-auth>=2.29", "requests>=2.31"]
 scene = ["scenedetect>=0.6.4", "librosa>=0.10"]

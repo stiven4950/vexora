@@ -10,8 +10,14 @@
 #   scripts/deploy_cloud.sh all      # build + deploy
 #
 # Las claves de IA para los secretos se leen de la terminal SOLO al crear los secretos (setup):
-#   OPENAI_API_KEY=... GEMINI_API_KEY=... scripts/deploy_cloud.sh setup
-# Nunca se escriben en archivos ni en la imagen.
+#   META_API_KEY=... OPENAI_API_KEY=... GEMINI_API_KEY=... scripts/deploy_cloud.sh setup
+# Nunca se escriben en archivos ni en la imagen. META_API_KEY es la del análisis profundo por
+# defecto (Muse Spark + Muse Voice Transcribe); sin ella el análisis profundo falla.
+#
+# Quién puede pedir el análisis profundo (de pago) se fija al desplegar (deploy/all), no en el código:
+#   VEXORA_DEEP_ALLOW="ana@correo.com,uid123" scripts/deploy_cloud.sh deploy    # "*" = todos
+# Sin VEXORA_DEEP_ALLOW, nadie lo tiene. Topes: VEXORA_DAILY_DEEP (2 por usuario al día) y
+# VEXORA_DAILY_DEEP_GLOBAL (20 al día entre todos), también opcionales al desplegar.
 set -euo pipefail
 
 PROJECT="${PROJECT:-vexora-dev}"
@@ -63,6 +69,7 @@ setup() {
 
   log "Secretos (Secret Manager)"
   ensure_secret vexora-secret "$(secret_exists vexora-secret || openssl rand -hex 32)"
+  ensure_secret meta-api-key "${META_API_KEY:-}"
   ensure_secret openai-api-key "${OPENAI_API_KEY:-}"
   ensure_secret gemini-api-key "${GEMINI_API_KEY:-}"
 
@@ -116,8 +123,9 @@ deploy() {
     --command vexora-worker --tasks 1 --max-retries 0 --task-timeout 3600 --cpu 4 --memory 8Gi
     --set-env-vars "$COMMON,VEXORA_WORKERS=1,VEXORA_WORKER_IDLE_EXIT_S=60")
   local worker_secrets
-  worker_secrets="$(secrets_for OPENAI_API_KEY=openai-api-key GEMINI_API_KEY=gemini-api-key)"
+  worker_secrets="$(secrets_for META_API_KEY=meta-api-key OPENAI_API_KEY=openai-api-key GEMINI_API_KEY=gemini-api-key)"
   [ -n "$worker_secrets" ] && job_flags+=(--set-secrets "$worker_secrets")
+  secret_exists meta-api-key || echo "AVISO: sin el secreto meta-api-key el análisis profundo (Muse Spark) fallará: META_API_KEY=... scripts/deploy_cloud.sh setup"
   if gcloud run jobs describe vexora-worker --region "$REGION" --project "$PROJECT" >/dev/null 2>&1; then
     gcloud run jobs update vexora-worker "${job_flags[@]}"
   else
@@ -125,10 +133,21 @@ deploy() {
   fi
 
   log "API: Cloud Run (escala a cero; lanza el Job al encolar)"
+  # La API decide quién puede pedir el análisis profundo (api/limits.py). VEXORA_DEEP_ALLOW es una
+  # lista con comas, así que las variables van separadas por "|" (sintaxis ^|^ de gcloud).
+  local api_env="$COMMON,VEXORA_INPROCESS_WORKERS=0,VEXORA_PROXY_HOPS=2,VEXORA_WORKER_JOB=$job"
+  api_env="${api_env//,/|}|VEXORA_DEEP_ALLOW=${VEXORA_DEEP_ALLOW:-}"
+  [ -n "${VEXORA_DAILY_DEEP:-}" ] && api_env="$api_env|VEXORA_DAILY_DEEP=$VEXORA_DAILY_DEEP"
+  [ -n "${VEXORA_DAILY_DEEP_GLOBAL:-}" ] && api_env="$api_env|VEXORA_DAILY_DEEP_GLOBAL=$VEXORA_DAILY_DEEP_GLOBAL"
+  if [ -n "${VEXORA_DEEP_ALLOW:-}" ]; then
+    echo "Análisis profundo (Muse Spark) para: $VEXORA_DEEP_ALLOW"
+  else
+    echo "AVISO: VEXORA_DEEP_ALLOW vacío: nadie podrá pedir el análisis profundo."
+  fi
   gcloud run deploy vexora-api --image "$image" --region "$REGION" --project "$PROJECT" --service-account "$SA" \
     --allow-unauthenticated --port 8080 --cpu 1 --memory 2Gi --timeout 300 \
     --min-instances 0 --max-instances 3 \
-    --set-env-vars "$COMMON,VEXORA_INPROCESS_WORKERS=0,VEXORA_PROXY_HOPS=2,VEXORA_WORKER_JOB=$job" \
+    --set-env-vars "^|^$api_env" \
     --set-secrets "VEXORA_SECRET=vexora-secret:latest"
 
   log "Web: Firebase Hosting (construye web/ con web/.env.production.local)"
