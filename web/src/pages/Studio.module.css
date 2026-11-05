@@ -144,7 +144,7 @@
 
 .looks {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
   gap: 22px;
 }
 
@@ -262,6 +262,21 @@
   }
   .features {
     display: none;
+  }
+}
+
+/* Teléfono: el vestuario se apila como los demás pasos (la etiqueta "Opcional" baja de línea). */
+@media (max-width: 560px) {
+  .wardrobe > button {
+    flex-wrap: wrap;
+    gap: 10px 12px;
+    padding: 14px;
+  }
+  .wardrobe > button > em {
+    margin-left: 46px;
+  }
+  .wardrobeText {
+    flex-basis: calc(100% - 46px);
   }
 }
 

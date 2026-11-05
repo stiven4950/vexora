@@ -266,4 +266,34 @@
   .name {
     display: none;
   }
+  /* Menú, logotipo, campana y cuenta caben en 320 px con el logotipo más chico y menos aire. */
+  .bar {
+    gap: 4px;
+    height: 58px;
+  }
+  .brand :global(.vx-logo) {
+    font-size: 16px !important;
+  }
+  .brand svg {
+    width: 36px;
+    height: 27px;
+  }
+  .tools {
+    gap: 4px;
+  }
+  .user {
+    gap: 4px;
+    padding-right: 4px;
+  }
+  .user img,
+  .initial {
+    width: 34px;
+    height: 34px;
+  }
+}
+
+@media (max-width: 380px) {
+  .user > svg {
+    display: none;
+  }
 }

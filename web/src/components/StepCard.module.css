@@ -56,3 +56,19 @@
 .body {
   margin-top: 16px;
 }
+
+/* Teléfono: el botón de la derecha baja a su propia línea para que el texto no quede en una columna
+ * angosta, y la tarjeta gana ancho útil. */
+@media (max-width: 560px) {
+  .card {
+    padding: 16px 14px 18px;
+  }
+  .card header {
+    flex-wrap: wrap;
+    gap: 10px 12px;
+  }
+  .action {
+    flex-basis: 100%;
+    padding-left: 46px;
+  }
+}
