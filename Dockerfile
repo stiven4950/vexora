@@ -12,9 +12,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     VEXORA_BLOBS=gcs \
     VEXORA_LOG_FORMAT=json
 
-# ffmpeg para el video; libGL/EGL/glib para OpenCV y MediaPipe; fontconfig para Skia.
+# ffmpeg para el video; libGL/EGL/GLES y glib para OpenCV y MediaPipe (sin libgles2 el análisis
+# falla con "libGLESv2.so.2: cannot open shared object file"); fontconfig para Skia.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg libgl1 libegl1 libglib2.0-0 libfontconfig1 \
+    && apt-get install -y --no-install-recommends ffmpeg libgl1 libegl1 libgles2 libglib2.0-0 libfontconfig1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
