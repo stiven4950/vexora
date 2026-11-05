@@ -427,7 +427,8 @@ def _generate(cfg: DeepConfig, key: str, body: dict, sleep=time.sleep) -> dict:
 META_API = "https://api.meta.ai/v1"
 TRANSCRIBE_MODEL = "muse-voice-transcribe-1.0"
 # Altura del video que se manda a Muse Spark: va dentro de la petición (base64), así que se achica.
-META_HEIGHT = 640
+# A 640 confundía acrobacias (una rueda sin manos leída como vertical a una mano, avatar_elements).
+META_HEIGHT = 960
 # Límite de audio de Muse Voice Transcribe por petición.
 TRANSCRIBE_MAX_S = 600
 
@@ -479,15 +480,72 @@ def transcribe(video: Path, key: str, timeout: float = 180.0) -> list[dict]:
     ]
 
 
-def lyrics_text(lines: list[dict]) -> str:
-    """La letra para el prompt. Sin letra, se avisa para que el modelo no la invente."""
+def lyrics_text(lines: list[dict], accents: list[float] | None = None) -> str:
+    """La pista de audio para el prompt: Muse Spark no oye el video (ni con la pista de audio dentro
+    ni con el audio aparte, probado en avatar_elements), así que lo que suena va escrito: la letra
+    por frase y los golpes de la música. Sin letra, se avisa para que el modelo no la invente.
+
+    Los tiempos son por frase: Muse Voice Transcribe no da tiempos por palabra, y partir la frase por
+    la energía del audio no sirve con música de fondo (en avatar_elements ponía "fire" y "air" en
+    3,6 y 4,2 s, cuando suenan cerca de 4,8 y 6,9 s). Por eso se le pide al modelo que, si una frase
+    nombra varios elementos, ponga cada corte donde lo ve."""
     if not lines:
-        return "\n\nLETRA: el video no trae voz reconocible; guíate por lo que ves y por el ritmo.\n"
-    rows = "\n".join(f"[{line['start']:.1f}-{line['end']:.1f} s] {line['texto']}" for line in lines)
-    return (
-        "\n\nLETRA (el video te llega sin audio; esta es la letra transcrita, con tiempos aproximados por frase).\n"
-        f"Úsala como si la escucharas: cada frase es fuente de ideas en su momento.\n{rows}\n"
-    )
+        text = "\n\nLETRA: el video no trae voz reconocible; guíate por lo que ves y por el ritmo.\n"
+    else:
+        rows = "\n".join(f"[{line['start']:.1f}-{line['end']:.1f} s] {line['texto']}" for line in lines)
+        text = (
+            "\n\nLETRA (el video te llega sin audio; esta es la letra transcrita, con tiempos aproximados por frase).\n"
+            f"Úsala como si la escucharas: cada frase es fuente de ideas en su momento.\n{rows}\n"
+            "Los tiempos son de la frase entera, no de cada palabra: si una frase nombra varios elementos "
+            "(\"earth fire air\"), cada elemento se dice en orden dentro de ese tramo. Pon el corte de cada "
+            "capítulo donde lo ves cambiar (corte de plano, cambio de ropa, nueva acrobacia), dentro del "
+            "tramo de la frase y en el orden en que se nombran; no lo pongas en el inicio de la frase.\n"
+        )
+    if accents:
+        listed = ", ".join(f"{s:.1f}" for s in accents[:MAX_ACCENTS])
+        text += (
+            f"\nGOLPES DE LA MÚSICA (segundos en que entra un sonido fuerte: un golpe, un impacto): {listed}\n"
+            "Cuando un gesto fuerte (un aterrizaje, un golpe al piso, una patada) cae sobre uno de ellos, "
+            "ese momento merece efecto propio.\n"
+        )
+    return text
+
+
+# ----- pista de audio: golpes de la música -----
+
+MAX_ACCENTS = 60
+ACCENT_MERGE_S = 0.15
+
+
+def accent_times(brief) -> list[float]:
+    """Golpes de la música (s) a partir de los onsets del análisis, sin repetidos muy juntos."""
+    if brief is None or not brief.audio_onsets:
+        return []
+    fps = brief.video.fps or 30.0
+    out: list[float] = []
+    for frame in sorted(brief.audio_onsets):
+        seconds = round(frame / fps, 1)
+        if not out or seconds - out[-1] >= ACCENT_MERGE_S:
+            out.append(seconds)
+    return out
+
+
+# Muse Spark (avatar_elements, frente a la lectura de Argon con el mismo prompt) contaba un gesto por
+# capítulo y se comía los aterrizajes y las poses de cierre (el puño contra el piso, los brazos en
+# cruz): 6 momentos donde Argon vio 11, y faltaban golpe_tierra, alas y rafaga.
+META_READING = """
+LECTURA FINA (obligatorio):
+- Divide cada acrobacia o gesto en sus fases: la entrada (carrera, rueda, impulso), el gesto
+  principal (salto, mortal, giro, patada) y el CIERRE (el aterrizaje o la pose que lo sella: rodilla
+  al piso, puño contra el suelo, brazos abiertos o en cruz, guardia). Cada fase es un tramo propio
+  de "lectura" de 0,5 a 1,2 s; no juntes dos fases en un tramo.
+- Los cierres también cuentan la historia: un aterrizaje, un golpe al piso o una pose con los brazos
+  abiertos es un momento propio con su efecto (landing, stomp, arms_open, arms_up…), no un final mudo
+  del gesto anterior. Con capítulos por elemento, apunta a 2 o 3 momentos por capítulo.
+- Nombra la acrobacia con precisión mirando los apoyos: rueda con o sin manos, vertical, mortal
+  adelante o atrás, con o sin giro, patada circular o frontal. Si dudas entre dos, elige la que
+  encaja con los apoyos que se ven en el piso.
+"""
 
 
 def ask_meta(video: Path, prompt: str, cfg: DeepConfig) -> tuple[dict, dict, str]:
@@ -621,6 +679,7 @@ def to_pins(
     who: Callable[[float, str], tuple[str | None, bool]] | None = None,
     snap: Callable[[float, str], float] | None = None,
     upgrade: Callable[[float, str], tuple[str, str] | None] | None = None,
+    cuts: list[float] | None = None,
 ) -> tuple[PinFile, list[str]]:
     """El guion de prueba de la respuesta y los avisos de lo que se corrigió o descartó.
 
@@ -629,7 +688,9 @@ def to_pins(
     en un dúo deja casi sin nada a una persona: dance_two_mens).
     who(seg, quien) → (persona, ambos): la persona de "izquierda"/"derecha" en ese segundo.
     snap(seg, acción) → el segundo exacto del gesto que vio nuestro análisis cerca (snapper).
-    upgrade(seg, acción) → (acción, opción) más específica que vio el análisis ahí (upgrader)."""
+    upgrade(seg, acción) → (acción, opción) más específica que vio el análisis ahí (upgrader).
+    cuts: cortes de plano (s); los capítulos se ajustan a ellos y cada momento queda en el capítulo
+    de su elemento."""
     warnings: list[str] = []
     pins: list[Pin] = []
     for raw in answer.get("momentos", []):
@@ -700,7 +761,80 @@ def to_pins(
             continue
         chapters.append(Capitulo(inicio=start, fin=end, elemento=element, voz=str(raw.get("voz") or "").strip()))
     chapters.sort(key=lambda c: c.inicio)
+    if chapters and cuts:
+        _snap_chapters(chapters, cuts, warnings)
+        _keep_pins_in_their_chapter(pins, chapters, catalog, duration, warnings)
+        pins.sort(key=lambda pin: pin.seg)
     return PinFile(catalogo=catalog.name, solo_estos=not fill, momentos=pins, capitulos=chapters), warnings
+
+
+# Un inicio de capítulo a menos de esto de un corte de plano se mueve al corte. En los videos de
+# elementos cada cambio de ropa es un corte (avatar_elements: 2,6 / 4,87 / 7,0 s, donde Argon, que
+# oye la voz, puso 2,5 / 4,8 / 6,9). Muse Spark no oye y adelantaba el fuego a 4,4 s.
+CHAPTER_SNAP_S = 0.8
+
+
+def _snap_chapters(chapters: list[Capitulo], cuts: list[float], warnings: list[str]) -> None:
+    """Mueve cada frontera entre capítulos al corte de plano más cercano (si está a menos de
+    CHAPTER_SNAP_S y no se cruza con la frontera vecina)."""
+    for i in range(1, len(chapters)):
+        start = chapters[i].inicio
+        near = [c for c in cuts if abs(c - start) <= CHAPTER_SNAP_S and chapters[i - 1].inicio < c < chapters[i].fin]
+        if not near:
+            continue
+        cut = round(min(near, key=lambda c: abs(c - start)), 2)
+        if cut != start:
+            warnings.append(f"capítulo {chapters[i].elemento}: empieza en el corte de plano {cut} s (el modelo dijo {start} s)")
+        chapters[i].inicio = cut
+        chapters[i - 1].fin = cut
+
+
+def _keep_pins_in_their_chapter(pins: list[Pin], chapters: list[Capitulo], catalog, duration: float, warnings: list[str]) -> None:
+    """Un momento de un elemento que cae justo antes del capítulo de ese elemento (o justo después
+    del suyo) se corre a su capítulo: el fénix de 4,37 s salía en tierra, antes del "fire"."""
+    from vfxglow.director.choreography import element_of
+
+    options = {o.name: o for r in catalog.reactions for o in r.options}
+
+    def chapter_at(seg: float) -> int | None:
+        return next((i for i, c in enumerate(chapters) if c.inicio <= seg < c.fin), None)
+
+    for pin in pins:
+        option = options.get(pin.opcion)
+        element = element_of(catalog, option) if option is not None else ""
+        here = chapter_at(pin.seg)
+        if not element or here is None or chapters[here].elemento == element:
+            continue
+        nxt = here + 1
+        prev = here - 1
+        if nxt < len(chapters) and chapters[nxt].elemento == element and chapters[nxt].inicio - pin.seg <= CHAPTER_SNAP_S:
+            moved = chapters[nxt].inicio
+        elif prev >= 0 and chapters[prev].elemento == element and pin.seg - chapters[here].inicio <= CHAPTER_SNAP_S:
+            moved = round(max(chapters[prev].inicio, chapters[here].inicio - min(pin.dur, CHAPTER_SNAP_S)), 2)
+        else:
+            continue
+        warnings.append(f"{pin.seg} s: {pin.opcion} ({element}) caía en el capítulo de {chapters[here].elemento}; pasa a {moved} s")
+        pin.seg = moved
+        pin.dur = round(min(pin.dur, duration - moved), 2)
+
+
+def cut_times(brief) -> list[float]:
+    """Cortes de plano (s) que vio el análisis."""
+    if brief is None:
+        return []
+    fps = brief.video.fps or 30.0
+    return [round(b.start_frame / fps, 2) for b in brief.beats if b.kind == "cut" and b.start_frame > 0]
+
+
+def cuts_text(cuts: list[float]) -> str:
+    if not cuts:
+        return ""
+    return (
+        f"\nCORTES DE PLANO (s): {', '.join(f'{c:.1f}' for c in cuts)}\n"
+        "Si la voz nombra elementos y el video salta de toma (cambio de ropa), cada capítulo empieza en "
+        "uno de estos cortes: lo que pasa antes del corte es del elemento anterior, aunque ya anticipe el "
+        "siguiente. No pongas efectos de un elemento antes de su corte.\n"
+    )
 
 
 def sides_from_tracks(frames, fps: float) -> Callable[[float, str], tuple[str | None, bool]]:
@@ -807,8 +941,13 @@ def deep_pins(video: Path, video_sha: str, catalog, duration: float, cfg: DeepCo
     from vfxglow.director.pins import save_pins
 
     prompt = build_prompt(catalog, duration)
-    if cfg.provider == "meta" and cfg.lyrics:
-        prompt += lyrics_text(_lyrics(video, video_sha, cfg, out_dir / "deep_cache"))
+    if cfg.provider == "meta":
+        # Muse Spark no oye: lo que suena va escrito (letra, palabras con tiempo, golpes), y se le
+        # pide la lectura fina que Argon hacía sola. Gemini oye el video y sigue con el prompt de antes.
+        prompt += META_READING
+        if cfg.lyrics:
+            prompt += lyrics_text(_lyrics(video, video_sha, cfg, out_dir / "deep_cache"), accent_times(brief))
+        prompt += cuts_text(cut_times(brief))
     if brief is not None:
         cfg = cfg.model_copy(update={"fps": choose_fps(brief, cfg)})
     elif not cfg.fps:
@@ -854,6 +993,7 @@ def deep_pins(video: Path, video_sha: str, catalog, duration: float, cfg: DeepCo
         who=who,
         snap=snapper(brief) if brief is not None else None,
         upgrade=upgrader(brief) if brief is not None else None,
+        cuts=cut_times(brief),
     )
     for warning in warnings:
         log.warning("Análisis profundo: %s", warning)

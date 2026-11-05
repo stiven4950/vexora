@@ -233,38 +233,47 @@ def _audio_onsets(video_path: Path, fps: float, frame_count: int) -> list[int]:
     return _flux_onsets(video_path, fps, frame_count)
 
 
+LIBROSA_RATE = 22050
+
+
+def _decode_audio(video_path: Path, rate: int) -> np.ndarray | None:
+    """Audio mono en float32 (-1..1) decodificado con el ffmpeg de imageio-ffmpeg. librosa no abre
+    un .mp4 en Windows ("Format not recognised"): así lee lo mismo en Windows, Mac y Linux."""
+    try:
+        import imageio_ffmpeg
+    except ImportError:
+        return None
+    proc = subprocess.run(
+        [imageio_ffmpeg.get_ffmpeg_exe(), "-v", "error", "-i", str(video_path), "-vn", "-ac", "1", "-ar", str(rate), "-f", "s16le", "-"],
+        capture_output=True,
+        check=False,
+    )
+    if proc.returncode != 0 or not proc.stdout:
+        return None
+    return np.frombuffer(proc.stdout, dtype=np.int16).astype(np.float32) / 32768.0
+
+
 def _librosa_onsets(video_path: Path, fps: float, frame_count: int) -> list[int] | None:
     try:
         import librosa
     except ImportError:
         return None
+    samples = _decode_audio(video_path, LIBROSA_RATE)
+    if samples is None or samples.size < 2048:
+        return None  # sin pista de audio: el flujo espectral tampoco encontrará nada, pero no es un error
     try:
-        samples, rate = librosa.load(str(video_path), sr=22050, mono=True)
-        times = librosa.frames_to_time(librosa.onset.onset_detect(y=samples, sr=rate), sr=rate)
+        times = librosa.frames_to_time(librosa.onset.onset_detect(y=samples, sr=LIBROSA_RATE), sr=LIBROSA_RATE)
         frames = sorted({int(np.clip(round(t * fps), 0, frame_count - 1)) for t in times})
         return frames
     except Exception as exc:
-        log.warning("librosa no leyó el audio (%s); uso el flujo espectral", exc)
+        log.warning("librosa no analizó el audio (%s); uso el flujo espectral", exc)
         return None
 
 
 def _flux_onsets(video_path: Path, fps: float, frame_count: int) -> list[int]:
-    try:
-        import imageio_ffmpeg
-    except ImportError:
+    pcm = _decode_audio(video_path, 16000)
+    if pcm is None or pcm.size < 1024:
         return []
-    ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
-    proc = subprocess.run(
-        [ffmpeg, "-v", "error", "-i", str(video_path), "-vn", "-ac", "1", "-ar", "16000", "-f", "s16le", "-"],
-        capture_output=True,
-        check=False,
-    )
-    if proc.returncode != 0 or not proc.stdout:
-        return []
-    pcm = np.frombuffer(proc.stdout, dtype=np.int16).astype(np.float32)
-    if pcm.size < 1024:
-        return []
-    pcm /= 32768.0
     hop = 512
     window = np.hanning(1024)
     prev = None

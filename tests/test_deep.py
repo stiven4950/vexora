@@ -353,3 +353,84 @@ def test_busy_muse_spark_falls_back(monkeypatch, tmp_path) -> None:
     assert model == "muse-spark-1.2"
     assert asked == ["muse-spark-1.3", "muse-spark-1.2"]
     assert usage == {"promptTokenCount": 7, "candidatesTokenCount": 3}
+
+
+def test_audio_track_lists_music_hits_and_warns_phrase_times() -> None:
+    from vfxglow.director.deep import lyrics_text
+
+    text = lyrics_text([{"start": 2.78, "end": 7.5, "texto": "earth fire air"}], [0.1, 2.6, 5.1])
+    assert "[2.8-7.5 s] earth fire air" in text
+    assert "frase entera" in text and "no lo pongas en el inicio de la frase" in text
+    assert "GOLPES DE LA MÚSICA" in text and "0.1, 2.6, 5.1" in text
+    assert "GOLPES" not in lyrics_text([{"start": 0.3, "end": 1.1, "texto": "Water."}])
+
+
+def test_accent_times_from_onsets_without_near_duplicates() -> None:
+    from vfxglow.director.deep import accent_times
+
+    brief = _brief_with([], onsets=[65, 3, 5, 128, 200])  # 25 fps: 2.6, 0.1, 0.2 (pegado al 0.1), 5.1, 8.0
+    assert accent_times(brief) == [0.1, 2.6, 5.1, 8.0]
+    assert accent_times(None) == []
+
+
+def test_meta_prompt_asks_for_fine_reading_and_gemini_keeps_its_prompt(monkeypatch, tmp_path) -> None:
+    from vfxglow.config import DeepConfig
+    from vfxglow.director import deep
+
+    avatar = load_catalog(ROOT / "configs" / "catalogs" / "avatar.yaml")
+    seen = {}
+
+    def fake_ask(video, prompt, cfg):
+        seen[cfg.provider] = prompt
+        return {"momentos": [{"seg": 1.0, "dur": 1.0, "accion": "landing", "opcion": "salpicadura"}]}, {}, cfg.model
+
+    monkeypatch.setattr(deep, "ask_meta", fake_ask)
+    monkeypatch.setattr(deep, "ask_gemini", fake_ask)
+    monkeypatch.setattr(deep, "_lyrics", lambda video, sha, cfg, cache: [{"start": 2.78, "end": 7.5, "texto": "earth fire air"}])
+    for provider in ("meta", "gemini"):
+        deep.deep_pins(tmp_path / "v.mp4", "a" * 64, avatar, 9.4, DeepConfig(provider=provider, fps=5.0), tmp_path / provider)
+    assert "LECTURA FINA" in seen["meta"] and "earth fire air" in seen["meta"]
+    assert "LECTURA FINA" not in seen["gemini"] and "LETRA" not in seen["gemini"]
+    assert seen["gemini"] == build_prompt(avatar, 9.4)
+
+
+def test_chapters_snap_to_shot_cuts_and_moments_follow_their_element() -> None:
+    """avatar_elements con Muse Spark: el fuego empezaba en 4.4 s y el fénix salía en tierra; el
+    corte de plano (cambio de ropa) está en 4.87 s."""
+    avatar = load_catalog(ROOT / "configs" / "catalogs" / "avatar.yaml")
+    answer = {
+        "capitulos": [
+            {"inicio": 0.0, "fin": 2.8, "elemento": "agua"},
+            {"inicio": 2.8, "fin": 4.4, "elemento": "tierra"},
+            {"inicio": 4.4, "fin": 6.5, "elemento": "fuego"},
+            {"inicio": 6.5, "fin": 9.4, "elemento": "aire"},
+        ],
+        "momentos": [
+            {"seg": 3.7, "dur": 0.7, "accion": "landing", "opcion": "golpe_tierra"},
+            {"seg": 4.4, "dur": 0.9, "accion": "fast_swing", "opcion": "fenix"},  # fuego antes de su corte
+            {"seg": 5.1, "dur": 0.5, "accion": "landing", "opcion": "golpe_tierra"},  # tierra justo después del suyo
+            {"seg": 8.0, "dur": 1.2, "accion": "landing", "opcion": "rafaga"},
+        ],
+    }
+    pins, warnings = to_pins(answer, avatar, 9.43, cuts=[2.6, 4.87, 7.0])
+    assert [(c.elemento, c.inicio, c.fin) for c in pins.capitulos] == [
+        ("agua", 0.0, 2.6), ("tierra", 2.6, 4.87), ("fuego", 4.87, 7.0), ("aire", 7.0, 9.4)]
+    assert [(p.seg, p.opcion) for p in pins.momentos] == [
+        (3.7, "golpe_tierra"), (4.37, "golpe_tierra"), (4.87, "fenix"), (8.0, "rafaga")]
+    assert any("fenix (fuego) caía en el capítulo de tierra" in w for w in warnings)
+
+
+def test_chapters_far_from_any_cut_stay_where_the_model_put_them() -> None:
+    avatar = load_catalog(ROOT / "configs" / "catalogs" / "avatar.yaml")
+    answer = {"capitulos": [{"inicio": 0.0, "fin": 3.0, "elemento": "agua"}, {"inicio": 3.0, "fin": 6.0, "elemento": "fuego"}]}
+    pins, _ = to_pins(answer, avatar, 6.0, cuts=[5.5])
+    assert [(c.inicio, c.fin) for c in pins.capitulos] == [(0.0, 3.0), (3.0, 6.0)]
+    assert to_pins(answer, avatar, 6.0)[0].capitulos == pins.capitulos  # sin cortes, igual que antes
+
+
+def test_cuts_text_tells_the_model_chapters_start_at_cuts() -> None:
+    from vfxglow.director.deep import cuts_text
+
+    text = cuts_text([2.6, 4.87, 7.0])
+    assert "CORTES DE PLANO (s): 2.6, 4.9, 7.0" in text and "antes de su corte" in text
+    assert cuts_text([]) == ""
